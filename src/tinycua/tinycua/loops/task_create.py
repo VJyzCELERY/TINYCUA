@@ -51,7 +51,9 @@ class TinyCUATaskCreateNode(ProcessNode):
         )
 
     def build_messages(
-        self, session: Session, input_data: NodeInputLike,
+        self,
+        session: Session,
+        input_data: NodeInputLike,
     ) -> list[dict[str, str]]:
         """Build messages including DigestedInformation from Worker.
 
@@ -70,10 +72,12 @@ class TinyCUATaskCreateNode(ProcessNode):
         # Scan session_context for DigestedInformation and add enhanced context
         digest_context = self._extract_digest_context(session)
         if digest_context:
-            messages.append({
-                "role": "assistant",
-                "content": digest_context,
-            })
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": digest_context,
+                }
+            )
 
         return messages
 

@@ -57,7 +57,10 @@ class Session:
             The assistant-role summary dict produced by the strategy, or
             ``None`` if no strategy is configured.
         """
-        if self.session_config is None or self.session_config.compaction_strategy is None:
+        if (
+            self.session_config is None
+            or self.session_config.compaction_strategy is None
+        ):
             return None
 
         # Early return for empty window — nothing to compact.
@@ -82,17 +85,20 @@ class Session:
         if window is None:
             # Convert summary dict back to SessionContextEntry if needed
             from tinycua.models.session_context_entry import SessionContextEntry
+
             if isinstance(summary, dict):
                 # Check if the summary dict has SessionContextEntry fields
                 if "record_id" in summary or "segment" in summary:
                     self.session_context = [SessionContextEntry.from_dict(summary)]
                 else:
                     # Legacy format: wrap in SessionContextEntry
-                    self.session_context = [SessionContextEntry(
-                        content=summary.get("content", ""),
-                        segment="prior",
-                        created_seq=0,
-                    )]
+                    self.session_context = [
+                        SessionContextEntry(
+                            content=summary.get("content", ""),
+                            segment="prior",
+                            created_seq=0,
+                        )
+                    ]
             else:
                 self.session_context = [summary]
         elif len(window) > 0:
@@ -100,6 +106,7 @@ class Session:
             # Find the window by comparing expected sequence within session_context.
             # Assumes window is a contiguous subset of session_context.
             from tinycua.models.session_context_entry import SessionContextEntry
+
             window_len = len(window)
             for i in range(len(self.session_context) - window_len + 1):
                 # Compare by converting both to dicts for comparison
@@ -121,16 +128,13 @@ class Session:
                     else:
                         summary_entry = summary
                     self.session_context = (
-                        self.session_context[: i]
+                        self.session_context[:i]
                         + [summary_entry]
                         + self.session_context[i + window_len :]
                     )
                     break
             else:
-                msg = (
-                    "Supplied window is not a contiguous subset"
-                    " of session_context"
-                )
+                msg = "Supplied window is not a contiguous subset of session_context"
                 raise ValueError(msg)
 
         return summary

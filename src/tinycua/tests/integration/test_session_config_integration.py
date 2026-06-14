@@ -19,8 +19,7 @@ def test_node_config_with_all_policies():
         custom_continuation_append="Custom continuation",
         custom_retry_append="Custom retry",
         tool_policy=NodeToolPolicy(
-            include_agent_tools="selected",
-            allowed_agent_tool_names=["web_search"]
+            include_agent_tools="selected", allowed_agent_tool_names=["web_search"]
         ),
         stream_policy=NodeStreamPolicy(visible_to_user=False),
         retry_policy=NodeRetryPolicy(max_attempts=5),
@@ -107,13 +106,13 @@ def test_todo_lifecycle():
     assert item is not None
     assert item.description == "Task 1"
     assert item.status == "pending"
-    assert item.order == 0          # first append -> index 0
+    assert item.order == 0  # first append -> index 0
 
     # Test mark_done
     todo.mark_done(0)
     item = todo.next_pending()
     assert item.description == "Task 2"
-    assert item.order == 1          # second append -> index 1
+    assert item.order == 1  # second append -> index 1
 
     # Test mark_done with invalid index
     with pytest.raises(IndexError):

@@ -3,10 +3,17 @@
 from __future__ import annotations
 
 import subprocess
+from pathlib import Path
 
 import pytest
 
 IMAGE_TAG = "tinycua-benchmark:test"
+
+
+@pytest.fixture
+def test_workspace(tmp_path: Path) -> Path:
+    """Provide a temporary workspace directory for Docker volume mounts."""
+    return tmp_path
 
 
 @pytest.mark.integration
@@ -52,11 +59,16 @@ class TestContainerStartup:
         """Container starts without errors."""
         result = subprocess.run(
             [
-                "docker", "run", "--rm",
-                "-e", "TINYCUA_BASE_URL=http://example.com/v1",
-                "-e", "TASK_PROMPT=test",
+                "docker",
+                "run",
+                "--rm",
+                "-e",
+                "TINYCUA_BASE_URL=http://example.com/v1",
+                "-e",
+                "TASK_PROMPT=test",
                 IMAGE_TAG,
-                "echo", "ready",
+                "echo",
+                "ready",
             ],
             capture_output=True,
             text=True,
@@ -68,20 +80,40 @@ class TestContainerStartup:
     def test_container_fails_without_model_endpoint(self) -> None:
         """Container fails with clear error when TINYCUA_BASE_URL is missing."""
         result = subprocess.run(
-            ["docker", "run", "--rm", IMAGE_TAG, "exit", "0"],
+            ["docker", "run", "--rm", IMAGE_TAG],
             capture_output=True,
             text=True,
             timeout=30,
         )
-        # Entry point should reject missing endpoint
-        assert result.returncode != 0 or "TINYCUA_BASE_URL" in result.stderr
+        assert result.returncode != 0, (
+            f"Container should fail without TINYCUA_BASE_URL:\n{result.stderr}"
+        )
+        assert "TINYCUA_BASE_URL" in result.stderr, (
+            "Error message must mention TINYCUA_BASE_URL"
+        )
+
+    def test_entrypoint_validates_base_url(self) -> None:
+        """Entrypoint validates TINYCUA_BASE_URL without command override."""
+        result = subprocess.run(
+            ["docker", "run", "--rm", IMAGE_TAG],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode != 0, "Container should fail without TINYCUA_BASE_URL"
+        assert "TINYCUA_BASE_URL" in result.stderr, (
+            "Entrypoint must mention TINYCUA_BASE_URL in error"
+        )
 
     def test_container_fails_without_task_prompt(self) -> None:
         """Container fails with clear error when TASK_PROMPT is missing."""
         result = subprocess.run(
             [
-                "docker", "run", "--rm",
-                "-e", "TINYCUA_BASE_URL=http://example.com/v1",
+                "docker",
+                "run",
+                "--rm",
+                "-e",
+                "TINYCUA_BASE_URL=http://example.com/v1",
                 IMAGE_TAG,
             ],
             capture_output=True,
@@ -91,25 +123,30 @@ class TestContainerStartup:
         assert result.returncode != 0, (
             f"Container should fail without TASK_PROMPT:\n{result.stderr}"
         )
-        assert "TASK_PROMPT" in result.stderr, (
-            "Error message must mention TASK_PROMPT"
-        )
+        assert "TASK_PROMPT" in result.stderr, "Error message must mention TASK_PROMPT"
 
 
 @pytest.mark.integration
 class TestWorkspaceMounting:
     """Verify /tmp_workspace mounting and read/write operations."""
 
-    def test_workspace_is_writable(self) -> None:
+    def test_workspace_is_writable(self, test_workspace: Path) -> None:
         """Container can write to /tmp_workspace."""
         result = subprocess.run(
             [
-                "docker", "run", "--rm",
-                "-v", "/tmp/test-workspace:/tmp_workspace",
-                "-e", "TINYCUA_BASE_URL=http://example.com/v1",
-                "-e", "TASK_PROMPT=test",
+                "docker",
+                "run",
+                "--rm",
+                "-v",
+                f"{test_workspace}:/tmp_workspace",
+                "-e",
+                "TINYCUA_BASE_URL=http://example.com/v1",
+                "-e",
+                "TASK_PROMPT=test",
                 IMAGE_TAG,
-                "sh", "-c", "touch /tmp_workspace/test-file && echo ok",
+                "sh",
+                "-c",
+                "touch /tmp_workspace/test-file && echo ok",
             ],
             capture_output=True,
             text=True,
@@ -127,12 +164,19 @@ class TestEnvironmentVariables:
         """Injected environment variables are accessible inside the container."""
         result = subprocess.run(
             [
-                "docker", "run", "--rm",
-                "-e", "TINYCUA_BASE_URL=http://example.com/v1",
-                "-e", "BRAVE_API_KEY=test-key-123",
-                "-e", "TASK_PROMPT=test",
+                "docker",
+                "run",
+                "--rm",
+                "-e",
+                "TINYCUA_BASE_URL=http://example.com/v1",
+                "-e",
+                "BRAVE_API_KEY=test-key-123",
+                "-e",
+                "TASK_PROMPT=test",
                 IMAGE_TAG,
-                "sh", "-c", "echo $BRAVE_API_KEY",
+                "sh",
+                "-c",
+                "echo $BRAVE_API_KEY",
             ],
             capture_output=True,
             text=True,
@@ -150,11 +194,16 @@ class TestTinyCUAInstalled:
         """tinycua CLI is available in the container."""
         result = subprocess.run(
             [
-                "docker", "run", "--rm",
-                "-e", "TINYCUA_BASE_URL=http://example.com/v1",
-                "-e", "TASK_PROMPT=test",
+                "docker",
+                "run",
+                "--rm",
+                "-e",
+                "TINYCUA_BASE_URL=http://example.com/v1",
+                "-e",
+                "TASK_PROMPT=test",
                 IMAGE_TAG,
-                "tinycua", "--help",
+                "tinycua",
+                "--help",
             ],
             capture_output=True,
             text=True,
@@ -167,11 +216,17 @@ class TestTinyCUAInstalled:
         """tinycua benchmark subcommand is available."""
         result = subprocess.run(
             [
-                "docker", "run", "--rm",
-                "-e", "TINYCUA_BASE_URL=http://example.com/v1",
-                "-e", "TASK_PROMPT=test",
+                "docker",
+                "run",
+                "--rm",
+                "-e",
+                "TINYCUA_BASE_URL=http://example.com/v1",
+                "-e",
+                "TASK_PROMPT=test",
                 IMAGE_TAG,
-                "tinycua", "benchmark", "--help",
+                "tinycua",
+                "benchmark",
+                "--help",
             ],
             capture_output=True,
             text=True,

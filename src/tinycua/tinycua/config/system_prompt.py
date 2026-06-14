@@ -40,9 +40,7 @@ class SystemPromptBuilder:
         self._priority_counter += 1
         return priority
 
-    def add_static(
-        self, content: str, metadata: dict[str, Any] | None = None
-    ) -> None:
+    def add_static(self, content: str, metadata: dict[str, Any] | None = None) -> None:
         """Add a static prompt fragment.
 
         Args:

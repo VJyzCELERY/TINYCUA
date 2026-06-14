@@ -32,10 +32,12 @@ class TestTaskCreateDigestedInformation:
             key_points=["key1", "key2"],
             original_query="test query",
         )
-        session.session_context.append({
-            "role": "assistant",
-            "content": digest,
-        })
+        session.session_context.append(
+            {
+                "role": "assistant",
+                "content": digest,
+            }
+        )
         node.session = session
 
         input_data = NodeInput(
@@ -47,9 +49,7 @@ class TestTaskCreateDigestedInformation:
 
         # Should contain digest context in the messages
         # Convert content to string for checking (may be DigestedInformation object)
-        messages_str = " ".join(
-            str(m.get("content", "")) for m in messages
-        )
+        messages_str = " ".join(str(m.get("content", "")) for m in messages)
         assert "Test summary" in messages_str
 
     def test_build_messages_falls_back_to_raw_query(self) -> None:
@@ -59,10 +59,12 @@ class TestTaskCreateDigestedInformation:
         session = Session()
 
         # No digest in session_context
-        session.session_context.append({
-            "role": "assistant",
-            "content": "some regular message",
-        })
+        session.session_context.append(
+            {
+                "role": "assistant",
+                "content": "some regular message",
+            }
+        )
         node.session = session
 
         input_data = NodeInput(
@@ -86,10 +88,12 @@ class TestTaskCreateDigestedInformation:
             context_summary="Summary",
             original_query="original user request",
         )
-        session.session_context.append({
-            "role": "assistant",
-            "content": digest,
-        })
+        session.session_context.append(
+            {
+                "role": "assistant",
+                "content": digest,
+            }
+        )
         node.session = session
 
         input_data = NodeInput(
@@ -99,9 +103,7 @@ class TestTaskCreateDigestedInformation:
 
         messages = node.build_messages(session, input_data)
 
-        content = " ".join(
-            str(m.get("content", "")) for m in messages
-        )
+        content = " ".join(str(m.get("content", "")) for m in messages)
         assert "original user request" in content
 
     def test_build_messages_with_digest_has_enhanced_context(self) -> None:
@@ -117,10 +119,12 @@ class TestTaskCreateDigestedInformation:
             constraints=["Must be stateless"],
             original_query="Implement auth system",
         )
-        session.session_context.append({
-            "role": "assistant",
-            "content": digest,
-        })
+        session.session_context.append(
+            {
+                "role": "assistant",
+                "content": digest,
+            }
+        )
         node.session = session
 
         input_data = NodeInput(

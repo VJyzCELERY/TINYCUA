@@ -52,12 +52,12 @@ docker run --rm \
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `TINYCUA_BASE_URL` | OpenAI-compatible model endpoint URL | `http://host.docker.internal:1234/v1` |
+| `TASK_PROMPT` | Task prompt for the agent (injected by WildClawBench) | `"Analyze the codebase..."` |
 
 ### Optional Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TASK_PROMPT` | (none) | Task prompt for the agent. Required for execution. |
 | `TINYCUA_API_KEY` | `""` | API key for model endpoint (empty for local) |
 | `TINYCUA_MODEL` | `llama3` | Model name to use for inference |
 | `BRAVE_API_KEY` | `""` | API key for Brave web search |

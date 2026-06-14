@@ -24,9 +24,7 @@ class TestFactoryIntegration:
 
         strategy = SimpleCompaction()
         config = SessionConfig(compaction_strategy=strategy)
-        mock_create.return_value = MagicMock(
-            loop=MagicMock(session_config=config)
-        )
+        mock_create.return_value = MagicMock(loop=MagicMock(session_config=config))
         agent = create_tinycua_agent(session_config=config)
         mock_create.assert_called_once_with(session_config=config)
         assert agent.loop.session_config.compaction_strategy is strategy

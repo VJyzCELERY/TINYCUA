@@ -26,7 +26,7 @@ This design specifies the Docker image for TinyCUA benchmark execution within Wi
 │  │  - shell utilities (bash, coreutils)                     │ │
 │  │  - file operations (find, grep, sed)                     │ │
 │  │  - network tools (curl, wget)                            │ │
-│  │  - browser/search (chromium, geckodriver) [optional]     │ │
+│  │  - browser/search (chromium, geckodriver) [Phase 2 — not in current image] │ │
 │  └─────────────────────────────────────────────────────────┘ │
 │  ┌─────────────────────────────────────────────────────────┐ │
 │  │  Python Environment                                      │ │
@@ -114,19 +114,16 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv (project uses uv for dependency management)
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
-
-# Install Python dependencies
-COPY requirements.txt .
-RUN uv pip install --no-cache-dir -r requirements.txt
+COPY --from=ghcr.io/astral-sh/uv:0.11.20 /uv /usr/local/bin/uv
 
 # Copy TinyCUA source
-COPY src/tinycua /app/tinycua
-COPY src/tinycua-sdk /app/tinycua-sdk
+COPY src/tinycua-sdk/pyproject.toml ./tinycua-sdk/
+COPY src/tinycua/pyproject.toml ./tinycua/
 
 # Install TinyCUA (non-editable; editable installs don't work in Docker)
 WORKDIR /app
-RUN uv pip install ./tinycua-sdk && uv pip install ./tinycua
+RUN uv pip install --no-cache-dir --system ./tinycua-sdk && \
+    uv pip install --no-cache-dir --system ./tinycua
 
 # Set up entry point
 COPY scripts/entrypoint.sh /app/entrypoint.sh
@@ -143,7 +140,7 @@ ENTRYPOINT ["/app/entrypoint.sh"]
 
 WildClawBench injects the task prompt via the `TASK_PROMPT` environment variable. The container must:
 1. Read `$TASK_PROMPT` from the environment (set by WildClawBench before container start)
-2. Pass it to `tinycua benchmark run --prompt "$TASK_PROMPT"`
+2. Pass it to `tinycua benchmark run` via the exported `TASK_PROMPT` environment variable (avoids shell interpretation of special characters)
 3. If `TASK_PROMPT` is not set, the entrypoint should exit with a clear error
 
 **Cross-reference**: WildClawBench adapter contract in `specs/wildclawbench-spike/spec.md`
@@ -172,8 +169,9 @@ export TINYCUA_API_KEY="${TINYCUA_API_KEY:-}"
 # NOTE: The CLI entry point `tinycua` is established in Milestone 5.1
 # (see specs/5.1-cli-runtime-entry-point/). The benchmark subcommand
 # is provided by that CLI, not a standalone python -m module.
+# Pass TASK_PROMPT via environment variable to avoid shell interpretation
+export TASK_PROMPT
 exec tinycua benchmark run \
-    --prompt "$TASK_PROMPT" \
     --workspace /tmp_workspace \
     --output /tmp_workspace/results \
     --transcript /tmp_workspace/transcript.jsonl
@@ -204,12 +202,12 @@ exec tinycua benchmark run \
 - [ ] Create smoke test task for validation
 - [ ] Document all configuration options
 - [ ] Test container build and basic execution
+- [ ] Add Docker Compose file for local development
 
 ### Phase 2 — Enhancements (Post-MVP)
 
 - [ ] Add optional browser/search dependencies (chromium, geckodriver)
 - [ ] Implement multi-stage build for smaller image size
-- [ ] Add Docker Compose file for local development
 - [ ] Add container logging and monitoring hooks
 - [ ] Optimize image layers for faster builds
 - [ ] Add CI/CD pipeline integration

@@ -298,7 +298,9 @@ def test_list_files_all():
         result = list_files(tmpdir)
         assert isinstance(result, list)
         assert len(result) == 3
-        assert all(os.path.join(tmpdir, f) in result for f in ["a.txt", "b.txt", "c.py"])
+        assert all(
+            os.path.join(tmpdir, f) in result for f in ["a.txt", "b.txt", "c.py"]
+        )
 
 
 def test_list_files_with_pattern():

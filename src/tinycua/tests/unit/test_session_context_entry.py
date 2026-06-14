@@ -40,9 +40,15 @@ def test_session_context_entry_defaults():
 
 def test_session_context_entry_segment_values():
     """SessionContextEntry supports all three segment values."""
-    prior = SessionContextEntry(record_id="p", segment="prior", content="p", created_seq=1)
-    inp = SessionContextEntry(record_id="i", segment="input", content="i", created_seq=2)
-    out = SessionContextEntry(record_id="o", segment="output", content="o", created_seq=3)
+    prior = SessionContextEntry(
+        record_id="p", segment="prior", content="p", created_seq=1
+    )
+    inp = SessionContextEntry(
+        record_id="i", segment="input", content="i", created_seq=2
+    )
+    out = SessionContextEntry(
+        record_id="o", segment="output", content="o", created_seq=3
+    )
 
     assert prior.segment == "prior"
     assert inp.segment == "input"
