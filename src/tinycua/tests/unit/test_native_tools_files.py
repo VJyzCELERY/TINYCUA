@@ -55,6 +55,7 @@ def test_read_file_dot_slash_prefix():
 def test_read_file_permission_denied():
     """Permission denied returns error dict (skip on Windows)."""
     import platform
+
     if platform.system() == "Windows":
         pytest.skip("Permission tests not supported on Windows")
 
@@ -68,7 +69,10 @@ def test_read_file_permission_denied():
         result = read_file(path)
         assert isinstance(result, dict)
         assert "error" in result
-        assert "permission" in result["error"].lower() or "denied" in result["error"].lower()
+        assert (
+            "permission" in result["error"].lower()
+            or "denied" in result["error"].lower()
+        )
     finally:
         os.chmod(path, 0o644)  # Restore for cleanup
         os.unlink(path)
@@ -78,6 +82,7 @@ def test_read_file_not_a_file():
     """Reading a directory returns error."""
     with tempfile.TemporaryDirectory() as tmpdir:
         from tinycua.agent.tools.native.files import read_file
+
         result = read_file(tmpdir)
         assert isinstance(result, dict)
         assert "error" in result
@@ -106,6 +111,7 @@ def test_read_file_truncation_message_format():
         path = f.name
     try:
         from tinycua.agent.tools.native.files import read_file
+
         result = read_file(path)
         assert "[Truncated:" in result
         assert "lines remaining" in result

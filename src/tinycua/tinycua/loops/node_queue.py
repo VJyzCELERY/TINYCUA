@@ -106,7 +106,10 @@ class NodeQueue:
                 # Convert output entries to NodeInput format for the next node
                 node_input: NodeInputLike = cast(
                     "NodeInputLike",
-                    [{"role": "user", "content": str(e.content)} for e in output_entries],
+                    [
+                        {"role": "user", "content": str(e.content)}
+                        for e in output_entries
+                    ],
                 )
                 self.set_input(next_node, node_input)
                 logger.debug(

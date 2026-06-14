@@ -1,4 +1,4 @@
-"""Run subcommand implementation for tinycua CLI."""
+"""Benchmark subcommand implementation for tinycua CLI."""
 
 from __future__ import annotations
 
@@ -14,39 +14,47 @@ logger = logging.getLogger(__name__)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    """Parse CLI arguments for the ``tinycua run`` subcommand.
+    """Parse CLI arguments for the ``tinycua benchmark run`` subcommand.
 
     Args:
-        argv: Command-line arguments. Uses sys.argv[1:] when None.
+        argv: Command-line arguments. Uses sys.argv[2:] when None.
 
     Returns:
         Parsed argument namespace.
     """
     parser = argparse.ArgumentParser(
-        prog="tinycua run",
-        description="Run a TinyCUA agent task with a local model endpoint.",
+        prog="tinycua benchmark run",
+        description="Run a TinyCUA agent benchmark task for WildClawBench evaluation.",
     )
     parser.add_argument(
-        "prompt",
-        help="Task prompt for the TinyCUA agent.",
-    )
-    parser.add_argument(
-        "--timeout",
-        type=int,
-        default=600,
-        help="Maximum execution time in seconds (default: 600).",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=Path("/tmp_workspace/results"),
-        help="Output directory for transcript and log files (default: /tmp_workspace/results).",
+        "--prompt",
+        type=str,
+        default=None,
+        help="Task prompt for the agent (reads from TASK_PROMPT env var if not provided).",
     )
     parser.add_argument(
         "--workspace",
         type=Path,
         default=Path("/tmp_workspace"),
         help="Working directory for the agent session (default: /tmp_workspace).",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("/tmp_workspace/results"),
+        help="Output directory for benchmark artifacts (default: /tmp_workspace/results).",
+    )
+    parser.add_argument(
+        "--transcript",
+        type=Path,
+        default=Path("/tmp_workspace/transcript.jsonl"),
+        help="Path for transcript output (default: /tmp_workspace/transcript.jsonl).",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=None,
+        help="Maximum execution time in seconds (reads from TINYCUA_TIMEOUT env var if not provided, default: 300).",
     )
     parser.add_argument(
         "--base-url",
@@ -63,7 +71,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--model",
         type=str,
-        default="llama3",
+        default=None,
         help="Override TINYCUA_MODEL env var (default: llama3).",
     )
     parser.add_argument(
@@ -75,26 +83,28 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def run_command(
-    prompt: str,
-    timeout: int,
-    output_dir: Path,
+def benchmark_run_command(
+    prompt: str | None,
     workspace: Path,
+    output_dir: Path,
+    transcript_path: Path,
+    timeout: int,
     base_url: str | None,
     api_key: str | None,
     model: str | None,
     verbose: bool,
 ) -> int:
-    """Execute the tinycua run command.
+    """Execute the tinycua benchmark run command.
 
     Orchestrates config loading, agent creation, execution with timeout
-    watchdog, and transcript/log writing.
+    watchdog, and artifact writing for WildClawBench benchmark evaluation.
 
     Args:
-        prompt: Task prompt for the agent.
-        timeout: Maximum execution time in seconds.
-        output_dir: Directory for transcript and log output.
+        prompt: Task prompt for the agent. Falls back to TASK_PROMPT env var.
         workspace: Working directory for the agent session.
+        output_dir: Directory for benchmark artifact output.
+        transcript_path: Path for transcript JSONL output.
+        timeout: Maximum execution time in seconds.
         base_url: CLI override for base URL.
         api_key: CLI override for API key.
         model: CLI override for model name.
@@ -108,6 +118,15 @@ def run_command(
     else:
         logging.basicConfig(level=logging.INFO)
 
+    if not prompt:
+        prompt = os.environ.get("TASK_PROMPT", "")
+    if not prompt:
+        print(
+            "Error: No task prompt provided. Set --prompt or TASK_PROMPT env var.",
+            flush=True,
+        )
+        return 1
+
     if not setup_output_dir(output_dir):
         print(f"Output directory not writable: {output_dir}", flush=True)
         return 1
@@ -116,9 +135,18 @@ def run_command(
     os.chdir(workspace)
 
     log_path = output_dir / "agent.log"
-    transcript_path = output_dir / "transcript.jsonl"
 
-    write_log_entry(log_path, "start", "info", {"prompt": prompt, "timeout": timeout})
+    write_log_entry(
+        log_path,
+        "start",
+        "info",
+        {
+            "prompt": prompt,
+            "timeout": timeout,
+            "workspace": str(workspace),
+            "output": str(output_dir),
+        },
+    )
 
     agent, _config = create_agent(log_path, base_url, api_key, model)
     if agent is None:

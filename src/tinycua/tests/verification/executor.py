@@ -64,7 +64,6 @@ _RESULT_REVIEWER_INSTRUCTION = (
 )
 
 
-
 class _SyncLLMClient:
     """Synchronous LLM client wrapper that delegates to an async agent.
 
@@ -104,13 +103,15 @@ class _SyncLLMClient:
             self._loop = asyncio.new_event_loop()
             response = self._loop.run_until_complete(_call())
 
-        self.interactions.append({
-            "messages": [
-                {"role": m.get("role", ""), "content": m.get("content", "")}
-                for m in messages
-            ],
-            "response": response,
-        })
+        self.interactions.append(
+            {
+                "messages": [
+                    {"role": m.get("role", ""), "content": m.get("content", "")}
+                    for m in messages
+                ],
+                "response": response,
+            }
+        )
         return response
 
 
@@ -253,9 +254,8 @@ class PathExecutor:
         cross_cutting_errors = self._cross_cutting.validate()
         if cross_cutting_errors and path_result.status == "pass":
             path_result.status = "fail"
-            path_result.error = (
-                "Cross-cutting concerns failed: "
-                + "; ".join(cross_cutting_errors)
+            path_result.error = "Cross-cutting concerns failed: " + "; ".join(
+                cross_cutting_errors
             )
 
         return path_result
@@ -365,9 +365,7 @@ class PathExecutor:
                             role="assistant",
                             content=content,
                             source_node_id=node.node_id,
-                            source_session_id=getattr(
-                                node.session, "session_id", ""
-                            ),
+                            source_session_id=getattr(node.session, "session_id", ""),
                         )
                     )
 
@@ -394,9 +392,7 @@ class PathExecutor:
                 if not queue.is_empty() and queue.current is not None:
                     duplicates_removed = self._check_dedupe(node, queue.current)
                     if duplicates_removed > 0:
-                        self._cross_cutting.on_dedupe(
-                            node.node_id, duplicates_removed
-                        )
+                        self._cross_cutting.on_dedupe(node.node_id, duplicates_removed)
 
                 # Get input for next node from the advanced queue
                 if not queue.is_empty() and queue.current is not None:
@@ -473,6 +469,7 @@ class PathExecutor:
         if next_node.session is None or source_node.session is None:
             return 0
         from tinycua.loops.propagation import forward_output_to_next, dedupe_records
+
         forwarded = forward_output_to_next(source_node.session)
         if not forwarded:
             return 0
@@ -515,9 +512,7 @@ class PathExecutor:
         if path.expected_outcome == "success":
             if result.status == "pass" and len(session.chat_history) == 0:
                 result.status = "fail"
-                result.error = (
-                    "Expected successful response but chat_history is empty"
-                )
+                result.error = "Expected successful response but chat_history is empty"
         elif path.expected_outcome == "hitl":
             # HITL: agent stays active, no terminal response node should execute.
             # If the path completed with a terminal response, it failed to
@@ -531,6 +526,4 @@ class PathExecutor:
             # Failure: path should not produce a successful response.
             if result.status == "pass":
                 result.status = "fail"
-                result.error = (
-                    "Expected failure but path completed successfully"
-                )
+                result.error = "Expected failure but path completed successfully"

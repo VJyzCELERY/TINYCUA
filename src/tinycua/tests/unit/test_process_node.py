@@ -174,9 +174,7 @@ class TestProcessNodeRetry:
         mock_llm = MockLLM(response="fail")
         config = NodeConfigBase(
             llm_client=mock_llm,
-            retry_policy=NodeRetryPolicy(
-                max_attempts=2, on_retry_exhausted="raise"
-            ),
+            retry_policy=NodeRetryPolicy(max_attempts=2, on_retry_exhausted="raise"),
         )
         node = ProcessNode(node_id="test", config=config, instruction="Inst")
         node.session = Session()

@@ -1,7 +1,5 @@
 """Unit tests for NodeMonitor and AgentMonitor hook behavior."""
 
-
-
 from tinycua.config.node_config import NodeConfigBase, NodeRetryPolicy
 from tinycua.config.types import LLMResult, ValidationResult
 from tinycua.loops.node import ProcessNode
@@ -32,35 +30,55 @@ class RecordingMonitor:
         self.after_calls = []
         self.exhausted_calls = []
 
-    def on_before_node_call(self, node_id, session_id, attempt, messages, resolved_tools):
-        self.before_calls.append({
-            "node_id": node_id, "session_id": session_id,
-            "attempt": attempt, "message_count": len(messages),
-        })
+    def on_before_node_call(
+        self, node_id, session_id, attempt, messages, resolved_tools
+    ):
+        self.before_calls.append(
+            {
+                "node_id": node_id,
+                "session_id": session_id,
+                "attempt": attempt,
+                "message_count": len(messages),
+            }
+        )
         return None
 
-    def on_after_node_call(self, node_id, session_id, attempt, result, validation_result):
-        self.after_calls.append({
-            "node_id": node_id, "session_id": session_id,
-            "attempt": attempt, "is_valid": validation_result.is_valid,
-        })
+    def on_after_node_call(
+        self, node_id, session_id, attempt, result, validation_result
+    ):
+        self.after_calls.append(
+            {
+                "node_id": node_id,
+                "session_id": session_id,
+                "attempt": attempt,
+                "is_valid": validation_result.is_valid,
+            }
+        )
         return None
 
     def on_retry_exhausted(self, node_id, session_id, error, attempts):
-        self.exhausted_calls.append({
-            "node_id": node_id, "session_id": session_id,
-            "error": str(error), "attempts": attempts,
-        })
+        self.exhausted_calls.append(
+            {
+                "node_id": node_id,
+                "session_id": session_id,
+                "error": str(error),
+                "attempts": attempts,
+            }
+        )
         return None
 
 
 class ContinuationMonitor:
     """Monitor that returns continuation strings from hooks."""
 
-    def on_before_node_call(self, node_id, session_id, attempt, messages, resolved_tools):
+    def on_before_node_call(
+        self, node_id, session_id, attempt, messages, resolved_tools
+    ):
         return f"monitor-before-{attempt}"
 
-    def on_after_node_call(self, node_id, session_id, attempt, result, validation_result):
+    def on_after_node_call(
+        self, node_id, session_id, attempt, result, validation_result
+    ):
         return f"monitor-after-{attempt}"
 
     def on_retry_exhausted(self, node_id, session_id, error, attempts):
@@ -70,10 +88,14 @@ class ContinuationMonitor:
 class ExceptionMonitor:
     """Monitor that raises exceptions in all hooks."""
 
-    def on_before_node_call(self, node_id, session_id, attempt, messages, resolved_tools):
+    def on_before_node_call(
+        self, node_id, session_id, attempt, messages, resolved_tools
+    ):
         raise RuntimeError("before hook crashed")
 
-    def on_after_node_call(self, node_id, session_id, attempt, result, validation_result):
+    def on_after_node_call(
+        self, node_id, session_id, attempt, result, validation_result
+    ):
         raise RuntimeError("after hook crashed")
 
     def on_retry_exhausted(self, node_id, session_id, error, attempts):
@@ -83,10 +105,14 @@ class ExceptionMonitor:
 def _make_node(monitor=None, max_attempts=2, **kwargs):
     """Create a ProcessNode with mock LLM for testing."""
     config = NodeConfigBase(
-        llm_client=MockLLM([
-            LLMResult(content="bad", tool_calls=[]),
-            LLMResult(content="good", tool_calls=[{"function": {"name": "required_tool"}}]),
-        ]),
+        llm_client=MockLLM(
+            [
+                LLMResult(content="bad", tool_calls=[]),
+                LLMResult(
+                    content="good", tool_calls=[{"function": {"name": "required_tool"}}]
+                ),
+            ]
+        ),
         retry_policy=NodeRetryPolicy(
             max_attempts=max_attempts,
             required_tool_calls=["required_tool"],
@@ -130,10 +156,12 @@ class TestNodeMonitorHookTriggerPoints:
         """on_retry_exhausted is called when retries exhausted."""
         monitor = RecordingMonitor()
         config = NodeConfigBase(
-            llm_client=MockLLM([
-                LLMResult(content="bad1", tool_calls=[]),
-                LLMResult(content="bad2", tool_calls=[]),
-            ]),
+            llm_client=MockLLM(
+                [
+                    LLMResult(content="bad1", tool_calls=[]),
+                    LLMResult(content="bad2", tool_calls=[]),
+                ]
+            ),
             retry_policy=NodeRetryPolicy(
                 max_attempts=2,
                 required_tool_calls=["required_tool"],
@@ -187,10 +215,15 @@ class TestNodeMonitorHookException:
         monitor = ExceptionMonitor()
         # Force validation failure on both attempts to trigger after hook
         config = NodeConfigBase(
-            llm_client=MockLLM([
-                LLMResult(content="bad", tool_calls=[]),
-                LLMResult(content="bad2", tool_calls=[{"function": {"name": "required_tool"}}]),
-            ]),
+            llm_client=MockLLM(
+                [
+                    LLMResult(content="bad", tool_calls=[]),
+                    LLMResult(
+                        content="bad2",
+                        tool_calls=[{"function": {"name": "required_tool"}}],
+                    ),
+                ]
+            ),
             retry_policy=NodeRetryPolicy(
                 max_attempts=2,
                 required_tool_calls=["required_tool"],
@@ -211,10 +244,15 @@ class TestNodeMonitorContinuation:
         """Continuation appending is deferred (FR-012). Return values are currently discarded."""
         monitor = ContinuationMonitor()
         config = NodeConfigBase(
-            llm_client=MockLLM([
-                LLMResult(content="bad", tool_calls=[]),
-                LLMResult(content="good", tool_calls=[{"function": {"name": "required_tool"}}]),
-            ]),
+            llm_client=MockLLM(
+                [
+                    LLMResult(content="bad", tool_calls=[]),
+                    LLMResult(
+                        content="good",
+                        tool_calls=[{"function": {"name": "required_tool"}}],
+                    ),
+                ]
+            ),
             retry_policy=NodeRetryPolicy(
                 max_attempts=2,
                 required_tool_calls=["required_tool"],
@@ -235,10 +273,15 @@ class TestAgentMonitorIndependence:
         agent_monitor = RecordingMonitor()
         node_monitor = RecordingMonitor()
         config = NodeConfigBase(
-            llm_client=MockLLM([
-                LLMResult(content="bad", tool_calls=[]),
-                LLMResult(content="good", tool_calls=[{"function": {"name": "required_tool"}}]),
-            ]),
+            llm_client=MockLLM(
+                [
+                    LLMResult(content="bad", tool_calls=[]),
+                    LLMResult(
+                        content="good",
+                        tool_calls=[{"function": {"name": "required_tool"}}],
+                    ),
+                ]
+            ),
             retry_policy=NodeRetryPolicy(
                 max_attempts=2,
                 required_tool_calls=["required_tool"],
@@ -253,7 +296,10 @@ class TestAgentMonitorIndependence:
         )
         node("input")
         agent_monitor.on_after_node_call(
-            node.node_id, node.session.session_id, 1, LLMResult(content="good"),
+            node.node_id,
+            node.session.session_id,
+            1,
+            LLMResult(content="good"),
             ValidationResult(is_valid=True, errors=[]),
         )
         # Both monitors should have been called
@@ -266,10 +312,15 @@ class TestAgentMonitorIndependence:
         """AgentMonitor always receives attempt=1 at agent level."""
         agent_monitor = RecordingMonitor()
         config = NodeConfigBase(
-            llm_client=MockLLM([
-                LLMResult(content="bad", tool_calls=[]),
-                LLMResult(content="good", tool_calls=[{"function": {"name": "required_tool"}}]),
-            ]),
+            llm_client=MockLLM(
+                [
+                    LLMResult(content="bad", tool_calls=[]),
+                    LLMResult(
+                        content="good",
+                        tool_calls=[{"function": {"name": "required_tool"}}],
+                    ),
+                ]
+            ),
             retry_policy=NodeRetryPolicy(
                 max_attempts=2,
                 required_tool_calls=["required_tool"],
@@ -284,7 +335,10 @@ class TestAgentMonitorIndependence:
         )
         node("input")
         agent_monitor.on_after_node_call(
-            node.node_id, node.session.session_id, 1, LLMResult(content="good"),
+            node.node_id,
+            node.session.session_id,
+            1,
+            LLMResult(content="good"),
             ValidationResult(is_valid=True, errors=[]),
         )
         # AgentMonitor always sees attempt=1

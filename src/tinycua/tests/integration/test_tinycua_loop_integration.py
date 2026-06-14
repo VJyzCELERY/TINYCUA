@@ -24,9 +24,7 @@ async def test_tinycua_loop_executes_node_queue():
     agent = MagicMock()
     agent.instructions = "test"
     agent.skills = []
-    agent._call_llm = AsyncMock(
-        return_value={"content": "ok", "tool_calls": None}
-    )
+    agent._call_llm = AsyncMock(return_value={"content": "ok", "tool_calls": None})
 
     result = await loop.run(
         agent=agent,
@@ -49,9 +47,7 @@ async def test_tinycua_loop_ensure_terminal_bootstrap():
     agent = MagicMock()
     agent.instructions = "test"
     agent.skills = []
-    agent._call_llm = AsyncMock(
-        return_value={"content": "ok", "tool_calls": None}
-    )
+    agent._call_llm = AsyncMock(return_value={"content": "ok", "tool_calls": None})
     await loop.run(agent=agent, messages=[], tools=[], stream=False)
     assert loop.queue.items[-1] is terminal
 
@@ -63,9 +59,7 @@ async def test_tinycua_loop_merges_sdk_messages():
     agent = MagicMock()
     agent.instructions = "test"
     agent.skills = []
-    agent._call_llm = AsyncMock(
-        return_value={"content": "ok", "tool_calls": None}
-    )
+    agent._call_llm = AsyncMock(return_value={"content": "ok", "tool_calls": None})
 
     messages = [
         {"role": "user", "content": "hello"},
@@ -111,9 +105,7 @@ async def test_tinycua_loop_override_instructions():
     agent = MagicMock()
     agent.instructions = "test"
     agent.skills = []
-    agent._call_llm = AsyncMock(
-        return_value={"content": "ok", "tool_calls": None}
-    )
+    agent._call_llm = AsyncMock(return_value={"content": "ok", "tool_calls": None})
 
     result = await loop.run(
         agent=agent,

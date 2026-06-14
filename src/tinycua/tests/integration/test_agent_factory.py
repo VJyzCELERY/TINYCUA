@@ -60,7 +60,13 @@ class TestAgentRun:
         """agent.run() returns string when stream=False."""
         agent = create_tinycua_agent()
         agent._call_llm = AsyncMock(
-            return_value={"content": "Hello", "tool_calls": None, "usage": None, "finish_reason": "completed", "model": None}
+            return_value={
+                "content": "Hello",
+                "tool_calls": None,
+                "usage": None,
+                "finish_reason": "completed",
+                "model": None,
+            }
         )
         result = await agent.run("hello")
         assert isinstance(result, str)
@@ -82,11 +88,13 @@ class TestAgentRun:
 
         agent._call_llm = mock_stream
         result = await agent.run("hello", stream=True)
-        assert hasattr(result, '__aiter__')
+        assert hasattr(result, "__aiter__")
         events = [e async for e in result]
         assert len(events) > 0
         # Find the delta event (may be preceded by lifecycle events)
-        delta_events = [e for e in events if e.get("type") == "response.output_text.delta"]
+        delta_events = [
+            e for e in events if e.get("type") == "response.output_text.delta"
+        ]
         assert len(delta_events) > 0
         assert delta_events[0]["delta"] == "Hi"
         session = agent.loop.root_session
@@ -104,7 +112,13 @@ class TestAgentRun:
         """
         agent = create_tinycua_agent()
         agent._call_llm = AsyncMock(
-            return_value={"content": "Hello", "tool_calls": None, "usage": None, "finish_reason": "completed", "model": None}
+            return_value={
+                "content": "Hello",
+                "tool_calls": None,
+                "usage": None,
+                "finish_reason": "completed",
+                "model": None,
+            }
         )
         await agent.run("hello")
         session = agent.loop.root_session
@@ -119,7 +133,13 @@ class TestAgentRun:
         """Empty assistant responses are not recorded in chat history."""
         agent = create_tinycua_agent()
         agent._call_llm = AsyncMock(
-            return_value={"content": "", "tool_calls": None, "usage": None, "finish_reason": "completed", "model": None}
+            return_value={
+                "content": "",
+                "tool_calls": None,
+                "usage": None,
+                "finish_reason": "completed",
+                "model": None,
+            }
         )
         await agent.run("hello")
         session = agent.loop.root_session
@@ -138,7 +158,9 @@ class TestAgentRun:
         result = await agent.run("hello", stream=True)
         events = [e async for e in result]
         # Filter to only LLM content events (ignore lifecycle events)
-        delta_events = [e for e in events if e.get("type") == "response.output_text.delta"]
+        delta_events = [
+            e for e in events if e.get("type") == "response.output_text.delta"
+        ]
         assert len(delta_events) == 0  # no content deltas emitted
         session = agent.loop.root_session
         assert len(session.chat_history) == 0  # no assistant response recorded

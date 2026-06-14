@@ -99,6 +99,7 @@ class TinyCUAWorkerNode(DecisionNode):
         """
         if self.session is not None and self._current_digest is not None:
             from tinycua.models.session_context_entry import SessionContextEntry
+
             self.session.session_context.append(
                 SessionContextEntry(
                     content=self._current_digest,
@@ -106,7 +107,9 @@ class TinyCUAWorkerNode(DecisionNode):
                 )
             )
 
-    def on_complete(self, queue: NodeQueue, response: LLMResult | DecisionResult) -> None:
+    def on_complete(
+        self, queue: NodeQueue, response: LLMResult | DecisionResult
+    ) -> None:
         """Post-completion hook for queue mutations.
 
         Retrieves DigestedInformation from session_context and stores it

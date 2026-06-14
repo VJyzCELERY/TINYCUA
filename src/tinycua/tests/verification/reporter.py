@@ -92,9 +92,7 @@ class ReportGenerator:
                     "status": pr.status,
                     "duration_seconds": round(pr.duration_seconds, 3),
                     "error": pr.error,
-                    "node_outputs": {
-                        k: str(v) for k, v in pr.node_outputs.items()
-                    },
+                    "node_outputs": {k: str(v) for k, v in pr.node_outputs.items()},
                     "llm_interaction_count": len(pr.llm_interactions),
                 }
                 for pr in report.path_results
@@ -139,8 +137,7 @@ class ReportGenerator:
             }.get(pr.status, "UNKNOWN")
 
             lines.append(
-                f"  [{status_icon}] {pr.path_name} "
-                f"({pr.duration_seconds:.1f}s)"
+                f"  [{status_icon}] {pr.path_name} ({pr.duration_seconds:.1f}s)"
             )
             if pr.error:
                 lines.append(f"         Error: {pr.error}")

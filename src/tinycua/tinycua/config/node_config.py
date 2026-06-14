@@ -91,7 +91,11 @@ class NodeToolPolicy:
             # Include only allowed outer tools
             allow_set = set(self.allowed_agent_tool_names)
             for tool in outer_agent_tools:
-                if tool.name in allow_set and tool.name not in deny_set and tool.name not in node_tool_names:
+                if (
+                    tool.name in allow_set
+                    and tool.name not in deny_set
+                    and tool.name not in node_tool_names
+                ):
                     result.append(tool)
         elif self.include_agent_tools == "all":
             # Include all outer tools except denied and duplicates
@@ -136,8 +140,12 @@ class NodeRetryPolicy:
     required_tool_calls: list[str] = field(default_factory=list)
     required_output_schema: dict | type[StateObject] | None = None
     validation_fn: Any | None = None  # Callable[[LLMResult], ValidationResult]
-    retry_continuation_builder: Any | None = None  # Callable[[ValidationError, int], str]
-    on_retry_exhausted: Literal["raise", "record_failure", "route_failure"] = "record_failure"
+    retry_continuation_builder: Any | None = (
+        None  # Callable[[ValidationError, int], str]
+    )
+    on_retry_exhausted: Literal["raise", "record_failure", "route_failure"] = (
+        "record_failure"
+    )
 
     def __post_init__(self) -> None:
         """Validate max_attempts is non-negative."""

@@ -27,7 +27,9 @@ class PropagationRule:
     """
 
     chat_history: Literal["none", "parent", "root", "parent_and_root"] = "none"
-    session_context_target: Literal["none", "parent", "root", "parent_and_root"] = "none"
+    session_context_target: Literal["none", "parent", "root", "parent_and_root"] = (
+        "none"
+    )
     session_context_mode: Literal["none", "final", "full", "selected"] = "none"
     token_usage: Literal["none", "parent", "root", "parent_and_root"] = "none"
     failure: Literal["none", "parent", "root", "parent_and_root"] = "none"
@@ -186,7 +188,10 @@ def propagate_on_termination(
     entries_to_propagate = prior_entries + input_entries
 
     # Propagate to parent if rule says so
-    if parent_session is not None and rule.session_context_target in ("parent", "parent_and_root"):
+    if parent_session is not None and rule.session_context_target in (
+        "parent",
+        "parent_and_root",
+    ):
         _propagate_context_to_session(entries_to_propagate, parent_session, rule.dedupe)
 
     # Propagate to root if rule says so
@@ -204,10 +209,15 @@ def propagate_on_termination(
             visibility="internal",
             source_node_id=node_session.session_id,
             source_session_id=node_session.session_id,
-            created_seq=max(entry.created_seq for entry in output_entries) if output_entries else 0,
+            created_seq=max(entry.created_seq for entry in output_entries)
+            if output_entries
+            else 0,
         )
 
-        if rule.chat_history in ("parent", "parent_and_root") and parent_session is not None:
+        if (
+            rule.chat_history in ("parent", "parent_and_root")
+            and parent_session is not None
+        ):
             _append_chat_record(parent_session, record)
 
         if rule.chat_history in ("root", "parent_and_root"):
@@ -237,8 +247,7 @@ def forward_output_to_next(
         List of output entries to forward.
     """
     output_entries = [
-        entry for entry in node_session.session_context
-        if entry.segment == "output"
+        entry for entry in node_session.session_context if entry.segment == "output"
     ]
 
     logger.debug(
@@ -267,8 +276,7 @@ def finalize_terminal_output(
         The terminal output content string, or None if no output.
     """
     output_entries = [
-        entry for entry in terminal_session.session_context
-        if entry.segment == "output"
+        entry for entry in terminal_session.session_context if entry.segment == "output"
     ]
 
     if not output_entries:
@@ -279,7 +287,11 @@ def finalize_terminal_output(
 
     # Return the content string of the first output entry
     first_output = output_entries[0]
-    content = first_output.content if isinstance(first_output.content, str) else str(first_output.content)
+    content = (
+        first_output.content
+        if isinstance(first_output.content, str)
+        else str(first_output.content)
+    )
 
     logger.debug(
         "finalize_terminal_output terminal_session=%s root_session=%s content_len=%d",

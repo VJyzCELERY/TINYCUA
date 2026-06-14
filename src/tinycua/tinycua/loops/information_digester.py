@@ -83,12 +83,15 @@ class TinyCUAInformationDigesterNode(ProcessNode):
         original_query = self._extract_original_query(input_data)
         response = super().__call__(input_data)
         self._current_digest = self._parse_digest_response(
-            response.content, original_query,
+            response.content,
+            original_query,
         )
         return response
 
     def _parse_digest_response(
-        self, content: str, original_query: str,
+        self,
+        content: str,
+        original_query: str,
     ) -> DigestedInformation:
         """Parse LLM response text into a DigestedInformation object.
 
@@ -165,6 +168,7 @@ class TinyCUAInformationDigesterNode(ProcessNode):
         """
         if self.session is not None and self._current_digest is not None:
             from tinycua.models.session_context_entry import SessionContextEntry
+
             self.session.session_context.append(
                 SessionContextEntry(
                     content=self._current_digest,

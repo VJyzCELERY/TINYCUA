@@ -86,7 +86,9 @@ def _probe_server(base_url: str, model: str, api_key: str) -> bool:
     try:
         with httpx.Client() as client:
             # First check /models endpoint
-            client.get(f"{base_url}/models", headers=headers, timeout=5).raise_for_status()
+            client.get(
+                f"{base_url}/models", headers=headers, timeout=5
+            ).raise_for_status()
 
             # Then try a minimal completion
             payload = {
@@ -110,8 +112,7 @@ def _probe_server(base_url: str, model: str, api_key: str) -> bool:
 def pytest_collection_modifyitems(config, items):
     """Skip integration tests when the LLM server is unreachable."""
     live_items = [
-        item for item in items
-        if item.get_closest_marker("integration") is not None
+        item for item in items if item.get_closest_marker("integration") is not None
     ]
 
     if not live_items:
