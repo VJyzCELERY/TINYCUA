@@ -21,6 +21,7 @@ Implementation tasks for the TinyCUA Benchmark Docker Image. Check off items as 
 
 - [ ] Create `scripts/entrypoint.sh` with environment validation <!-- id: 3 -->
   - [ ] Validate `TINYCUA_BASE_URL` is set
+  - [ ] Validate `TASK_PROMPT` is set (WildClawBench injection contract)
   - [ ] Validate `/tmp_workspace` is mounted and writable
   - [ ] Export environment variables for TinyCUA
   - [ ] Execute `tinycua benchmark run` with correct arguments
