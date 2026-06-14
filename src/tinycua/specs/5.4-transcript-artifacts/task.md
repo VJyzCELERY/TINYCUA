@@ -57,6 +57,8 @@ Implementation tasks for Milestone 5.4 — Transcript, Usage, and Artifact Compa
 - [ ] Run integration tests — expect GREEN (all pass) <!-- id: 13 -->
 - [ ] Run full test suite: `cd src/tinycua && uv run pytest` <!-- id: 14 -->
 - [ ] Verify no regressions in existing tests <!-- id: 15 -->
+- [ ] Run linter: `cd src/tinycua && uv run ruff check .` <!-- id: 25 -->
+- [ ] Run type checker: `cd src/tinycua && uv run mypy tinycua/` <!-- id: 26 -->
 
 ## Verification Phase
 
@@ -64,6 +66,9 @@ Implementation tasks for Milestone 5.4 — Transcript, Usage, and Artifact Compa
 - [ ] Verify `usage.json` is written with all required fields (zero-filled if no usage data) <!-- id: 17 -->
 - [ ] Verify `agent.log` continues to write structured JSONL <!-- id: 18 -->
 - [ ] Verify `transcript.jsonl` is valid JSONL (each line parseable as JSON) <!-- id: 19 -->
+- [ ] Verify streaming mode output matches non-streaming mode for CLI use case <!-- id: 24 -->
+  - [ ] Run `tinycua run "Hello"` with streaming and verify transcript.jsonl content is identical
+  - [ ] Confirm no performance regression for typical prompts
 
 ## Documentation Phase
 

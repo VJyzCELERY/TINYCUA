@@ -137,6 +137,12 @@ def test_usage_summary_zero_filled_fallback(tmp_path: Path) -> None:
     assert data["total_tokens"] == 0
     assert data["request_count"] == 0
     assert data["elapsed_time"] == 0.0
+
+
+def test_usage_int_bool_returns_zero():
+    """_usage_int() coerces booleans to 0, not 1."""
+    assert _usage_int(True) == 0
+    assert _usage_int(False) == 0
 ```
 
 ### Key Test Scenarios
@@ -259,12 +265,12 @@ None — CLI interface unchanged (`tinycua run` signature and flags remain the s
 
 ## Risks and Mitigations
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| `response.usage` events not emitted by local model endpoints | Medium | Zero-fill fallback in `usage.json`; document that local models may not report token counts |
-| `tool_calls` format varies by provider | Low | Normalize via SDK's existing tool-call shape (`function.name`, `function.arguments` as JSON string) |
-| Working message list doesn't include all messages needed for transcript | Low | Integration tests verify all user/assistant/tool_result messages are captured |
-| WildClawBench transcript_loader.py rejects our format | High | Test against adapter-contract.md schema exactly; include both `callId` and `tool_call_id` in toolResult records |
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|------------|
+| `response.usage` events not emitted by local model endpoints | Medium | Medium | Zero-fill fallback in `usage.json`; document that local models may not report token counts |
+| `tool_calls` format varies by provider | Medium | Low | Normalize via SDK's existing tool-call shape (`function.name`, `function.arguments` as JSON string) |
+| Working message list doesn't include all messages needed for transcript | Low | High | Verify with integration tests that all user/assistant/tool_result messages are captured |
+| WildClawBench transcript_loader.py rejects our format | Low | High | Test with the actual loader; follow the adapter-contract.md schema exactly |
 
 ---
 

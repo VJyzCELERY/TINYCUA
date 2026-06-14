@@ -190,6 +190,14 @@ def write_usage_summary(
 - [ ] Write `usage.json` to output directory
 - [ ] Ensure `agent.log` continues to work unchanged
 
+#### Transcript Path Configuration
+
+The `write_openclaw_jsonl()` function accepts a `path: Path` parameter. The CLI `run.py` constructs this path as `output_dir / "transcript.jsonl"` by default. A `--transcript-path` CLI flag can be added in a future milestone if user configurability is needed beyond the default.
+
+> **Adapter integration note**: The CLI writes `transcript.jsonl` to `output_dir`.
+> The adapter must place this file at `/root/.openclaw/agents/main/sessions/chat.jsonl`
+> (or configure the OpenClaw session path to match `output_dir`).
+
 ### Phase 4 — Tests (required)
 
 - [ ] Unit tests for `_usage_int()` — None, valid int, bool, string
@@ -207,7 +215,7 @@ def write_usage_summary(
    - **Reason**: Backward compatibility — existing consumers of the raw format continue to work. The new function is additive.
    - **Alternatives Considered**: Replace `write_transcript()` — rejected because it would break any existing tooling that reads the current format.
 
-2. **Decision**: Use Strategy B (instrument `BaseLoop` working messages) for transcript capture, not Strategy A (stream capture).
+2. **Decision**: Use Strategy B (instrument `BaseLoop` working messages — defined in adapter-contract.md § Transcript Conversion Strategy, Strategy B captures the internal message list after each loop iteration) for transcript capture, not Strategy A (stream capture — captures events from the LLM stream but cannot preserve tool results because the SDK lacks `tool_result.completed` events).
    - **Reason**: The working message list already contains properly shaped assistant messages with `tool_calls` and tool-result messages with `call_id`. Strategy A cannot preserve tool results without SDK changes.
    - **Alternatives Considered**: Strategy A (stream capture) — rejected because the SDK doesn't emit `tool_result.completed` events.
 
