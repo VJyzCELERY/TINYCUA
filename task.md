@@ -28,6 +28,7 @@ Implementation tasks for Milestone 5.6 — Full 60-Task Local-LLM Benchmark Run.
   - [ ] Implement task list loading — discover all 60 WildClawBench task IDs (from package or hardcoded list)
   - [ ] Implement `run_full_benchmark(config, output_dir, tasks)` — main execution loop
   - [ ] Add argparse CLI entry point at module level (`if __name__ == "__main__"`)
+  - [ ] Add `--tasks` CLI argument (comma-separated task IDs) to override default full suite
 
 ### Phase 2 — Data Collection and Aggregation
 
@@ -64,6 +65,7 @@ Implementation tasks for Milestone 5.6 — Full 60-Task Local-LLM Benchmark Run.
 - [ ] Verify task artifacts (transcript.jsonl, usage.json, agent.log) exist for each task <!-- id: 18 -->
 - [ ] Verify metadata includes model name, endpoint, hardware, runtime version <!-- id: 19 -->
 - [ ] Test preflight_check rejects read-only output directory <!-- id: 21 -->
+- [ ] Verify `--tasks t1,t2,t3` runs only specified tasks <!-- id: 31 -->
 
 ## Documentation Phase
 
