@@ -116,7 +116,7 @@ class TestContainerStartup:
     def test_container_fails_without_model_endpoint(self):
         """Container fails with clear error when TINYCUA_BASE_URL is missing."""
         result = subprocess.run(
-            ["docker", "run", "--rm", IMAGE_TAG, "exit", "0"],
+            ["docker", "run", "--rm", IMAGE_TAG],
             capture_output=True,
             text=True,
             timeout=30,
@@ -147,10 +147,11 @@ class TestWorkspaceMounting:
 
     def test_workspace_is_writable(self):
         """Container can write to /tmp_workspace."""
+        # Use tmp_path fixture for automatic cleanup (see test_docker_image.py)
         result = subprocess.run(
             [
                 "docker", "run", "--rm",
-                "-v", "/tmp/test-workspace:/tmp_workspace",
+                "-v", f"{tmp_path}:/tmp_workspace",
                 "-e", "TINYCUA_BASE_URL=http://example.com/v1",
                 "-e", "TASK_PROMPT=test",
                 IMAGE_TAG,
@@ -258,7 +259,7 @@ class TestTinyCUAInstalled:
 
 #### [NEW] `Dockerfile`
 
-- **Description**: Multi-stage Dockerfile that builds the TinyCUA benchmark image
+- **Description**: Dockerfile that builds the TinyCUA benchmark image
 - **Base**: `python:3.11-slim` (minimal footprint, ~150MB)
 - **Dependencies**: System packages (bash, coreutils, curl, git), uv, Python dependencies, TinyCUA + tinycua-sdk
 - **Rationale**: Provides a self-contained, reproducible runtime for benchmark execution
@@ -296,7 +297,7 @@ class TestTinyCUAInstalled:
 
 | Component | Change Type | Description |
 |-----------|-------------|-------------|
-| `Dockerfile` | New | Multi-stage build for TinyCUA benchmark image |
+| `Dockerfile` | New | Docker build for TinyCUA benchmark image |
 | `scripts/entrypoint.sh` | New | Container entry point with environment validation |
 | `docker-compose.benchmark.yml` | New | Optional compose file for local development |
 | `src/tinycua/tinycua/cli/main.py` | Modify | Add `benchmark` subcommand dispatch |

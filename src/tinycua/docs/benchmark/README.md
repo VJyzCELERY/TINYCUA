@@ -172,8 +172,9 @@ chmod -R 777 ./workspace
 The `tinycua benchmark run` command accepts these arguments:
 
 ```bash
+# TASK_PROMPT is typically set via environment variable (recommended)
+# to avoid shell interpretation of special characters
 tinycua benchmark run \
-  --prompt "Your task prompt" \
   --workspace /tmp_workspace \
   --output /tmp_workspace/results \
   --transcript /tmp_workspace/transcript.jsonl \
@@ -188,7 +189,7 @@ tinycua benchmark run \
 
 | Argument | Default | Description |
 |----------|---------|-------------|
-| `--prompt` | (from TASK_PROMPT env) | Task prompt for the agent |
+| `--prompt` | (from TASK_PROMPT env) | Task prompt for the agent (prefer TASK_PROMPT env var) |
 | `--workspace` | `/tmp_workspace` | Working directory for the agent session |
 | `--output` | `/tmp_workspace/results` | Output directory for benchmark artifacts |
 | `--transcript` | `/tmp_workspace/transcript.jsonl` | Path for transcript output |

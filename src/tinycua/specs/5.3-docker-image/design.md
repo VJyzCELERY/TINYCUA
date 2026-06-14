@@ -54,7 +54,7 @@ This design specifies the Docker image for TinyCUA benchmark execution within Wi
 
 | Component | Change Type | Notes |
 |-----------|-------------|-------|
-| `Dockerfile` | New | Multi-stage build for TinyCUA benchmark image |
+| `Dockerfile` | New | Docker build for TinyCUA benchmark image |
 | `docker-compose.benchmark.yml` | New | Optional compose file for local development |
 | `scripts/entrypoint.sh` | New | Container entry point script |
 | `src/tinycua/docs/benchmark/README.md` | New | Usage documentation for the benchmark image |
@@ -194,15 +194,15 @@ exec tinycua benchmark run \
 
 ### Phase 1 — MVP (Required for initial release)
 
-- [ ] Create Dockerfile with base image and system dependencies
-- [ ] Install Python dependencies and TinyCUA packages
-- [ ] Implement entry point script with environment validation
-- [ ] Configure volume mounting for `/tmp_workspace`
-- [ ] Add basic health check
-- [ ] Create smoke test task for validation
-- [ ] Document all configuration options
-- [ ] Test container build and basic execution
-- [ ] Add Docker Compose file for local development
+- [x] Create Dockerfile with base image and system dependencies
+- [x] Install Python dependencies and TinyCUA packages
+- [x] Implement entry point script with environment validation
+- [x] Configure volume mounting for `/tmp_workspace`
+- [ ] Add basic health check — deferred to Phase 2 (not required for WildClawBench integration; container lifecycle is managed by orchestrator)
+- [x] Create smoke test task for validation
+- [x] Document all configuration options
+- [x] Test container build and basic execution
+- [x] Add Docker Compose file for local development
 
 ### Phase 2 — Enhancements (Post-MVP)
 
