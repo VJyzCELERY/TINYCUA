@@ -36,7 +36,7 @@ Produce a structured Markdown research report analyzing TinyCUA's WildClawBench 
 
 ---
 
-## Success Criteria — Integration Tests (TDD First)
+## Success Criteria — Manual Verification
 
 This milestone produces a research document, not executable code. Success criteria are validated through manual review against the spec checkboxes.
 
