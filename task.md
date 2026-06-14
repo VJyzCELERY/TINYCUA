@@ -71,10 +71,13 @@ Implementation tasks for Milestone 5.6 — Full 60-Task Local-LLM Benchmark Run.
 
 - [ ] Add `benchmark_results/` to `.gitignore` <!-- id: 22 -->
 - [ ] Add usage instructions in script docstrings or inline comments <!-- id: 24 -->
+- [ ] Update spec.md success criteria checkboxes after verification <!-- id: 28 -->
+- [ ] Update design.md implementation phase checkboxes after verification <!-- id: 29 -->
+- [ ] Update spec.md review checklist after review completion <!-- id: 30 -->
 
 ## Review and Merge
 
-- [ ] Create pull request <!-- id: 25 -->
+- [x] Create pull request <!-- id: 25 -->
 - [ ] Address review feedback <!-- id: 26 -->
 - [ ] Merge to main branch <!-- id: 27 -->
 

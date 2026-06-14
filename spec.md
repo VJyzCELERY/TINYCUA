@@ -73,10 +73,11 @@ A researcher configures a local LLM endpoint (e.g., vLLM, Ollama, LM Studio), bu
 - **FR-006**: System MUST record usage data (request count, tokens if available, cost=0.0 for local models) for each task.
 - **FR-007**: System MUST handle task failures gracefully, recording error details and continuing with remaining tasks.
 - **FR-008**: System MUST provide a summary of pass/fail/skip counts across all tasks.
-- **FR-009**: System MUST use the existing `tinycua run` CLI entry point via the `TinyCUAAgent` adapter.
+- **FR-009**: System MUST use the TinyCUAAgent adapter for task execution (via `TinyCUAAgent.run_task()`).
 - **FR-010**: System MUST NOT modify WildClawBench task definitions or grading functions.
 - **FR-011**: System MUST NOT depend on OpenRouter or any hosted model service.
 - **FR-012**: System MUST record the start time, end time, and total duration of the benchmark run.
+- **FR-013**: `benchmark_results/` directory MUST be listed in `.gitignore` to prevent accidental commits of large artifact files.
 
 ### Key Entities
 
@@ -165,8 +166,8 @@ A researcher configures a local LLM endpoint (e.g., vLLM, Ollama, LM Studio), bu
 ## Review Checklist
 
 - [ ] No implementation details beyond what the design docs specify
-- [ ] All mandatory sections completed
+- [x] All mandatory sections completed
 - [ ] Requirements are testable and unambiguous
-- [ ] Scope is clearly bounded with explicit non-goals
+- [x] Scope is clearly bounded with explicit non-goals
 - [ ] Success criteria are measurable
 - [ ] Exit criteria match Milestone 5.6 from the roadmap issue

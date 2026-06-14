@@ -279,7 +279,7 @@ def preflight_check(output_dir: Path) -> None:
 - [ ] Implement summary_all.json schema and writing
 - [ ] Implement task artifact directory structure
 - [ ] Implement error handling and graceful failure
-- [ ] Implement resumption: track completed task IDs in a .completed file; skip already-completed tasks on re-run
+
 
 ### Phase 4 — Testing and Validation
 
@@ -317,7 +317,7 @@ def preflight_check(output_dir: Path) -> None:
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| Local LLM endpoint crashes mid-run | Medium | High | Record partial results to .completed file; support resuming by skipping completed tasks on re-run |
+| Local LLM endpoint crashes mid-run | Medium | High | Record partial results to output directory; investigate resumption support in a future milestone |
 | Task timeouts exceed reasonable limits | Medium | Medium | Configurable timeout per task; default 10 minutes |
 | Hardware info collection fails on some platforms | Low | Low | Graceful fallback to "unknown" for missing hardware fields |
 | summary_all.json becomes very large (60 tasks) | Low | Low | Use compact JSON; 60 tasks is manageable |
@@ -329,13 +329,13 @@ def preflight_check(output_dir: Path) -> None:
 ## Open Questions _(optional)_
 
 1. **Should the benchmark support resuming from a partial run?**
-   - Current thinking: Yes, for robustness. If the run is interrupted, it should detect completed tasks and skip them on re-run. This requires tracking completed task IDs.
+   - **Status**: Resolved — deferred to a future milestone. See spec.md Open Questions for details.
 
 2. **How should judge LLM configuration be handled in the metadata?**
-   - Current thinking: Include judge_model and judge_endpoint in metadata, but allow them to be null if not configured. Document that judge configuration is separate from harness execution.
+   - **Status**: Resolved — include `judge_model` and `judge_endpoint` in metadata, allow null if not configured. See spec.md FR-004 and Open Questions.
 
 3. **Should the benchmark script support custom task lists?**
-   - Current thinking: Yes, via a `--tasks` argument that accepts a comma-separated list of task IDs. Default is all 60 tasks.
+   - **Status**: Resolved — supported via `--tasks` argument accepting comma-separated task IDs. Default is all 60 tasks. See spec.md Open Questions.
 
 ---
 

@@ -55,8 +55,8 @@ Execute all 60 WildClawBench tasks using the TinyCUA harness with a local LLM mo
 
 def test_run_metadata_schema_valid():
     """RunMetadata serialises to a valid JSON structure with all required fields."""
-    from scripts.benchmark_config import BenchmarkConfig
-    from scripts.collect_metadata import collect_run_metadata
+    from tinycua.scripts.benchmark_config import BenchmarkConfig
+    from tinycua.scripts.collect_metadata import collect_run_metadata
 
     config = BenchmarkConfig(model_name="test-model", base_url="http://localhost:9999/v1")
     metadata = collect_run_metadata(config)
@@ -74,7 +74,7 @@ def test_run_metadata_schema_valid():
 
 def test_task_result_schema_valid():
     """TaskResult serialises to the expected JSON shape."""
-    from scripts.run_benchmark import TaskResult
+    from tinycua.scripts.run_benchmark import TaskResult
 
     result = TaskResult(
         task_id="task_001",
@@ -99,7 +99,7 @@ def test_task_result_schema_valid():
 
 def test_summary_aggregate_calculation():
     """SummaryAggregate computes correct statistics from a list of TaskResults."""
-    from scripts.run_benchmark import SummaryAggregate, TaskResult
+    from tinycua.scripts.run_benchmark import SummaryAggregate, TaskResult
 
     results = [
         TaskResult("t1", "Cat", 0.9, "success", 10.0, None, "", "", "", None, 5, 1000, 0.0),
@@ -132,7 +132,7 @@ def test_summary_all_json_written(tmp_path):
 
 def test_preflight_check_fails_on_readonly_dir(tmp_path):
     """preflight_check raises PermissionError for a read-only output directory."""
-    from scripts.collect_metadata import preflight_check
+    from tinycua.scripts.collect_metadata import preflight_check
 
     readonly = tmp_path / "readonly"
     readonly.mkdir()
@@ -203,7 +203,7 @@ def test_task_artifacts_preserved(tmp_path):
 
 #### NEW `src/tinycua/scripts/run_benchmark.py`
 
-- **Description**: Main orchestrator — `run_full_benchmark(config, output_dir, tasks)`. Loops through tasks, runs TinyCUAAgent, collects usage, aggregates results, writes `summary_all.json`. Supports resumption via `.completed` file.
+- **Description**: Main orchestrator — `run_full_benchmark(config, output_dir, tasks)`. Loops through tasks, runs TinyCUAAgent, collects usage, aggregates results, writes `summary_all.json`.
 - **Dependencies**: TinyCUAAgent, BenchmarkConfig, RunMetadata, collect_metadata
 
 ### Tests (`src/tinycua/tests/`)
@@ -316,7 +316,7 @@ No API endpoint changes — this is a script-based orchestrator invoked via `uv 
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| Local LLM endpoint crashes mid-run | High | Track completed tasks in `.completed` file; support resume by skipping completed tasks on re-run |
+| Local LLM endpoint crashes mid-run | High | Record partial results; investigate resumption support in a future milestone |
 | Task timeouts exceed reasonable limits | Medium | Configurable per-task timeout; default 600s (10 min) |
 | Hardware info collection fails on some platforms | Low | Graceful fallback to "unknown" for missing fields |
 | WildClawBench task list changes between versions | Medium | Document task list source; allow `--tasks` manual specification |
