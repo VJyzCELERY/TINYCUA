@@ -19,7 +19,7 @@ Execute all 60 WildClawBench tasks using the TinyCUA harness with a local LLM mo
   LLM_BASE_URL=http://localhost:8000/v1
   LLM_MODEL=llama3
   ```
-- [ ] **Environment variables** documented in `src/tinycua/.env.example` (benchmark-specific vars must be uncommented/added)
+- [x] **Environment variables** documented in `src/tinycua/.env.example` (benchmark-specific vars must be uncommented/added)
 - [ ] **None** — no hosted service secrets required
 
 ### Running Services

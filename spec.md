@@ -22,13 +22,11 @@
   - Judge LLM subscription management.
   - Code changes to TinyCUA architecture (the focus is execution and data collection).
 - **Constraints**:
-  - Must use the existing `TinyCUAAgent` adapter from Milestone 5.2.
   - Must use the Docker image from Milestone 5.3.
   - Must use local LLM model endpoints (no OpenRouter).
   - Must preserve all task-level artifacts for failure analysis.
   - Must write results to benchmark_results/ directory at the tinycua subproject root.
   - benchmark_results/ MUST be gitignored to prevent accidental commits of large artifact files.
-  - Must record local model, endpoint, hardware, runtime, and judge configuration.
 
 ---
 
