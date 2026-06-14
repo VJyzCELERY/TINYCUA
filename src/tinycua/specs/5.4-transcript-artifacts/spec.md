@@ -143,21 +143,21 @@ A WildClawBench grading script can then load `transcript.jsonl` via its `transcr
 
 1. **Should `TranscriptRecord` be used for the primary transcript or as a side channel?**
    - **Owner**: @VJyzCELERY
-   - **Status**: Discussion
-   - **Proposed Answer**: Use `TranscriptRecord` as a side channel for lifecycle events; the primary transcript uses the OpenClaw format from `write_transcript()` enhanced with tool-use blocks and usage.
+   - **Status**: Resolved
+   - **Resolution**: Use `TranscriptRecord` as a side channel for lifecycle events; the primary transcript uses the OpenClaw format from `convert_working_messages_to_openclaw()` enhanced with tool-use blocks and usage.
 
 2. **Should usage be captured from `_run_stream()` `response.usage` events or from the SDK's `cumulative_usage`?**
    - **Owner**: @VJyzCELERY
-   - **Status**: Discussion
-   - **Proposed Answer**: Capture from `response.usage` stream events for per-response granularity; aggregate into `usage.json` at the end.
+   - **Status**: Resolved
+   - **Resolution**: Capture from `_run_stream()` `response.usage` stream events for per-response granularity; aggregate into `usage.json` at the end.
 
 ---
 
 ## Review Checklist
 
-- [ ] No implementation details beyond what the design docs specify
-- [ ] All mandatory sections completed
-- [ ] Requirements are testable and unambiguous
-- [ ] Scope is clearly bounded with explicit non-goals
-- [ ] Success criteria are measurable
-- [ ] Exit criteria match Milestone 5.4 from the roadmap issue
+- [x] No implementation details beyond what the design docs specify
+- [x] All mandatory sections completed
+- [x] Requirements are testable and unambiguous
+- [x] Scope is clearly bounded with explicit non-goals
+- [x] Success criteria are measurable
+- [x] Exit criteria match Milestone 5.4 from the roadmap issue

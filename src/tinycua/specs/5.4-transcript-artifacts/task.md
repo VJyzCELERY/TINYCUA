@@ -71,7 +71,7 @@ Implementation tasks for Milestone 5.4 — Transcript, Usage, and Artifact Compa
 
 ## Review and Merge
 
-- [ ] Create pull request <!-- id: 21 -->
+- [ ] Verify PR #135 body and title are up to date <!-- id: 21 -->
 - [ ] Address review feedback <!-- id: 22 -->
 - [ ] Merge to base branch <!-- id: 23 -->
 

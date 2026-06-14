@@ -239,7 +239,7 @@ def write_usage_summary(
 ## Open Questions _(optional)_
 
 1. **Should `TranscriptRecord` be used as the primary transcript format or as a side channel for lifecycle events?**
-   - Current thinking: Use it as a side channel. The primary transcript uses the OpenClaw format from `convert_working_messages_to_openclaw()`. `TranscriptRecord` can be used for additional lifecycle event logging if needed.
+   - **Resolved**: Use it as a side channel. The primary transcript uses the OpenClaw format from `convert_working_messages_to_openclaw()`. `TranscriptRecord` can be used for additional lifecycle event logging if needed.
 
 2. **Should the converter handle `role: "tool_result"` messages that the SDK stores internally but doesn't expose in the working message list?**
    - **Resolved**: Yes — the adapter contract confirms that tool-result messages (role: `tool_result`, call_id: str, content: str) ARE present in the working message list. The converter MUST handle them and produce `toolResult` records with both `callId` and `tool_call_id` fields.
