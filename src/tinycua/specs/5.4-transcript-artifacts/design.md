@@ -44,7 +44,7 @@ CLI run.py
 |-----------|-------------|-------|
 | `cli/transcript.py` | Modified | Add `convert_working_messages_to_openclaw()`, `_build_content_blocks()`, `_usage_int()`, `write_openclaw_jsonl()` |
 | `cli/run.py` | Modified | Wire usage capture, call enhanced transcript writer, write `usage.json` |
-| `cli/logging.py` | No change | Already works correctly |
+| `cli/logging.py` | No change | Already satisfies FR-001 (timestamp, event, level, data fields) |
 | `config/types.py` | No change | `TranscriptRecord` already defined |
 | `loops/tinycua_loop.py` | Modified | Capture `response.usage` events during streaming for usage collection |
 | `tests/unit/test_transcript_conversion.py` | New | Unit tests for OpenClaw conversion |
@@ -82,7 +82,7 @@ UsageSummary:
 
 ### Schema Changes
 
-- No changes to existing data structures. The transcript format is enhanced but backward-compatible (existing `write_transcript()` continues to work for non-OpenClaw consumers).
+- No changes to existing data structures. The `UsageSummary` type is additive (new). The transcript format is enhanced but backward-compatible (existing `write_transcript()` continues to work for non-OpenClaw consumers).
 
 ---
 
@@ -181,9 +181,11 @@ def write_usage_summary(
 - [ ] Wire usage collection into `cli/run.py` after agent execution
 - [ ] Support zero-filled fallback when no usage events captured
 
+> **Note**: Usage capture requires running the agent in streaming mode (`stream=True`). The `cli/run.py` will be modified to use `stream=True` and collect `response.usage` events from the async iterator into a list. This is a behavioral change from the current non-streaming mode.
+
 ### Phase 3 — CLI Integration (required)
 
-- [ ] Modify `cli/run.py` to use `convert_working_messages_to_openclaw()` instead of `write_transcript()`
+- [ ] Modify `cli/run.py` to use `convert_working_messages_to_openclaw()` for the primary transcript output while preserving `write_transcript()` for backward compatibility
 - [ ] Pass `per_message_usage` from captured usage events
 - [ ] Write `usage.json` to output directory
 - [ ] Ensure `agent.log` continues to work unchanged
@@ -240,7 +242,7 @@ def write_usage_summary(
    - Current thinking: Use it as a side channel. The primary transcript uses the OpenClaw format from `convert_working_messages_to_openclaw()`. `TranscriptRecord` can be used for additional lifecycle event logging if needed.
 
 2. **Should the converter handle `role: "tool_result"` messages that the SDK stores internally but doesn't expose in the working message list?**
-   - Current thinking: Yes — if the working message list contains `tool_result` entries, convert them to `toolResult` records. If they're missing, the transcript will lack `toolResult` records but still be valid.
+   - **Resolved**: Yes — the adapter contract confirms that tool-result messages (role: `tool_result`, call_id: str, content: str) ARE present in the working message list. The converter MUST handle them and produce `toolResult` records with both `callId` and `tool_call_id` fields.
 
 ---
 

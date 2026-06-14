@@ -12,7 +12,7 @@
 ## Problem Statement _(mandatory)_
 
 - **Goals**: Produce WildClawBench-compatible transcript, usage, and task-output artifacts from TinyCUA agent runs so that WildClawBench grading can consume them and benchmark scores can be collected.
-- **Gaps**: The current CLI writes `agent.log` (structured JSONL) and `transcript.jsonl` (raw working messages), but the transcript format does not match WildClawBench's OpenClaw-compatible JSONL schema — it lacks tool-use content blocks, per-message usage fields, and `toolResult` records. There is no usage tracking (token counts, request count, cost) in the CLI. `TranscriptRecord` is defined but not wired into the execution pipeline. Streaming events are yielded but not captured for artifact persistence.
+- **Gaps**: The current CLI writes `agent.log` (structured JSONL) and `transcript.jsonl` (raw working messages), but the transcript format does not match WildClawBench's OpenClaw-compatible JSONL schema — it lacks tool-use content blocks, per-message usage fields, and `toolResult` records. There is no usage tracking (token counts, request count, cost) in the CLI. `TranscriptRecord` is defined but not wired into the execution pipeline. Working messages from BaseLoop are not converted to OpenClaw-compatible format.
 - **Non-Goals**:
   - WildClawBench adapter implementation (Milestone 5.2).
   - Docker image creation (Milestone 5.3).
@@ -48,7 +48,7 @@ A WildClawBench grading script can then load `transcript.jsonl` via its `transcr
 5. **Given** a completed run, **When** `usage.json` is written, **Then** it contains `input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_tokens`, `total_tokens`, `cost_usd`, `request_count`, and `elapsed_time` fields.
 6. **Given** a completed run with zero usage data available, **When** `usage.json` is written, **Then** it contains zero-filled values (never an empty dict).
 7. **Given** a completed run, **When** `agent.log` is written, **Then** each line is a JSON object with `timestamp`, `event`, `level`, and `data` fields.
-8. **Given** a streaming run, **When** the run completes, **Then** all streamed events are captured and available for transcript serialization (not lost as uncollected yields).
+8. **Given** a completed run, **When** the run completes, **Then** all working messages from BaseLoop are captured and available for transcript serialization (not lost as uncollected yields).
 9. **Given** a transcript file, **When** loaded by WildClawBench's `transcript_loader.py`, **Then** it parses successfully as JSONL and returns a list of message records.
 
 ### Edge Cases
@@ -73,7 +73,7 @@ A WildClawBench grading script can then load `transcript.jsonl` via its `transcr
 - **FR-006**: System MUST NOT embed cumulative usage totals in every assistant message — each message MUST receive only its per-response usage.
 - **FR-007**: System MUST write `usage.json` with fields: `input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_tokens`, `total_tokens`, `cost_usd`, `request_count`, `elapsed_time`.
 - **FR-008**: `usage.json` MUST never be an empty dict — when usage data is unavailable, zero-filled values MUST be returned.
-- **FR-009**: System MUST capture streaming events from `_run_stream()` for transcript serialization rather than letting them go uncollected.
+- **FR-009**: System MUST capture working messages from BaseLoop for transcript serialization rather than letting them go uncollected.
 - **FR-010**: System MUST coerce nullable token counts from the SDK to non-negative integers before writing to transcript or usage files.
 - **FR-011**: System MUST support configurable output directory via CLI `--output-dir` flag (default: `/tmp_workspace/results`).
 - **FR-012**: System MUST preserve user messages, assistant messages, and tool-result messages in the transcript — system messages are excluded.
@@ -81,7 +81,7 @@ A WildClawBench grading script can then load `transcript.jsonl` via its `transcr
 
 ### Key Entities _(include if feature involves data)_
 
-- **TranscriptRecord**: Wraps a stream event with run-level metadata (`run_id`, `session_id`, `sequence`) for JSONL serialization. Already defined in `config/types.py`.
+- **TranscriptRecord**: Wraps a stream event with run-level metadata (`run_id`, `session_id`, `sequence`) for JSONL serialization. Used as a side channel for lifecycle event logging; the primary transcript uses the OpenClaw format from `convert_working_messages_to_openclaw()`. Already defined in `config/types.py`.
 - **UsageSummary**: Aggregate usage data for `usage.json` output — token counts, request count, cost, elapsed time.
 - **OpenClaw Transcript Record**: A JSON object with `"type"` field (`"message"` or `"toolResult"`) and corresponding payload. Schema defined in `specs/wildclawbench-adapter/adapter-contract.md`.
 
@@ -95,7 +95,7 @@ A WildClawBench grading script can then load `transcript.jsonl` via its `transcr
 - [ ] **Usage is numeric**: All `usage` fields in assistant messages are non-negative integers (never `null`).
 - [ ] **Usage summary written**: `usage.json` contains all required fields with zero-filled fallback.
 - [ ] **agent.log written**: Structured JSONL log with timestamp/event/level/data fields.
-- [ ] **Streaming events captured**: Events from `_run_stream()` are collected for transcript serialization.
+- [ ] **Working messages captured**: Working messages from BaseLoop are collected for transcript serialization.
 - [ ] **Tests pass**: Unit and integration tests for transcript conversion, usage collection, and artifact writing.
 
 ---
@@ -117,7 +117,7 @@ A WildClawBench grading script can then load `transcript.jsonl` via its `transcr
 
 - [ ] Test end-to-end transcript writing: agent run → `transcript.jsonl` → parseable by JSONL loader.
 - [ ] Test end-to-end usage writing: agent run → `usage.json` with correct fields.
-- [ ] Test streaming event capture: events from `_run_stream()` are collected and serializable.
+- [ ] Test working message capture: working messages from BaseLoop are collected and serializable.
 
 ### Manual Tests _(if applicable)_
 
@@ -134,7 +134,7 @@ A WildClawBench grading script can then load `transcript.jsonl` via its `transcr
 | OpenClaw-compatible format | TODO | Need tool_use blocks, toolResult records, usage |
 | Per-message usage in transcript | TODO | Need to capture `response.usage` events |
 | `usage.json` writing | TODO | New — aggregate usage summary |
-| Streaming event capture | TODO | Wire `TranscriptRecord` into `_run_stream()` |
+| Working message capture | TODO | Wire working messages from BaseLoop into transcript conversion |
 | Usage coercion | TODO | `_usage_int()` helper for nullable tokens |
 
 ---
