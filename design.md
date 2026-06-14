@@ -1,9 +1,9 @@
 # Design Document: Full 60-Task Local-LLM Benchmark Run
 
 **Spec**: [./spec.md](./spec.md)
-**Status**: Draft
+**Status**: Reviewed
 **Created**: 2026-06-14
-**Last Updated**: 2026-06-14
+**Last Updated**: 2026-06-15
 
 ---
 

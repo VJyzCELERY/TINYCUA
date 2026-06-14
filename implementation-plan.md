@@ -165,10 +165,10 @@ def test_task_artifacts_preserved(tmp_path):
 
 ### Automated Tests
 
-- [x] Integration tests (defined above) — these must pass for implementation to be complete
+- [ ] Integration tests (defined above) — these must pass for implementation to be complete
 - [ ] Unit tests for metadata collection (CPU/GPU/RAM extraction on various platforms)
 - [ ] Unit tests for summary statistics (edge cases: all pass, all fail, zero tasks)
-- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
 
@@ -325,4 +325,4 @@ No API endpoint changes — this is a script-based orchestrator invoked via `uv 
 ---
 
 *Generated from spec.md and design.md*
-*Last updated: 2026-06-14*
+*Last updated: 2026-06-15*
