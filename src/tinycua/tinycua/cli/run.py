@@ -8,7 +8,11 @@ import logging
 import os
 import time
 import threading
+from collections.abc import Coroutine
 from pathlib import Path
+from typing import Any
+
+from tinycua_sdk.agent import Agent
 
 from tinycua.cli.config import load_config
 from tinycua.cli.logging import write_log_entry
@@ -18,7 +22,7 @@ from tinycua.factory import create_tinycua_agent
 logger = logging.getLogger(__name__)
 
 
-def _run_async_safely(coro: object) -> object:
+def _run_async_safely(coro: Coroutine[Any, Any, str]) -> str:
     """Run an async coroutine safely, handling nested event loop cases.
 
     In normal CLI invocation (python -m tinycua run), there is no running
@@ -42,7 +46,7 @@ def _run_async_safely(coro: object) -> object:
 
     # There's a running loop. We can't nest event loops directly.
     # Run in a new thread with its own event loop.
-    def _run_in_new_loop() -> object:
+    def _run_in_new_loop() -> str:
         return asyncio.run(coro)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
@@ -238,7 +242,7 @@ def run_command(
 
 
 async def _run_agent_with_timeout(
-    agent: object,
+    agent: Agent,
     prompt: str,
     timeout_event: threading.Event,
 ) -> str:
@@ -252,7 +256,7 @@ async def _run_agent_with_timeout(
     Returns:
         The agent response string.
     """
-    run_task = asyncio.create_task(agent.run(prompt))  # type: ignore[union-attr]
+    run_task = asyncio.create_task(agent.run(prompt))
 
     while not run_task.done():
         if timeout_event.is_set():
