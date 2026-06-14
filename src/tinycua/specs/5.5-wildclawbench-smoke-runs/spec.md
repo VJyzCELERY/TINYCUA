@@ -77,9 +77,9 @@ A developer runs the smoke-run script, which:
 
 ### Key Entities _(include if feature involves data)_
 
-- **SmokeTask**: A selected WildClawBench task for smoke execution — task ID, category, prompt, timeout, workspace path, output path.
-- **SmokeResult**: Result of a single smoke task — task ID, category, status, elapsed time, usage summary, failure reason, artifact paths.
-- **SmokeReport**: Aggregated results across all attempted tasks — per-task results, per-category summary, overall pass rate, failure taxonomy.
+- **SmokeTask**: Represents a selected WildClawBench task for smoke execution. Includes task identifier, category assignment, prompt text, timeout configuration, workspace path, and output directory. See design.md for full field definitions.
+- **SmokeResult**: Represents the outcome of a single smoke task. Captures task identifier, category, execution status, elapsed time, usage summary, failure details, and artifact paths. See design.md for full field definitions.
+- **SmokeReport**: Aggregates results across all attempted tasks. Provides per-task results, per-category summary, overall pass rate, and failure taxonomy. See design.md for full field definitions.
 
 ---
 

@@ -127,6 +127,8 @@ class SmokeRunOrchestrator:
         """Select representative tasks from each category."""
 ```
 
+**Execution Model**: Tasks execute sequentially via `subprocess.run()` with a per-task timeout. The orchestrator iterates through selected tasks one at a time. Each task runs in an isolated subprocess — partial failures (e.g., task 3 crashes) do not abort remaining tasks. The orchestrator catches exceptions per-task, categorizes the failure, and continues to the next task. The `SmokeReport` reflects the outcome of all attempted tasks regardless of individual failures.
+
 ### SmokeTaskSelector
 
 ```python
@@ -250,9 +252,11 @@ def categorize_failure(
 
 1. **Should the smoke-run script be a standalone script or a CLI subcommand?**
    - **Resolved**: Both. A standalone script for development iteration (`python -m tinycua.cli.smoke_run`), and a `tinycua smoke-run` CLI subcommand for formal runs.
+   - **Rationale**: Local standalone mode enables fast iteration without CLI registration overhead. The CLI subcommand provides the polished entry point for formal validation runs and integrates with the existing `tinycua` CLI structure (matching `tinycua benchmark`, `tinycua transcript`, etc.).
 
 2. **How many tasks per category should smoke runs cover?**
    - **Resolved**: Minimum one per category for smoke runs. The milestone contract says "at least one task from each category where dependencies are available." More tasks can be added if time permits.
+   - **Rationale**: One task per category satisfies the milestone contract while keeping smoke-run duration manageable (6–12 tasks at 300s timeout each). Additional tasks can be added incrementally as the static list evolves.
 
 ---
 

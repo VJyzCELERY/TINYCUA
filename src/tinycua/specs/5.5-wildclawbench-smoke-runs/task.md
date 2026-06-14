@@ -58,6 +58,8 @@ Implementation tasks for WildClawBench Smoke Runs (Milestone 5.5). Check off ite
 
 - [ ] Manual: Run smoke script against a live local model endpoint <!-- id: 14 -->
 - [ ] Manual: Verify artifacts (agent.log, transcript.jsonl, usage.json) are produced per task <!-- id: 15 -->
+- [ ] Manual: Verify transcript.jsonl is parseable by WildClawBench's transcript_loader.py (OpenClaw-compatible JSONL format) <!-- id: 15b -->
+- [ ] Manual: Verify smoke-run script does not mutate WildClawBench task files (FR-009 integrity constraint) <!-- id: 15c -->
 - [ ] Manual: Verify smoke-run report accurately reflects pass/fail/skip status <!-- id: 16 -->
 - [ ] Manual: Verify idempotent re-runs do not corrupt prior artifacts <!-- id: 17 -->
 
@@ -65,6 +67,7 @@ Implementation tasks for WildClawBench Smoke Runs (Milestone 5.5). Check off ite
 
 - [ ] Update spec.md success criteria checkboxes to reflect completed items <!-- id: 18 -->
 - [ ] Update spec.md status tracker <!-- id: 19 -->
+- [ ] Update design.md implementation phase checkboxes to reflect completed items <!-- id: 19b -->
 
 ## Review and Merge
 
