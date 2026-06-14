@@ -16,8 +16,8 @@ services:
       - TINYCUA_API_KEY=${TINYCUA_API_KEY:-}
       - TINYCUA_MODEL=${TINYCUA_MODEL:-llama3}
 
-      # Optional: WildClawBench task prompt (set by benchmark harness)
-      - TASK_PROMPT=${TASK_PROMPT:-Hello, this is a test task.}
+      # Required: WildClawBench task prompt (set by benchmark harness)
+      - TASK_PROMPT=${TASK_PROMPT:?Set TASK_PROMPT to the WildClawBench task prompt before running}
 
       # Optional: Tool API keys
       - BRAVE_API_KEY=${BRAVE_API_KEY:-}

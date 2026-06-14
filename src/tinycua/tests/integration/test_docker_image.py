@@ -54,6 +54,7 @@ class TestContainerStartup:
             [
                 "docker", "run", "--rm",
                 "-e", "TINYCUA_BASE_URL=http://example.com/v1",
+                "-e", "TASK_PROMPT=test",
                 IMAGE_TAG,
                 "echo", "ready",
             ],
@@ -106,6 +107,7 @@ class TestWorkspaceMounting:
                 "docker", "run", "--rm",
                 "-v", "/tmp/test-workspace:/tmp_workspace",
                 "-e", "TINYCUA_BASE_URL=http://example.com/v1",
+                "-e", "TASK_PROMPT=test",
                 IMAGE_TAG,
                 "sh", "-c", "touch /tmp_workspace/test-file && echo ok",
             ],
@@ -128,6 +130,7 @@ class TestEnvironmentVariables:
                 "docker", "run", "--rm",
                 "-e", "TINYCUA_BASE_URL=http://example.com/v1",
                 "-e", "BRAVE_API_KEY=test-key-123",
+                "-e", "TASK_PROMPT=test",
                 IMAGE_TAG,
                 "sh", "-c", "echo $BRAVE_API_KEY",
             ],
@@ -149,6 +152,7 @@ class TestTinyCUAInstalled:
             [
                 "docker", "run", "--rm",
                 "-e", "TINYCUA_BASE_URL=http://example.com/v1",
+                "-e", "TASK_PROMPT=test",
                 IMAGE_TAG,
                 "tinycua", "--help",
             ],
@@ -165,6 +169,7 @@ class TestTinyCUAInstalled:
             [
                 "docker", "run", "--rm",
                 "-e", "TINYCUA_BASE_URL=http://example.com/v1",
+                "-e", "TASK_PROMPT=test",
                 IMAGE_TAG,
                 "tinycua", "benchmark", "--help",
             ],

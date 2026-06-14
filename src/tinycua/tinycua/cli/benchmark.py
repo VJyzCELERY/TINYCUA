@@ -239,6 +239,8 @@ def benchmark_run_command(
         # Write transcript from working messages
         loop = agent.loop
         working_messages = getattr(loop, "_working_messages", [])
+        if not working_messages:
+            logger.warning("No working messages found for transcript — check agent implementation")
         write_transcript(working_messages, transcript_path)
 
         print(f"Agent completed in {elapsed:.1f}s", flush=True)
