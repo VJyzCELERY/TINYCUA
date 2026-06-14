@@ -77,9 +77,10 @@ A developer runs the smoke-run script, which:
 
 ### Key Entities _(include if feature involves data)_
 
-- **SmokeTask**: Represents a selected WildClawBench task for smoke execution. Includes task identifier, category assignment, prompt text, timeout configuration, workspace path, and output directory. See design.md for full field definitions.
-- **SmokeResult**: Represents the outcome of a single smoke task. Captures task identifier, category, execution status, elapsed time, usage summary, failure details, and artifact paths. See design.md for full field definitions.
-- **SmokeReport**: Aggregates results across all attempted tasks. Provides per-task results, per-category summary, overall pass rate, and failure taxonomy. See design.md for full field definitions.
+- **SmokeTask**: Represents a selected WildClawBench task for smoke execution.
+- **SmokeResult**: Represents the outcome of a single smoke task.
+- **SmokeReport**: Aggregates results across all attempted tasks.
+- See design.md for full field definitions and data model.
 
 ---
 
@@ -139,14 +140,14 @@ A developer runs the smoke-run script, which:
 1. **How should task selection work — static list or dynamic from WildClawBench dataset?**
    - **Owner**: @VJyzCELERY
    - **Target**: Before implementation
-   - **Status**: Proposed
-   - **Proposed Answer**: Start with a static curated list of representative tasks per category (one per category minimum). Dynamic selection from the dataset can be added later.
+   - **Status**: Resolved
+   - **Decision**: Start with a static curated list of representative tasks per category (one per category minimum). Dynamic selection from the dataset can be added later.
 
 2. **Should smoke runs use Docker or local CLI by default?**
    - **Owner**: @VJyzCELERY
    - **Target**: Before implementation
-   - **Status**: Proposed
-   - **Proposed Answer**: Support both modes via a flag. Default to local CLI for faster iteration during development; Docker mode for validation runs.
+   - **Status**: Resolved
+   - **Decision**: Support both modes via a flag. Default to local CLI for faster iteration during development; Docker mode for validation runs.
 
 ---
 

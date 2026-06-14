@@ -13,7 +13,7 @@ Adds a smoke-run orchestration script that selects representative tasks from eac
 
 ### Configuration
 
-- [x] **None** — smoke-run script reads model config from environment variables or CLI flags
+- [ ] **None** — smoke-run script reads model config from environment variables or CLI flags
 
 ### Running Services
 
@@ -24,17 +24,17 @@ Adds a smoke-run orchestration script that selects representative tasks from eac
 
 ### Data / Fixtures
 
-- [x] **None** — smoke-run script uses a static curated task list (no dataset loading)
+- [ ] **None** — smoke-run script uses a static curated task list (no dataset loading)
 
 ### Access / Permissions
 
-- [x] **None** — no special access required
+- [ ] **None** — no special access required
 
 ### Developer Tooling
 
-- [x] **Runtime**: Python 3.11+, Docker (optional, for Docker mode)
-- [x] **Package manager**: uv
-- [x] **None** — no additional CLI tools required
+- [ ] **Runtime**: Python 3.11+, Docker (optional, for Docker mode)
+- [ ] **Package manager**: uv
+- [ ] **None** — no additional CLI tools required
 
 ---
 
@@ -86,6 +86,7 @@ def test_smoke_run_collects_artifacts_per_task(tmp_path):
             assert result.artifact_paths.get("log") is not None
             assert result.artifact_paths.get("transcript") is not None
             assert result.artifact_paths.get("usage") is not None
+            assert result.usage is not None
 
 
 def test_smoke_run_skips_unavailable_dependencies(tmp_path):
@@ -130,26 +131,27 @@ def test_smoke_run_report_json_and_markdown(tmp_path):
 
 ### Key Test Scenarios
 
-- [x] **Scenario 1**: Full smoke run with mock agent produces a report with all 6 categories covered
-- [x] **Scenario 2**: Each attempted task collects agent.log, transcript.jsonl, and usage.json artifacts
-- [x] **Edge case**: Tasks with missing dependencies are skipped (not failed) with documented reasons
+- [ ] **Scenario 1**: Full smoke run with mock agent produces a report with all 6 categories covered
+- [ ] **Scenario 2**: Each attempted task collects agent.log, transcript.jsonl, and usage.json artifacts
+- [ ] **Edge case**: Tasks with missing dependencies are skipped (not failed) with documented reasons
 
 ## Verification Plan
 
 ### Automated Tests
 
-- [x] Integration tests (defined above) — these must pass for implementation to be complete
-- [x] Unit tests for SmokeTaskSelector, categorize_failure, SmokeReportGenerator — test error handling, edge cases
-- [x] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
+- [ ] Integration tests (defined above) — these must pass for implementation to be complete
+- [ ] Unit tests for SmokeTaskSelector, categorize_failure, SmokeReportGenerator — test error handling, edge cases
+- [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 
 ### Manual Verification
 
-- [x] Run smoke script against a live local model endpoint and verify artifacts are produced
-- [x] Verify smoke-run report accurately reflects pass/fail/skip status for each task
+- [ ] Run smoke script against a live local model endpoint and verify artifacts are produced
+- [ ] Verify smoke-run report accurately reflects pass/fail/skip status for each task
 
 ### Performance Considerations
 
-- [x] Smoke runs are bounded by per-task timeout (default 300s) — no performance concern for 6–12 tasks
+- [ ] Smoke runs are bounded by per-task timeout (default 300s) — no performance concern for 6–12 tasks
+- [ ] Expected wall-clock time: up to 30 minutes for 6 tasks at 300s timeout. Consider adding `--category` filter for targeted iteration during development.
 
 ## Proposed Changes
 
@@ -207,7 +209,7 @@ class SmokeResult:
     category: str
     status: str               # "pass" | "fail" | "skip" | "timeout"
     elapsed_time: float       # seconds
-    usage: dict | None        # usage summary from usage.json
+    usage: dict                # usage summary from usage.json (empty dict for skip/fail with no usage)
     failure_reason: str | None
     failure_category: str | None  # "harness_crash" | "timeout" | "llm_error" | "missing_dependency" | "grading_error" | "other"
     artifact_paths: dict      # {"log": Path, "transcript": Path, "usage": Path}
@@ -251,13 +253,13 @@ class SmokeReport:
 
 ### External Dependencies
 
-- [x] No new external packages required — uses stdlib + existing tinycua dependencies
+- [ ] No new external packages required — uses stdlib + existing tinycua dependencies
 
 ### Internal Dependencies
 
-- [x] Depends on Milestone 5.2: `tinycua/wildclawbench/agent.py` (TinyCUAAgent adapter)
-- [x] Depends on Milestone 5.4: `tinycua/cli/transcript.py` (transcript/usage writing patterns)
-- [x] Blocks Milestone 5.6: Full 60-task benchmark run will reuse smoke-run infrastructure
+- [ ] Depends on Milestone 5.2: `tinycua/wildclawbench/agent.py` (TinyCUAAgent adapter)
+- [ ] Depends on Milestone 5.4: `tinycua/cli/transcript.py` (transcript/usage writing patterns)
+- [ ] Blocks Milestone 5.6: Full 60-task benchmark run will reuse smoke-run infrastructure
 
 ## Risks and Mitigations
 

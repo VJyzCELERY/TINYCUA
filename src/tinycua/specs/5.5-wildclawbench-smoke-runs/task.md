@@ -68,6 +68,7 @@ Implementation tasks for WildClawBench Smoke Runs (Milestone 5.5). Check off ite
 - [ ] Update spec.md success criteria checkboxes to reflect completed items <!-- id: 18 -->
 - [ ] Update spec.md status tracker <!-- id: 19 -->
 - [ ] Update design.md implementation phase checkboxes to reflect completed items <!-- id: 19b -->
+- [ ] Update implementation-plan.md verification and environment pre-requisite checkboxes to reflect completed items <!-- id: 19c -->
 
 ## Review and Merge
 

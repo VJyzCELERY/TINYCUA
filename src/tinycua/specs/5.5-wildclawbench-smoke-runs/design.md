@@ -66,7 +66,7 @@ class SmokeResult:
     category: str
     status: str               # "pass" | "fail" | "skip" | "timeout"
     elapsed_time: float       # seconds
-    usage: dict | None        # usage summary from usage.json
+    usage: dict                # usage summary from usage.json (empty dict for skip/fail with no usage)
     failure_reason: str | None
     failure_category: str | None  # "harness_crash" | "timeout" | "llm_error" | "missing_dependency" | "grading_error" | "other"
     artifact_paths: dict      # {"log": Path, "transcript": Path, "usage": Path}
@@ -77,7 +77,7 @@ class SmokeResult:
 ```python
 @dataclass
 class SmokeReport:
-    run_timestamp: str        # ISO 8601
+    run_timestamp: str        # ISO 8601, UTC with offset (e.g., 2026-06-14T12:00:00+00:00)
     model: str                # model used
     base_url: str             # endpoint used
     total_tasks: int
@@ -96,7 +96,7 @@ class SmokeReport:
 |----------|-------------|
 | `harness_crash` | TinyCUA agent or CLI crashed during execution |
 | `timeout` | Task exceeded configured timeout |
-| `llm_error` | LLM endpoint returned an error or was unreachable |
+| `llm_error` | LLM endpoint returned an error or was unreachable (full exception message logged in `failure_reason` for diagnostics) |
 | `missing_dependency` | Task requires a capability not available (browser, email, etc.) |
 | `grading_error` | Task completed but WildClawBench grading failed |
 | `other` | Unclassified failure |
@@ -127,7 +127,9 @@ class SmokeRunOrchestrator:
         """Select representative tasks from each category."""
 ```
 
-**Execution Model**: Tasks execute sequentially via `subprocess.run()` with a per-task timeout. The orchestrator iterates through selected tasks one at a time. Each task runs in an isolated subprocess — partial failures (e.g., task 3 crashes) do not abort remaining tasks. The orchestrator catches exceptions per-task, categorizes the failure, and continues to the next task. The `SmokeReport` reflects the outcome of all attempted tasks regardless of individual failures.
+**Execution Model**: Tasks execute sequentially via `subprocess.run()` with a per-task timeout, in the order returned by `SmokeTaskSelector.select()` which groups tasks by WildClawBench category. The orchestrator iterates through selected tasks one at a time. Each task runs in an isolated subprocess — partial failures (e.g., task 3 crashes) do not abort remaining tasks. The orchestrator catches exceptions per-task, categorizes the failure, and continues to the next task. The `SmokeReport` reflects the outcome of all attempted tasks regardless of individual failures.
+
+**Docker Mode Execution**: When `mode="docker"`, the orchestrator launches a container via `docker run` with volume mounts for the workspace directory and output directory. The task prompt is passed as a file mounted into the container. Artifacts are extracted via the output volume mount after the container exits. The container is removed after exit (`docker rm`). If the Docker image fails to build, all Docker-dependent tasks are skipped with a build-error reason. Docker mode uses the same artifact collection pipeline as local mode. See `tinycua/wildclawbench/` (Milestone 5.3) for existing Docker infrastructure.
 
 ### SmokeTaskSelector
 
@@ -174,35 +176,35 @@ def categorize_failure(
 
 ## Implementation Phases
 
-### Phase 1 — Task Selection (required)
+- [ ] ### Phase 1 — Task Selection (required)
 
 - [ ] Define `SmokeTask` dataclass with task metadata
 - [ ] Implement `SmokeTaskSelector` with static curated task list per category
 - [ ] Implement dependency checking logic (capability → task mapping)
 - [ ] Add skip logic for tasks with unavailable dependencies
 
-### Phase 2 — Smoke-Run Orchestration (required)
+- [ ] ### Phase 2 — Smoke-Run Orchestration (required)
 
 - [ ] Implement `SmokeRunOrchestrator` class
 - [ ] Wire task selection → execution → artifact collection pipeline
 - [ ] Support both local CLI mode (`tinycua run`) and Docker adapter mode
-- [ ] Implement cooperative timeout per task (threading.Timer or subprocess timeout)
+- [ ] Implement cooperative timeout per task (subprocess timeout)
 
-### Phase 3 — Failure Categorization and Reporting (required)
+- [ ] ### Phase 3 — Failure Categorization and Reporting (required)
 
 - [ ] Implement `categorize_failure()` with exception/exit-code heuristics
 - [ ] Implement `SmokeResult` and `SmokeReport` dataclasses
 - [ ] Implement `SmokeReportGenerator` for structured report output (JSON + Markdown)
 - [ ] Implement per-category summary and failure taxonomy aggregation
 
-### Phase 4 — CLI Integration (required)
+- [ ] ### Phase 4 — CLI Integration (required)
 
 - [ ] Add `tinycua smoke-run` CLI subcommand
 - [ ] Accept flags: `--model`, `--base-url`, `--api-key`, `--timeout`, `--mode`, `--output`
 - [ ] Wire CLI to `SmokeRunOrchestrator.run()`
 - [ ] Print summary table to stdout after completion
 
-### Phase 5 — Tests (required)
+- [ ] ### Phase 5 — Tests (required)
 
 - [ ] Unit tests for `SmokeTaskSelector` — category coverage, skip logic
 - [ ] Unit tests for `categorize_failure()` — each failure category
@@ -252,10 +254,14 @@ def categorize_failure(
 
 1. **Should the smoke-run script be a standalone script or a CLI subcommand?**
    - **Resolved**: Both. A standalone script for development iteration (`python -m tinycua.cli.smoke_run`), and a `tinycua smoke-run` CLI subcommand for formal runs.
+   - **Owner**: @VJyzCELERY
+   - **Target**: Before implementation
    - **Rationale**: Local standalone mode enables fast iteration without CLI registration overhead. The CLI subcommand provides the polished entry point for formal validation runs and integrates with the existing `tinycua` CLI structure (matching `tinycua benchmark`, `tinycua transcript`, etc.).
 
 2. **How many tasks per category should smoke runs cover?**
    - **Resolved**: Minimum one per category for smoke runs. The milestone contract says "at least one task from each category where dependencies are available." More tasks can be added if time permits.
+   - **Owner**: @VJyzCELERY
+   - **Target**: Before implementation
    - **Rationale**: One task per category satisfies the milestone contract while keeping smoke-run duration manageable (6–12 tasks at 300s timeout each). Additional tasks can be added incrementally as the static list evolves.
 
 ---
