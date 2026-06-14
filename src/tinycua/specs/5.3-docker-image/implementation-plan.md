@@ -68,7 +68,7 @@ class TestDockerfileBuild:
         """Dockerfile exists at the project root."""
         from pathlib import Path
 
-        dockerfile = Path(__file__).parent.parent.parent / "Dockerfile"
+        dockerfile = Path(__file__).parent.parent.parent.parent / "Dockerfile"
         assert dockerfile.exists(), "Dockerfile must exist at project root"
 
     def test_docker_image_builds(self):
@@ -276,9 +276,9 @@ class TestTinyCUAInstalled:
 | `Dockerfile` | New | Multi-stage build for TinyCUA benchmark image |
 | `scripts/entrypoint.sh` | New | Container entry point with environment validation |
 | `docker-compose.benchmark.yml` | New | Optional compose file for local development |
-| `cli/main.py` | Modify | Add `benchmark` subcommand dispatch |
-| `cli/benchmark.py` | New | Benchmark run command implementation |
-| `docs/benchmark/README.md` | New | Usage documentation |
+| `src/tinycua/tinycua/cli/main.py` | Modify | Add `benchmark` subcommand dispatch |
+| `src/tinycua/tinycua/cli/benchmark.py` | New | Benchmark run command implementation |
+| `src/tinycua/docs/benchmark/README.md` | New | Usage documentation |
 
 ## Data Model Changes
 

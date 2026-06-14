@@ -42,7 +42,7 @@ Implementation tasks for the TinyCUA Benchmark Docker Image. Check off items as 
 
 ### Documentation
 
-- [ ] Create `docs/benchmark/README.md` with usage documentation <!-- id: 7 -->
+- [ ] Create `src/tinycua/docs/benchmark/README.md` with usage documentation <!-- id: 7 -->
   - [ ] Build instructions
   - [ ] Configuration reference (env vars, volumes)
   - [ ] Networking setup for local model endpoints
@@ -64,7 +64,7 @@ Implementation tasks for the TinyCUA Benchmark Docker Image. Check off items as 
 
 ## Documentation Phase
 
-- [ ] Update `docs/benchmark/README.md` with any findings from manual testing <!-- id: 14 -->
+- [ ] Update `src/tinycua/docs/benchmark/README.md` with any findings from manual testing <!-- id: 14 -->
 - [ ] Add environment variable reference to documentation <!-- id: 15 -->
 
 ## Post-MVP Enhancements

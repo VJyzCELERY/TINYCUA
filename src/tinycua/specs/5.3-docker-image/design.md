@@ -57,7 +57,7 @@ This design specifies the Docker image for TinyCUA benchmark execution within Wi
 | `Dockerfile` | New | Multi-stage build for TinyCUA benchmark image |
 | `docker-compose.benchmark.yml` | New | Optional compose file for local development |
 | `scripts/entrypoint.sh` | New | Container entry point script |
-| `docs/benchmark/README.md` | New | Usage documentation for the benchmark image |
+| `src/tinycua/docs/benchmark/README.md` | New | Usage documentation for the benchmark image |
 | `specs/5.3-docker-image/spec.md` | New | This specification |
 | `specs/5.3-docker-image/design.md` | New | This design document |
 
