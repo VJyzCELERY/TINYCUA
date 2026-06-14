@@ -68,7 +68,6 @@ class RunMetadata:
     
     # Runtime info
     runtime_version: str           # TinyCUA version
-    docker_image_tag: str          # Docker image used (if any)
     python_version: str            # Python version
     
     # Judge configuration
@@ -139,7 +138,6 @@ class SummaryAggregate:
     "gpu_info": ["NVIDIA RTX 4090 24GB"],
     "ram_total_gb": 64.0,
     "runtime_version": "0.1.0",
-    "docker_image_tag": "tinycua-benchmark:latest",
     "python_version": "3.11.15",
     "judge_model": null,
     "judge_endpoint": null
@@ -223,12 +221,6 @@ class BenchmarkConfig:
     # Execution configuration
     timeout_seconds: int = 600  # 10 minutes per task
     concurrent_tasks: int = 1   # Sequential for now
-    
-    # Docker configuration
-    docker_image: str = "tinycua-benchmark:latest"
-    use_docker: bool = True
-    # NOTE: Docker is REQUIRED per Milestone 5.6 spec constraint.
-    # use_docker=False is only for local testing during development.
     
     # Output configuration
     preserve_artifacts: bool = True
@@ -322,7 +314,6 @@ def preflight_check(output_dir: Path) -> None:
 | Hardware info collection fails on some platforms | Low | Low | Graceful fallback to "unknown" for missing hardware fields |
 | summary_all.json becomes very large (60 tasks) | Low | Low | Use compact JSON; 60 tasks is manageable |
 | WildClawBench task list changes between versions | Low | Medium | Document task list source; allow manual task specification |
-| Docker resource exhaustion during long runs | Medium | High | Monitor container resource usage; add resource limits |
 
 ---
 
@@ -333,4 +324,3 @@ def preflight_check(output_dir: Path) -> None:
 - Issue: https://github.com/VJyzCELERY/TINYCUA/issues/87 (Milestone 5.6)
 - TinyCUA adapter: `src/tinycua/tinycua/wildclawbench/agent.py` (Milestone 5.2)
 - TinyCUA CLI: `src/tinycua/tinycua/cli/run.py` (Milestone 5.1)
-- Docker image: `Dockerfile` (Milestone 5.3)

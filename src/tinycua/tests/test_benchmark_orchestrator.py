@@ -7,10 +7,7 @@ output, and preflight_check validation.
 from __future__ import annotations
 
 import json
-import os
-import stat
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -201,7 +198,6 @@ def test_summary_aggregate_empty():
 
 def test_summary_all_json_written(tmp_path):
     """run_full_benchmark writes a valid summary_all.json to output_dir."""
-    import os
     from unittest.mock import MagicMock, patch
 
     from tinycua.scripts.benchmark_config import BenchmarkConfig
@@ -271,7 +267,6 @@ def test_preflight_check_passes_on_writable_dir(tmp_path):
 
 def test_task_artifacts_preserved(tmp_path):
     """After a task run, transcript.jsonl and usage.json exist in task output dir."""
-    import os
     from unittest.mock import MagicMock, patch
 
     from tinycua.scripts.benchmark_config import BenchmarkConfig
@@ -321,3 +316,111 @@ def test_task_artifacts_preserved(tmp_path):
     assert task_output.exists(), "Task output directory was not created"
     assert (task_output / "transcript.jsonl").exists(), "transcript.jsonl not found"
     assert (task_output / "usage.json").exists(), "usage.json not found"
+
+
+def test_parse_args_defaults():
+    """Default CLI arguments match expected BenchmarkConfig defaults."""
+    from tinycua.scripts.benchmark_config import parse_args
+
+    args = parse_args([])
+    assert args.model_name == "llama3"
+    assert args.base_url == "http://localhost:8000/v1"
+    assert args.timeout_seconds == 600
+    assert args.tasks is None
+    assert args.concurrent_tasks == 1
+    assert args.verbose is False
+
+
+def test_parse_args_overrides():
+    """CLI argument overrides are parsed correctly."""
+    from tinycua.scripts.benchmark_config import parse_args
+
+    args = parse_args(
+        [
+            "--model-name",
+            "mistral",
+            "--base-url",
+            "http://10.0.0.1:8080/v1",
+            "--timeout-seconds",
+            "300",
+            "--tasks",
+            "task_001,task_002,task_003",
+            "--verbose",
+        ]
+    )
+    assert args.model_name == "mistral"
+    assert args.base_url == "http://10.0.0.1:8080/v1"
+    assert args.timeout_seconds == 300
+    assert args.tasks == "task_001,task_002,task_003"
+    assert args.verbose is True
+
+
+def test_categorize_task_known_tasks():
+    """All 60 task IDs map to expected WildClawBench categories."""
+    from tinycua.scripts.run_benchmark import _categorize_task
+
+    expected_categories = {
+        "Productivity Flow",
+        "Code Intelligence",
+        "Web Navigation",
+        "File Operations",
+    }
+
+    for i in range(1, 61):
+        task_id = f"task_{i:03d}"
+        category = _categorize_task(task_id)
+        assert category in expected_categories, (
+            f"Task {task_id} mapped to unexpected category: {category}"
+        )
+
+    # Spot-check boundary tasks
+    assert _categorize_task("task_001") == "Productivity Flow"
+    assert _categorize_task("task_015") == "Productivity Flow"
+    assert _categorize_task("task_016") == "Code Intelligence"
+    assert _categorize_task("task_030") == "Code Intelligence"
+    assert _categorize_task("task_031") == "Web Navigation"
+    assert _categorize_task("task_045") == "Web Navigation"
+    assert _categorize_task("task_046") == "File Operations"
+    assert _categorize_task("task_060") == "File Operations"
+
+
+def test_categorize_task_unknown():
+    """Unknown task IDs return 'Uncategorized'."""
+    from tinycua.scripts.run_benchmark import _categorize_task
+
+    assert _categorize_task("unknown_task") == "Uncategorized"
+    assert _categorize_task("task_061") == "Uncategorized"
+    assert _categorize_task("") == "Uncategorized"
+
+
+def test_main_calls_run_full_benchmark():
+    """main() parses args and calls run_full_benchmark with correct config."""
+    from unittest.mock import MagicMock, patch
+
+    from tinycua.scripts.run_benchmark import main
+
+    mock_run = MagicMock()
+    with (
+        patch("tinycua.scripts.run_benchmark.run_full_benchmark", mock_run),
+        patch(
+            "tinycua.scripts.run_benchmark.parse_args",
+            return_value=MagicMock(
+                model_name="test-model",
+                base_url="http://localhost:9999/v1",
+                api_key="",
+                timeout_seconds=60,
+                preserve_artifacts=True,
+                verbose=False,
+                concurrent_tasks=1,
+                output_dir=None,
+                tasks="task_001,task_002",
+            ),
+        ),
+    ):
+        main()
+
+    mock_run.assert_called_once()
+    call_args = mock_run.call_args
+    config = call_args[0][0]
+    assert config.model_name == "test-model"
+    assert call_args[0][2] == ["task_001", "task_002"]

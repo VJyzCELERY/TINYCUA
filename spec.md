@@ -65,8 +65,8 @@ A researcher configures a local LLM endpoint (e.g., vLLM, Ollama, LM Studio), bu
 
 - **FR-001**: System MUST execute all 60 WildClawBench tasks using the TinyCUA harness via the `TinyCUAAgent` adapter.
 - **FR-002**: System MUST produce a `summary_all.json` file containing aggregate results for all tasks.
-- **FR-003**: `summary_all.json` MUST include per-task results with task_id, score, status (success/failed/timeout), elapsed_time, and error details (if any).
-- **FR-004**: `summary_all.json` MUST include metadata section with: local_model_name, endpoint_url, hardware_info (CPU/GPU/RAM), runtime_version, docker_image_tag, and judge_configuration.
+- **FR-003**: `summary_all.json` MUST include per-task results with task_id, score (1.0 for success, 0.0 for failure/error — binary pass/fail), status (success/failed/timeout), elapsed_time, and error details (if any).
+- **FR-004**: `summary_all.json` MUST include metadata section with: local_model_name, endpoint_url, hardware_info (CPU/GPU/RAM), runtime_version, and judge_configuration.
 - **FR-005**: System MUST preserve task-level artifacts (transcript.jsonl, usage.json, agent.log, task outputs) for each task in the output directory.
 - **FR-006**: System MUST record usage data (request count, tokens if available, cost=0.0 for local models) for each task.
 - **FR-007**: System MUST handle task failures gracefully, recording error details and continuing with remaining tasks.
