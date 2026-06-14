@@ -211,13 +211,14 @@ class TestConvertWorkingMessages:
         assert records[0]["toolResult"]["content"] == "Done"
 
     def test_per_message_usage_attached(self) -> None:
-        """Per-message usage is attached to assistant message records."""
+        """Per-message usage is attached to assistant message records in FR-005 format."""
         messages = [{"role": "assistant", "content": "Hello"}]
         usage = [{"input_tokens": 10, "output_tokens": 5, "total_tokens": 15}]
         records = convert_working_messages_to_openclaw(
             messages, per_message_usage=usage
         )
-        assert records[0]["message"]["usage"] == usage[0]
+        expected_usage = {"input": 10, "output": 5, "totalTokens": 15, "cost": {"total": 0.0}}
+        assert records[0]["message"]["usage"] == expected_usage
 
     def test_empty_messages_returns_empty_list(self) -> None:
         """Empty message list returns empty records."""

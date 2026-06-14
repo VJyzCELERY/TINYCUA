@@ -26,6 +26,29 @@ def _usage_int(value: Any) -> int:
     return 0
 
 
+def _map_usage_to_fr005(usage: dict[str, Any]) -> dict[str, Any]:
+    """Map SDK usage keys to FR-005 camelCase format.
+
+    Converts snake_case SDK keys to the camelCase format specified in FR-005:
+    - input_tokens → input
+    - output_tokens → output
+    - total_tokens → totalTokens
+    - Adds cost.total (zero-filled for now)
+
+    Args:
+        usage: SDK usage dict with snake_case keys.
+
+    Returns:
+        Usage dict with FR-005 camelCase keys.
+    """
+    return {
+        "input": _usage_int(usage.get("input_tokens")),
+        "output": _usage_int(usage.get("output_tokens")),
+        "totalTokens": _usage_int(usage.get("total_tokens")),
+        "cost": {"total": 0.0},
+    }
+
+
 def _build_content_blocks(
     entry: dict[str, Any],
     tool_calls: list[dict[str, Any]],
@@ -123,7 +146,7 @@ def convert_working_messages_to_openclaw(
             }
             # Attach per-message usage if available
             if usage_idx < len(usage_list):
-                record["message"]["usage"] = usage_list[usage_idx]
+                record["message"]["usage"] = _map_usage_to_fr005(usage_list[usage_idx])
                 usage_idx += 1
             records.append(record)
             continue
@@ -138,7 +161,7 @@ def convert_working_messages_to_openclaw(
         }
         # Attach per-message usage for assistant messages
         if role == "assistant" and usage_idx < len(usage_list):
-            record["message"]["usage"] = usage_list[usage_idx]
+            record["message"]["usage"] = _map_usage_to_fr005(usage_list[usage_idx])
             usage_idx += 1
         records.append(record)
 
