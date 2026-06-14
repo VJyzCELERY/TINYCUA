@@ -17,11 +17,35 @@ from typing import Any
 from tinycua.scripts.benchmark_config import BenchmarkConfig, parse_args
 from tinycua.scripts.collect_metadata import collect_run_metadata, preflight_check
 from tinycua.wildclawbench.agent import TinyCUAAgent
+from tinycua.wildclawbench.base_agent import AgentTaskSpec
 
 logger = logging.getLogger(__name__)
 
 # Default 60-task WildClawBench task list
 DEFAULT_TASKS = [f"task_{i:03d}" for i in range(1, 61)]
+
+# Task-to-category mapping for WildClawBench
+_TASK_CATEGORIES: dict[str, str] = {
+    f"task_{i:03d}": cat
+    for i, cat in [
+        *[(i, "Productivity Flow") for i in range(1, 16)],
+        *[(i, "Code Intelligence") for i in range(16, 31)],
+        *[(i, "Web Navigation") for i in range(31, 46)],
+        *[(i, "File Operations") for i in range(46, 61)],
+    ]
+}
+
+
+def _categorize_task(task_id: str) -> str:
+    """Map a task ID to its WildClawBench category.
+
+    Args:
+        task_id: Task identifier (e.g. 'task_001').
+
+    Returns:
+        Category name, or 'Uncategorized' for unknown tasks.
+    """
+    return _TASK_CATEGORIES.get(task_id, "Uncategorized")
 
 
 @dataclass
@@ -31,7 +55,8 @@ class TaskResult:
     Attributes:
         task_id: Unique task identifier.
         task_category: Category of the task (e.g. 'Productivity Flow').
-        score: Graded score (0.0-1.0) or None if not scored.
+        score: Binary pass/fail score — 1.0 for success, 0.0 for failure/error,
+               or None if not scored (e.g. exception before execution).
         status: Execution status: 'success', 'failed', 'timeout', 'error'.
         elapsed_time: Wall-clock time in seconds.
         error: Error message if status is not 'success'.
@@ -114,7 +139,7 @@ class SummaryAggregate:
         failed = [r for r in results if r.status in ("failed", "error", "timeout")]
         scored = [r for r in results if r.score is not None]
 
-        scores = [r.score for r in scored] if scored else []
+        scores: list[float] = [r.score for r in scored if r.score is not None]
         avg_score = statistics.mean(scores) if scores else None
         min_score = min(scores) if scores else None
         max_score = max(scores) if scores else None
@@ -197,8 +222,6 @@ def run_full_benchmark(
         task_dir = output_dir / task_id
         task_dir.mkdir(parents=True, exist_ok=True)
 
-        from tinycua.wildclawbench.base_agent import AgentTaskSpec
-
         spec = AgentTaskSpec(
             task_id=task_id,
             task={},
@@ -223,8 +246,8 @@ def run_full_benchmark(
 
             result = TaskResult(
                 task_id=task_id,
-                task_category="Uncategorized",
-                score=1.0 if status == "success" else 0.0,
+                task_category=_categorize_task(task_id),
+                score=1.0 if status == "success" else 0.0,  # Binary pass/fail (FR-003)
                 status=status,
                 elapsed_time=execution.elapsed_time,
                 error=error_msg,
@@ -240,7 +263,7 @@ def run_full_benchmark(
             logger.error("Task %s raised exception: %s", task_id, exc)
             result = TaskResult(
                 task_id=task_id,
-                task_category="Uncategorized",
+                task_category=_categorize_task(task_id),
                 score=None,
                 status="error",
                 elapsed_time=0.0,
@@ -255,6 +278,13 @@ def run_full_benchmark(
             )
 
         results.append(result)
+        logger.info(
+            "Completed task %s — status=%s score=%.2f elapsed=%.1fs",
+            task_id,
+            result.status,
+            result.score if result.score is not None else 0.0,
+            result.elapsed_time,
+        )
 
     end_time = datetime.now(timezone.utc)
     duration = (end_time - start_time).total_seconds()
@@ -269,8 +299,14 @@ def run_full_benchmark(
     }
 
     summary_path = output_dir / "summary_all.json"
-    with open(summary_path, "w") as f:
-        json.dump(summary_data, f, indent=2)
+    tmp_path = summary_path.with_suffix(".tmp")
+    try:
+        with open(tmp_path, "w") as f:
+            json.dump(summary_data, f, indent=2)
+        tmp_path.rename(summary_path)
+    except OSError as exc:
+        logger.error("Failed to write summary_all.json: %s", exc)
+        raise
 
     logger.info("Benchmark complete. Summary written to %s", summary_path)
 

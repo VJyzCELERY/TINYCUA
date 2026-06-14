@@ -183,7 +183,7 @@ def collect_run_metadata(
         gpu_info=_collect_gpu_info(),
         ram_total_gb=_collect_ram_gb(),
         runtime_version=_collect_runtime_version(),
-        docker_image_tag=config.docker_image,
+        docker_image_tag="",
         python_version=platform.python_version(),
         judge_model=None,
         judge_endpoint=None,

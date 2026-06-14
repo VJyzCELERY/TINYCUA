@@ -1,13 +1,13 @@
 """Benchmark configuration dataclass for WildClawBench runs.
 
-Defines BenchmarkConfig with fields for model, endpoint, Docker, and output
+Defines BenchmarkConfig with fields for model, endpoint, and output
 configuration. Supports CLI argument parsing via argparse.
 """
 
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
@@ -19,9 +19,6 @@ class BenchmarkConfig:
         base_url: Base URL of the LLM API endpoint.
         api_key: Optional API key for authentication.
         timeout_seconds: Per-task timeout in seconds.
-        concurrent_tasks: Number of tasks to run concurrently.
-        docker_image: Docker image tag for sandboxed execution.
-        use_docker: Whether to use Docker for task isolation.
         preserve_artifacts: Whether to keep task artifacts after grading.
         verbose: Enable verbose logging output.
     """
@@ -30,9 +27,6 @@ class BenchmarkConfig:
     base_url: str = "http://localhost:8000/v1"
     api_key: str = ""
     timeout_seconds: int = 600
-    concurrent_tasks: int = 1
-    docker_image: str = "tinycua-benchmark:latest"
-    use_docker: bool = False
     preserve_artifacts: bool = True
     verbose: bool = False
 
@@ -54,9 +48,6 @@ class BenchmarkConfig:
             base_url=getattr(args, "base_url", cls.base_url),
             api_key=getattr(args, "api_key", cls.api_key),
             timeout_seconds=getattr(args, "timeout_seconds", cls.timeout_seconds),
-            concurrent_tasks=getattr(args, "concurrent_tasks", cls.concurrent_tasks),
-            docker_image=getattr(args, "docker_image", cls.docker_image),
-            use_docker=getattr(args, "use_docker", cls.use_docker),
             preserve_artifacts=getattr(
                 args, "preserve_artifacts", cls.preserve_artifacts
             ),
@@ -96,22 +87,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=int,
         default=600,
         help="Per-task timeout in seconds (default: 600).",
-    )
-    parser.add_argument(
-        "--concurrent-tasks",
-        type=int,
-        default=1,
-        help="Number of concurrent tasks (default: 1).",
-    )
-    parser.add_argument(
-        "--docker-image",
-        default="tinycua-benchmark:latest",
-        help="Docker image tag for sandboxed execution.",
-    )
-    parser.add_argument(
-        "--use-docker",
-        action="store_true",
-        help="Use Docker for task isolation.",
     )
     parser.add_argument(
         "--no-preserve-artifacts",
