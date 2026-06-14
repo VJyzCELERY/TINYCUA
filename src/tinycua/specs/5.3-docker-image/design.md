@@ -36,8 +36,8 @@ This design specifies the Docker image for TinyCUA benchmark execution within Wi
 │  └─────────────────────────────────────────────────────────┘ │
 │  ┌─────────────────────────────────────────────────────────┐ │
 │  │  Runtime Configuration                                   │ │
-│  │  - TINYCUA_MODEL_ENDPOINT (env var)                      │ │
-│  │  - TINYCUA_MODEL_API_KEY (env var)                       │ │
+│  │  - TINYCUA_BASE_URL (env var)                            │ │
+│  │  - TINYCUA_API_KEY (env var)                             │ │
 │  │  - BRAVE_API_KEY (env var)                               │ │
 │  │  - /tmp_workspace (volume mount)                         │ │
 │  └─────────────────────────────────────────────────────────┘ │
@@ -84,9 +84,9 @@ ContainerConfig:
 
 ```yaml
 # Required environment variables
-TINYCUA_MODEL_ENDPOINT: str          # OpenAI-compatible API endpoint URL
-TINYCUA_MODEL_API_KEY: str           # API key for model endpoint (can be empty for local)
-TINYCUA_MODEL_NAME: str              # Model name to use (default: "local-model")
+TINYCUA_BASE_URL: str                # OpenAI-compatible API endpoint URL (e.g., "http://host.docker.internal:1234/v1")
+TINYCUA_API_KEY: str                 # API key for model endpoint (can be empty for local)
+TINYCUA_MODEL: str                   # Model name to use (default: a sensible local model identifier)
 
 # Optional environment variables
 BRAVE_API_KEY: str                   # For web search tasks
@@ -139,20 +139,29 @@ ENTRYPOINT ["/app/entrypoint.sh"]
 
 ### Entry Point Contract
 
+#### WildClawBench Integration Contract
+
+WildClawBench injects the task prompt via the `TASK_PROMPT` environment variable. The container must:
+1. Read `$TASK_PROMPT` from the environment (set by WildClawBench before container start)
+2. Pass it to `tinycua benchmark run --prompt "$TASK_PROMPT"`
+3. If `TASK_PROMPT` is not set, the entrypoint should exit with a clear error
+
+**Cross-reference**: WildClawBench adapter contract in `specs/wildclawbench-spike/spec.md`
+
 ```bash
 # Pseudo-entrypoint (not final implementation)
 #!/bin/bash
 set -e
 
 # Validate required environment variables
-if [ -z "$TINYCUA_MODEL_ENDPOINT" ]; then
-    echo "ERROR: TINYCUA_MODEL_ENDPOINT not set"
+if [ -z "$TINYCUA_BASE_URL" ]; then
+    echo "ERROR: TINYCUA_BASE_URL not set"
     exit 1
 fi
 
 # Configure TinyCUA with model endpoint
-export TINYCUA_MODEL_ENDPOINT="$TINYCUA_MODEL_ENDPOINT"
-export TINYCUA_MODEL_API_KEY="${TINYCUA_MODEL_API_KEY:-}"
+export TINYCUA_BASE_URL="$TINYCUA_BASE_URL"
+export TINYCUA_API_KEY="${TINYCUA_API_KEY:-}"
 
 # Run TinyCUA agent with task prompt
 # NOTE: The CLI entry point `tinycua` is established in Milestone 5.1
@@ -169,7 +178,7 @@ exec tinycua benchmark run \
 
 | Error Case | Exception / Response | Notes |
 |------------|---------------------|-------|
-| Missing `TINYCUA_MODEL_ENDPOINT` | Exit code 1 with error message | Container fails to start |
+| Missing `TINYCUA_BASE_URL` | Exit code 1 with error message | Container fails to start |
 | Model endpoint unreachable | Agent error with connectivity message | Task fails, transcript preserved |
 | Missing `BRAVE_API_KEY` | Warning log, continue execution | Web search tasks may fail |
 | `/tmp_workspace` not mounted | Exit code 1 with error message | Container fails to start |
@@ -208,9 +217,9 @@ exec tinycua benchmark run \
    - **Reason**: Minimal footprint (~150MB) with Python 3.11 support. Slim variant includes only essential packages.
    - **Alternatives Considered**: `python:3.11` (full) — too large (~900MB). `alpine` — musl compatibility issues with some Python packages.
 
-2. **Decision**: Install TinyCUA from local source via `COPY` and `pip install -e`.
-   - **Reason**: Allows development iteration without publishing packages. Matches project structure where TinyCUA is a local subproject.
-   - **Alternatives Considered**: Install from PyPI — not applicable since TinyCUA is not published. Use `COPY --from=builder` — adds complexity without benefit for prototype.
+2. **Decision**: Install TinyCUA from local source via `COPY` and non-editable `uv pip install`.
+   - **Reason**: Editable installs (`-e`) don't work reliably in Docker containers. Non-editable install provides a stable, self-contained image.
+   - **Alternatives Considered**: Editable install — rejected due to Docker path resolution issues.
 
 3. **Decision**: Use environment variables for model endpoint configuration.
    - **Reason**: Follows Twelve-Factor App principles. Allows runtime configuration without rebuilding image. Compatible with WildClawBench's environment injection.
@@ -245,20 +254,23 @@ exec tinycua benchmark run \
    - Impact: Image size vs. out-of-the-box functionality for web-dependent tasks.
 
 2. **Local model endpoint networking**
+   - **Status**: Decided
    - What Docker networking configuration is needed for host-local model endpoints?
    - Options: `--network host`, `host.docker.internal`, bridge network with host routing.
    - **`--network host`**: Shares the host network namespace directly. Simple but reduces container isolation; port conflicts possible.
    - **`host.docker.internal`**: Docker Desktop provides this automatically; on Linux, add `--add-host=host.docker.internal:host-gateway` to the `docker run` command.
    - **Bridge network with host routing**: Use a custom bridge and configure routing. Most isolated but requires manual IP/route setup.
-   - Recommendation: Use `--add-host=host.docker.internal:host-gateway` for Linux, native `host.docker.internal` for Docker Desktop, as the simplest cross-platform approach.
+   - **Decision**: Use `--add-host=host.docker.internal:host-gateway` for Linux, native `host.docker.internal` for Docker Desktop, as the simplest cross-platform approach.
 
 3. **Logging and monitoring**
+   - **Status**: Decided
    - Should the container include logging drivers for centralized log collection?
-   - For prototype: simple stdout/stderr logging is sufficient.
+   - **Decision**: For prototype: simple stdout/stderr logging is sufficient.
 
 4. **Multi-architecture support**
+   - **Status**: Decided
    - Should the image support both amd64 and arm64 architectures?
-   - For prototype: amd64 only is sufficient.
+   - **Decision**: For prototype: amd64 only is sufficient.
 
 ---
 
@@ -267,6 +279,6 @@ exec tinycua benchmark run \
 - **Spec**: `./spec.md` — feature specification and acceptance criteria
 - **WildClawBench Adapter Contract**: `specs/wildclawbench-spike/spec.md` — adapter contract research
 - **TinyCUA Design Docs**: `src/tinycua/docs/design/` — target architecture documentation
-- **Docker Best Practices**: [Dockerfile reference](https://docs.docker.com/engine/reference/builder/)
-- **WildClawBench Container Requirements**: [WildClawBench documentation](https://github.com/InternLM/WildClawBench)
+- **Docker Best Practices**: [Dockerfile reference](https://docs.docker.com/engine/reference/builder/) (accessed 2026-06-14)
+- **WildClawBench Container Requirements**: [WildClawBench documentation](https://github.com/InternLM/WildClawBench) (accessed 2026-06-14)
 - **Existing Docker Configuration**: `src/tinycua-backend/docker-compose.yml` — reference for Docker conventions

@@ -11,7 +11,7 @@ Implementation tasks for the TinyCUA Benchmark Docker Image. Check off items as 
 
 ### Dockerfile & Container Setup
 
-- [ ] Create `Dockerfile` at `src/tinycua/Dockerfile` with `python:3.11-slim` base <!-- id: 2 -->
+- [ ] Create `Dockerfile` at project root with `python:3.11-slim` base <!-- id: 2 -->
   - [ ] Install system dependencies (bash, coreutils, curl, git, wget)
   - [ ] Install uv package manager
   - [ ] Copy and install Python dependencies
@@ -20,11 +20,15 @@ Implementation tasks for the TinyCUA Benchmark Docker Image. Check off items as 
   - [ ] Set WORKDIR to `/tmp_workspace`
 
 - [ ] Create `scripts/entrypoint.sh` with environment validation <!-- id: 3 -->
-  - [ ] Validate `TINYCUA_MODEL_ENDPOINT` is set
+  - [ ] Validate `TINYCUA_BASE_URL` is set
   - [ ] Validate `/tmp_workspace` is mounted and writable
   - [ ] Export environment variables for TinyCUA
   - [ ] Execute `tinycua benchmark run` with correct arguments
   - [ ] Handle graceful shutdown and signal trapping
+
+- [ ] Create `docker-compose.benchmark.yml` for local development <!-- id: 6 -->
+  - [ ] Define service with volume mounts and env vars
+  - [ ] Configure `host.docker.internal` networking for Linux
 
 ### CLI Benchmark Subcommand
 
@@ -40,11 +44,7 @@ Implementation tasks for the TinyCUA Benchmark Docker Image. Check off items as 
   - [ ] Invoke TinyCUA agent loop with benchmark defaults
   - [ ] Return exit code 0 on success, non-zero on failure
 
-### Documentation & Compose
-
-- [ ] Create `docker-compose.benchmark.yml` for local development <!-- id: 6 -->
-  - [ ] Define service with volume mounts and env vars
-  - [ ] Configure `host.docker.internal` networking for Linux
+### Documentation
 
 - [ ] Create `docs/benchmark/README.md` with usage documentation <!-- id: 7 -->
   - [ ] Build instructions
@@ -55,6 +55,8 @@ Implementation tasks for the TinyCUA Benchmark Docker Image. Check off items as 
 ## Testing Phase
 
 - [ ] Run integration tests — expect GREEN (all pass) <!-- id: 8 -->
+  - Tests defined in `implementation-plan.md` under "Success Criteria — Integration Tests (TDD First)"
+  - Write `tests/test_docker_image.py` with 5 test classes: TestDockerfileBuild, TestContainerStartup, TestWorkspaceMounting, TestEnvironmentVariables, TestTinyCUAInstalled
 - [ ] Run full test suite: `cd src/tinycua && uv run pytest` <!-- id: 9 -->
 
 ## Verification Phase

@@ -15,9 +15,9 @@ Provide a Docker image that packages the TinyCUA prototype for WildClawBench ben
 
 - [ ] **.env file** — required variables for container runtime:
   ```
-  TINYCUA_MODEL_ENDPOINT=http://host.docker.internal:1234/v1
-  TINYCUA_MODEL_API_KEY=
-  TINYCUA_MODEL_NAME=local-model
+  TINYCUA_BASE_URL=http://host.docker.internal:1234/v1
+  TINYCUA_API_KEY=
+  TINYCUA_MODEL=local-model
   BRAVE_API_KEY=xxx
   ```
 - [ ] **None** — build-time has no configuration dependencies
@@ -27,7 +27,7 @@ Provide a Docker image that packages the TinyCUA prototype for WildClawBench ben
 | Service | Required | How to Start | Health Check |
 |---------|----------|--------------|--------------|
 | Docker | Yes | Docker Desktop / dockerd | `docker info` |
-| Local model endpoint | Yes (for runtime) | vLLM / Ollama / LM Studio | `curl $TINYCUA_MODEL_ENDPOINT/health` |
+| Local model endpoint | Yes (for runtime) | vLLM / Ollama / LM Studio | `curl $TINYCUA_BASE_URL/health` |
 
 ### Data / Fixtures
 
@@ -40,7 +40,7 @@ Provide a Docker image that packages the TinyCUA prototype for WildClawBench ben
 
 ### Developer Tooling
 
-- [ ] **Runtime**: Python 3.12+, Docker 24+
+- [ ] **Runtime**: Python 3.11+, Docker 24+
 - [ ] **Package manager**: uv
 - [ ] **None** — no special tooling required
 
@@ -69,7 +69,7 @@ class TestDockerfileBuild:
         from pathlib import Path
 
         dockerfile = Path(__file__).parent.parent.parent / "Dockerfile"
-        assert dockerfile.exists(), "Dockerfile must exist at src/tinycua/Dockerfile"
+        assert dockerfile.exists(), "Dockerfile must exist at project root"
 
     def test_docker_image_builds(self):
         """Docker image builds without errors."""
@@ -101,7 +101,7 @@ class TestContainerStartup:
         result = subprocess.run(
             [
                 "docker", "run", "--rm",
-                "-e", "TINYCUA_MODEL_ENDPOINT=http://example.com/v1",
+                "-e", "TINYCUA_BASE_URL=http://example.com/v1",
                 IMAGE_TAG,
                 "echo", "ready",
             ],
@@ -113,7 +113,7 @@ class TestContainerStartup:
         assert "ready" in result.stdout
 
     def test_container_fails_without_model_endpoint(self):
-        """Container fails with clear error when TINYCUA_MODEL_ENDPOINT is missing."""
+        """Container fails with clear error when TINYCUA_BASE_URL is missing."""
         result = subprocess.run(
             ["docker", "run", "--rm", IMAGE_TAG, "exit", "0"],
             capture_output=True,
@@ -121,7 +121,7 @@ class TestContainerStartup:
             timeout=30,
         )
         # Entry point should reject missing endpoint
-        assert result.returncode != 0 or "TINYCUA_MODEL_ENDPOINT" in result.stderr
+        assert result.returncode != 0 or "TINYCUA_BASE_URL" in result.stderr
 
 
 class TestWorkspaceMounting:
@@ -133,7 +133,7 @@ class TestWorkspaceMounting:
             [
                 "docker", "run", "--rm",
                 "-v", "/tmp/test-workspace:/tmp_workspace",
-                "-e", "TINYCUA_MODEL_ENDPOINT=http://example.com/v1",
+                "-e", "TINYCUA_BASE_URL=http://example.com/v1",
                 IMAGE_TAG,
                 "sh", "-c", "touch /tmp_workspace/test-file && echo ok",
             ],
@@ -153,7 +153,7 @@ class TestEnvironmentVariables:
         result = subprocess.run(
             [
                 "docker", "run", "--rm",
-                "-e", "TINYCUA_MODEL_ENDPOINT=http://example.com/v1",
+                "-e", "TINYCUA_BASE_URL=http://example.com/v1",
                 "-e", "BRAVE_API_KEY=test-key-123",
                 IMAGE_TAG,
                 "sh", "-c", "echo $BRAVE_API_KEY",
@@ -174,7 +174,7 @@ class TestTinyCUAInstalled:
         result = subprocess.run(
             [
                 "docker", "run", "--rm",
-                "-e", "TINYCUA_MODEL_ENDPOINT=http://example.com/v1",
+                "-e", "TINYCUA_BASE_URL=http://example.com/v1",
                 IMAGE_TAG,
                 "tinycua", "--help",
             ],
@@ -190,7 +190,7 @@ class TestTinyCUAInstalled:
         result = subprocess.run(
             [
                 "docker", "run", "--rm",
-                "-e", "TINYCUA_MODEL_ENDPOINT=http://example.com/v1",
+                "-e", "TINYCUA_BASE_URL=http://example.com/v1",
                 IMAGE_TAG,
                 "tinycua", "benchmark", "--help",
             ],
@@ -208,7 +208,7 @@ class TestTinyCUAInstalled:
 - [ ] **Scenario 3**: Workspace mounting — `/tmp_workspace` is accessible and writable
 - [ ] **Scenario 4**: Environment variable injection — `BRAVE_API_KEY` and model config are accessible
 - [ ] **Scenario 5**: TinyCUA CLI is installed — `tinycua` command and `benchmark` subcommand work
-- [ ] **Edge case**: Missing `TINYCUA_MODEL_ENDPOINT` — container exits with clear error
+- [ ] **Edge case**: Missing `TINYCUA_BASE_URL` — container exits with clear error
 
 ## Verification Plan
 
@@ -233,14 +233,14 @@ class TestTinyCUAInstalled:
 
 ### Docker Configuration
 
-#### [NEW] `src/tinycua/Dockerfile`
+#### [NEW] `Dockerfile`
 
 - **Description**: Multi-stage Dockerfile that builds the TinyCUA benchmark image
 - **Base**: `python:3.11-slim` (minimal footprint, ~150MB)
 - **Dependencies**: System packages (bash, coreutils, curl, git), uv, Python dependencies, TinyCUA + tinycua-sdk
 - **Rationale**: Provides a self-contained, reproducible runtime for benchmark execution
 
-#### [NEW] `src/tinycua/scripts/entrypoint.sh`
+#### [NEW] `scripts/entrypoint.sh`
 
 - **Description**: Container entry point script that validates environment, configures TinyCUA, and executes the benchmark task
 - **Rationale**: Separates pre-execution validation from Python code; provides clearer error messages for configuration issues
@@ -286,13 +286,13 @@ class TestTinyCUAInstalled:
 # Container configuration (conceptual)
 ContainerConfig:
   base_image: "python:3.11-slim"
-  python_version: "3.12"
+  python_version: "3.11"
   tinycua_source: "./"  # COPY context
   env_vars:
-    TINYCUA_MODEL_ENDPOINT: str  # Required
-    TINYCUA_MODEL_API_KEY: str   # Optional (default: "")
-    TINYCUA_MODEL_NAME: str      # Optional (default: "local-model")
-    BRAVE_API_KEY: str            # Optional
+    TINYCUA_BASE_URL: str      # Required
+    TINYCUA_API_KEY: str       # Optional (default: "")
+    TINYCUA_MODEL: str         # Optional (default: sensible local model identifier)
+    BRAVE_API_KEY: str         # Optional
   volumes:
     /tmp_workspace: str           # Task workspace mount point
 ```

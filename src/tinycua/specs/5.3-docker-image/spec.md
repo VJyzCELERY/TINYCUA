@@ -46,7 +46,7 @@ A benchmark researcher wants to evaluate TinyCUA against other agent harnesses u
 - **FR-001**: System MUST provide a Dockerfile that builds a runnable container image for TinyCUA benchmark execution.
 - **FR-002**: System MUST install the TinyCUA prototype and its dependencies within the container.
 - **FR-003**: System MUST include required shell, file, browser, and search dependencies as documented in the WildClawBench adapter contract.
-- **FR-004**: System MUST support configuration of a local OpenAI-compatible model endpoint via environment variables (e.g., `TINYCUA_MODEL_ENDPOINT`).
+- **FR-004**: System MUST support configuration of a local OpenAI-compatible model endpoint via environment variables (e.g., `TINYCUA_BASE_URL`).
 - **FR-005**: System MUST mount the task workspace at `/tmp_workspace` as per WildClawBench conventions.
 - **FR-006**: System MUST allow injection of additional environment variables (e.g., `BRAVE_API_KEY`) for benchmark tools.
 - **FR-007**: System MUST preserve benchmark artifacts (transcripts, logs, task outputs) within the container for later extraction.
@@ -108,11 +108,11 @@ A benchmark researcher wants to evaluate TinyCUA against other agent harnesses u
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Dockerfile creation | TODO | |
-| Dependency documentation | TODO | |
-| Environment variable configuration | TODO | |
+| Dockerfile creation | DESIGNED | design.md specifies python:3.11-slim base, layers, COPY structure |
+| Dependency documentation | DESIGNED | design.md lists system deps (bash, coreutils, curl, git, wget) and Python deps |
+| Environment variable configuration | DESIGNED | design.md specifies TINYCUA_BASE_URL, TINYCUA_API_KEY, TINYCUA_MODEL |
 | Local model endpoint support | TODO | |
-| Task workspace mounting | TODO | |
+| Task workspace mounting | DESIGNED | design.md specifies /tmp_workspace volume mount |
 | Smoke test task | TODO | |
 | Documentation | TODO | |
 | Image size optimization | TODO | |
@@ -124,28 +124,28 @@ A benchmark researcher wants to evaluate TinyCUA against other agent harnesses u
 1. **Base image selection**
    - **Owner**: @tinycua-team
    - **Target**: 2026-06-15
-   - **Status**: Proposed
-   - **Proposed Answer**: Use `python:3.11-slim` as base for minimal footprint, with additional layers for system dependencies.
+   - **Status**: Decided
+   - **Decision**: Use `python:3.11-slim` as base for minimal footprint, with additional layers for system dependencies (see design.md).
 
 2. **Dependency scope**
    - **Owner**: @tinycua-team
    - **Target**: 2026-06-15
-   - **Status**: Proposed
-   - **Proposed Answer**: Include only dependencies required for TinyCUA core functionality and WildClawBench compatibility. Browser/multimedia tools may be optional for initial benchmark runs.
+   - **Status**: Decided
+   - **Decision**: Include only dependencies required for TinyCUA core functionality and WildClawBench compatibility. Browser/multimedia tools may be optional for initial benchmark runs (see design.md).
 
 3. **Local model endpoint configuration**
    - **Owner**: @tinycua-team
    - **Target**: 2026-06-15
-   - **Status**: Proposed
-   - **Proposed Answer**: Use environment variables `TINYCUA_MODEL_ENDPOINT` and `TINYCUA_MODEL_API_KEY` for OpenAI-compatible endpoint configuration.
+   - **Status**: Decided
+   - **Decision**: Use environment variables `TINYCUA_BASE_URL` and `TINYCUA_API_KEY` for OpenAI-compatible endpoint configuration, matching Milestone 5.1 CLI spec (see design.md).
 
 ---
 
 ## Review Checklist
 
-- [ ] No implementation details (no code, framework, or architecture choices) — Dockerfile specification is configuration, not implementation code
-- [ ] All mandatory sections completed
-- [ ] No `[NEEDS CLARIFICATION]` markers remain
-- [ ] Requirements are testable and unambiguous
-- [ ] Scope is clearly bounded with explicit non-goals
-- [ ] Success criteria are measurable
+- [x] No implementation details (no code, framework, or architecture choices) — **N/A**: this is an infrastructure spec; Dockerfile, volume mounts, and env vars are configuration-level requirements, not implementation choices
+- [x] All mandatory sections completed
+- [x] No `[NEEDS CLARIFICATION]` markers remain
+- [x] Requirements are testable and unambiguous
+- [x] Scope is clearly bounded with explicit non-goals
+- [x] Success criteria are measurable
