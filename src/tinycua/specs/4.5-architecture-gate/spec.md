@@ -77,16 +77,16 @@ A developer or CI system runs the architecture verification gate to confirm all 
 
 ## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
 
-- [ ] **All 12 paths defined**: Each architecture path is explicitly defined with node sequence, expected inputs/outputs, and success criteria.
-- [ ] **Verification gate runs**: The gate executes all 12 paths against a local LLM endpoint.
-- [ ] **Gate passes when all paths succeed**: When all 12 paths complete successfully, the gate reports PASS.
-- [ ] **Gate fails when any path fails**: When any path fails, the gate reports FAIL with detailed failure information.
-- [ ] **Results persisted**: Verification results are saved in JSON format for machine consumption.
-- [ ] **Human-readable report**: A summary report is generated showing per-path status and overall verdict.
-- [ ] **LLM interaction logs**: Failed paths include full LLM interaction logs for debugging.
-- [ ] **Configurable timeouts**: Per-path timeouts prevent indefinite hangs.
-- [ ] **Individual path execution**: Paths can be run individually for targeted debugging.
-- [ ] **No source code modifications**: All existing source code, tests, and implementation files remain unchanged.
+- [x] **All 12 paths defined**: Each architecture path is explicitly defined with node sequence, expected inputs/outputs, and success criteria.
+- [x] **Verification gate runs**: The gate executes all 12 paths against a local LLM endpoint.
+- [x] **Gate passes when all paths succeed**: When all 12 paths complete successfully, the gate reports PASS.
+- [x] **Gate fails when any path fails**: When any path fails, the gate reports FAIL with detailed failure information.
+- [x] **Results persisted**: Verification results are saved in JSON format for machine consumption.
+- [x] **Human-readable report**: A summary report is generated showing per-path status and overall verdict.
+- [x] **LLM interaction logs**: Failed paths include full LLM interaction logs for debugging.
+- [x] **Configurable timeouts**: Per-path timeouts prevent indefinite hangs.
+- [x] **Individual path execution**: Paths can be run individually for targeted debugging.
+- [x] **No source code modifications**: All existing source code, tests, and implementation files remain unchanged.
 
 ---
 
