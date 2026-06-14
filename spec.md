@@ -170,4 +170,4 @@ A researcher configures a local LLM endpoint (e.g., vLLM, Ollama, LM Studio), bu
 - [x] Requirements are testable and unambiguous
 - [x] Scope is clearly bounded with explicit non-goals
 - [x] Success criteria are measurable
-- [ ] Exit criteria match Milestone 5.6 from the roadmap issue
+- [x] Exit criteria match Milestone 5.6 from the roadmap issue

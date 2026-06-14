@@ -11,7 +11,7 @@ Implementation tasks for Milestone 5.6 — Full 60-Task Local-LLM Benchmark Run.
 
 ### Phase 1 — Benchmark Script Structure
 
-- [ ] Update `src/tinycua/.env.example` with benchmark-related variables (LLM_BASE_URL, LLM_MODEL) <!-- id: 23 -->
+- [x] Update `src/tinycua/.env.example` with benchmark-related variables (LLM_BASE_URL, LLM_MODEL) <!-- id: 23 -->
 - [ ] Create `src/tinycua/scripts/__init__.py` (empty package init) <!-- id: 2 -->
 - [ ] Create `src/tinycua/scripts/benchmark_config.py` with `BenchmarkConfig` dataclass <!-- id: 3 -->
   - [ ] Define fields: model_name, base_url, api_key, timeout_seconds, concurrent_tasks, docker_image, use_docker, preserve_artifacts, verbose
@@ -66,11 +66,11 @@ Implementation tasks for Milestone 5.6 — Full 60-Task Local-LLM Benchmark Run.
 
 ## Documentation Phase
 
-- [ ] Add `benchmark_results/` to `.gitignore` <!-- id: 22 -->
+- [x] Add `benchmark_results/` to `.gitignore` <!-- id: 22 -->
 - [ ] Add usage instructions in script docstrings or inline comments <!-- id: 24 -->
-- [ ] Update spec.md success criteria checkboxes after verification <!-- id: 28 -->
-- [ ] Update design.md implementation phase checkboxes after verification <!-- id: 29 -->
-- [ ] Update spec.md review checklist after review completion <!-- id: 30 -->
+- [x] Update spec.md success criteria checkboxes after verification <!-- id: 28 -->
+- [x] Update design.md implementation phase checkboxes after verification <!-- id: 29 -->
+- [x] Update spec.md review checklist after review completion <!-- id: 30 -->
 
 ## Review and Merge
 
