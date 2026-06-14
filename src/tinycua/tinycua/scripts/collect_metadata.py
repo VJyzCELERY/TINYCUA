@@ -34,7 +34,6 @@ class RunMetadata:
         gpu_info: List of GPU descriptions (empty if none detected).
         ram_total_gb: Total system RAM in gigabytes.
         runtime_version: Version string for the TinyCUA runtime.
-        docker_image_tag: Docker image tag used for task isolation.
         python_version: Python version string.
         judge_model: Optional judge model name for scoring.
         judge_endpoint: Optional judge model endpoint URL.
@@ -51,7 +50,6 @@ class RunMetadata:
     gpu_info: list[str] = field(default_factory=list)
     ram_total_gb: float = 0.0
     runtime_version: str = "unknown"
-    docker_image_tag: str = ""
     python_version: str = ""
     judge_model: str | None = None
     judge_endpoint: str | None = None
@@ -183,7 +181,6 @@ def collect_run_metadata(
         gpu_info=_collect_gpu_info(),
         ram_total_gb=_collect_ram_gb(),
         runtime_version=_collect_runtime_version(),
-        docker_image_tag="",
         python_version=platform.python_version(),
         judge_model=None,
         judge_endpoint=None,

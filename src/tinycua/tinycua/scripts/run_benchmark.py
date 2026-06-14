@@ -25,6 +25,9 @@ logger = logging.getLogger(__name__)
 DEFAULT_TASKS = [f"task_{i:03d}" for i in range(1, 61)]
 
 # Task-to-category mapping for WildClawBench
+# Pinned to WildClawBench v1.0 task list — update when upstream reorganizes categories.
+WILDCRAWLBENCH_CATEGORY_VERSION = "1.0"
+
 _TASK_CATEGORIES: dict[str, str] = {
     f"task_{i:03d}": cat
     for i, cat in [
@@ -188,7 +191,7 @@ def run_full_benchmark(
     config: BenchmarkConfig,
     output_dir: Path,
     tasks: list[str] | None = None,
-) -> None:
+) -> dict:
     """Execute the full benchmark suite.
 
     Loops through tasks, runs TinyCUAAgent for each, collects usage data,
@@ -198,11 +201,21 @@ def run_full_benchmark(
         config: Benchmark configuration.
         output_dir: Directory to write results and summary.
         tasks: Optional list of task IDs (defaults to all 60 tasks).
+
+    Returns:
+        Parsed summary_all.json content.
     """
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     preflight_check(output_dir)
+
+    if config.concurrent_tasks > 1:
+        logger.warning(
+            "concurrent_tasks=%d but concurrent execution not implemented; "
+            "running sequentially",
+            config.concurrent_tasks,
+        )
 
     if tasks is None:
         tasks = DEFAULT_TASKS
@@ -309,6 +322,7 @@ def run_full_benchmark(
         raise
 
     logger.info("Benchmark complete. Summary written to %s", summary_path)
+    return summary_data
 
 
 def main() -> None:

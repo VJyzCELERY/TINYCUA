@@ -21,14 +21,17 @@ class BenchmarkConfig:
         timeout_seconds: Per-task timeout in seconds.
         preserve_artifacts: Whether to keep task artifacts after grading.
         verbose: Enable verbose logging output.
+        concurrent_tasks: Number of tasks to run concurrently.
+            Currently informational only — concurrent execution not yet implemented.
     """
 
     model_name: str = "llama3"
     base_url: str = "http://localhost:8000/v1"
-    api_key: str = ""
+    api_key: str | None = None
     timeout_seconds: int = 600
     preserve_artifacts: bool = True
     verbose: bool = False
+    concurrent_tasks: int = 1
 
     @classmethod
     def from_args(cls, args: argparse.Namespace | None = None) -> BenchmarkConfig:
@@ -52,6 +55,7 @@ class BenchmarkConfig:
                 args, "preserve_artifacts", cls.preserve_artifacts
             ),
             verbose=getattr(args, "verbose", cls.verbose),
+            concurrent_tasks=getattr(args, "concurrent_tasks", cls.concurrent_tasks),
         )
 
 
@@ -109,5 +113,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=str,
         default=None,
         help="Comma-separated list of task IDs to run (default: all 60 tasks).",
+    )
+    parser.add_argument(
+        "--concurrent-tasks",
+        type=int,
+        default=1,
+        help="Number of tasks to run concurrently (default: 1).",
     )
     return parser.parse_args(argv)
