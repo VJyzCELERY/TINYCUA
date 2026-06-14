@@ -255,8 +255,10 @@ exec tinycua benchmark run \
 ## Open Questions
 
 1. **Browser/search dependency scope**
+   - **Status**: Decided
    - Should chromium and geckodriver be included in the base image or as optional add-ons?
    - Impact: Image size vs. out-of-the-box functionality for web-dependent tasks.
+   - **Decision**: Optional add-ons, deferred to Phase 2 (Post-MVP). Browser/search tools are not required for initial benchmark runs.
 
 2. **Local model endpoint networking**
    - **Status**: Decided
