@@ -26,6 +26,7 @@
   - Must use the Docker image from Milestone 5.3.
   - Must use local LLM model endpoints (no OpenRouter).
   - Must preserve all task-level artifacts for failure analysis.
+  - Must write results to benchmark_results/ directory at the tinycua subproject root.
   - Must record local model, endpoint, hardware, runtime, and judge configuration.
 
 ---
@@ -145,18 +146,18 @@ A researcher configures a local LLM endpoint (e.g., vLLM, Ollama, LM Studio), bu
 
 1. **What local LLM model should be used for the benchmark?**
    - **Owner**: @VJyzCELERY
-   - **Status**: TBD
-   - **Proposed Answer**: Use the best available local model (e.g., Llama 3 70B, Mixtral 8x22B) that fits in the available hardware. Document the specific model in the run metadata.
+   - **Status**: Resolved
+   - **Proposed Answer**: Use the model configured via BenchmarkConfig (default: llama3). The specific model is documented in run metadata.
 
 2. **Should the benchmark run be executed via Docker or locally?**
    - **Owner**: @VJyzCELERY
-   - **Status**: TBD
-   - **Proposed Answer**: Use the Docker image from Milestone 5.3 for consistency with WildClawBench conventions. Document both Docker and local execution options.
+   - **Status**: Resolved
+   - **Proposed Answer**: Docker is required per the milestone constraint. The Docker image from Milestone 5.3 (tinycua-benchmark:latest) must be used.
 
 3. **How should judge LLM configuration be handled?**
    - **Owner**: @VJyzCELERY
-   - **Status**: TBD
-   - **Proposed Answer**: Document the judge configuration in metadata but allow it to be configured separately (as noted in the roadmap issue).
+   - **Status**: Resolved
+   - **Proposed Answer**: Judge configuration is optional and documented in RunMetadata. When not configured, judge_model and judge_endpoint are null in the metadata.
 
 ---
 

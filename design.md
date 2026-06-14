@@ -227,6 +227,8 @@ class BenchmarkConfig:
     # Docker configuration
     docker_image: str = "tinycua-benchmark:latest"
     use_docker: bool = True
+    # NOTE: Docker is REQUIRED per Milestone 5.6 spec constraint.
+    # use_docker=False is only for local testing during development.
     
     # Output configuration
     preserve_artifacts: bool = True
@@ -245,6 +247,13 @@ def collect_run_metadata(config: BenchmarkConfig) -> RunMetadata:
     Returns:
         RunMetadata with all fields populated
     """
+
+def preflight_check(output_dir: Path) -> None:
+    """Verify output directory is writable before starting the run.
+    
+    Raises:
+        PermissionError: If the output directory is not writable.
+    """
 ```
 
 ---
@@ -255,7 +264,7 @@ def collect_run_metadata(config: BenchmarkConfig) -> RunMetadata:
 
 - [ ] Create `scripts/run_benchmark.py` with argument parsing
 - [ ] Create `scripts/benchmark_config.py` with configuration dataclass
-- [ ] Implement task list loading (from WildClawBench or hardcoded list)
+- [ ] Implement task list loading — use WildClawBench's task discovery (inspect wildclawbench package for task registry) or fall back to a hardcoded list of 60 task IDs from the WildClawBench repository.
 - [ ] Implement basic loop: for each task, run TinyCUAAgent
 
 ### Phase 2 — Data Collection and Aggregation
@@ -270,6 +279,7 @@ def collect_run_metadata(config: BenchmarkConfig) -> RunMetadata:
 - [ ] Implement summary_all.json schema and writing
 - [ ] Implement task artifact directory structure
 - [ ] Implement error handling and graceful failure
+- [ ] Implement resumption: track completed task IDs in a .completed file; skip already-completed tasks on re-run
 
 ### Phase 4 — Testing and Validation
 
@@ -307,7 +317,7 @@ def collect_run_metadata(config: BenchmarkConfig) -> RunMetadata:
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| Local LLM endpoint crashes mid-run | Medium | High | Record partial results; support resuming from last completed task |
+| Local LLM endpoint crashes mid-run | Medium | High | Record partial results to .completed file; support resuming by skipping completed tasks on re-run |
 | Task timeouts exceed reasonable limits | Medium | Medium | Configurable timeout per task; default 10 minutes |
 | Hardware info collection fails on some platforms | Low | Low | Graceful fallback to "unknown" for missing hardware fields |
 | summary_all.json becomes very large (60 tasks) | Low | Low | Use compact JSON; 60 tasks is manageable |
