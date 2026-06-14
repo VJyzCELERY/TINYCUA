@@ -3,14 +3,60 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import logging
 import os
+import time
+import threading
+from collections.abc import Coroutine
 from pathlib import Path
+from typing import Any
 
-from tinycua.cli._common import create_agent, run_agent, setup_output_dir
+from tinycua_sdk.agent import Agent
+
+from tinycua.cli.config import load_config
 from tinycua.cli.logging import write_log_entry
+from tinycua.cli.transcript import (
+    convert_working_messages_to_openclaw,
+    write_openclaw_jsonl,
+    write_transcript,
+    write_usage_summary,
+)
+from tinycua.factory import create_tinycua_agent
 
 logger = logging.getLogger(__name__)
+
+
+def _run_async_safely(coro: Coroutine[Any, Any, str]) -> str:
+    """Run an async coroutine safely, handling nested event loop cases.
+
+    In normal CLI invocation (python -m tinycua run), there is no running
+    event loop, so asyncio.run() works directly. If called from within an
+    existing async context (e.g., Jupyter, another framework), we run the
+    coroutine in a new thread with its own event loop to avoid nesting.
+
+    Args:
+        coro: The async coroutine to run.
+
+    Returns:
+        The result of the coroutine.
+    """
+    import concurrent.futures
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        # No running loop — safe to use asyncio.run()
+        return asyncio.run(coro)
+
+    # There's a running loop. We can't nest event loops directly.
+    # Run in a new thread with its own event loop.
+    def _run_in_new_loop() -> str:
+        return asyncio.run(coro)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(_run_in_new_loop)
+        return future.result()
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -108,10 +154,17 @@ def run_command(
     else:
         logging.basicConfig(level=logging.INFO)
 
-    if not setup_output_dir(output_dir):
+    # Ensure output directory exists and is writable
+    output_dir.mkdir(parents=True, exist_ok=True)
+    _test_file = output_dir / ".write_test"
+    try:
+        _test_file.touch()
+        _test_file.unlink()
+    except OSError:
         print(f"Output directory not writable: {output_dir}", flush=True)
         return 1
 
+    # Ensure workspace directory exists before setting it as working dir (FR-011)
     workspace.mkdir(parents=True, exist_ok=True)
     os.chdir(workspace)
 
@@ -120,8 +173,119 @@ def run_command(
 
     write_log_entry(log_path, "start", "info", {"prompt": prompt, "timeout": timeout})
 
-    agent, _config = create_agent(log_path, base_url, api_key, model)
-    if agent is None:
+    try:
+        config = load_config(base_url, api_key, model)
+    except ValueError as e:
+        write_log_entry(log_path, "config", "error", {"error": str(e)})
+        print(f"Configuration error: {e}", flush=True)
         return 1
 
-    return run_agent(agent, prompt, timeout, output_dir, transcript_path, log_path)
+    write_log_entry(log_path, "config", "info", {
+        "base_url": config["base_url"],
+        "model": config["model"],
+    })
+
+    try:
+        agent = create_tinycua_agent(
+            base_url=config["base_url"],
+            api_key=config["api_key"],
+            model=config["model"],
+        )
+    except Exception as e:
+        write_log_entry(log_path, "error", "error", {"error": str(e), "phase": "agent_creation"})
+        print(f"Failed to create agent: {e}", flush=True)
+        return 1
+
+    # Timeout watchdog: set an event after timeout seconds
+    timeout_event = threading.Event()
+
+    def _timeout_handler() -> None:
+        timeout_event.set()
+
+    timer = threading.Timer(timeout, _timeout_handler)
+    timer.daemon = True
+    timer.start()
+
+    start_time = time.monotonic()
+    write_log_entry(log_path, "agent_run", "info", {"prompt": prompt})
+
+    try:
+        result = _run_async_safely(_run_agent_with_timeout(agent, prompt, timeout_event))
+        elapsed = time.monotonic() - start_time
+
+        if timeout_event.is_set():
+            write_log_entry(log_path, "timeout", "warning", {"timeout": timeout, "elapsed": elapsed})
+            print(f"Agent timed out after {timeout}s", flush=True)
+            return 124
+
+        write_log_entry(log_path, "complete", "info", {
+            "elapsed": elapsed,
+            "result_length": len(result) if result else 0,
+        })
+
+        # Write transcript from working messages
+        loop = agent.loop
+        working_messages = getattr(loop, "_working_messages", [])
+        usage_events = loop.get_usage_events()
+
+        # Primary transcript: OpenClaw-compatible format
+        openclaw_records = convert_working_messages_to_openclaw(
+            working_messages, usage_events,
+        )
+        write_openclaw_jsonl(openclaw_records, transcript_path)
+
+        # Backward-compatible raw transcript
+        raw_transcript_path = output_dir / "transcript.raw.jsonl"
+        write_transcript(working_messages, raw_transcript_path)
+
+        # Usage summary
+        usage_path = output_dir / "usage.json"
+        write_usage_summary(usage_path, usage_events, elapsed)
+
+        print(f"Agent completed in {elapsed:.1f}s", flush=True)
+        if result:
+            print(result, flush=True)
+
+        return 0
+    except asyncio.CancelledError:
+        elapsed = time.monotonic() - start_time
+        write_log_entry(log_path, "timeout", "warning", {"timeout": timeout, "elapsed": elapsed})
+        return 124
+    except Exception as e:
+        elapsed = time.monotonic() - start_time
+        write_log_entry(log_path, "error", "error", {"error": str(e), "elapsed": elapsed})
+        print(f"Agent error: {e}", flush=True)
+        return 1
+    finally:
+        timer.cancel()
+
+
+async def _run_agent_with_timeout(
+    agent: Agent,
+    prompt: str,
+    timeout_event: threading.Event,
+) -> str:
+    """Run the agent with cooperative timeout checking.
+
+    Uses streaming mode to enable usage event capture. Events are
+    consumed but not yielded — the final response string is returned.
+
+    Args:
+        agent: The TinyCUA agent instance.
+        prompt: Task prompt string.
+        timeout_event: Threading event set when timeout expires.
+
+    Returns:
+        The agent response string.
+    """
+    stream_iter = await agent.run(prompt, stream=True)
+    result = ""
+    try:
+        async for event in stream_iter:
+            if timeout_event.is_set():
+                raise asyncio.CancelledError
+            if event.get("type") == "response.output_text.delta":
+                result += event.get("delta", "")
+    except asyncio.CancelledError:
+        raise
+    return result
