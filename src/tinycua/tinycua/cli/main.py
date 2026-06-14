@@ -77,8 +77,10 @@ def main() -> None:
             raise SystemExit(1)
 
         # Read timeout from environment variable if not provided via CLI
-        timeout = benchmark_args.timeout or int(
-            os.environ.get("TINYCUA_TIMEOUT", "300")
+        timeout = (
+            benchmark_args.timeout
+            if benchmark_args.timeout is not None
+            else int(os.environ.get("TINYCUA_TIMEOUT", "300"))
         )
 
         exit_code = benchmark_run_command(

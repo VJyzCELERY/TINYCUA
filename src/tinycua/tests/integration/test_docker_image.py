@@ -24,7 +24,7 @@ class TestDockerfileBuild:
         """Dockerfile exists at the project root."""
         from pathlib import Path
 
-        dockerfile = Path(__file__).parent.parent.parent.parent / "Dockerfile"
+        dockerfile = Path(__file__).parent.parent.parent.parent.parent / "Dockerfile"
         assert dockerfile.exists(), "Dockerfile must exist at project root"
 
     @pytest.mark.slow
@@ -78,7 +78,11 @@ class TestContainerStartup:
         assert "ready" in result.stdout
 
     def test_container_fails_without_model_endpoint(self) -> None:
-        """Container fails with clear error when TINYCUA_BASE_URL is missing."""
+        """Container fails with clear error when TINYCUA_BASE_URL is missing.
+
+        Runs the actual entrypoint (no command override) to verify entrypoint
+        environment validation works correctly.
+        """
         result = subprocess.run(
             ["docker", "run", "--rm", IMAGE_TAG],
             capture_output=True,
@@ -90,19 +94,6 @@ class TestContainerStartup:
         )
         assert "TINYCUA_BASE_URL" in result.stderr, (
             "Error message must mention TINYCUA_BASE_URL"
-        )
-
-    def test_entrypoint_validates_base_url(self) -> None:
-        """Entrypoint validates TINYCUA_BASE_URL without command override."""
-        result = subprocess.run(
-            ["docker", "run", "--rm", IMAGE_TAG],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        assert result.returncode != 0, "Container should fail without TINYCUA_BASE_URL"
-        assert "TINYCUA_BASE_URL" in result.stderr, (
-            "Entrypoint must mention TINYCUA_BASE_URL in error"
         )
 
     def test_container_fails_without_task_prompt(self) -> None:
