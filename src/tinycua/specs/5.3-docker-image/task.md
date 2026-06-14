@@ -26,10 +26,6 @@ Implementation tasks for the TinyCUA Benchmark Docker Image. Check off items as 
   - [ ] Execute `tinycua benchmark run` with correct arguments
   - [ ] Handle graceful shutdown and signal trapping
 
-- [ ] Create `docker-compose.benchmark.yml` for local development <!-- id: 6 -->
-  - [ ] Define service with volume mounts and env vars
-  - [ ] Configure `host.docker.internal` networking for Linux
-
 ### CLI Benchmark Subcommand
 
 - [ ] Add `benchmark` subcommand to `cli/main.py` <!-- id: 4 -->
@@ -70,6 +66,12 @@ Implementation tasks for the TinyCUA Benchmark Docker Image. Check off items as 
 
 - [ ] Update `docs/benchmark/README.md` with any findings from manual testing <!-- id: 14 -->
 - [ ] Add environment variable reference to documentation <!-- id: 15 -->
+
+## Post-MVP Enhancements
+
+- [ ] Create `docker-compose.benchmark.yml` for local development <!-- id: 6 -->
+  - [ ] Define service with volume mounts and env vars
+  - [ ] Configure `host.docker.internal` networking for Linux
 
 ## Review and Merge
 

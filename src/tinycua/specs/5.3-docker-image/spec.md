@@ -29,6 +29,7 @@ A benchmark researcher wants to evaluate TinyCUA against other agent harnesses u
 3. **Given** the container is running, **When** a trivial TinyCUA task is executed, **Then** the agent produces output in `/tmp_workspace/results` and generates a transcript compatible with WildClawBench grading.
 4. **Given** the container is running, **When** environment variables are injected (e.g., `BRAVE_API_KEY`), **Then** the TinyCUA agent can use them for tool execution.
 5. **Given** the container is running, **When** the task workspace is mounted at `/tmp_workspace`, **Then** the agent can read task files and write results to the expected location.
+6. **Given** the container is running, **When** WildClawBench sets `TASK_PROMPT`, **Then** the entrypoint reads it and passes it to `tinycua benchmark run --prompt`.
 
 ### Edge Cases
 
@@ -53,6 +54,7 @@ A benchmark researcher wants to evaluate TinyCUA against other agent harnesses u
 - **FR-008**: System MUST support running a trivial TinyCUA task as a smoke test to verify the container works.
 - **FR-009**: System MUST document all required and optional environment variables, volume mounts, and runtime configuration.
 - **FR-010**: System MUST target a container image size under 2GB for reasonable CI/build times.
+- **FR-011**: System MUST accept a task prompt via the `TASK_PROMPT` environment variable, as injected by WildClawBench before container start, and pass it to the TinyCUA benchmark runner.
 
 ### Key Entities
 

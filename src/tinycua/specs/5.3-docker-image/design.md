@@ -159,6 +159,11 @@ if [ -z "$TINYCUA_BASE_URL" ]; then
     exit 1
 fi
 
+if [ -z "$TASK_PROMPT" ]; then
+    echo "ERROR: TASK_PROMPT not set (injected by WildClawBench)"
+    exit 1
+fi
+
 # Configure TinyCUA with model endpoint
 export TINYCUA_BASE_URL="$TINYCUA_BASE_URL"
 export TINYCUA_API_KEY="${TINYCUA_API_KEY:-}"

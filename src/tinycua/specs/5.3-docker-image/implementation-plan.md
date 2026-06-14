@@ -245,7 +245,7 @@ class TestTinyCUAInstalled:
 - **Description**: Container entry point script that validates environment, configures TinyCUA, and executes the benchmark task
 - **Rationale**: Separates pre-execution validation from Python code; provides clearer error messages for configuration issues
 
-#### [NEW] `src/tinycua/docker-compose.benchmark.yml`
+#### [NEW] `docker-compose.benchmark.yml`
 
 - **Description**: Optional Docker Compose file for local development and testing
 - **Rationale**: Simplifies running the benchmark with proper networking and volume mounts
