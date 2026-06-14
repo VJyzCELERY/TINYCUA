@@ -131,11 +131,11 @@ A WildClawBench grading script can then load `transcript.jsonl` via its `transcr
 |------|--------|-------|
 | `agent.log` writing | Done | `cli/logging.py` — `write_log_entry()` |
 | `transcript.jsonl` basic writing | Done | `cli/transcript.py` — `write_transcript()` |
-| OpenClaw-compatible format | TODO | Need tool_use blocks, toolResult records, usage |
-| Per-message usage in transcript | TODO | Need to capture `response.usage` events |
-| `usage.json` writing | TODO | New — aggregate usage summary |
-| Working message capture | TODO | Wire working messages from BaseLoop into transcript conversion |
-| Usage coercion | TODO | `_usage_int()` helper for nullable tokens |
+| OpenClaw-compatible format | Done | `cli/transcript.py` — `convert_working_messages_to_openclaw()` |
+| Per-message usage in transcript | Done | `per_message_usage` parameter in converter |
+| `usage.json` writing | Done | `cli/transcript.py` — `write_usage_summary()` |
+| Working message capture | Done | `get_working_messages()` in `tinycua_loop.py` |
+| Usage coercion | Done | `cli/transcript.py` — `_usage_int()` |
 
 ---
 

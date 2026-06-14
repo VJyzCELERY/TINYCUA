@@ -47,8 +47,7 @@ CLI run.py
 | `cli/logging.py` | No change | Already satisfies FR-001 (timestamp, event, level, data fields) |
 | `config/types.py` | No change | `TranscriptRecord` already defined |
 | `loops/tinycua_loop.py` | Modified | Capture `response.usage` events during streaming for usage collection |
-| `tests/unit/test_transcript_conversion.py` | New | Unit tests for OpenClaw conversion |
-| `tests/unit/test_usage_collection.py` | New | Unit tests for usage summary |
+| `tests/unit/test_transcript_conversion.py` | New | Unit tests for OpenClaw conversion and usage summary |
 | `tests/integration/test_artifact_writing.py` | New | Integration tests for end-to-end artifact production |
 
 ---

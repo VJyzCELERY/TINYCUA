@@ -5,8 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from tinycua.cli.transcript import (
     _build_content_blocks,
     _usage_int,
