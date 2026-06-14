@@ -35,25 +35,41 @@ class RecordingMonitor:
         self.after_calls = []
         self.exhausted_calls = []
 
-    def on_before_node_call(self, node_id, session_id, attempt, messages, resolved_tools):
-        self.before_calls.append({
-            "node_id": node_id, "session_id": session_id,
-            "attempt": attempt, "message_count": len(messages),
-        })
+    def on_before_node_call(
+        self, node_id, session_id, attempt, messages, resolved_tools
+    ):
+        self.before_calls.append(
+            {
+                "node_id": node_id,
+                "session_id": session_id,
+                "attempt": attempt,
+                "message_count": len(messages),
+            }
+        )
         return None
 
-    def on_after_node_call(self, node_id, session_id, attempt, result, validation_result):
-        self.after_calls.append({
-            "node_id": node_id, "session_id": session_id,
-            "attempt": attempt, "is_valid": validation_result.is_valid,
-        })
+    def on_after_node_call(
+        self, node_id, session_id, attempt, result, validation_result
+    ):
+        self.after_calls.append(
+            {
+                "node_id": node_id,
+                "session_id": session_id,
+                "attempt": attempt,
+                "is_valid": validation_result.is_valid,
+            }
+        )
         return None
 
     def on_retry_exhausted(self, node_id, session_id, error, attempts):
-        self.exhausted_calls.append({
-            "node_id": node_id, "session_id": session_id,
-            "error": str(error), "attempts": attempts,
-        })
+        self.exhausted_calls.append(
+            {
+                "node_id": node_id,
+                "session_id": session_id,
+                "error": str(error),
+                "attempts": attempts,
+            }
+        )
         return None
 
 
@@ -67,10 +83,12 @@ def test_retry_with_validation_fn_integration():
             return ValidationResult(is_valid=False, errors=["Custom validation failed"])
         return ValidationResult(is_valid=True, errors=[])
 
-    mock_llm = MockLLM([
-        {"role": "assistant", "content": "bad response"},
-        {"role": "assistant", "content": "good response"},
-    ])
+    mock_llm = MockLLM(
+        [
+            {"role": "assistant", "content": "bad response"},
+            {"role": "assistant", "content": "good response"},
+        ]
+    )
     config = NodeConfigBase(
         llm_client=mock_llm,
         retry_policy=NodeRetryPolicy(
@@ -87,10 +105,12 @@ def test_retry_with_validation_fn_integration():
 
 def test_exhaustion_record_failure_integration():
     """End-to-end: retry exhaustion writes failure state to session."""
-    mock_llm = MockLLM([
-        {"role": "assistant", "content": "bad"},
-        {"role": "assistant", "content": "bad again"},
-    ])
+    mock_llm = MockLLM(
+        [
+            {"role": "assistant", "content": "bad"},
+            {"role": "assistant", "content": "bad again"},
+        ]
+    )
     config = NodeConfigBase(
         llm_client=mock_llm,
         retry_policy=NodeRetryPolicy(
@@ -109,10 +129,12 @@ def test_exhaustion_record_failure_integration():
 
 def test_exhaustion_raise_integration():
     """End-to-end: retry exhaustion raises NodeExecutionError."""
-    mock_llm = MockLLM([
-        {"role": "assistant", "content": "bad"},
-        {"role": "assistant", "content": "still bad"},
-    ])
+    mock_llm = MockLLM(
+        [
+            {"role": "assistant", "content": "bad"},
+            {"role": "assistant", "content": "still bad"},
+        ]
+    )
     config = NodeConfigBase(
         llm_client=mock_llm,
         retry_policy=NodeRetryPolicy(
@@ -130,10 +152,14 @@ def test_exhaustion_raise_integration():
 def test_monitor_hook_observes_full_cycle():
     """End-to-end: monitor hook is called at correct trigger points."""
     monitor = RecordingMonitor()
-    mock_llm = MockLLM([
-        LLMResult(content="bad", tool_calls=[]),
-        LLMResult(content="good", tool_calls=[{"function": {"name": "required_tool"}}]),
-    ])
+    mock_llm = MockLLM(
+        [
+            LLMResult(content="bad", tool_calls=[]),
+            LLMResult(
+                content="good", tool_calls=[{"function": {"name": "required_tool"}}]
+            ),
+        ]
+    )
     config = NodeConfigBase(
         llm_client=mock_llm,
         retry_policy=NodeRetryPolicy(
@@ -156,9 +182,11 @@ def test_monitor_hook_observes_full_cycle():
 
 def test_max_attempts_zero_single_attempt():
     """End-to-end: max_attempts=0 results in 1 attempt (no retry)."""
-    mock_llm = MockLLM([
-        {"role": "assistant", "content": "only attempt"},
-    ])
+    mock_llm = MockLLM(
+        [
+            {"role": "assistant", "content": "only attempt"},
+        ]
+    )
     config = NodeConfigBase(
         llm_client=mock_llm,
         retry_policy=NodeRetryPolicy(
@@ -181,21 +209,29 @@ class AgentMonitorRecorder:
         self.before_calls = []
         self.after_calls = []
 
-    def on_before_node_call(self, node_id, session_id, attempt, messages, resolved_tools):
-        self.before_calls.append({
-            "node_id": node_id,
-            "session_id": session_id,
-            "attempt": attempt,
-            "message_count": len(messages),
-        })
+    def on_before_node_call(
+        self, node_id, session_id, attempt, messages, resolved_tools
+    ):
+        self.before_calls.append(
+            {
+                "node_id": node_id,
+                "session_id": session_id,
+                "attempt": attempt,
+                "message_count": len(messages),
+            }
+        )
         return None
 
-    def on_after_node_call(self, node_id, session_id, attempt, result, validation_result):
-        self.after_calls.append({
-            "node_id": node_id,
-            "session_id": session_id,
-            "attempt": attempt,
-        })
+    def on_after_node_call(
+        self, node_id, session_id, attempt, result, validation_result
+    ):
+        self.after_calls.append(
+            {
+                "node_id": node_id,
+                "session_id": session_id,
+                "attempt": attempt,
+            }
+        )
         return None
 
 
@@ -211,9 +247,11 @@ async def test_agent_monitor_observes_execute_node():
     loop = TinyCUALoop(agent_monitor=agent_monitor)
 
     config = NodeConfigBase(
-        llm_client=MockLLM([
-            {"role": "assistant", "content": "node output"},
-        ]),
+        llm_client=MockLLM(
+            [
+                {"role": "assistant", "content": "node output"},
+            ]
+        ),
     )
     node = ProcessNode(node_id="test-node", config=config, instruction="Do work")
     node.session = loop.root_session
@@ -247,7 +285,9 @@ class NodeWithFailureRoute(ProcessNode):
 
     def __init__(self, *args, failure_route_called=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self._failure_route_called = failure_route_called if failure_route_called is not None else []
+        self._failure_route_called = (
+            failure_route_called if failure_route_called is not None else []
+        )
 
     def _call_failure_route(self) -> bool:
         """Override to simulate a failure route being called."""
@@ -257,10 +297,12 @@ class NodeWithFailureRoute(ProcessNode):
 
 def test_route_failure_with_real_failure_route():
     """route_failure calls the failure route instead of _record_failure when defined."""
-    mock_llm = MockLLM([
-        LLMResult(content="bad"),
-        LLMResult(content="bad again"),
-    ])
+    mock_llm = MockLLM(
+        [
+            LLMResult(content="bad"),
+            LLMResult(content="bad again"),
+        ]
+    )
     config = NodeConfigBase(
         llm_client=mock_llm,
         retry_policy=NodeRetryPolicy(
@@ -294,10 +336,12 @@ def test_custom_continuation_builder_through_retry_loop():
         builder_calls.append({"error": str(error), "attempt": attempt})
         return f"Custom retry {attempt}: {error}"
 
-    mock_llm = MockLLM([
-        LLMResult(content="bad"),
-        LLMResult(content="good"),
-    ])
+    mock_llm = MockLLM(
+        [
+            LLMResult(content="bad"),
+            LLMResult(content="good"),
+        ]
+    )
     config = NodeConfigBase(
         llm_client=mock_llm,
         retry_policy=NodeRetryPolicy(
@@ -319,12 +363,14 @@ def test_custom_continuation_builder_through_retry_loop():
 def test_decision_node_monitor_hooks_during_retry():
     """DecisionNode fires monitor hooks during classification retry."""
     monitor = RecordingMonitor()
-    mock_llm = MockLLM([
-        LLMResult(content="analysis 1"),
-        LLMResult(content="wrong"),
-        LLMResult(content="analysis 2"),
-        LLMResult(content="valid_label"),
-    ])
+    mock_llm = MockLLM(
+        [
+            LLMResult(content="analysis 1"),
+            LLMResult(content="wrong"),
+            LLMResult(content="analysis 2"),
+            LLMResult(content="valid_label"),
+        ]
+    )
     config = NodeConfigBase(
         llm_client=mock_llm,
         retry_policy=NodeRetryPolicy(max_attempts=2),
@@ -359,9 +405,11 @@ async def test_agent_monitor_with_retrying_node_through_loop():
     # Node that would retry internally, but _execute_node bypasses node.__call__
     # So AgentMonitor should see attempt=1 (loop-level)
     config = NodeConfigBase(
-        llm_client=MockLLM([
-            {"role": "assistant", "content": "node output"},
-        ]),
+        llm_client=MockLLM(
+            [
+                {"role": "assistant", "content": "node output"},
+            ]
+        ),
     )
     node = ProcessNode(node_id="test-node", config=config, instruction="Do work")
     node.session = loop.root_session

@@ -61,10 +61,12 @@ def build_messages_with_dedupe(
 
     # Convert entries to message dicts
     for entry in context_entries:
-        messages.append({
-            "role": "user",  # Default role for context entries
-            "content": str(entry.content),
-        })
+        messages.append(
+            {
+                "role": "user",  # Default role for context entries
+                "content": str(entry.content),
+            }
+        )
 
     return messages
 
@@ -166,9 +168,7 @@ class Node(ABC):
         self.session = root_or_parent_session
         return self.session
 
-    def build_instruction(
-        self, override_instructions: str | None = None
-    ) -> str:
+    def build_instruction(self, override_instructions: str | None = None) -> str:
         """Build the complete instruction string.
 
         Merges the hardcoded instruction with configurable append and
@@ -225,15 +225,19 @@ class Node(ABC):
         ):
             for m in session.session_context:
                 if isinstance(m, dict):
-                    messages.append({
-                        "role": m.get("role", "user"),
-                        "content": str(m.get("content", "")),
-                    })
+                    messages.append(
+                        {
+                            "role": m.get("role", "user"),
+                            "content": str(m.get("content", "")),
+                        }
+                    )
                 else:
-                    messages.append({
-                        "role": "user",
-                        "content": str(m.content),
-                    })
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": str(m.content),
+                        }
+                    )
 
         # Add chat history if policy says so
         if self.config.message_policy.include_chat_history and session.chat_history:
@@ -271,18 +275,19 @@ class Node(ABC):
 
         # Check required tool calls
         if retry_policy.required_tool_calls:
-            response_tool_names = {tc.get("function", {}).get("name", "") for tc in response.tool_calls}
+            response_tool_names = {
+                tc.get("function", {}).get("name", "") for tc in response.tool_calls
+            }
             for required in retry_policy.required_tool_calls:
                 if required not in response_tool_names:
                     result.is_valid = False
-                    result.errors.append(
-                        f"Missing required tool call: {required}"
-                    )
+                    result.errors.append(f"Missing required tool call: {required}")
 
         # Check required output schema
         if retry_policy.required_output_schema is not None:
             try:
                 import json
+
                 json.loads(response.content)
             except (json.JSONDecodeError, TypeError, ValueError):
                 result.is_valid = False
@@ -295,7 +300,10 @@ class Node(ABC):
             try:
                 custom_result = retry_policy.validation_fn(response)
                 if custom_result is not None:
-                    if hasattr(custom_result, "is_valid") and not custom_result.is_valid:
+                    if (
+                        hasattr(custom_result, "is_valid")
+                        and not custom_result.is_valid
+                    ):
                         result.is_valid = False
                         if hasattr(custom_result, "errors"):
                             result.errors.extend(custom_result.errors)
@@ -305,9 +313,7 @@ class Node(ABC):
 
         return result
 
-    def build_retry_continuation(
-        self, error: ValidationError, attempt: int
-    ) -> str:
+    def build_retry_continuation(self, error: ValidationError, attempt: int) -> str:
         """Build a retry continuation message.
 
         Creates an assistant-role retry message with error details
@@ -330,9 +336,7 @@ class Node(ABC):
 
         return " ".join(parts)
 
-    def _safe_call(
-        self, hook_method: Any, *args: Any, **kwargs: Any
-    ) -> str | None:
+    def _safe_call(self, hook_method: Any, *args: Any, **kwargs: Any) -> str | None:
         """Exception-safe monitor hook caller.
 
         Wraps a monitor hook call in try/except. Logs exceptions at
@@ -432,9 +436,7 @@ class Node(ABC):
             # record_failure (default)
             self._record_failure(validation, max_attempts)
 
-    def _record_failure(
-        self, validation: ValidationResult, max_attempts: int
-    ) -> None:
+    def _record_failure(self, validation: ValidationResult, max_attempts: int) -> None:
         """Record failure state to session context.
 
         Creates a ``SessionContextEntry`` with ``segment="output"``
@@ -495,6 +497,7 @@ class Node(ABC):
         """
         if self.session is not None:
             from tinycua.models.session_context_entry import SessionContextEntry
+
             self.session.session_context.append(
                 SessionContextEntry(
                     content=response.content,
@@ -515,7 +518,9 @@ class Node(ABC):
         """
         logger.debug("node=%s propagate (no-op)", self.node_id)
 
-    def on_complete(self, queue: NodeQueue, response: LLMResult | DecisionResult) -> None:
+    def on_complete(
+        self, queue: NodeQueue, response: LLMResult | DecisionResult
+    ) -> None:
         """Post-completion hook for queue mutations.
 
         Args:
@@ -523,7 +528,11 @@ class Node(ABC):
             response: The final LLM response.
         """
         # Safely access .content which only exists on LLMResult
-        content = response.content if isinstance(response, LLMResult) else response.route_label
+        content = (
+            response.content
+            if isinstance(response, LLMResult)
+            else response.route_label
+        )
         logger.debug(
             "node=%s on_complete response_len=%d",
             self.node_id,
@@ -747,9 +756,13 @@ class DecisionNode(ProcessNode):
                 return label
 
         # Fallback: return first allowed label
-        return self.classification_labels[0] if self.classification_labels else "default"
+        return (
+            self.classification_labels[0] if self.classification_labels else "default"
+        )
 
-    def _validate_classification(self, classification_response: LLMResult) -> ValidationResult:
+    def _validate_classification(
+        self, classification_response: LLMResult
+    ) -> ValidationResult:
         """Validate that classification response matches an allowed label.
 
         Args:
@@ -764,8 +777,10 @@ class DecisionNode(ProcessNode):
                 return ValidationResult(is_valid=True, errors=[])
         return ValidationResult(
             is_valid=False,
-            errors=[f"Invalid classification: {classification_response.content!r} "
-                    f"not in {self.classification_labels}"],
+            errors=[
+                f"Invalid classification: {classification_response.content!r} "
+                f"not in {self.classification_labels}"
+            ],
         )
 
     def __call__(self, input: NodeInputLike) -> DecisionResult:  # type: ignore[override]

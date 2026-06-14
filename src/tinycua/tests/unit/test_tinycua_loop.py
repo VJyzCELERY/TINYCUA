@@ -83,12 +83,14 @@ async def test_execute_node_calls_agent_with_node_messages():
     agent = MagicMock()
     agent.instructions = "test"
     agent.skills = []
-    agent._call_llm = AsyncMock(
-        return_value={"content": "ok", "tool_calls": None}
-    )
+    agent._call_llm = AsyncMock(return_value={"content": "ok", "tool_calls": None})
 
     await loop.run(
-        agent=agent, messages=[], tools=[], override_instructions=None, stream=False,
+        agent=agent,
+        messages=[],
+        tools=[],
+        override_instructions=None,
+        stream=False,
     )
     agent._call_llm.assert_called()
 
@@ -105,12 +107,14 @@ async def test_execute_node_records_chat_history():
     agent = MagicMock()
     agent.instructions = "test"
     agent.skills = []
-    agent._call_llm = AsyncMock(
-        return_value={"content": "ok", "tool_calls": None}
-    )
+    agent._call_llm = AsyncMock(return_value={"content": "ok", "tool_calls": None})
 
     await loop.run(
-        agent=agent, messages=[], tools=[], override_instructions=None, stream=False,
+        agent=agent,
+        messages=[],
+        tools=[],
+        override_instructions=None,
+        stream=False,
     )
     assert len(session.chat_history) > 0
 
@@ -127,12 +131,14 @@ async def test_execute_node_records_session_context():
     agent = MagicMock()
     agent.instructions = "test"
     agent.skills = []
-    agent._call_llm = AsyncMock(
-        return_value={"content": "ok", "tool_calls": None}
-    )
+    agent._call_llm = AsyncMock(return_value={"content": "ok", "tool_calls": None})
 
     await loop.run(
-        agent=agent, messages=[], tools=[], override_instructions=None, stream=False,
+        agent=agent,
+        messages=[],
+        tools=[],
+        override_instructions=None,
+        stream=False,
     )
     assert len(session.session_context) > 0
 
@@ -147,12 +153,14 @@ async def test_execute_node_stops_at_terminal():
     agent = MagicMock()
     agent.instructions = "test"
     agent.skills = []
-    agent._call_llm = AsyncMock(
-        return_value={"content": "final", "tool_calls": None}
-    )
+    agent._call_llm = AsyncMock(return_value={"content": "final", "tool_calls": None})
 
     result = await loop.run(
-        agent=agent, messages=[], tools=[], override_instructions=None, stream=False,
+        agent=agent,
+        messages=[],
+        tools=[],
+        override_instructions=None,
+        stream=False,
     )
     assert isinstance(result, str)
 
@@ -167,9 +175,7 @@ async def test_message_merging_populates_input_context():
     agent = MagicMock()
     agent.instructions = "test"
     agent.skills = []
-    agent._call_llm = AsyncMock(
-        return_value={"content": "ok", "tool_calls": None}
-    )
+    agent._call_llm = AsyncMock(return_value={"content": "ok", "tool_calls": None})
 
     messages = [
         {"role": "user", "content": "hello"},
@@ -177,7 +183,11 @@ async def test_message_merging_populates_input_context():
     ]
 
     await loop.run(
-        agent=agent, messages=messages, tools=[], override_instructions=None, stream=False,
+        agent=agent,
+        messages=messages,
+        tools=[],
+        override_instructions=None,
+        stream=False,
     )
     assert session.input_context == messages
 
@@ -189,9 +199,7 @@ async def test_message_merging_preserves_order():
     agent = MagicMock()
     agent.instructions = "test"
     agent.skills = []
-    agent._call_llm = AsyncMock(
-        return_value={"content": "ok", "tool_calls": None}
-    )
+    agent._call_llm = AsyncMock(return_value={"content": "ok", "tool_calls": None})
 
     messages = [
         {"role": "user", "content": "first"},
@@ -200,7 +208,11 @@ async def test_message_merging_preserves_order():
     ]
 
     await loop.run(
-        agent=agent, messages=messages, tools=[], override_instructions=None, stream=False,
+        agent=agent,
+        messages=messages,
+        tools=[],
+        override_instructions=None,
+        stream=False,
     )
     assert [m["content"] for m in session.input_context] == ["first", "second", "third"]
 
@@ -257,13 +269,14 @@ async def test_override_instructions_passed_to_node():
     agent = MagicMock()
     agent.instructions = "default"
     agent.skills = []
-    agent._call_llm = AsyncMock(
-        return_value={"content": "ok", "tool_calls": None}
-    )
+    agent._call_llm = AsyncMock(return_value={"content": "ok", "tool_calls": None})
 
     await loop.run(
-        agent=agent, messages=[], tools=[],
-        override_instructions="custom instructions", stream=False,
+        agent=agent,
+        messages=[],
+        tools=[],
+        override_instructions="custom instructions",
+        stream=False,
     )
     agent._call_llm.assert_called()
 
@@ -282,12 +295,14 @@ async def test_stream_false_returns_string():
     agent = MagicMock()
     agent.instructions = "test"
     agent.skills = []
-    agent._call_llm = AsyncMock(
-        return_value={"content": "ok", "tool_calls": None}
-    )
+    agent._call_llm = AsyncMock(return_value={"content": "ok", "tool_calls": None})
 
     result = await loop.run(
-        agent=agent, messages=[], tools=[], override_instructions=None, stream=False,
+        agent=agent,
+        messages=[],
+        tools=[],
+        override_instructions=None,
+        stream=False,
     )
     assert isinstance(result, str)
 
@@ -312,7 +327,11 @@ async def test_stream_true_returns_async_iterator():
     agent._call_llm = mock_stream
 
     result = await loop.run(
-        agent=agent, messages=[], tools=[], override_instructions=None, stream=True,
+        agent=agent,
+        messages=[],
+        tools=[],
+        override_instructions=None,
+        stream=True,
     )
     assert isinstance(result, collections.abc.AsyncIterator)
     events = [e async for e in result]
@@ -335,7 +354,13 @@ async def test_run_records_user_message():
     agent.instructions = "You are helpful"
     agent.skills = []
     agent._call_llm = AsyncMock(
-        return_value={"content": "Hi", "tool_calls": None, "usage": None, "finish_reason": "completed", "model": None}
+        return_value={
+            "content": "Hi",
+            "tool_calls": None,
+            "usage": None,
+            "finish_reason": "completed",
+            "model": None,
+        }
     )
     messages = [{"role": "user", "content": "hello"}]
     await loop.run(agent, messages, tools=[], stream=False)
@@ -360,11 +385,19 @@ async def test_run_records_assistant_response():
     agent.instructions = "You are helpful"
     agent.skills = []
     agent._call_llm = AsyncMock(
-        return_value={"content": "Hello there", "tool_calls": None, "usage": None, "finish_reason": "completed", "model": None}
+        return_value={
+            "content": "Hello there",
+            "tool_calls": None,
+            "usage": None,
+            "finish_reason": "completed",
+            "model": None,
+        }
     )
     messages = [{"role": "user", "content": "hi"}]
     await loop.run(agent, messages, tools=[], stream=False)
-    assistant_msgs = [m for m in loop.root_session.chat_history if m.role == "assistant"]
+    assistant_msgs = [
+        m for m in loop.root_session.chat_history if m.role == "assistant"
+    ]
     assert len(assistant_msgs) >= 1
     assert assistant_msgs[-1].content == "Hello there"
 
@@ -381,17 +414,31 @@ async def test_run_calls_build_system_message_with_override():
     agent.instructions = "You are helpful"
     agent.skills = []
     agent._call_llm = AsyncMock(
-        return_value={"content": "ok", "tool_calls": None, "usage": None, "finish_reason": "completed", "model": None}
+        return_value={
+            "content": "ok",
+            "tool_calls": None,
+            "usage": None,
+            "finish_reason": "completed",
+            "model": None,
+        }
     )
     messages = [{"role": "user", "content": "test"}]
     with pytest.MonkeyPatch.context() as m:
         original_build = loop._build_node_messages
         called_with = []
+
         def spy_build(node, override=None):
             called_with.append(override)
             return original_build(node, override)
+
         m.setattr(loop, "_build_node_messages", spy_build)
-        await loop.run(agent, messages, tools=[], override_instructions="custom instructions", stream=False)
+        await loop.run(
+            agent,
+            messages,
+            tools=[],
+            override_instructions="custom instructions",
+            stream=False,
+        )
     assert "custom instructions" in called_with
 
 
@@ -407,12 +454,20 @@ async def test_run_with_empty_messages():
     agent.instructions = "You are helpful"
     agent.skills = []
     agent._call_llm = AsyncMock(
-        return_value={"content": "No input needed", "tool_calls": None, "usage": None, "finish_reason": "completed", "model": None}
+        return_value={
+            "content": "No input needed",
+            "tool_calls": None,
+            "usage": None,
+            "finish_reason": "completed",
+            "model": None,
+        }
     )
     result = await loop.run(agent, messages=[], tools=[], stream=False)
     assert isinstance(result, str)
     # No user messages to record, but assistant response is still recorded
-    assistant_msgs = [m for m in loop.root_session.chat_history if m.role == "assistant"]
+    assistant_msgs = [
+        m for m in loop.root_session.chat_history if m.role == "assistant"
+    ]
     assert len(assistant_msgs) >= 1
     assert assistant_msgs[-1].content == "No input needed"
 
@@ -441,7 +496,9 @@ async def test_run_stream_records_chat_history():
     # in addition to LLM delta events
     delta_events = [e for e in events if e.get("type") == "response.output_text.delta"]
     assert len(delta_events) == 2  # original delta events still present
-    assistant_msgs = [m for m in loop.root_session.chat_history if m.role == "assistant"]
+    assistant_msgs = [
+        m for m in loop.root_session.chat_history if m.role == "assistant"
+    ]
     assert len(assistant_msgs) >= 1
     assert assistant_msgs[-1].content == "Hello world"
 
@@ -467,10 +524,20 @@ async def test_ensure_terminal_skipped_when_no_default():
     agent = MagicMock()
     agent.instructions = "test"
     agent.skills = []
-    agent._call_llm = AsyncMock(return_value={"content": "ok", "tool_calls": None, "usage": None, "finish_reason": "completed", "model": None})
+    agent._call_llm = AsyncMock(
+        return_value={
+            "content": "ok",
+            "tool_calls": None,
+            "usage": None,
+            "finish_reason": "completed",
+            "model": None,
+        }
+    )
 
     await loop.run(agent, [{"role": "user", "content": "hi"}], tools=[], stream=False)
-    assert not called, "ensure_terminal should not be called when default_terminal_node is None"
+    assert not called, (
+        "ensure_terminal should not be called when default_terminal_node is None"
+    )
 
 
 async def test_tinycua_loop_ensure_terminal_bootstrap():
@@ -493,7 +560,13 @@ async def test_tinycua_loop_ensure_terminal_bootstrap():
     agent.instructions = "You are helpful"
     agent.skills = []
     agent._call_llm = AsyncMock(
-        return_value={"content": "ok", "tool_calls": None, "usage": None, "finish_reason": "completed", "model": None}
+        return_value={
+            "content": "ok",
+            "tool_calls": None,
+            "usage": None,
+            "finish_reason": "completed",
+            "model": None,
+        }
     )
     messages = [{"role": "user", "content": "test"}]
 

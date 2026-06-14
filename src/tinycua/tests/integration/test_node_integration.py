@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 
-from tinycua.config.node_config import NodeConfigBase, NodeMessagePolicy, NodeRetryPolicy
+from tinycua.config.node_config import (
+    NodeConfigBase,
+    NodeMessagePolicy,
+    NodeRetryPolicy,
+)
 from tinycua.config.types import LLMResult, ValidationResult
 from tinycua.models.node_input import NodeInput, NodePayload
 from tinycua.models.session import Session
@@ -64,9 +68,7 @@ class MinimalProcessNode:
     def parent(self, value: object | None) -> None:
         self._impl.parent = value
 
-    def build_messages(
-        self, session: Session, input: object
-    ) -> list[dict]:
+    def build_messages(self, session: Session, input: object) -> list[dict]:
 
         return self._impl.build_messages(session, input)  # type: ignore[arg-type]
 
