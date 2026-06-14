@@ -202,8 +202,6 @@ class CrossCuttingCollector:
         # Check that all nodes had output validation
         for record in self._report.node_records:
             if not record.output_valid:
-                errors.append(
-                    f"Output validation failed for node '{record.node_id}'"
-                )
+                errors.append(f"Output validation failed for node '{record.node_id}'")
 
         return errors

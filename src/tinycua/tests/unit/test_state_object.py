@@ -226,7 +226,9 @@ def test_get_type_hints_safe_fallback() -> None:
         count: int = 0
 
     # Mock get_type_hints to raise, forcing the fallback path
-    with patch("tinycua.models.state_object.typing.get_type_hints", side_effect=NameError):
+    with patch(
+        "tinycua.models.state_object.typing.get_type_hints", side_effect=NameError
+    ):
         hints = _get_type_hints_safe(SampleState)
 
     # Fallback should return raw field types (strings in this case since __future__ annotations)

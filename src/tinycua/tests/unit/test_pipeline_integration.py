@@ -37,13 +37,18 @@ def _make_pipeline_mock_llm() -> MockLLM:
                 "role": "assistant",
             },
             "digester": {
-                "content": json.dumps({
-                    "context_summary": "User wants a migration plan with clear phases",
-                    "key_points": ["Break migration into phases", "Identify dependencies"],
-                    "advisory_instructions": ["Consider rollback strategy"],
-                    "constraints": ["Must complete within Q3"],
-                    "known_gaps": ["No current inventory available"],
-                }),
+                "content": json.dumps(
+                    {
+                        "context_summary": "User wants a migration plan with clear phases",
+                        "key_points": [
+                            "Break migration into phases",
+                            "Identify dependencies",
+                        ],
+                        "advisory_instructions": ["Consider rollback strategy"],
+                        "constraints": ["Must complete within Q3"],
+                        "known_gaps": ["No current inventory available"],
+                    }
+                ),
                 "role": "assistant",
             },
             "worker": {
@@ -76,10 +81,12 @@ class TestFullPipelineIntegration:
         digester.config.llm_client = mock_llm
         digester.ensure_session(root_session)
 
-        digester(NodeInput(
-            input_type="worker",
-            messages=[{"role": "user", "content": "Create a migration plan"}],
-        ))
+        digester(
+            NodeInput(
+                input_type="worker",
+                messages=[{"role": "user", "content": "Create a migration plan"}],
+            )
+        )
 
         # ProcessNode records LLM response in session_context
         assert len(digester.session.session_context) == 1
@@ -128,10 +135,12 @@ class TestFullPipelineIntegration:
             original_query="Create a migration plan",
             key_points=["Break migration into phases", "Identify dependencies"],
         )
-        worker.session.session_context.append({
-            "role": "assistant",
-            "content": digest,
-        })
+        worker.session.session_context.append(
+            {
+                "role": "assistant",
+                "content": digest,
+            }
+        )
 
         retrieved = worker._get_digested_input()
         assert retrieved is not None
@@ -175,10 +184,12 @@ class TestFullPipelineIntegration:
             original_query="Create a migration plan",
             key_points=["Break migration into phases", "Identify dependencies"],
         )
-        task_create.session.session_context.append({
-            "role": "assistant",
-            "content": digest,
-        })
+        task_create.session.session_context.append(
+            {
+                "role": "assistant",
+                "content": digest,
+            }
+        )
 
         digest_ctx = task_create._extract_digest_context(task_create.session)
         assert digest_ctx is not None
@@ -220,10 +231,12 @@ class TestFullPipelineIntegration:
         digester.config.llm_client = mock_llm
         digester.ensure_session(root_session)
 
-        digester(NodeInput(
-            input_type="worker",
-            messages=[{"role": "user", "content": "Create a migration plan"}],
-        ))
+        digester(
+            NodeInput(
+                input_type="worker",
+                messages=[{"role": "user", "content": "Create a migration plan"}],
+            )
+        )
         # LLM response was recorded in session_context
         assert len(digester.session.session_context) == 1
 
@@ -299,10 +312,12 @@ class TestFallbackPath:
         worker = TinyCUAWorkerNode(node_id="worker", config=config)
         worker.ensure_session(root_session)
 
-        worker.session.session_context.append({
-            "role": "assistant",
-            "content": fallback_digest,
-        })
+        worker.session.session_context.append(
+            {
+                "role": "assistant",
+                "content": fallback_digest,
+            }
+        )
 
         retrieved = worker._get_digested_input()
         assert retrieved is not None
@@ -444,10 +459,12 @@ class TestSessionContextFlow:
             context_summary="Only for A",
             original_query="query A",
         )
-        worker_a.session.session_context.append({
-            "role": "assistant",
-            "content": digest,
-        })
+        worker_a.session.session_context.append(
+            {
+                "role": "assistant",
+                "content": digest,
+            }
+        )
 
         # B should not see A's digest
         assert worker_b._get_digested_input() is None

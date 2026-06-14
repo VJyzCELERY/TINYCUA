@@ -27,10 +27,12 @@ class MockLLM:
 def _make_decision_node(classification_labels=None, **config_overrides):
     """Create a DecisionNode with mock LLM for testing."""
     defaults = {
-        "llm_client": MockLLM([
-            LLMResult(content="analysis"),
-            LLMResult(content="valid_label"),
-        ]),
+        "llm_client": MockLLM(
+            [
+                LLMResult(content="analysis"),
+                LLMResult(content="valid_label"),
+            ]
+        ),
         "retry_policy": NodeRetryPolicy(max_attempts=1),
     }
     defaults.update(config_overrides)
@@ -92,10 +94,12 @@ class TestDecisionNodeRetry:
         """Valid classification accepted on first attempt."""
         node = _make_decision_node(
             classification_labels=["correct"],
-            llm_client=MockLLM([
-                LLMResult(content="analysis"),
-                LLMResult(content="correct"),
-            ]),
+            llm_client=MockLLM(
+                [
+                    LLMResult(content="analysis"),
+                    LLMResult(content="correct"),
+                ]
+            ),
         )
         result = node("input")
         assert result.route_label == "correct"
@@ -104,12 +108,14 @@ class TestDecisionNodeRetry:
         """Invalid classification triggers retry."""
         node = _make_decision_node(
             classification_labels=["correct"],
-            llm_client=MockLLM([
-                LLMResult(content="analysis"),
-                LLMResult(content="wrong"),
-                LLMResult(content="analysis 2"),
-                LLMResult(content="correct"),
-            ]),
+            llm_client=MockLLM(
+                [
+                    LLMResult(content="analysis"),
+                    LLMResult(content="wrong"),
+                    LLMResult(content="analysis 2"),
+                    LLMResult(content="correct"),
+                ]
+            ),
             retry_policy=NodeRetryPolicy(max_attempts=2),
         )
         result = node("input")
@@ -119,12 +125,14 @@ class TestDecisionNodeRetry:
         """Classification retry exhaustion raises NodeExecutionError."""
         node = _make_decision_node(
             classification_labels=["correct"],
-            llm_client=MockLLM([
-                LLMResult(content="analysis"),
-                LLMResult(content="wrong"),
-                LLMResult(content="analysis 2"),
-                LLMResult(content="still wrong"),
-            ]),
+            llm_client=MockLLM(
+                [
+                    LLMResult(content="analysis"),
+                    LLMResult(content="wrong"),
+                    LLMResult(content="analysis 2"),
+                    LLMResult(content="still wrong"),
+                ]
+            ),
             retry_policy=NodeRetryPolicy(
                 max_attempts=2,
                 on_retry_exhausted="raise",
@@ -137,12 +145,14 @@ class TestDecisionNodeRetry:
         """Classification retry exhaustion records failure to session."""
         node = _make_decision_node(
             classification_labels=["correct"],
-            llm_client=MockLLM([
-                LLMResult(content="analysis"),
-                LLMResult(content="wrong"),
-                LLMResult(content="analysis 2"),
-                LLMResult(content="still wrong"),
-            ]),
+            llm_client=MockLLM(
+                [
+                    LLMResult(content="analysis"),
+                    LLMResult(content="wrong"),
+                    LLMResult(content="analysis 2"),
+                    LLMResult(content="still wrong"),
+                ]
+            ),
             retry_policy=NodeRetryPolicy(
                 max_attempts=2,
                 on_retry_exhausted="record_failure",

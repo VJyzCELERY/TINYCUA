@@ -50,12 +50,14 @@ class TestValidateOutput:
 
     def test_valid_tool_calls_present(self):
         """Required tool call present passes validation."""
-        node = _make_node(config_overrides={
-            "retry_policy": NodeRetryPolicy(
-                max_attempts=1,
-                required_tool_calls=["my_tool"],
-            ),
-        })
+        node = _make_node(
+            config_overrides={
+                "retry_policy": NodeRetryPolicy(
+                    max_attempts=1,
+                    required_tool_calls=["my_tool"],
+                ),
+            }
+        )
         response = LLMResult(
             content="done",
             tool_calls=[{"function": {"name": "my_tool"}}],
@@ -65,12 +67,14 @@ class TestValidateOutput:
 
     def test_invalid_tool_call_missing(self):
         """Required tool call missing fails validation."""
-        node = _make_node(config_overrides={
-            "retry_policy": NodeRetryPolicy(
-                max_attempts=1,
-                required_tool_calls=["required_tool"],
-            ),
-        })
+        node = _make_node(
+            config_overrides={
+                "retry_policy": NodeRetryPolicy(
+                    max_attempts=1,
+                    required_tool_calls=["required_tool"],
+                ),
+            }
+        )
         response = LLMResult(content="no tool calls", tool_calls=[])
         result = node.validate_output(response)
         assert result.is_valid is False
@@ -78,59 +82,71 @@ class TestValidateOutput:
 
     def test_custom_validation_fn_valid(self):
         """Custom validation_fn returning valid result."""
+
         def my_validator(result):
             return ValidationResult(is_valid=True, errors=[])
 
-        node = _make_node(config_overrides={
-            "retry_policy": NodeRetryPolicy(
-                max_attempts=1,
-                validation_fn=my_validator,
-            ),
-        })
+        node = _make_node(
+            config_overrides={
+                "retry_policy": NodeRetryPolicy(
+                    max_attempts=1,
+                    validation_fn=my_validator,
+                ),
+            }
+        )
         result = node.validate_output(LLMResult(content="ok"))
         assert result.is_valid is True
 
     def test_custom_validation_fn_invalid(self):
         """Custom validation_fn returning invalid result."""
+
         def my_validator(result):
             return ValidationResult(is_valid=False, errors=["custom error"])
 
-        node = _make_node(config_overrides={
-            "retry_policy": NodeRetryPolicy(
-                max_attempts=1,
-                validation_fn=my_validator,
-            ),
-        })
+        node = _make_node(
+            config_overrides={
+                "retry_policy": NodeRetryPolicy(
+                    max_attempts=1,
+                    validation_fn=my_validator,
+                ),
+            }
+        )
         result = node.validate_output(LLMResult(content="bad"))
         assert result.is_valid is False
         assert "custom error" in result.errors
 
     def test_custom_validation_fn_exception(self):
         """Custom validation_fn raising exception fails validation."""
+
         def bad_validator(result):
             raise ValueError("boom")
 
-        node = _make_node(config_overrides={
-            "retry_policy": NodeRetryPolicy(
-                max_attempts=1,
-                validation_fn=bad_validator,
-            ),
-        })
+        node = _make_node(
+            config_overrides={
+                "retry_policy": NodeRetryPolicy(
+                    max_attempts=1,
+                    validation_fn=bad_validator,
+                ),
+            }
+        )
         result = node.validate_output(LLMResult(content="ok"))
         assert result.is_valid is False
         assert any("boom" in e for e in result.errors)
 
     def test_custom_validation_fn_returns_none(self):
         """Custom validation_fn returning None is treated as pass."""
+
         def none_validator(result):
             return None
 
-        node = _make_node(config_overrides={
-            "retry_policy": NodeRetryPolicy(
-                max_attempts=1,
-                validation_fn=none_validator,
-            ),
-        })
+        node = _make_node(
+            config_overrides={
+                "retry_policy": NodeRetryPolicy(
+                    max_attempts=1,
+                    validation_fn=none_validator,
+                ),
+            }
+        )
         result = node.validate_output(LLMResult(content="ok"))
         assert result.is_valid is True
 
@@ -148,45 +164,54 @@ class TestBuildRetryText:
 
     def test_custom_builder(self):
         """Custom builder produces custom message."""
+
         def custom_builder(error, attempt):
             return f"Custom retry {attempt}: {error}"
 
-        node = _make_node(config_overrides={
-            "retry_policy": NodeRetryPolicy(
-                max_attempts=2,
-                retry_continuation_builder=custom_builder,
-            ),
-        })
+        node = _make_node(
+            config_overrides={
+                "retry_policy": NodeRetryPolicy(
+                    max_attempts=2,
+                    retry_continuation_builder=custom_builder,
+                ),
+            }
+        )
         error = ValidationError("err")
         text = node._build_retry_text(error, 2)
         assert text == "Custom retry 2: err"
 
     def test_custom_builder_empty_fallback(self):
         """Custom builder returning empty string falls back to default."""
+
         def empty_builder(error, attempt):
             return ""
 
-        node = _make_node(config_overrides={
-            "retry_policy": NodeRetryPolicy(
-                max_attempts=2,
-                retry_continuation_builder=empty_builder,
-            ),
-        })
+        node = _make_node(
+            config_overrides={
+                "retry_policy": NodeRetryPolicy(
+                    max_attempts=2,
+                    retry_continuation_builder=empty_builder,
+                ),
+            }
+        )
         error = ValidationError("err")
         text = node._build_retry_text(error, 1)
         assert "Retry attempt 1" in text  # fallback
 
     def test_custom_builder_exception_fallback(self):
         """Custom builder raising exception falls back to default."""
+
         def bad_builder(error, attempt):
             raise RuntimeError("builder crashed")
 
-        node = _make_node(config_overrides={
-            "retry_policy": NodeRetryPolicy(
-                max_attempts=2,
-                retry_continuation_builder=bad_builder,
-            ),
-        })
+        node = _make_node(
+            config_overrides={
+                "retry_policy": NodeRetryPolicy(
+                    max_attempts=2,
+                    retry_continuation_builder=bad_builder,
+                ),
+            }
+        )
         error = ValidationError("err")
         text = node._build_retry_text(error, 1)
         assert "Retry attempt 1" in text  # fallback
@@ -197,24 +222,28 @@ class TestHandleExhaustion:
 
     def test_raise_policy(self):
         """raise policy raises NodeExecutionError."""
-        node = _make_node(config_overrides={
-            "retry_policy": NodeRetryPolicy(
-                max_attempts=2,
-                on_retry_exhausted="raise",
-            ),
-        })
+        node = _make_node(
+            config_overrides={
+                "retry_policy": NodeRetryPolicy(
+                    max_attempts=2,
+                    on_retry_exhausted="raise",
+                ),
+            }
+        )
         validation = ValidationResult(is_valid=False, errors=["fail"])
         with pytest.raises(NodeExecutionError, match="Retry exhausted"):
             node._handle_exhaustion(validation, 2)
 
     def test_record_failure_policy(self):
         """record_failure policy writes to session."""
-        node = _make_node(config_overrides={
-            "retry_policy": NodeRetryPolicy(
-                max_attempts=2,
-                on_retry_exhausted="record_failure",
-            ),
-        })
+        node = _make_node(
+            config_overrides={
+                "retry_policy": NodeRetryPolicy(
+                    max_attempts=2,
+                    on_retry_exhausted="record_failure",
+                ),
+            }
+        )
         validation = ValidationResult(is_valid=False, errors=["fail"])
         node._handle_exhaustion(validation, 2)
         contents = [e.content for e in node.session.session_context]
@@ -222,12 +251,14 @@ class TestHandleExhaustion:
 
     def test_route_failure_fallback(self):
         """route_failure falls back to record_failure when no route defined."""
-        node = _make_node(config_overrides={
-            "retry_policy": NodeRetryPolicy(
-                max_attempts=2,
-                on_retry_exhausted="route_failure",
-            ),
-        })
+        node = _make_node(
+            config_overrides={
+                "retry_policy": NodeRetryPolicy(
+                    max_attempts=2,
+                    on_retry_exhausted="route_failure",
+                ),
+            }
+        )
         validation = ValidationResult(is_valid=False, errors=["fail"])
         node._handle_exhaustion(validation, 2)
         # Should have recorded failure as fallback
@@ -240,9 +271,11 @@ class TestRecordFailure:
 
     def test_records_failure_metadata(self):
         """Failure entry contains node_id, attempts, and errors."""
-        node = _make_node(config_overrides={
-            "retry_policy": NodeRetryPolicy(max_attempts=3),
-        })
+        node = _make_node(
+            config_overrides={
+                "retry_policy": NodeRetryPolicy(max_attempts=3),
+            }
+        )
         validation = ValidationResult(is_valid=False, errors=["err1", "err2"])
         node._record_failure(validation, 3)
         entry = node.session.session_context[-1]
@@ -253,12 +286,14 @@ class TestRecordFailure:
 
     def test_max_attempts_zero_single_attempt(self):
         """max_attempts=0 results in 1 attempt with immediate exhaustion."""
-        node = _make_node(config_overrides={
-            "retry_policy": NodeRetryPolicy(
-                max_attempts=0,
-                on_retry_exhausted="raise",
-            ),
-        })
+        node = _make_node(
+            config_overrides={
+                "retry_policy": NodeRetryPolicy(
+                    max_attempts=0,
+                    on_retry_exhausted="raise",
+                ),
+            }
+        )
         validation = ValidationResult(is_valid=False, errors=["fail"])
         with pytest.raises(NodeExecutionError, match="Retry exhausted"):
             node._handle_exhaustion(validation, 1)

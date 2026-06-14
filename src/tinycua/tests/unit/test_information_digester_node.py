@@ -81,6 +81,7 @@ class TestInformationDigesterNode:
             from tinycua.loops.information_digester import (
                 _DIGESTER_INSTRUCTION,
             )
+
             digester._instruction = _DIGESTER_INSTRUCTION
 
             # We can't easily call __call__ without LLM client, so test

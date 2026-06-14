@@ -167,7 +167,9 @@ class TinyCUAQueryAnalystNode(DecisionNode):
         first = messages[0]
         return str(first.get("content", ""))
 
-    def on_complete(self, queue: NodeQueue, response: LLMResult | DecisionResult) -> None:
+    def on_complete(
+        self, queue: NodeQueue, response: LLMResult | DecisionResult
+    ) -> None:
         """Post-completion hook for queue mutations.
 
         Dispatches to the appropriate route handler based on the

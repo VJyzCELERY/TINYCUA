@@ -17,10 +17,12 @@ class TestQueryAnalystDigestSpawn:
         """_route_worker inserts InformationDigesterNode before WorkerNode."""
         queue = NodeQueue()
         query_analyst = TinyCUAQueryAnalystNode(
-            node_id="qa", config=MagicMock(),
+            node_id="qa",
+            config=MagicMock(),
         )
         # We need a ResponseNode-like terminal
         from tinycua.loops.response_node import ResponseNode
+
         response = ResponseNode()
         queue.items = [query_analyst, response]
 
@@ -43,16 +45,21 @@ class TestQueryAnalystDigestSpawn:
     def test_check_existing_digest_returns_true_when_present(self) -> None:
         """_check_existing_digest returns True when digest exists in session."""
         query_analyst = TinyCUAQueryAnalystNode(
-            node_id="qa", config=MagicMock(),
+            node_id="qa",
+            config=MagicMock(),
         )
 
         worker = MagicMock()
         worker.session = Session()
-        digest = DigestedInformation(context_summary="Already digested", original_query="q")
-        worker.session.session_context.append({
-            "role": "assistant",
-            "content": digest,
-        })
+        digest = DigestedInformation(
+            context_summary="Already digested", original_query="q"
+        )
+        worker.session.session_context.append(
+            {
+                "role": "assistant",
+                "content": digest,
+            }
+        )
 
         result = query_analyst._check_existing_digest(worker)
         assert result is True
@@ -60,15 +67,18 @@ class TestQueryAnalystDigestSpawn:
     def test_check_existing_digest_returns_false_when_absent(self) -> None:
         """_check_existing_digest returns False when no digest in session."""
         query_analyst = TinyCUAQueryAnalystNode(
-            node_id="qa", config=MagicMock(),
+            node_id="qa",
+            config=MagicMock(),
         )
 
         worker = MagicMock()
         worker.session = Session()
-        worker.session.session_context.append({
-            "role": "assistant",
-            "content": "regular message",
-        })
+        worker.session.session_context.append(
+            {
+                "role": "assistant",
+                "content": "regular message",
+            }
+        )
 
         result = query_analyst._check_existing_digest(worker)
         assert result is False
@@ -76,7 +86,8 @@ class TestQueryAnalystDigestSpawn:
     def test_check_existing_digest_returns_false_when_no_session(self) -> None:
         """_check_existing_digest returns False when worker has no session."""
         query_analyst = TinyCUAQueryAnalystNode(
-            node_id="qa", config=MagicMock(),
+            node_id="qa",
+            config=MagicMock(),
         )
 
         worker = MagicMock()
@@ -88,7 +99,8 @@ class TestQueryAnalystDigestSpawn:
     def test_extract_user_query_returns_last_user_message(self) -> None:
         """_extract_user_query extracts the last user message."""
         query_analyst = TinyCUAQueryAnalystNode(
-            node_id="qa", config=MagicMock(),
+            node_id="qa",
+            config=MagicMock(),
         )
 
         input_data = NodeInput(
@@ -107,7 +119,8 @@ class TestQueryAnalystDigestSpawn:
     def test_extract_user_query_returns_first_message_when_no_user_role(self) -> None:
         """_extract_user_query falls back to first message if no user role."""
         query_analyst = TinyCUAQueryAnalystNode(
-            node_id="qa", config=MagicMock(),
+            node_id="qa",
+            config=MagicMock(),
         )
 
         input_data = NodeInput(
@@ -124,7 +137,8 @@ class TestQueryAnalystDigestSpawn:
     def test_extract_user_query_returns_empty_for_empty_messages(self) -> None:
         """_extract_user_query returns empty string for no messages."""
         query_analyst = TinyCUAQueryAnalystNode(
-            node_id="qa", config=MagicMock(),
+            node_id="qa",
+            config=MagicMock(),
         )
 
         input_data = NodeInput(
@@ -141,18 +155,24 @@ class TestQueryAnalystDigestSpawn:
         worker = MagicMock()
         worker.node_id = "w"
         worker.session = Session()
-        digest = DigestedInformation(context_summary="Already digested", original_query="q")
-        worker.session.session_context.append({
-            "role": "assistant",
-            "content": digest,
-        })
+        digest = DigestedInformation(
+            context_summary="Already digested", original_query="q"
+        )
+        worker.session.session_context.append(
+            {
+                "role": "assistant",
+                "content": digest,
+            }
+        )
 
         from tinycua.loops.response_node import ResponseNode
+
         response = ResponseNode()
         queue.items = [worker, response]
 
         query_analyst = TinyCUAQueryAnalystNode(
-            node_id="qa", config=MagicMock(),
+            node_id="qa",
+            config=MagicMock(),
         )
         query_analyst.session = worker.session
         query_analyst._queue = queue

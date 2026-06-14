@@ -59,9 +59,7 @@ def test_compact_context_returns_none_when_no_strategy():
 def test_compact_context_delegates_to_strategy():
     """compact_context() calls the configured strategy."""
     strategy = SimpleCompaction()
-    session = Session(
-        session_config=SessionConfig(compaction_strategy=strategy)
-    )
+    session = Session(session_config=SessionConfig(compaction_strategy=strategy))
     session.session_context = [
         {"role": "user", "content": "hello"},
         {"role": "assistant", "content": "hi"},
@@ -78,9 +76,7 @@ def test_compact_context_delegates_to_strategy():
 def test_compact_context_with_explicit_window():
     """compact_context(window=...) uses the provided window."""
     strategy = SimpleCompaction()
-    session = Session(
-        session_config=SessionConfig(compaction_strategy=strategy)
-    )
+    session = Session(session_config=SessionConfig(compaction_strategy=strategy))
     window = [{"role": "user", "content": "subset"}]
     session.session_context = list(window) + [
         {"role": "assistant", "content": "after"},
@@ -100,9 +96,7 @@ def test_compact_context_with_explicit_window():
 def test_compact_context_empty_window_returns_none():
     """compact_context(window=[]) returns None without calling strategy."""
     strategy = SimpleCompaction()
-    session = Session(
-        session_config=SessionConfig(compaction_strategy=strategy)
-    )
+    session = Session(session_config=SessionConfig(compaction_strategy=strategy))
     session.session_context = [{"role": "user", "content": "hello"}]
 
     with patch.object(strategy, "compact") as mock_compact:
@@ -116,9 +110,7 @@ def test_compact_context_empty_window_returns_none():
 def test_compact_context_window_not_found_raises_value_error():
     """compact_context() raises ValueError when window is not in session_context."""
     strategy = SimpleCompaction()
-    session = Session(
-        session_config=SessionConfig(compaction_strategy=strategy)
-    )
+    session = Session(session_config=SessionConfig(compaction_strategy=strategy))
     session.session_context = [
         {"role": "user", "content": "hello"},
         {"role": "assistant", "content": "hi"},
@@ -137,9 +129,7 @@ def test_compact_context_window_not_found_raises_value_error():
 def test_compact_context_full_replacement_with_explicit_window():
     """compact_context(window=...) replaces the window with summary in context."""
     strategy = SimpleCompaction()
-    session = Session(
-        session_config=SessionConfig(compaction_strategy=strategy)
-    )
+    session = Session(session_config=SessionConfig(compaction_strategy=strategy))
     session.session_context = [
         {"role": "user", "content": "hello"},
         {"role": "assistant", "content": "hi"},

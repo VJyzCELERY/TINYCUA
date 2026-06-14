@@ -155,7 +155,9 @@ class TinyCUALoop(BaseLoop):
             node_input = self.queue.input_for_current()
             # Capture messages built for this node for transcript
             node_messages, _ = self._prepare_node(
-                node, tools, override_instructions,
+                node,
+                tools,
+                override_instructions,
             )
             all_messages.extend(node_messages)
 
@@ -174,10 +176,12 @@ class TinyCUALoop(BaseLoop):
 
             # Record tool calls in working messages for transcript completeness
             for tool_call in tool_calls:
-                all_messages.append({
-                    "role": "assistant",
-                    "tool_calls": [tool_call],
-                })
+                all_messages.append(
+                    {
+                        "role": "assistant",
+                        "tool_calls": [tool_call],
+                    }
+                )
 
             # Stop at terminal nodes — do not advance past them
             if node.is_terminal:
@@ -629,6 +633,7 @@ class TinyCUALoop(BaseLoop):
         # Use NodeMonitor for per-attempt granularity.
         if self.agent_monitor is not None:
             from tinycua.config.types import ValidationResult
+
             try:
                 self.agent_monitor.on_after_node_call(
                     node.node_id,

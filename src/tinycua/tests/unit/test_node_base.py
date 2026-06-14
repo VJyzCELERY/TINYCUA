@@ -167,15 +167,14 @@ class TestValidateOutput:
 
     def test_custom_validation_fn(self) -> None:
         """validate_output uses custom validation function."""
+
         def custom_fn(response: LLMResult) -> ValidationResult:  # noqa: ARG001
             r = ValidationResult()
             r.is_valid = False
             r.errors = ["custom error"]
             return r
 
-        config = NodeConfigBase(
-            retry_policy=NodeRetryPolicy(validation_fn=custom_fn)
-        )
+        config = NodeConfigBase(retry_policy=NodeRetryPolicy(validation_fn=custom_fn))
         node = ConcreteNode(config=config)
         response = LLMResult(content="test")
         result = node.validate_output(response)

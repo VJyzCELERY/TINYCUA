@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 
-
 from tinycua.config.node_config import NodeToolPolicy
 from tinycua.config.tool_scopes import (
     information_digester_tool_scope,

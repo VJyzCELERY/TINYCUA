@@ -45,16 +45,24 @@ class TestCLIRunArgumentParsing:
         """Given all flags, they are parsed correctly."""
         from tinycua.cli.run import parse_args
 
-        args = parse_args([
-            "--timeout", "30",
-            "--output-dir", "./out",
-            "--workspace", "/ws",
-            "--base-url", "http://localhost:8080/v1",
-            "--api-key", "sk-test",
-            "--model", "llama-3-8b",
-            "--verbose",
-            "my task",
-        ])
+        args = parse_args(
+            [
+                "--timeout",
+                "30",
+                "--output-dir",
+                "./out",
+                "--workspace",
+                "/ws",
+                "--base-url",
+                "http://localhost:8080/v1",
+                "--api-key",
+                "sk-test",
+                "--model",
+                "llama-3-8b",
+                "--verbose",
+                "my task",
+            ]
+        )
         assert args.prompt == "my task"
         assert args.timeout == 30
         assert args.output_dir == Path("./out")
@@ -72,11 +80,14 @@ class TestCLIRunConfigLoading:
         """Given env vars, config is loaded correctly."""
         from tinycua.cli.config import load_config
 
-        with patch.dict("os.environ", {
-            "TINYCUA_BASE_URL": "http://env-host:8080/v1",
-            "TINYCUA_API_KEY": "env-key",
-            "TINYCUA_MODEL": "env-model",
-        }):
+        with patch.dict(
+            "os.environ",
+            {
+                "TINYCUA_BASE_URL": "http://env-host:8080/v1",
+                "TINYCUA_API_KEY": "env-key",
+                "TINYCUA_MODEL": "env-model",
+            },
+        ):
             config = load_config(base_url=None, api_key=None, model=None)
             assert config["base_url"] == "http://env-host:8080/v1"
             assert config["api_key"] == "env-key"
@@ -86,10 +97,13 @@ class TestCLIRunConfigLoading:
         """Given both env vars and CLI flags, CLI flags win."""
         from tinycua.cli.config import load_config
 
-        with patch.dict("os.environ", {
-            "TINYCUA_BASE_URL": "http://env-host:8080/v1",
-            "TINYCUA_API_KEY": "env-key",
-        }):
+        with patch.dict(
+            "os.environ",
+            {
+                "TINYCUA_BASE_URL": "http://env-host:8080/v1",
+                "TINYCUA_API_KEY": "env-key",
+            },
+        ):
             config = load_config(
                 base_url="http://cli-host:9090/v1",
                 api_key="cli-key",
@@ -110,9 +124,13 @@ class TestCLIRunConfigLoading:
         """Given no api_key in env or CLI, raises ValueError."""
         from tinycua.cli.config import load_config
 
-        with patch.dict("os.environ", {
-            "TINYCUA_BASE_URL": "http://localhost:8080/v1",
-        }, clear=False):
+        with patch.dict(
+            "os.environ",
+            {
+                "TINYCUA_BASE_URL": "http://localhost:8080/v1",
+            },
+            clear=False,
+        ):
             with pytest.raises(ValueError, match="api_key"):
                 load_config(base_url=None, api_key=None, model=None)
 
@@ -124,47 +142,41 @@ class TestCLIRunExitCodes:
         """Given a successful run, exit code is 0."""
         from tinycua.cli.run import run_command
 
-        with patch("tinycua.cli.run.create_tinycua_agent") as mock_factory:
+        with patch("tinycua.cli.run.create_agent") as mock_factory:
             mock_agent = AsyncMock()
             mock_agent.run = AsyncMock(return_value="done")
-            mock_factory.return_value = mock_agent
+            mock_factory.return_value = (mock_agent, {})
 
-            with patch("tinycua.cli.run.load_config", return_value={
-                "base_url": "http://localhost:8080/v1",
-                "api_key": "test",
-                "model": "test-model",
-            }):
-                exit_code = run_command(
-                    prompt="test task",
-                    timeout=10,
-                    output_dir=tmp_path / "test_out",
-                    workspace=tmp_path / "test_ws",
-                    base_url=None, api_key=None, model=None,
-                    verbose=False,
-                )
-                assert exit_code == 0
+            exit_code = run_command(
+                prompt="test task",
+                timeout=10,
+                output_dir=tmp_path / "test_out",
+                workspace=tmp_path / "test_ws",
+                base_url="http://localhost:8080/v1",
+                api_key="test",
+                model="test-model",
+                verbose=False,
+            )
+            assert exit_code == 0
 
     def test_exit_code_1_on_error(self, tmp_path):
-        """Given an agent crash, exit code is 1."""
+        """Given an agent creation failure, exit code is 1."""
         from tinycua.cli.run import run_command
 
-        with patch("tinycua.cli.run.create_tinycua_agent") as mock_factory:
-            mock_factory.side_effect = RuntimeError("endpoint unreachable")
+        with patch("tinycua.cli.run.create_agent") as mock_factory:
+            mock_factory.return_value = (None, {})
 
-            with patch("tinycua.cli.run.load_config", return_value={
-                "base_url": "http://localhost:8080/v1",
-                "api_key": "test",
-                "model": "test-model",
-            }):
-                exit_code = run_command(
-                    prompt="test task",
-                    timeout=10,
-                    output_dir=tmp_path / "test_out",
-                    workspace=tmp_path / "test_ws",
-                    base_url=None, api_key=None, model=None,
-                    verbose=False,
-                )
-                assert exit_code == 1
+            exit_code = run_command(
+                prompt="test task",
+                timeout=10,
+                output_dir=tmp_path / "test_out",
+                workspace=tmp_path / "test_ws",
+                base_url="http://localhost:8080/v1",
+                api_key="test",
+                model="test-model",
+                verbose=False,
+            )
+            assert exit_code == 1
 
     def test_exit_code_124_on_timeout(self, tmp_path):
         """Given timeout exceeded, exit code is 124."""
@@ -175,25 +187,22 @@ class TestCLIRunExitCodes:
             await asyncio.sleep(100)
             return "never"
 
-        with patch("tinycua.cli.run.create_tinycua_agent") as mock_factory:
+        with patch("tinycua.cli.run.create_agent") as mock_factory:
             mock_agent = AsyncMock()
             mock_agent.run = slow_run
-            mock_factory.return_value = mock_agent
+            mock_factory.return_value = (mock_agent, {})
 
-            with patch("tinycua.cli.run.load_config", return_value={
-                "base_url": "http://localhost:8080/v1",
-                "api_key": "test",
-                "model": "test-model",
-            }):
-                exit_code = run_command(
-                    prompt="test task",
-                    timeout=1,  # 1 second timeout
-                    output_dir=tmp_path / "test_out",
-                    workspace=tmp_path / "test_ws",
-                    base_url=None, api_key=None, model=None,
-                    verbose=False,
-                )
-                assert exit_code == 124
+            exit_code = run_command(
+                prompt="test task",
+                timeout=1,  # 1 second timeout
+                output_dir=tmp_path / "test_out",
+                workspace=tmp_path / "test_ws",
+                base_url="http://localhost:8080/v1",
+                api_key="test",
+                model="test-model",
+                verbose=False,
+            )
+            assert exit_code == 124
 
 
 class TestCLIRunTranscriptWriting:
@@ -251,7 +260,11 @@ class TestCLIRunMainDispatch:
             text=True,
         )
         # Should exit with 0 (help displayed) or show usage
-        assert result.returncode == 0 or "usage" in result.stderr.lower() or "usage" in result.stdout.lower()
+        assert (
+            result.returncode == 0
+            or "usage" in result.stderr.lower()
+            or "usage" in result.stdout.lower()
+        )
 
     def test_main_run_subcommand_dispatches(self):
         """Given 'run' subcommand, main dispatches to run_command."""

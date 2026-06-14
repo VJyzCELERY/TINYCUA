@@ -20,10 +20,12 @@ class TestWorkerDigestedInformation:
             key_points=["key1"],
             original_query="test query",
         )
-        session.session_context.append({
-            "role": "assistant",
-            "content": digest,
-        })
+        session.session_context.append(
+            {
+                "role": "assistant",
+                "content": digest,
+            }
+        )
         worker.session = session
 
         result = worker._get_digested_input()
@@ -36,10 +38,12 @@ class TestWorkerDigestedInformation:
         """_get_digested_input returns None when no digest in session_context."""
         worker = TinyCUAWorkerNode(node_id="w", config=MagicMock())
         session = Session()
-        session.session_context.append({
-            "role": "assistant",
-            "content": "regular message",
-        })
+        session.session_context.append(
+            {
+                "role": "assistant",
+                "content": "regular message",
+            }
+        )
         worker.session = session
 
         result = worker._get_digested_input()
@@ -68,18 +72,24 @@ class TestWorkerDigestedInformation:
             key_points=["point"],
         )
 
-        session.session_context.append({
-            "role": "assistant",
-            "content": digest1,
-        })
-        session.session_context.append({
-            "role": "assistant",
-            "content": "some message",
-        })
-        session.session_context.append({
-            "role": "assistant",
-            "content": digest2,
-        })
+        session.session_context.append(
+            {
+                "role": "assistant",
+                "content": digest1,
+            }
+        )
+        session.session_context.append(
+            {
+                "role": "assistant",
+                "content": "some message",
+            }
+        )
+        session.session_context.append(
+            {
+                "role": "assistant",
+                "content": digest2,
+            }
+        )
         worker.session = session
 
         result = worker._get_digested_input()
@@ -102,10 +112,7 @@ class TestWorkerDigestedInformation:
         worker.propagate()
 
         # After propagate, session_context should contain the digest
-        assert any(
-            entry.content is digest
-            for entry in session.session_context
-        )
+        assert any(entry.content is digest for entry in session.session_context)
 
     def test_propagate_noop_when_no_digest(self) -> None:
         """propagate() does nothing when _current_digest is None."""
