@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from tinycua.config.system_prompt import SystemPromptBuilder
 from tinycua.config.types import LLMResult, ValidationError, ValidationResult
-from tinycua.loops.context_rendering import render_llm_content
+from tinycua.loops.context_rendering import looks_like_planner_prose, render_llm_content
 from tinycua.loops.route_classifier import RouteClassifier
 from tinycua.models.node_input import (
     NodeInputLike,
@@ -512,7 +512,10 @@ class Node(ABC):
         Args:
             response: The LLM response to record.
         """
-        if self.session is not None:
+        if (
+            self.session is not None
+            and (self.is_terminal or not looks_like_planner_prose(response.content))
+        ):
             from tinycua.models.session_context_entry import SessionContextEntry
 
             self.session.session_context.append(

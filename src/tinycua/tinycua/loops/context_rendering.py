@@ -17,6 +17,11 @@ _INTERNAL_REPR_MARKERS = (
     "WorkerResult(",
 )
 _INTERNAL_CONTROL_LINES = {"task_init()"}
+_PLANNER_PROSE_MARKERS = (
+    "i cannot create files in a physical workspace",
+    "copy into your local environment",
+    "complete project structure and code",
+)
 
 
 def should_include_chat_record(record: Any) -> bool:
@@ -55,6 +60,14 @@ def sanitize_internal_reprs(content: str) -> str:
             continue
         clean_lines.append(raw_line)
     return "\n".join(clean_lines)
+
+
+def looks_like_planner_prose(content: str) -> bool:
+    """Return whether content is planner/code-dump prose instead of state evidence."""
+    lowered = content.lower()
+    if any(marker in lowered for marker in _PLANNER_PROSE_MARKERS):
+        return True
+    return len(content) > 1_500 and "```" in content and "project structure" in lowered
 
 
 def _context_payload(value: Any) -> Any:

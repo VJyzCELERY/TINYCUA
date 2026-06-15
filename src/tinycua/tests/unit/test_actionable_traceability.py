@@ -10,10 +10,13 @@ from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua.config.node_config import NodeConfigBase, create_node_config
 from tinycua.config.session_config import SessionConfig
 from tinycua.factory import create_tinycua_agent
+from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.response_node import ResponseNode
-from tinycua.loops.task_nodes import TinyCUATaskExecutorNode
+from tinycua.loops.task_nodes import TinyCUATaskAnalyzerNode, TinyCUATaskExecutorNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
+from tinycua.models.node_input import NodeInput
+from tinycua.models.session import Session
 from tinycua.models.task import TaskStateStore, TaskStatus
 
 
@@ -61,6 +64,85 @@ def test_task_tree_renderer_shows_nested_hierarchy() -> None:
     assert "|- Task [pending] Create backend" in rendered
     assert "|  |- Task [pending] Write API" in rendered
     assert "|- Task [pending] Create frontend" in rendered
+
+
+def test_llm_messages_dedupe_original_query_for_digester() -> None:
+    """Notebook worker path should not send duplicate user queries to the LLM."""
+    user_message = {
+        "role": "user",
+        "content": "Please create a small note app in the workspace.",
+    }
+    digester = TinyCUAInformationDigesterNode(
+        node_id="digester",
+        config=create_node_config("information_digester"),
+    )
+    queue = NodeQueue(items=[digester])
+    queue.set_input(
+        digester,
+        NodeInput(
+            input_type="original_user_query",
+            source_node="query_analyst",
+            target_node="digester",
+            messages=[dict(user_message)],
+        ),
+    )
+    loop = TinyCUALoop(queue=queue)
+    loop.root_session.input_context = [dict(user_message)]
+    digester.ensure_session(loop.root_session)
+
+    messages = loop._build_node_messages(digester)
+
+    user_messages = [
+        message for message in messages if message.get("role") == "user"
+    ]
+    assert user_messages == [user_message]
+
+
+def test_nonterminal_planner_prose_is_not_replayed_in_transcript() -> None:
+    """Planner/refusal dumps from worker internals should not flood notebooks."""
+    loop = TinyCUALoop()
+    node = TinyCUATaskAnalyzerNode(
+        node_id="task_analyzer",
+        config=create_node_config("task_analyzer"),
+    )
+    content = (
+        "I cannot create files in a physical workspace or execute commands on "
+        "your system. However, here is a project structure.\n```\napp.py\n```"
+    )
+
+    loop._record_node_content_transcript(node, content)
+
+    assert loop.get_transcript_events() == []
+
+
+def test_task_analyzer_ignores_project_tree_code_dump_titles() -> None:
+    """Task tree should stay actionable instead of copying project tree prose."""
+    session = Session()
+    root = session.task_store.create_task("Create note scheduler app")
+    node = TinyCUATaskAnalyzerNode(
+        node_id="task_analyzer",
+        config=create_node_config("task_analyzer"),
+    )
+    node.ensure_session(session)
+    llm_result = MagicMock()
+    llm_result.content = """
+I cannot create files in a physical workspace or execute commands on your system.
+
+## Project Structure
+```
+note_scheduler_app/
+├── app.py              # Flask backend + SQLite database
+├── templates/
+│   └── index.html      # Frontend HTML/CSS/JS
+```
+"""
+
+    node.parse_loop_result(llm_result, None)
+
+    titles = [session.task_store.tasks[task_id].title for task_id in root.children]
+    assert titles == ["Plan Create note scheduler app", "Execute Create note scheduler app"]
+    assert "## Project Structure" not in titles
+    assert "note_scheduler_app/" not in titles
 
 
 def test_default_agent_exposes_workspace_action_and_web_search_tools(tmp_path: Path) -> None:

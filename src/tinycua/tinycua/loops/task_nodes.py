@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
+from tinycua.loops.context_rendering import looks_like_planner_prose
 from tinycua.loops.node import ProcessNode
 from tinycua.models.task import AggregatedResult, ReviewerDecision, TaskResult, TaskStatus
 
@@ -54,16 +55,53 @@ _ANALYSIS_EFFORT_INSTRUCTION = (
 
 def _candidate_lines(content: str) -> list[str]:
     """Extract actionable subtask titles from model text."""
+    if looks_like_planner_prose(content):
+        return []
     titles: list[str] = []
+    in_code_fence = False
     for raw_line in content.splitlines():
         line = raw_line.strip()
         if not line:
             continue
+        if line.startswith("```"):
+            in_code_fence = not in_code_fence
+            continue
+        if in_code_fence:
+            continue
         line = re.sub(r"^[-*•]\s*", "", line)
         line = re.sub(r"^\d+[.)]\s*", "", line)
-        if 4 <= len(line) <= 120:
+        if _is_actionable_task_title(line):
             titles.append(line)
     return titles[:5]
+
+
+def _is_actionable_task_title(line: str) -> bool:
+    """Return whether a model line is a useful task title."""
+    lowered = line.lower()
+    if not 4 <= len(line) <= 120:
+        return False
+    if line.startswith("#") or line.endswith("/"):
+        return False
+    if any(marker in line for marker in ("├", "└", "│", "```")):
+        return False
+    if any(
+        marker in lowered
+        for marker in (
+            "project structure",
+            "implementation files",
+            "i cannot create files",
+            "copy into your local environment",
+        )
+    ):
+        return False
+    return True
+
+
+def _concise_internal_note(content: str, fallback: str) -> str:
+    """Return bounded task metadata safe for snapshots and downstream context."""
+    if not content.strip() or looks_like_planner_prose(content):
+        return fallback
+    return content.strip()[:400]
 
 
 class TinyCUATaskAnalyzerNode(ProcessNode):
@@ -127,7 +165,10 @@ class TinyCUATaskAssessorNode(ProcessNode):
             return
         active = self.session.task_store.get_active_task()
         if active is not None:
-            active.metadata["assessor_rationale"] = llm_result.content
+            active.metadata["assessor_rationale"] = _concise_internal_note(
+                llm_result.content,
+                "assessed",
+            )
 
 
 class TinyCUATaskExecutorNode(ProcessNode):
@@ -160,7 +201,10 @@ class TinyCUATaskExecutorNode(ProcessNode):
         if active.status == TaskStatus.PENDING:
             store.transition(active.task_id, TaskStatus.IN_PROGRESS)
         tool_results = llm_result.metadata.get("tool_results", [])
-        result_content = llm_result.content.strip() or str(tool_results)
+        if looks_like_planner_prose(llm_result.content) and tool_results:
+            result_content = "Executed task with tool evidence."
+        else:
+            result_content = llm_result.content.strip() or str(tool_results)
         if result_content.strip():
             store.record_result(
                 active.task_id,
@@ -243,7 +287,7 @@ class TinyCUAResultReviewerNode(ProcessNode):
         self.session.task_store.record_reviewer_decision(
             task.task_id,
             decision,
-            rationale=llm_result.content,
+            rationale=_concise_internal_note(llm_result.content, decision.value),
         )
 
     def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
@@ -371,4 +415,7 @@ class TinyCUAAnalysisEffortNode(ProcessNode):
         if self.session is None or self.session.task_store.root_task_id is None:
             return
         root = self.session.task_store.tasks[self.session.task_store.root_task_id]
-        root.metadata["analysis_effort"] = llm_result.content.strip() or "standard"
+        root.metadata["analysis_effort"] = _concise_internal_note(
+            llm_result.content,
+            "standard",
+        )

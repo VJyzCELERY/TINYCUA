@@ -17,6 +17,7 @@ from tinycua.config.system_prompt import SystemPromptBuilder
 from tinycua.models.stream_event import enrich_stream_event, make_lifecycle_event
 from tinycua.config.types import LLMResult, ValidationError, ValidationResult
 from tinycua.loops.context_rendering import (
+    looks_like_planner_prose,
     render_llm_content,
     sanitize_internal_reprs,
     should_include_chat_record,
@@ -579,13 +580,19 @@ class TinyCUALoop(BaseLoop):
 
         store = self.root_session.task_store
         if node.node_id == "task_create" and store.root_task_id is None:
-            store.create_task(self._latest_user_query() or "TinyCUA task", description=content)
+            description = "" if looks_like_planner_prose(content) else content
+            store.create_task(
+                self._latest_user_query() or "TinyCUA task",
+                description=description,
+            )
         elif node.node_id == "task_analyzer" and store.root_task_id is not None:
             root = store.tasks[store.root_task_id]
             root.metadata["analyzed"] = "true"
         elif node.node_id == "analysis_effort" and store.root_task_id is not None:
             root = store.tasks[store.root_task_id]
-            root.metadata["analysis_effort"] = content or "standard"
+            root.metadata["analysis_effort"] = (
+                "standard" if looks_like_planner_prose(content) else content or "standard"
+            )
         elif node.node_id == "task_assessor" and store.root_task_id is not None:
             root = store.tasks[store.root_task_id]
             root.metadata["assessed"] = "true"
@@ -1791,6 +1798,8 @@ def due_notes(notes: list[dict], now: datetime | None = None) -> list[dict]:
         content = sanitize_internal_reprs(content)
         if not content.strip():
             return
+        if not node.is_terminal and looks_like_planner_prose(content):
+            return
         if not node.is_terminal:
             key = content.strip()
             if key in self._transcript_seen_node_contents:
@@ -1907,5 +1916,11 @@ def due_notes(notes: list[dict], now: datetime | None = None) -> list[dict]:
         """Append a message only when content is non-whitespace."""
         content = render_llm_content(content)
         if not content.strip():
+            return
+        key = (role, content)
+        if any(
+            existing.get("role") == key[0] and existing.get("content") == key[1]
+            for existing in messages
+        ):
             return
         messages.append({"role": role, "content": content})
