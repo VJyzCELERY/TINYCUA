@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, is_dataclass, replace
 from typing import TYPE_CHECKING, Any, Callable, Literal
 
 from tinycua.config.types import StateObject, Tool
@@ -184,3 +184,48 @@ class NodeConfigBase:
     metadata: dict[str, Any] = field(default_factory=dict)
     llm_client: Callable | None = None
     monitor: NodeMonitor | None = None
+
+
+def create_node_config(
+    node_kind: str,
+    base_config: NodeConfigBase | None = None,
+    *,
+    mode: str | None = None,
+) -> NodeConfigBase:
+    """Create a node config with the correct least-privilege tool scope.
+
+    Args:
+        node_kind: Logical node kind such as ``query_analyst`` or ``worker``.
+        base_config: Optional config whose non-tool policies are preserved.
+        mode: Optional mode used by mode-dependent nodes.
+
+    Returns:
+        NodeConfigBase with node-specific ``tool_policy``.
+    """
+    from tinycua.config import tool_scopes
+
+    normalized = node_kind.lower().replace("-", "_")
+    policy_factories = {
+        "query_analyst": tool_scopes.query_analyst_tool_scope,
+        "digester": tool_scopes.information_digester_tool_scope,
+        "information_digester": tool_scopes.information_digester_tool_scope,
+        "worker": tool_scopes.worker_tool_scope,
+        "task_create": tool_scopes.task_create_tool_scope,
+        "task_creation": tool_scopes.task_create_tool_scope,
+        "task_assessor": tool_scopes.task_assessor_tool_scope,
+        "task_executor": tool_scopes.task_executor_tool_scope,
+        "result_reviewer": tool_scopes.result_reviewer_tool_scope,
+        "result_aggregation": tool_scopes.result_aggregation_tool_scope,
+        "analysis_effort": tool_scopes.task_analyzer_tool_scope,
+        "response": tool_scopes.response_tool_scope,
+    }
+
+    config = base_config if is_dataclass(base_config) else NodeConfigBase()
+    if normalized == "task_analyzer":
+        tool_policy = tool_scopes.task_analyzer_tool_scope(mode or "task_creation")
+    else:
+        factory = policy_factories.get(normalized)
+        tool_policy = factory() if factory is not None else config.tool_policy
+    metadata = dict(config.metadata)
+    metadata["node_kind"] = normalized
+    return replace(config, tool_policy=tool_policy, metadata=metadata)

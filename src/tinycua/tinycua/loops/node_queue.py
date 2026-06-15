@@ -100,10 +100,14 @@ class NodeQueue:
         if current_node.session is not None and len(self.items) > 1:
             from tinycua.loops.propagation import forward_output_to_next
 
-            output_entries = forward_output_to_next(current_node.session)
+            next_node = self.items[1]
+            output_entries = forward_output_to_next(
+                current_node.session,
+                source_node_id=current_node.node_id,
+                target_node_id=next_node.node_id,
+            )
             if output_entries:
-                next_node = self.items[1]
-                # Convert output entries to NodeInput format for the next node
+                # Convert current-node output entries to NodeInput format.
                 node_input: NodeInputLike = cast(
                     "NodeInputLike",
                     [
@@ -112,6 +116,8 @@ class NodeQueue:
                     ],
                 )
                 self.set_input(next_node, node_input)
+                if next_node.session is not None:
+                    next_node.session.session_context.extend(output_entries)
                 logger.debug(
                     "advanced forwarded_output node=%s next=%s entries=%d",
                     current_node.node_id,

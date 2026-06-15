@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from tinycua.config.node_config import create_node_config
 from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
 from tinycua.loops.node import DecisionNode, DecisionResult, Node
 from tinycua.loops.worker import TinyCUAWorkerNode
@@ -89,7 +90,7 @@ class TinyCUAQueryAnalystNode(DecisionNode):
         # Create WorkerNode
         worker_node = TinyCUAWorkerNode(
             node_id="worker",
-            config=self.config,
+            config=create_node_config("worker", self.config),
         )
 
         # Attach a session to the worker
@@ -105,7 +106,7 @@ class TinyCUAQueryAnalystNode(DecisionNode):
         # Create InformationDigesterNode
         digester = TinyCUAInformationDigesterNode(
             node_id="digester",
-            config=self.config,
+            config=create_node_config("information_digester", self.config),
         )
 
         queue.spawn_after_current([digester, worker_node])
@@ -188,10 +189,22 @@ class TinyCUAQueryAnalystNode(DecisionNode):
         if route_label == "worker":
             self._route_worker()
         elif route_label == "uncertain":
-            logger.info("QueryAnalyst routed to 'uncertain' — no action taken")
+            policy = getattr(
+                self.config.metadata.get("session_config"),
+                "interaction_policy",
+                None,
+            )
+            strategy = getattr(policy, "uncertain_strategy", "fallback_response")
+            if strategy == "route_worker":
+                self._route_worker()
+            elif strategy == "ask" and not getattr(policy, "hitl_enabled", False):
+                logger.info("QueryAnalyst uncertain with HITL disabled — fallback response")
+            elif strategy == "fail":
+                raise RuntimeError("QueryAnalyst uncertain route failed by policy")
+            else:
+                logger.info("QueryAnalyst routed to 'uncertain' — fallback response")
         elif route_label == "passthrough":
             logger.info("QueryAnalyst routed to 'passthrough' — no action taken")
         else:
             logger.warning("QueryAnalyst unknown route: %s", route_label)
-
         super().on_complete(queue, response)

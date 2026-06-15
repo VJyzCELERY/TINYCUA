@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from tinycua.config.system_prompt import SystemPromptBuilder
 from tinycua.config.types import LLMResult, ValidationError, ValidationResult
+from tinycua.loops.route_classifier import RouteClassifier
 from tinycua.models.node_input import (
     NodeInputLike,
     convert_node_input_to_messages,
@@ -502,6 +503,8 @@ class Node(ABC):
                 SessionContextEntry(
                     content=response.content,
                     segment="output",
+                    source_node_id=self.node_id,
+                    source_session_id=self.session.session_id,
                 )
             )
         logger.info(
@@ -656,12 +659,8 @@ class DecisionNode(ProcessNode):
 
     ``__call__`` orchestrates: analysis → classification → dispatch.
 
-    Classification matching uses **substring containment** (``label in content``),
-    not exact match. For example, if ``classification_labels=["test"]`` and the
-    LLM returns ``"latest"``, validation passes because ``"test" in "latest"`` is
-    True. This is intentional for leniency but means short labels that are
-    substrings of common words may produce false positives. Consider label
-    specificity when choosing classification labels.
+    Classification matching uses RouteClassifier exact normalized labels,
+    optional route JSON fields, and unambiguous punctuation trimming.
 
     Attributes:
         classification_labels: Allowed classification labels for routing.
@@ -749,16 +748,9 @@ class DecisionNode(ProcessNode):
         Returns:
             The matched route label, or the first allowed label as fallback.
         """
-        content = classification_response.content.strip().lower()
-
-        for label in self.classification_labels:
-            if label.lower() in content:
-                return label
-
-        # Fallback: return first allowed label
-        return (
-            self.classification_labels[0] if self.classification_labels else "default"
-        )
+        fallback = self.classification_labels[0] if self.classification_labels else "default"
+        classifier = RouteClassifier(self.classification_labels, fallback_label=fallback)
+        return classifier.classify(classification_response.content)
 
     def _validate_classification(
         self, classification_response: LLMResult
@@ -771,10 +763,9 @@ class DecisionNode(ProcessNode):
         Returns:
             ValidationResult with is_valid and errors.
         """
-        content = classification_response.content.strip().lower()
-        for label in self.classification_labels:
-            if label.lower() in content:
-                return ValidationResult(is_valid=True, errors=[])
+        classifier = RouteClassifier(self.classification_labels)
+        if classifier.validate(classification_response.content):
+            return ValidationResult(is_valid=True, errors=[])
         return ValidationResult(
             is_valid=False,
             errors=[

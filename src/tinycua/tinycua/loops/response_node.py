@@ -37,11 +37,11 @@ class ResponseNode(ProcessNode):
             node_id: Unique identifier for this node.
             config: Node configuration. Uses default NodeConfigBase if None.
         """
-        from tinycua.config.node_config import NodeConfigBase
+        from tinycua.config.node_config import create_node_config
 
         super().__init__(
             node_id=node_id,
-            config=config or NodeConfigBase(),
+            config=config or create_node_config("response"),
             instruction="Generate the final response.",
             is_terminal=True,
         )

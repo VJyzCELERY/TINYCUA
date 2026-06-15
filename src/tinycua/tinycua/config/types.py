@@ -7,18 +7,34 @@ Currently defined as simple stubs to satisfy type annotations in node config.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 
 class Tool:
-    """Placeholder for SDK Tool type.
+    """Minimal SDK-compatible tool type used by TinyCUA node scopes."""
 
-    Will be replaced with the actual Tool class from tinycua.agent.tools
-    when the tool SDK is stable.
-    """
-
-    def __init__(self, name: str = "") -> None:
+    def __init__(
+        self,
+        name: str = "",
+        description: str = "",
+        parameters: dict[str, Any] | None = None,
+    ) -> None:
         self.name = name
+        self.description = description or name.replace("_", " ")
+        self.parameters = parameters or {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": True,
+        }
+
+    def to_config(self) -> dict[str, Any]:
+        """Return OpenAI-compatible tool schema config."""
+        return {
+            "type": "function",
+            "name": self.name,
+            "description": self.description,
+            "parameters": self.parameters,
+        }
 
 
 class StateObject:

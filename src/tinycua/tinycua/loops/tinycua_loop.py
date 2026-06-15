@@ -10,7 +10,7 @@ from tinycua_sdk.agent.loop import BaseLoop
 
 from tinycua.config.system_prompt import SystemPromptBuilder
 from tinycua.models.stream_event import enrich_stream_event, make_lifecycle_event
-from tinycua.config.types import LLMResult
+from tinycua.config.types import LLMResult, ValidationError, ValidationResult
 from tinycua.loops.node import DecisionNode, DecisionResult, build_messages_with_dedupe
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.propagation import (
@@ -19,6 +19,8 @@ from tinycua.loops.propagation import (
     propagate_on_termination,
 )
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
+from tinycua.loops.route_classifier import RouteClassifier
+from tinycua.models.node_input import convert_node_input_to_messages
 from tinycua.models.session import Session
 
 if TYPE_CHECKING:
@@ -66,6 +68,7 @@ class TinyCUALoop(BaseLoop):
         self.agent_monitor = agent_monitor
         self._working_messages: list[dict[str, Any]] = []
         self._usage_events: list[dict[str, Any]] = []
+        self._execution_trace: list[dict[str, Any]] = []
 
     def get_working_messages(self) -> list[dict[str, Any]]:
         """Return the working messages captured during the last run.
@@ -90,6 +93,10 @@ class TinyCUALoop(BaseLoop):
             List of usage event dicts from the last streaming execution.
         """
         return list(self._usage_events)
+
+    def get_execution_trace(self) -> list[dict[str, Any]]:
+        """Return node execution trace from the latest run."""
+        return list(self._execution_trace)
 
     async def run(
         self,
@@ -122,6 +129,7 @@ class TinyCUALoop(BaseLoop):
         # _build_node_messages(). Recording them in chat_history as well would
         # cause duplication when include_chat_history=True.
         self.root_session.input_context = list(messages)
+        self._execution_trace = []
 
         # Wire queue reference on QueryAnalystNode entry node
         current = self.queue.current
@@ -242,7 +250,7 @@ class TinyCUALoop(BaseLoop):
         Returns:
             The LLMResult that was recorded.
         """
-        if content:
+        if content and node.is_terminal:
             from tinycua.models.chat_record import ChatRecord
 
             self.root_session.chat_history.append(
@@ -261,6 +269,83 @@ class TinyCUALoop(BaseLoop):
         )
         node.record_output(llm_result)
         return llm_result
+
+    async def _call_node_with_retry(
+        self,
+        node: Node,
+        agent: Agent,
+        messages: list[dict[str, Any]],
+        resolved_tools: list[Tool],
+    ) -> tuple[LLMResult, int, ValidationResult]:
+        """Loop-owned LLM call, validation, and retry lifecycle."""
+        retry_policy = node.config.retry_policy
+        max_attempts = max(retry_policy.max_attempts, 1)
+        last_result = LLMResult()
+        last_validation = ValidationResult(is_valid=True, errors=[])
+
+        for attempt in range(1, max_attempts + 1):
+            raw_response = await agent._call_llm(messages, resolved_tools)  # type: ignore[arg-type]
+            last_result = LLMResult(
+                content=raw_response.get("content") or "",
+                role=raw_response.get("role", "assistant"),
+                tool_calls=raw_response.get("tool_calls") or [],
+                metadata=raw_response.get("metadata", {}),
+            )
+            last_validation = node.validate_output(last_result)
+            if last_validation.is_valid:
+                return last_result, attempt, last_validation
+            if attempt < max_attempts:
+                error = ValidationError("; ".join(last_validation.errors))
+                messages.append(
+                    {
+                        "role": "assistant",
+                        "content": node._build_retry_text(error, attempt),
+                    }
+                )
+
+        node._handle_exhaustion(last_validation, max_attempts)
+        return last_result, max_attempts, last_validation
+
+    def _decision_fallback_label(self, node: DecisionNode) -> str | None:
+        """Return configured fallback route for invalid decision responses."""
+        if isinstance(node, TinyCUAQueryAnalystNode):
+            policy = getattr(self.session_config, "interaction_policy", None)
+            strategy = getattr(policy, "uncertain_strategy", "fallback_response")
+            if strategy == "route_worker":
+                return "worker"
+            if strategy == "fail":
+                return None
+            return "passthrough"
+        return node.classification_labels[0] if node.classification_labels else None
+
+    def _build_on_complete_response(
+        self,
+        node: Node,
+        llm_result: LLMResult,
+    ) -> LLMResult | DecisionResult:
+        """Build the response object passed to node completion hooks."""
+        if not isinstance(node, DecisionNode):
+            return llm_result
+        route_label = RouteClassifier(
+            node.classification_labels,
+            fallback_label=self._decision_fallback_label(node),
+        ).classify(llm_result.content)
+        return DecisionResult(
+            route_label=route_label,
+            analysis_response=llm_result,
+            classification_response=llm_result,
+        )
+
+    def _apply_loop_result_hook(
+        self,
+        node: Node,
+        llm_result: LLMResult,
+        node_input: NodeInputLike | None,
+    ) -> None:
+        """Run optional node-specific post-LLM parsing in loop path."""
+        hook = getattr(node, "parse_loop_result", None)
+        if hook is not None:
+            hook(llm_result, node_input)
 
     def _emit_lifecycle_event(
         self,
@@ -378,15 +463,18 @@ class TinyCUALoop(BaseLoop):
         combined = "".join(content_parts)
         llm_result = self._record_node_output(node, combined, collected_tool_calls)
 
-        # Fire lifecycle hooks (same as _execute_node)
-        on_complete_response: LLMResult | DecisionResult = llm_result
-        if isinstance(node, DecisionNode):
-            on_complete_response = DecisionResult(
-                route_label=combined,
-                analysis_response=llm_result,
-                classification_response=llm_result,
-            )
+        self._apply_loop_result_hook(node, llm_result, None)
+        on_complete_response = self._build_on_complete_response(node, llm_result)
         node.on_complete(self.queue, on_complete_response)
+
+        trace_entry = {
+            "node_id": node.node_id,
+            "node_type": type(node).__name__,
+            "is_terminal": node.is_terminal,
+        }
+        if isinstance(on_complete_response, DecisionResult):
+            trace_entry["route_label"] = on_complete_response.route_label
+        self._execution_trace.append(trace_entry)
 
         # Propagate context on node termination
         rule = node.config.propagation or PropagationRule()
@@ -627,9 +715,6 @@ class TinyCUALoop(BaseLoop):
             override_instructions,
         )
 
-        # Fire agent_monitor before-hook (if configured)
-        # Note: attempt=1 at agent level because retry is node-internal.
-        # Use NodeMonitor for per-attempt granularity.
         if self.agent_monitor is not None:
             try:
                 self.agent_monitor.on_before_node_call(
@@ -646,26 +731,25 @@ class TinyCUALoop(BaseLoop):
                     exc_info=True,
                 )
 
-        response = await agent._call_llm(messages, resolved_tools)  # type: ignore[arg-type]
-        content = response.get("content") or ""
-
-        llm_result = self._record_node_output(node, content, response.get("tool_calls"))
+        llm_result, attempt, validation = await self._call_node_with_retry(
+            node,
+            agent,
+            messages,
+            resolved_tools,
+        )
+        content = llm_result.content
+        llm_result = self._record_node_output(node, content, llm_result.tool_calls)
+        self._apply_loop_result_hook(node, llm_result, node_input)
 
         # Fire agent_monitor after-hook (if configured)
-        # Note: attempt=1 at agent level because retry is node-internal.
-        # Use NodeMonitor for per-attempt granularity.
         if self.agent_monitor is not None:
-            from tinycua.config.types import ValidationResult
-
             try:
                 self.agent_monitor.on_after_node_call(
                     node.node_id,
                     self.root_session.session_id,
-                    1,  # attempt 1 at agent level
+                    attempt,
                     llm_result,
-                    # Validation is node-internal; loop doesn't run validate_output().
-                    # Use NodeMonitor for per-attempt validation results.
-                    ValidationResult(is_valid=True, errors=[]),
+                    validation,
                 )
             except Exception:
                 logger.debug(
@@ -674,19 +758,18 @@ class TinyCUALoop(BaseLoop):
                     exc_info=True,
                 )
 
-        # Build the response object for on_complete: DecisionNode expects
-        # a DecisionResult with a route_label; pass a synthetic one so
-        # on_complete routing (QueryAnalyst._route_worker) works correctly.
-        on_complete_response: LLMResult | DecisionResult = llm_result
-        if isinstance(node, DecisionNode):
-            # DecisionNode subclass — build a synthetic DecisionResult
-            # with the raw content as route_label for on_complete routing.
-            on_complete_response = DecisionResult(
-                route_label=content,
-                analysis_response=llm_result,
-                classification_response=llm_result,
-            )
+        on_complete_response = self._build_on_complete_response(node, llm_result)
         node.on_complete(self.queue, on_complete_response)
+
+        trace_entry = {
+            "node_id": node.node_id,
+            "node_type": type(node).__name__,
+            "is_terminal": node.is_terminal,
+            "attempt": attempt,
+        }
+        if isinstance(on_complete_response, DecisionResult):
+            trace_entry["route_label"] = on_complete_response.route_label
+        self._execution_trace.append(trace_entry)
 
         # Propagate context on node termination (ISSUE-601): use the
         # propagation engine instead of legacy _transfer_session_context().
@@ -699,7 +782,7 @@ class TinyCUALoop(BaseLoop):
             rule,
         )
 
-        return content, response.get("tool_calls") or []
+        return content, llm_result.tool_calls
 
     def _find_parent_session(self, node: Node) -> Session | None:
         """Find the parent session for a node by looking at queue position.
@@ -746,19 +829,17 @@ class TinyCUALoop(BaseLoop):
             messages.append(system_msg)
 
         # Add session context if policy says so
-        if (
-            node.config.message_policy.include_session_context
-            and self.root_session.session_context
-        ):
+        context_session = node.session or self.root_session
+        if node.config.message_policy.include_session_context and context_session.session_context:
             dedupe = node.config.message_policy.dedupe_by_origin_record_id
             if dedupe:
                 messages.extend(
                     build_messages_with_dedupe(
-                        self.root_session, dedupe_by_origin_record_id=True
+                        context_session, dedupe_by_origin_record_id=True
                     )
                 )
             else:
-                for m in self.root_session.session_context:
+                for m in context_session.session_context:
                     if isinstance(m, dict):
                         messages.append(
                             {
@@ -796,5 +877,12 @@ class TinyCUALoop(BaseLoop):
                 }
                 for m in self.root_session.input_context
             )
+
+        if self.queue.current is node:
+            node_input = self.queue.input_for_current()
+            try:
+                messages.extend(convert_node_input_to_messages(node_input))
+            except (TypeError, ValueError):
+                logger.debug("node=%s invalid_node_input_ignored", node.node_id)
 
         return messages

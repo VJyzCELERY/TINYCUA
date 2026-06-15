@@ -3,10 +3,25 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from tinycua.compaction.strategy import CompactionStrategy
+
+
+@dataclass
+class InteractionPolicy:
+    """Controls human-in-the-loop behavior for unattended runs.
+
+    Defaults are non-interactive so benchmark and CI runs complete
+    deterministically unless HITL behavior is explicitly enabled.
+    """
+
+    hitl_enabled: bool = False
+    uncertain_strategy: Literal["fallback_response", "route_worker", "ask", "fail"] = (
+        "fallback_response"
+    )
+    allow_clarifying_questions: bool = False
 
 
 @dataclass
@@ -24,4 +39,5 @@ class SessionConfig:
     compaction_strategy: CompactionStrategy | None = None
     max_context_messages: int | None = 100
     max_context_tokens: int | None = None
+    interaction_policy: InteractionPolicy = field(default_factory=InteractionPolicy)
     metadata: dict[str, Any] = field(default_factory=dict)

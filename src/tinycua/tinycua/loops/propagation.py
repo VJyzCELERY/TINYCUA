@@ -234,6 +234,9 @@ def propagate_on_termination(
 
 def forward_output_to_next(
     node_session: Session,
+    *,
+    source_node_id: str | None = None,
+    target_node_id: str | None = None,
 ) -> list[SessionContextEntry]:
     """Extract output segment entries for forwarding to next node.
 
@@ -242,13 +245,25 @@ def forward_output_to_next(
 
     Args:
         node_session: The terminating node's session.
+        source_node_id: Optional current node id; when set, only outputs from
+            that node are forwarded.
+        target_node_id: Optional next node id used to prevent duplicate
+            forwarding to the same target.
 
     Returns:
         List of output entries to forward.
     """
-    output_entries = [
-        entry for entry in node_session.session_context if entry.segment == "output"
-    ]
+    output_entries = []
+    for entry in node_session.session_context:
+        if entry.segment != "output":
+            continue
+        if source_node_id is not None and entry.source_node_id != source_node_id:
+            continue
+        if target_node_id is not None and target_node_id in entry.forwarded_to_node_ids:
+            continue
+        output_entries.append(entry)
+        if target_node_id is not None:
+            entry.forwarded_to_node_ids.add(target_node_id)
 
     logger.debug(
         "forward_output_to_next node_session=%s output_count=%d",

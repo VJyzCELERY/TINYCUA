@@ -30,6 +30,7 @@ class SessionContextEntry(StateObject):
     source_node_id: str | None = None
     source_session_id: str | None = None
     created_seq: int = 0
+    forwarded_to_node_ids: set[str] = field(default_factory=set)
 
     @property
     def role(self) -> str:

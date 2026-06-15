@@ -88,6 +88,20 @@ class TinyCUAInformationDigesterNode(ProcessNode):
         )
         return response
 
+    def parse_loop_result(
+        self,
+        response: LLMResult,
+        input_data: NodeInputLike | None,
+    ) -> DigestedInformation:
+        """Parse loop-owned LLM output into DigestedInformation."""
+        original_query = self._extract_original_query(input_data or "")
+        self._current_digest = self._parse_digest_response(
+            response.content,
+            original_query,
+        )
+        self.propagate()
+        return self._current_digest
+
     def _parse_digest_response(
         self,
         content: str,
@@ -169,10 +183,19 @@ class TinyCUAInformationDigesterNode(ProcessNode):
         if self.session is not None and self._current_digest is not None:
             from tinycua.models.session_context_entry import SessionContextEntry
 
+            if any(
+                entry.content is self._current_digest
+                for entry in self.session.session_context
+                if entry.segment == "output"
+            ):
+                return
+
             self.session.session_context.append(
                 SessionContextEntry(
                     content=self._current_digest,
                     segment="output",
+                    source_node_id=self.node_id,
+                    source_session_id=self.session.session_id,
                 )
             )
 
