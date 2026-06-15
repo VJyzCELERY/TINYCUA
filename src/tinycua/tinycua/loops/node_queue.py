@@ -106,7 +106,7 @@ class NodeQueue:
                 source_node_id=current_node.node_id,
                 target_node_id=next_node.node_id,
             )
-            if output_entries:
+            if output_entries and next_node.node_id not in self._inputs:
                 # Convert current-node output entries to NodeInput format.
                 node_input: NodeInputLike = cast(
                     "NodeInputLike",

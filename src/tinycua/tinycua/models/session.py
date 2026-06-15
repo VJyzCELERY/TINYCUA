@@ -6,6 +6,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from tinycua.models.task import Task, TaskStateStore
+
 if TYPE_CHECKING:
     from tinycua.config.session_config import SessionConfig
     from tinycua.models.chat_record import ChatRecord
@@ -26,7 +28,8 @@ class Session:
         input_context: Merged SDK messages from the agent loop.
         chat_history: Append-only durable audit transcript.
         session_context: Mutable LLM-reusable context with segment metadata.
-        task: Optional task description string.
+        task: Optional root task object.
+        task_store: Session-owned task tree state.
         todo: Optional todo list.
     """
 
@@ -36,7 +39,8 @@ class Session:
     input_context: list[dict[str, Any]] = field(default_factory=list)
     chat_history: list[ChatRecord] = field(default_factory=list)
     session_context: list[SessionContextEntry] = field(default_factory=list)
-    task: str | None = None
+    task: Task | None = None
+    task_store: TaskStateStore = field(default_factory=TaskStateStore)
     todo: list[dict[str, Any]] = field(default_factory=list)
 
     def compact_context(

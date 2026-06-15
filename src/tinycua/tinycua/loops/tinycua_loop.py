@@ -5,7 +5,9 @@ from __future__ import annotations
 import inspect
 import json
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
+from dataclasses import asdict
+from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 from tinycua_sdk.agent.loop import BaseLoop
@@ -51,6 +53,7 @@ class TinyCUALoop(BaseLoop):
         max_iterations: int = 50,
         default_terminal_node: Node | None = None,
         agent_monitor: AgentMonitor | None = None,
+        queue_factory: Callable[[], NodeQueue] | None = None,
     ) -> None:
         """Initialize TinyCUALoop.
 
@@ -61,6 +64,7 @@ class TinyCUALoop(BaseLoop):
             max_iterations: Maximum loop iterations before forced stop.
             default_terminal_node: Default terminal node for ensure_terminal() bootstrap.
             agent_monitor: Optional agent-level monitor hook for observing node execution.
+            queue_factory: Optional factory used to create a fresh run queue per call.
         """
         super().__init__(max_iterations=max_iterations)
         self.root_session = root_session or Session()
@@ -68,9 +72,13 @@ class TinyCUALoop(BaseLoop):
         self.session_config = session_config
         self.default_terminal_node = default_terminal_node
         self.agent_monitor = agent_monitor
+        self.queue_factory = queue_factory
         self._working_messages: list[dict[str, Any]] = []
         self._usage_events: list[dict[str, Any]] = []
         self._execution_trace: list[dict[str, Any]] = []
+        self.workspace_dir = getattr(session_config, "workspace_dir", None)
+        self.artifact_dir = getattr(session_config, "artifact_dir", None)
+        self.session_dir = getattr(session_config, "session_dir", None)
 
     def get_working_messages(self) -> list[dict[str, Any]]:
         """Return the working messages captured during the last run.
@@ -139,6 +147,13 @@ class TinyCUALoop(BaseLoop):
         # cause duplication when include_chat_history=True.
         self.root_session.input_context = list(messages)
         self._execution_trace = []
+
+        # Each public run starts from the configured entry graph. Durable state
+        # lives on ``root_session``; consumed queue nodes do not persist across
+        # invocations of a reused agent instance.
+        if self.queue_factory is not None:
+            self.queue = self.queue_factory()
+            self.default_terminal_node = self.queue.items[-1] if self.queue.items else None
 
         # Wire queue reference on QueryAnalystNode entry node
         current = self.queue.current
@@ -243,7 +258,116 @@ class TinyCUALoop(BaseLoop):
         node.ensure_session(self.root_session)
         messages = self._build_node_messages(node, override_instructions)
         resolved_tools = node.config.tool_policy.resolve_tools(tools)
+        self._bind_session_tools(resolved_tools)
         return messages, resolved_tools
+
+    def _bind_session_tools(self, tools: list[Tool]) -> None:
+        """Bind session-aware tools to this loop's root session state."""
+        for tool in tools:
+            binder = getattr(tool, "bind_task_store", None)
+            if callable(binder):
+                binder(self.root_session.task_store)
+
+    def _execute_tool_calls(
+        self,
+        tool_calls: list[dict[str, Any]],
+        resolved_tools: list[Tool],
+    ) -> list[dict[str, Any]]:
+        """Execute allowed tool calls against the active session state."""
+        allowed_tools = {tool.name: tool for tool in resolved_tools}
+        results: list[dict[str, Any]] = []
+        for tool_call in tool_calls:
+            function = tool_call.get("function") or {}
+            name = function.get("name") or tool_call.get("name")
+            if not name:
+                continue
+            if name not in allowed_tools:
+                results.append({"name": name, "allowed": False, "error": "tool_not_allowed"})
+                continue
+            if not callable(allowed_tools[name]):
+                continue
+            arguments = function.get("arguments") or tool_call.get("arguments") or {}
+            if isinstance(arguments, str):
+                try:
+                    arguments = json.loads(arguments) if arguments else {}
+                except json.JSONDecodeError as exc:
+                    results.append({"name": name, "allowed": True, "error": str(exc)})
+                    continue
+            if not isinstance(arguments, dict):
+                results.append({"name": name, "allowed": True, "error": "arguments_not_object"})
+                continue
+            try:
+                output = allowed_tools[name](**arguments)  # type: ignore[misc,operator]
+            except Exception as exc:  # noqa: BLE001 - recorded for trace/debugging.
+                results.append({"name": name, "allowed": True, "error": str(exc)})
+                continue
+            self._sync_root_task()
+            results.append({"name": name, "allowed": True, "output": output})
+        return results
+
+    def _sync_root_task(self) -> None:
+        """Expose the current root task on the public session object."""
+        root_id = self.root_session.task_store.root_task_id
+        if root_id is not None:
+            self.root_session.task = self.root_session.task_store.tasks.get(root_id)
+
+    def _task_state_snapshot(self) -> dict[str, Any] | None:
+        """Return a serializable task-tree snapshot for trace entries."""
+        store = self.root_session.task_store
+        if not store.tasks:
+            return None
+        return {
+            "root_task_id": store.root_task_id,
+            "tasks": {
+                task_id: self._json_safe(asdict(task))
+                for task_id, task in store.tasks.items()
+            },
+        }
+
+    def _json_safe(self, value: Any) -> Any:
+        """Convert trace values to JSON-serializable primitives."""
+        if isinstance(value, Enum):
+            return value.value
+        if isinstance(value, dict):
+            return {key: self._json_safe(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [self._json_safe(item) for item in value]
+        return value
+
+    def _latest_user_query(self) -> str:
+        """Return the latest user prompt in the root input context."""
+        for message in reversed(self.root_session.input_context):
+            if message.get("role") == "user":
+                return str(message.get("content", "")).strip()
+        return "TinyCUA task"
+
+    def _apply_task_lifecycle_marker(self, node: Node, content: str) -> None:
+        """Record deterministic task lifecycle state for task-route nodes."""
+        from tinycua.models.task import TaskResult, TaskStatus
+
+        store = self.root_session.task_store
+        if node.node_id == "task_create" and store.root_task_id is None:
+            store.create_task(self._latest_user_query() or "TinyCUA task", description=content)
+        elif node.node_id == "task_analyzer" and store.root_task_id is not None:
+            root = store.tasks[store.root_task_id]
+            root.metadata["analyzed"] = "true"
+        elif node.node_id == "analysis_effort" and store.root_task_id is not None:
+            root = store.tasks[store.root_task_id]
+            root.metadata["analysis_effort"] = content or "standard"
+        elif node.node_id == "task_assessor" and store.root_task_id is not None:
+            root = store.tasks[store.root_task_id]
+            root.metadata["assessed"] = "true"
+        elif node.node_id == "task_executor" and store.root_task_id is not None:
+            root = store.tasks[store.root_task_id]
+            root.status = TaskStatus.IN_PROGRESS
+        elif node.node_id == "result_reviewer" and store.root_task_id is not None:
+            root = store.tasks[store.root_task_id]
+            root.metadata["reviewed"] = "true"
+        elif node.node_id == "result_aggregation" and store.root_task_id is not None:
+            root = store.tasks[store.root_task_id]
+            root.result = TaskResult(content=content or "Aggregated worker result")
+            root.status = TaskStatus.COMPLETED
+        self._sync_root_task()
 
     def _record_node_output(
         self,
@@ -302,6 +426,10 @@ class TinyCUALoop(BaseLoop):
                 tool_calls=raw_response.get("tool_calls") or [],
                 metadata=raw_response.get("metadata", {}),
             )
+            tool_results = self._execute_tool_calls(last_result.tool_calls, resolved_tools)
+            if tool_results:
+                last_result.metadata = dict(last_result.metadata)
+                last_result.metadata["tool_results"] = tool_results
             last_validation = node.validate_output(last_result)
             if last_validation.is_valid:
                 return last_result, attempt, last_validation
@@ -406,6 +534,40 @@ class TinyCUALoop(BaseLoop):
             analysis_response=llm_result,
             classification_response=llm_result,
         )
+
+    def _trace_entry(
+        self,
+        node: Node,
+        attempt: int,
+        resolved_tools: list[Tool],
+        on_complete_response: LLMResult | DecisionResult,
+        llm_result: LLMResult | None = None,
+    ) -> dict[str, Any]:
+        """Build a trace entry with route, tool, and task-state evidence."""
+        trace_entry = {
+            "node_id": node.node_id,
+            "node_type": type(node).__name__,
+            "is_terminal": node.is_terminal,
+            "attempt": attempt,
+            "resolved_tool_names": [tool.name for tool in resolved_tools],
+        }
+        if isinstance(on_complete_response, DecisionResult):
+            trace_entry["route_label"] = on_complete_response.route_label
+            trace_entry["route_source"] = (
+                "tool_call"
+                if self._route_from_tool_calls(
+                    on_complete_response.classification_response.tool_calls,
+                    [on_complete_response.route_label],
+                )
+                else "content_or_fallback"
+            )
+        if llm_result is not None and llm_result.metadata.get("tool_results"):
+            trace_entry["tool_results"] = llm_result.metadata["tool_results"]
+        task_state = self._task_state_snapshot()
+        if task_state is not None:
+            trace_entry["task_state"] = task_state
+            trace_entry["task_tree"] = task_state
+        return trace_entry
 
     def _apply_loop_result_hook(
         self,
@@ -554,17 +716,17 @@ class TinyCUALoop(BaseLoop):
 
         self._apply_loop_result_hook(node, llm_result, None)
         self._publish_structured_outputs_to_root(node)
+        self._apply_task_lifecycle_marker(node, combined)
         on_complete_response = self._build_on_complete_response(node, llm_result)
         node.on_complete(self.queue, on_complete_response)
 
-        trace_entry = {
-            "node_id": node.node_id,
-            "node_type": type(node).__name__,
-            "is_terminal": node.is_terminal,
-            "resolved_tool_names": [tool.name for tool in node.config.tool_policy.resolve_tools([])],
-        }
-        if isinstance(on_complete_response, DecisionResult):
-            trace_entry["route_label"] = on_complete_response.route_label
+        trace_entry = self._trace_entry(
+            node,
+            1,
+            node.config.tool_policy.resolve_tools([]),
+            on_complete_response,
+            llm_result,
+        )
         self._execution_trace.append(trace_entry)
 
         # Propagate context on node termination
@@ -839,6 +1001,7 @@ class TinyCUALoop(BaseLoop):
         llm_result = self._record_node_output(node, content, llm_result.tool_calls)
         self._apply_loop_result_hook(node, llm_result, node_input)
         self._publish_structured_outputs_to_root(node)
+        self._apply_task_lifecycle_marker(node, content)
 
         # Fire agent_monitor after-hook (if configured)
         if self.agent_monitor is not None:
@@ -860,15 +1023,13 @@ class TinyCUALoop(BaseLoop):
         on_complete_response = self._build_on_complete_response(node, llm_result)
         node.on_complete(self.queue, on_complete_response)
 
-        trace_entry = {
-            "node_id": node.node_id,
-            "node_type": type(node).__name__,
-            "is_terminal": node.is_terminal,
-            "attempt": attempt,
-            "resolved_tool_names": [tool.name for tool in resolved_tools],
-        }
-        if isinstance(on_complete_response, DecisionResult):
-            trace_entry["route_label"] = on_complete_response.route_label
+        trace_entry = self._trace_entry(
+            node,
+            attempt,
+            resolved_tools,
+            on_complete_response,
+            llm_result,
+        )
         self._execution_trace.append(trace_entry)
 
         # Propagate context on node termination (ISSUE-601): use the

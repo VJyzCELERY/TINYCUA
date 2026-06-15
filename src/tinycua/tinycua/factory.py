@@ -69,5 +69,6 @@ def create_tinycua_agent(
         queue=queue,
         session_config=session_config,
         default_terminal_node=terminal_node,
+        queue_factory=lambda: create_default_queue(session_config),
     )
     return Agent(loop=loop, **agent_kwargs)

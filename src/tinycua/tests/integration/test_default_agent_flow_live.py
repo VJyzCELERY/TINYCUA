@@ -44,6 +44,13 @@ def _require_live_llm() -> None:
     missing = [name for name in required if not os.environ.get(name)]
     if missing:
         pytest.fail(f"Missing live LLM environment variables: {', '.join(missing)}")
+    mismatched = {
+        name: os.environ.get(name)
+        for name, expected in required.items()
+        if os.environ.get(name) != expected
+    }
+    if mismatched:
+        pytest.fail(f"Live LLM environment variables must match local contract: {mismatched}")
 
 
 def _live_llm_model() -> LanguageModel:
@@ -68,8 +75,11 @@ async def test_default_agent_live_passthrough_flow() -> None:
     assert isinstance(result, str)
     assert result.strip()
     assert trace[0]["node_id"] == "query_analyst"
-    assert trace[0].get("route_label") in {"worker", "passthrough", "uncertain"}
+    assert trace[0].get("route_label") == "passthrough"
+    assert trace[0].get("route_source") == "tool_call"
     assert "select_query_route" in trace[0].get("resolved_tool_names", [])
+    assert "worker" not in [entry["node_id"] for entry in trace]
+    assert "digester" not in [entry["node_id"] for entry in trace]
     assert trace[-1]["node_id"] == "response"
 
 
@@ -111,12 +121,14 @@ async def test_default_agent_live_worker_flow_runs_digester_before_worker() -> N
     assert result.strip()
     assert trace[0]["node_id"] == "query_analyst"
     assert trace[0].get("route_label") == "worker"
+    assert trace[0].get("route_source") == "tool_call"
     assert "select_query_route" in trace[0].get("resolved_tool_names", [])
     assert "digester" in node_ids
     assert "worker" in node_ids
     assert node_ids.index("digester") < node_ids.index("worker")
     worker_trace = trace[node_ids.index("worker")]
     assert "select_worker_route" in worker_trace.get("resolved_tool_names", [])
+    assert worker_trace.get("route_source") == "tool_call"
     assert trace[-1]["node_id"] == "response"
     assert any(
         isinstance(entry.content, DigestedInformation)

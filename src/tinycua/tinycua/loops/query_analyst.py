@@ -76,7 +76,7 @@ class TinyCUAQueryAnalystNode(DecisionNode):
         )
         self._queue: NodeQueue | None = None
 
-    def _route_worker(self, _input_data: NodeInputLike = "") -> None:
+    def _route_worker(self, input_data: NodeInputLike = "") -> None:
         """Route to WorkerNode with information digestion.
 
         1. Check if target Worker session already has DigestedInformation
@@ -85,7 +85,7 @@ class TinyCUAQueryAnalystNode(DecisionNode):
            → queue.spawn_after_current([digester, worker_node])
 
         Args:
-            _input_data: The node input (kept for API compatibility).
+            input_data: The original node input used to preserve the user query.
         """
         queue = self._queue
 
@@ -116,6 +116,28 @@ class TinyCUAQueryAnalystNode(DecisionNode):
         )
 
         queue.spawn_after_current([digester, worker_node])
+        original_messages = self._original_query_input(input_data)
+        if original_messages is not None:
+            queue.set_input(digester, original_messages)
+
+    def _original_query_input(self, input_data: NodeInputLike) -> NodeInputLike | None:
+        """Return the original user-message input for the worker digester."""
+        if self.session is not None and self.session.input_context:
+            return NodeInput(
+                input_type="original_user_query",
+                source_node=self.node_id,
+                target_node="digester",
+                messages=list(self.session.input_context),
+            )
+        original_query = self._extract_user_query(input_data)
+        if original_query:
+            return NodeInput(
+                input_type="original_user_query",
+                source_node=self.node_id,
+                target_node="digester",
+                messages=[{"role": "user", "content": original_query}],
+            )
+        return None
 
     def _check_existing_digest(self, worker: Node) -> bool:
         """Check if the worker's session already has DigestedInformation.

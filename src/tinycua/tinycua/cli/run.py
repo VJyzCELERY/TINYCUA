@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
-import os
 import time
 import threading
 from collections.abc import Coroutine
@@ -22,6 +21,7 @@ from tinycua.cli.transcript import (
     write_transcript,
     write_usage_summary,
 )
+from tinycua.config.session_config import SessionConfig
 from tinycua.factory import create_tinycua_agent
 
 logger = logging.getLogger(__name__)
@@ -164,9 +164,9 @@ def run_command(
         print(f"Output directory not writable: {output_dir}", flush=True)
         return 1
 
-    # Ensure workspace directory exists before setting it as working dir (FR-011)
+    # Ensure workspace directory exists and pass it through the public session
+    # filesystem contract instead of mutating process-global CWD.
     workspace.mkdir(parents=True, exist_ok=True)
-    os.chdir(workspace)
 
     log_path = output_dir / "agent.log"
     transcript_path = output_dir / "transcript.jsonl"
@@ -187,6 +187,10 @@ def run_command(
 
     try:
         agent = create_tinycua_agent(
+            session_config=SessionConfig(
+                workspace_dir=workspace,
+                artifact_dir=output_dir,
+            ),
             base_url=config["base_url"],
             api_key=config["api_key"],
             model=config["model"],

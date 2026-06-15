@@ -8,6 +8,7 @@ from tinycua.loops.node import DecisionNode, DecisionResult
 from tinycua.config.node_config import create_node_config
 from tinycua.loops.task_create import TinyCUATaskCreateNode
 from tinycua.loops.task_nodes import (
+    TinyCUAAnalysisEffortNode,
     TinyCUAResultAggregationNode,
     TinyCUAResultReviewerNode,
     TinyCUATaskAnalyzerNode,
@@ -152,6 +153,34 @@ class TinyCUAWorkerNode(DecisionNode):
                 TinyCUATaskCreateNode(
                     node_id="task_create",
                     config=create_node_config("task_create", self.config),
+                ),
+                TinyCUATaskAnalyzerNode(
+                    node_id="task_analyzer",
+                    config=create_node_config(
+                        "task_analyzer",
+                        self.config,
+                        mode="task_creation",
+                    ),
+                ),
+                TinyCUAAnalysisEffortNode(
+                    node_id="analysis_effort",
+                    config=create_node_config("analysis_effort", self.config),
+                ),
+                TinyCUATaskAssessorNode(
+                    node_id="task_assessor",
+                    config=create_node_config("task_assessor", self.config),
+                ),
+                TinyCUATaskExecutorNode(
+                    node_id="task_executor",
+                    config=create_node_config("task_executor", self.config),
+                ),
+                TinyCUAResultReviewerNode(
+                    node_id="result_reviewer",
+                    config=create_node_config("result_reviewer", self.config),
+                ),
+                TinyCUAResultAggregationNode(
+                    node_id="result_aggregation",
+                    config=create_node_config("result_aggregation", self.config),
                 )
             ])
         elif route_label in {"task_recreation", "task_reanalysis"}:
