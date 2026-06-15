@@ -1,6 +1,10 @@
-# TinyCUA Benchmark Docker Image
+# TinyCUA Benchmark Documentation
 
 Docker image for running TinyCUA as an agent harness within WildClawBench benchmark evaluation.
+
+## Analysis Report
+
+- **[Benchmark Analysis Report](analysis-report.md)** — WildClawBench performance analysis, baseline comparisons, failure taxonomy, and architecture recommendations (Milestone 5.7)
 
 ## Quick Start
 
