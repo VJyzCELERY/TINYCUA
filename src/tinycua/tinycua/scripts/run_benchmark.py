@@ -18,7 +18,8 @@ from typing import Any
 from tinycua.scripts.benchmark_config import BenchmarkConfig, parse_args
 from tinycua.scripts.collect_metadata import collect_run_metadata, preflight_check
 from tinycua.wildclawbench.agent import TinyCUAAgent
-from tinycua.wildclawbench.base_agent import AgentTaskSpec
+from tinycua.wildclawbench.base_agent import AgentTaskSpec, BaseAgent
+from hermes_benchmark.hermes_agent import HermesAgent
 
 logger = logging.getLogger(__name__)
 
@@ -188,10 +189,37 @@ class SummaryAggregate:
         )
 
 
+def _create_agent(config: BenchmarkConfig) -> BaseAgent:
+    """Create the appropriate agent based on benchmark configuration.
+
+    Args:
+        config: Benchmark configuration.
+
+    Returns:
+        BaseAgent instance configured for the benchmark run.
+
+    Raises:
+        ValueError: If agent_backend is hermesagent but no hermes_config_path is provided.
+    """
+    if config.agent_backend == "hermesagent":
+        if not config.hermes_config_path:
+            raise ValueError(
+                "--hermes-config is required when --agent-backend is hermesagent"
+            )
+        return HermesAgent(config_path=config.hermes_config_path)
+
+    return TinyCUAAgent(
+        base_url=config.base_url,
+        api_key=config.api_key,
+        model=config.model_name,
+    )
+
+
 def run_full_benchmark(
     config: BenchmarkConfig,
     output_dir: Path,
     tasks: list[str] | None = None,
+    agent: BaseAgent | None = None,
 ) -> dict:
     """Execute the full benchmark suite.
 
@@ -221,11 +249,8 @@ def run_full_benchmark(
     if tasks is None:
         tasks = DEFAULT_TASKS
 
-    agent = TinyCUAAgent(
-        base_url=config.base_url,
-        api_key=config.api_key,
-        model=config.model_name,
-    )
+    if agent is None:
+        agent = _create_agent(config)
 
     start_time = datetime.now(timezone.utc)
     results: list[TaskResult] = []
@@ -349,7 +374,8 @@ def main() -> None:
     else:
         logging.basicConfig(level=logging.INFO)
 
-    run_full_benchmark(config, output_dir, tasks)
+    agent = _create_agent(config)
+    run_full_benchmark(config, output_dir, tasks, agent=agent)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,184 @@
+"""Executor for running agents with stateless execution."""
+
+from __future__ import annotations
+
+import json
+import logging
+from typing import Any
+
+from tinycua_runner.registry import get_registry
+
+logger = logging.getLogger(__name__)
+
+
+class Executor:
+    """Handles agent execution with bundled tools."""
+
+    def __init__(
+        self,
+        bundled_tools: list[dict[str, Any]] | None = None,
+    ):
+        """Initialize executor.
+
+        Args:
+            bundled_tools: Optional list of tool bundles from backend
+        """
+        self._register_tools(bundled_tools or [])
+
+    def _register_tools(self, tools: list[dict[str, Any]]) -> None:
+        """Register bundled tools to the registry.
+
+        Args:
+            tools: List of tool bundles
+        """
+        registry = get_registry()
+
+        for tool_bundle in tools:
+            # Install external dependencies before registering
+            registry.install_tool_dependencies(tool_bundle)
+            registry.register(tool_bundle)
+
+        logger.info(f"Registered {len(tools)} bundled tools")
+
+    def _install_dependencies(self, dependencies: list[str]) -> None:
+        """Install external dependencies for loops.
+
+        Args:
+            dependencies: List of pip package names
+        """
+        import subprocess
+        import sys
+
+        for dep in dependencies:
+            try:
+                __import__(dep)
+                logger.info(f"Dependency already available: {dep}")
+            except ImportError:
+                logger.info(f"Installing dependency: {dep}")
+                try:
+                    subprocess.check_call(
+                        [sys.executable, "-m", "pip", "install", dep],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                    logger.info(f"Installed: {dep}")
+                except subprocess.CalledProcessError as e:
+                    logger.error(f"Failed to install {dep}: {e}")
+
+    def get_tools(self) -> list[Any]:
+        """Get all tools for agent execution.
+
+        Returns:
+            List of Tool objects
+        """
+        from tinycua_sdk.tools.decorators import Tool
+
+        registry = get_registry()
+        tools = []
+
+        for tool_bundle in registry.list_all():
+            materialized_fn = registry.get_materialized(tool_bundle["name"])
+            if materialized_fn is None:
+                logger.warning(f"Failed to materialize tool: {tool_bundle['name']}")
+                continue
+
+            tool = Tool(
+                name=tool_bundle["name"],
+                description=tool_bundle.get("description", ""),
+                parameters=tool_bundle.get("parameters", {}),
+                _source=tool_bundle.get("source", ""),
+            )
+            # Store the materialized function separately for invocation
+            tool._fn = materialized_fn
+            tools.append(tool)
+
+        return tools
+
+    def get_context_tools(self) -> list[Any]:
+        """Get context tools with session store.
+
+        Returns:
+            List of context tool callables
+        """
+        # Skip context tools for now to test basic execution
+        return []
+
+    async def execute(
+        self,
+        agent_config: dict[str, Any],
+        user_input: str,
+        plan_mode: bool = False,
+    ):
+        """Execute agent and yield events.
+
+        Args:
+            agent_config: Agent configuration
+            user_input: User input
+            plan_mode: If True, only allow plan-mode tools
+
+        Yields:
+            SSE events
+        """
+        from tinycua_sdk.agent import Agent
+
+        all_tools = []
+        all_tools.extend(self.get_context_tools())
+        all_tools.extend(self.get_tools())
+
+        api_key = agent_config.get("api_key")
+        provider = agent_config.get("provider", "openai")
+        base_url = agent_config.get("base_url")
+
+        logger.info(
+            f"Agent config: provider={provider}, base_url={base_url}, model={agent_config.get('model')}"
+        )
+
+        if provider in ("lmstudio", "ollama") and not api_key:
+            api_key = None
+
+        loop_config = agent_config.get("loop")
+        if loop_config and loop_config.get("dependencies"):
+            self._install_dependencies(loop_config["dependencies"])
+
+        agent = Agent(
+            name=agent_config.get("name", "runner-agent"),
+            instructions=agent_config.get("instructions", ""),
+            system_prompt=agent_config.get(
+                "system_prompt", "You are a helpful assistant."
+            ),
+            model=agent_config.get("model", "gpt-4o-mini"),
+            provider=provider,
+            base_url=base_url,
+            api_key=api_key,
+            tools=all_tools,
+            mode="local",
+            loop=loop_config,
+        )
+
+        logger.info(
+            f"Running agent: {agent.name}, mode: {agent.config.mode}, plan_mode={plan_mode}"
+        )
+
+        try:
+            result = await agent.run(user_input, plan_mode=plan_mode, stream_sse=True)
+            logger.info(f"Result type: {type(result)}")
+
+            async for event in result:
+                logger.info(f"Yielding event: {type(event)}")
+                if hasattr(event, "to_dict"):
+                    yield json.dumps(event.to_dict())
+                elif hasattr(event, "type") and hasattr(event, "data"):
+                    data = {"type": event.type.value, "data": event.data}
+                    yield json.dumps(data)
+                elif isinstance(event, dict):
+                    yield json.dumps(event)
+                else:
+                    yield json.dumps(
+                        {"type": "content", "data": {"content": str(event)}}
+                    )
+        except Exception as e:
+            import traceback
+
+            logger.error(f"Error running agent: {e}")
+            traceback.print_exc()
+            yield json.dumps({"error": str(e)})
