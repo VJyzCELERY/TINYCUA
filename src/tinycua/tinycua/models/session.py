@@ -28,6 +28,8 @@ class Session:
         input_context: Merged SDK messages from the agent loop.
         chat_history: Append-only durable audit transcript.
         session_context: Mutable LLM-reusable context with segment metadata.
+        diagnostics: Internal runtime diagnostics that must not be sent as
+            reusable LLM context.
         task: Optional root task object.
         task_store: Session-owned task tree state.
         todo: Optional todo list.
@@ -39,6 +41,7 @@ class Session:
     input_context: list[dict[str, Any]] = field(default_factory=list)
     chat_history: list[ChatRecord] = field(default_factory=list)
     session_context: list[SessionContextEntry] = field(default_factory=list)
+    diagnostics: list[dict[str, Any]] = field(default_factory=list)
     task: Task | None = None
     task_store: TaskStateStore = field(default_factory=TaskStateStore)
     todo: list[dict[str, Any]] = field(default_factory=list)

@@ -6,11 +6,15 @@ for file system interaction with path resolution and error handling.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Any
 
 from tinycua_sdk.tools.decorators import tool
+
+from tinycua.agent.tools.native.context import (
+    bind_workspace_to_tool,
+    resolve_workspace_path,
+)
 
 # Internal truncation limit for full-file reads (100 KB)
 _FULL_FILE_TRUNCATION_BYTES = 100 * 1024
@@ -19,12 +23,10 @@ _FULL_FILE_TRUNCATION_BYTES = 100 * 1024
 def _resolve_path(path: str) -> Path:
     """Resolve a path to an absolute Path.
 
-    If the path starts with ``/`` it is treated as absolute; otherwise it
-    is resolved relative to ``os.getcwd()``.
+    When the tool is bound to a session workspace, paths must remain inside
+    that workspace. Otherwise legacy cwd-relative resolution is used.
     """
-    if path.startswith("/"):
-        return Path(path)
-    return Path(os.getcwd()) / path
+    return resolve_workspace_path(path)
 
 
 # --- Helper functions for read_file ---
@@ -62,7 +64,10 @@ def _read_lines(path: str) -> tuple[list[str], str, bool] | dict[str, Any]:
 
     Returns an error dict if the file cannot be read.
     """
-    resolved = _resolve_path(path)
+    try:
+        resolved = _resolve_path(path)
+    except ValueError as exc:
+        return {"error": str(exc)}
 
     if not resolved.exists():
         return {"error": f"File not found: {path}"}
@@ -175,7 +180,15 @@ def write_file(path: str, content: str) -> dict[str, Any]:
     Returns:
         A dict with keys: success, path, chars_written, error.
     """
-    resolved = _resolve_path(path)
+    try:
+        resolved = _resolve_path(path)
+    except ValueError as exc:
+        return {
+            "success": False,
+            "path": path,
+            "chars_written": 0,
+            "error": str(exc),
+        }
 
     # Create parent directories
     try:
@@ -236,7 +249,17 @@ def edit_file(
         A dict with keys: success, path, start_line, lines_replaced,
         bytes_written, error.
     """
-    resolved = _resolve_path(path)
+    try:
+        resolved = _resolve_path(path)
+    except ValueError as exc:
+        return {
+            "success": False,
+            "path": path,
+            "start_line": start,
+            "lines_replaced": 0,
+            "bytes_written": 0,
+            "error": str(exc),
+        }
 
     if not resolved.exists():
         return {
@@ -357,7 +380,10 @@ def list_files(path: str = ".", pattern: str = "*") -> list[str] | dict[str, Any
     Returns:
         A list of absolute file paths on success, or an error dict on failure.
     """
-    resolved = _resolve_path(path)
+    try:
+        resolved = _resolve_path(path)
+    except ValueError as exc:
+        return {"error": str(exc)}
 
     if not resolved.exists():
         return {"error": f"Directory not found: {path}"}
@@ -371,3 +397,7 @@ def list_files(path: str = ".", pattern: str = "*") -> list[str] | dict[str, Any
         return {"error": f"Permission denied: {path}"}
     except Exception as exc:
         return {"error": str(exc)}
+
+
+for _native_file_tool in (read_file, write_file, edit_file, list_files):
+    bind_workspace_to_tool(_native_file_tool)

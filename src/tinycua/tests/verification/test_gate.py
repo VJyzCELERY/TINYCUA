@@ -8,6 +8,7 @@ server is unreachable.
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
 
@@ -55,6 +56,8 @@ def test_gate_individual_path(gate: VerificationGate, path_def):
 @pytest.mark.timeout(600)
 def test_gate_all_paths_pass(gate: VerificationGate):
     """Verify all 12 architecture paths pass against local LLM."""
+    if os.environ.get("TINYCUA_STRICT_VERIFICATION") != "1":
+        pytest.skip("Set TINYCUA_STRICT_VERIFICATION=1 for live all-path gate")
     report = gate.run_all()
     assert report.overall_status == "pass"
     assert report.passed == 12

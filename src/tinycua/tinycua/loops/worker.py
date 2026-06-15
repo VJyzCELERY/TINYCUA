@@ -16,21 +16,25 @@ from tinycua.loops.task_nodes import (
     TinyCUATaskExecutorNode,
 )
 from tinycua.models.digested_information import DigestedInformation
+from tinycua.tools.routing import WorkerRouteSelectionTool
 
 if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
     from tinycua.config.types import LLMResult
     from tinycua.loops.node_queue import NodeQueue
+    from tinycua.models.node_input import NodeInputLike
+    from tinycua.models.session import Session
 
 _WORKER_INSTRUCTION = (
     "You are a worker node responsible for task planning and execution "
     "orchestration. Analyze the digested information and determine the "
     "appropriate next step: create tasks, recreate tasks, reanalyze, "
-    "pass through, or proceed with execution. Prefer calling "
+    "pass through, or proceed with execution. You MUST call "
     "select_worker_route with exactly one route. If tools are unavailable, "
     "respond with only the route label and no extra text: task_creation, task_recreation, "
     "task_reanalysis, passthrough, or proceed_execution. Choose "
-    "task_creation for a new task plan that has not yet been initialized."
+    "task_creation for a new task plan that has not yet been initialized. Do not "
+    "answer the user directly from this node."
 )
 
 
@@ -80,6 +84,35 @@ class TinyCUAWorkerNode(DecisionNode):
             is_terminal=is_terminal,
         )
         self._current_digest: DigestedInformation | None = None
+
+    def state_valid_route_labels(self) -> list[str]:
+        """Return only worker routes that are valid for current task state."""
+        if self.session is None or self.session.task_store.root_task_id is None:
+            return ["task_creation"]
+        return [
+            "task_recreation",
+            "task_reanalysis",
+            "passthrough",
+            "proceed_execution",
+        ]
+
+    def refresh_route_options(self) -> None:
+        """Refresh worker route schema and classifier labels from session state."""
+        labels = self.state_valid_route_labels()
+        self.classification_labels = labels
+        for index, tool in enumerate(self.config.tool_policy.node_tools):
+            if tool.name == "select_worker_route":
+                self.config.tool_policy.node_tools[index] = WorkerRouteSelectionTool(labels)
+                break
+
+    def build_messages(
+        self,
+        session: Session,
+        input: NodeInputLike,
+    ) -> list[dict[str, str]]:
+        """Refresh dynamic route choices before each worker LLM request."""
+        self.refresh_route_options()
+        return super().build_messages(session, input)
 
     def _get_digested_input(self) -> DigestedInformation | None:
         """Retrieve DigestedInformation from session_context.

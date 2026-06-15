@@ -6,7 +6,6 @@ import inspect
 import json
 import logging
 from collections.abc import AsyncIterator, Callable
-from dataclasses import asdict
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
@@ -76,6 +75,7 @@ class TinyCUALoop(BaseLoop):
         self._working_messages: list[dict[str, Any]] = []
         self._usage_events: list[dict[str, Any]] = []
         self._execution_trace: list[dict[str, Any]] = []
+        self._final_response_events: list[dict[str, Any]] = []
         self.workspace_dir = getattr(session_config, "workspace_dir", None)
         self.artifact_dir = getattr(session_config, "artifact_dir", None)
         self.session_dir = getattr(session_config, "session_dir", None)
@@ -107,6 +107,64 @@ class TinyCUALoop(BaseLoop):
     def get_execution_trace(self) -> list[dict[str, Any]]:
         """Return node execution trace from the latest run."""
         return list(self._execution_trace)
+
+    def get_final_response_events(self) -> list[dict[str, Any]]:
+        """Return user-visible final-response events from the latest run."""
+        return list(self._final_response_events)
+
+    def get_task_trace(self) -> list[dict[str, Any]]:
+        """Return task-state snapshots captured in execution trace entries."""
+        return [
+            entry["task_tree"]
+            for entry in self._execution_trace
+            if "task_tree" in entry
+        ]
+
+    def get_state_snapshot(self) -> dict[str, Any]:
+        """Return a JSON-safe snapshot of runtime-visible state."""
+        return {
+            "session_id": self.root_session.session_id,
+            "task_tree": self.root_session.task_store.snapshot(),
+            "todo": list(self.root_session.todo),
+            "workspace_dir": str(self.workspace_dir) if self.workspace_dir else None,
+            "artifact_dir": str(self.artifact_dir) if self.artifact_dir else None,
+        }
+
+    def get_active_task(self):
+        """Return the current active task from the root session task store."""
+        return self.root_session.task_store.get_active_task()
+
+    def set_active_task(self, task_id: str) -> None:
+        """Set the active task id after validating that the task exists."""
+        self.root_session.task_store.get_task(task_id)
+        self.root_session.task_store.active_task_id = task_id
+
+    def update_active_task_result(
+        self,
+        summary: str,
+        *,
+        success: bool = True,
+        artifacts: list[dict[str, Any]] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """Record a result for the current active task."""
+        from tinycua.models.task import TaskResult
+
+        active = self.get_active_task()
+        if active is None:
+            msg = "No active task"
+            raise ValueError(msg)
+        self.root_session.task_store.record_result(
+            active.task_id,
+            TaskResult(
+                task_id=active.task_id,
+                content=summary,
+                summary=summary,
+                success=success,
+                artifacts=artifacts or [],
+                metadata=metadata or {},
+            ),
+        )
 
     def _fallback_terminal_content(self) -> str:
         """Build a deterministic non-empty terminal fallback response."""
@@ -147,6 +205,7 @@ class TinyCUALoop(BaseLoop):
         # cause duplication when include_chat_history=True.
         self.root_session.input_context = list(messages)
         self._execution_trace = []
+        self._final_response_events = []
 
         # Each public run starts from the configured entry graph. Durable state
         # lives on ``root_session``; consumed queue nodes do not persist across
@@ -212,7 +271,11 @@ class TinyCUALoop(BaseLoop):
                 override_instructions,
                 node_input,
             )
-            if node.is_terminal and not content.strip():
+            if (
+                node.is_terminal
+                and not content.strip()
+                and self._synthetic_terminal_fallback_enabled()
+            ):
                 content = self._fallback_terminal_content()
             last_content = content
 
@@ -230,8 +293,17 @@ class TinyCUALoop(BaseLoop):
                 )
 
             # Stop at terminal nodes — do not advance past them
-            if node.is_terminal:
+            if node.is_terminal and self.queue.current is node:
+                self._final_response_events = [
+                    {
+                        "type": "response.output_text.done",
+                        "content": content,
+                        "node_id": node.node_id,
+                    }
+                ]
                 break
+            if node.is_terminal:
+                continue
 
             # Advance queue (calls propagate on current node)
             self.queue.advance()
@@ -256,6 +328,9 @@ class TinyCUALoop(BaseLoop):
             Tuple of (messages, resolved_tools) ready for LLM call.
         """
         node.ensure_session(self.root_session)
+        route_refresher = getattr(node, "refresh_route_options", None)
+        if callable(route_refresher):
+            route_refresher()
         messages = self._build_node_messages(node, override_instructions)
         resolved_tools = node.config.tool_policy.resolve_tools(tools)
         self._bind_session_tools(resolved_tools)
@@ -267,6 +342,18 @@ class TinyCUALoop(BaseLoop):
             binder = getattr(tool, "bind_task_store", None)
             if callable(binder):
                 binder(self.root_session.task_store)
+            todo_binder = getattr(tool, "bind_todo_store", None)
+            if callable(todo_binder):
+                todo_binder(self.root_session.todo)
+            workspace_binder = getattr(tool, "bind_workspace", None)
+            if callable(workspace_binder):
+                workspace_binder(self.workspace_dir)
+
+    def _synthetic_terminal_fallback_enabled(self) -> bool:
+        """Return whether empty terminal content should be filled synthetically."""
+        return bool(
+            getattr(self.session_config, "allow_synthetic_terminal_fallback", False)
+        )
 
     def _execute_tool_calls(
         self,
@@ -302,8 +389,26 @@ class TinyCUALoop(BaseLoop):
                 results.append({"name": name, "allowed": True, "error": str(exc)})
                 continue
             self._sync_root_task()
-            results.append({"name": name, "allowed": True, "output": output})
+            tool_result = {"name": name, "allowed": True, "output": output}
+            self._record_tool_chat_result(tool_result)
+            results.append(tool_result)
         return results
+
+    def _record_tool_chat_result(self, tool_result: dict[str, Any]) -> None:
+        """Append a durable internal chat-history record for a tool result."""
+        from tinycua.models.chat_record import ChatRecord
+
+        self.root_session.chat_history.append(
+            ChatRecord(
+                role="tool",
+                record_type="tool_result",
+                content=tool_result,
+                visibility="tool_only",
+                source_session_id=self.root_session.session_id,
+                created_seq=len(self.root_session.chat_history),
+                metadata={"tool_name": tool_result.get("name")},
+            )
+        )
 
     def _sync_root_task(self) -> None:
         """Expose the current root task on the public session object."""
@@ -316,13 +421,7 @@ class TinyCUALoop(BaseLoop):
         store = self.root_session.task_store
         if not store.tasks:
             return None
-        return {
-            "root_task_id": store.root_task_id,
-            "tasks": {
-                task_id: self._json_safe(asdict(task))
-                for task_id, task in store.tasks.items()
-            },
-        }
+        return store.snapshot()
 
     def _json_safe(self, value: Any) -> Any:
         """Convert trace values to JSON-serializable primitives."""
@@ -359,7 +458,8 @@ class TinyCUALoop(BaseLoop):
             root.metadata["assessed"] = "true"
         elif node.node_id == "task_executor" and store.root_task_id is not None:
             root = store.tasks[store.root_task_id]
-            root.status = TaskStatus.IN_PROGRESS
+            if root.status != TaskStatus.COMPLETED:
+                root.status = TaskStatus.IN_PROGRESS
         elif node.node_id == "result_reviewer" and store.root_task_id is not None:
             root = store.tasks[store.root_task_id]
             root.metadata["reviewed"] = "true"
@@ -428,22 +528,93 @@ class TinyCUALoop(BaseLoop):
             )
             tool_results = self._execute_tool_calls(last_result.tool_calls, resolved_tools)
             if tool_results:
+                normalized_tool_calls = self._normalize_tool_calls(last_result.tool_calls)
+                last_result.tool_calls = normalized_tool_calls
                 last_result.metadata = dict(last_result.metadata)
                 last_result.metadata["tool_results"] = tool_results
+                messages.append(
+                    {
+                        "role": "assistant",
+                        "content": last_result.content,
+                        "tool_calls": normalized_tool_calls,
+                    }
+                )
+                for index, tool_result in enumerate(tool_results):
+                    tool_call = normalized_tool_calls[index] if index < len(normalized_tool_calls) else {}
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tool_call.get("id") or tool_result.get("name", ""),
+                            "name": tool_result.get("name", ""),
+                            "content": json.dumps(tool_result, default=str),
+                        }
+                    )
+                raw_response = await agent._call_llm(messages, resolved_tools)  # type: ignore[arg-type]
+                last_result = LLMResult(
+                    content=raw_response.get("content") or "",
+                    role=raw_response.get("role", "assistant"),
+                    tool_calls=raw_response.get("tool_calls") or [],
+                    metadata={
+                        **raw_response.get("metadata", {}),
+                        "tool_results": tool_results,
+                    },
+                )
             last_validation = node.validate_output(last_result)
             if last_validation.is_valid:
                 return last_result, attempt, last_validation
             if attempt < max_attempts:
                 error = ValidationError("; ".join(last_validation.errors))
+                retry_message = node._build_retry_text(error, attempt)
+                self._record_retry_continuation(node, retry_message, attempt)
                 messages.append(
                     {
                         "role": "assistant",
-                        "content": node._build_retry_text(error, attempt),
+                        "content": retry_message,
                     }
                 )
 
         node._handle_exhaustion(last_validation, max_attempts)
         return last_result, max_attempts, last_validation
+
+    def _record_retry_continuation(
+        self,
+        node: Node,
+        retry_message: str,
+        attempt: int,
+    ) -> None:
+        """Record retry continuation in chat history without session_context reuse."""
+        from tinycua.models.chat_record import ChatRecord
+
+        self.root_session.chat_history.append(
+            ChatRecord(
+                role="assistant",
+                record_type="retry",
+                content=retry_message,
+                visibility="internal",
+                source_node_id=node.node_id,
+                source_session_id=self.root_session.session_id,
+                created_seq=len(self.root_session.chat_history),
+                metadata={"attempt": attempt},
+            )
+        )
+
+    def _normalize_tool_calls(
+        self,
+        tool_calls: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Ensure assistant tool calls have provider-compatible IDs and type."""
+        normalized = []
+        for index, tool_call in enumerate(tool_calls):
+            item = dict(tool_call)
+            function = dict(item.get("function") or {})
+            name = function.get("name") or item.get("name") or f"tool_{index}"
+            function.setdefault("name", name)
+            function.setdefault("arguments", item.get("arguments") or "{}")
+            item["function"] = function
+            item["type"] = item.get("type") or "function"
+            item["id"] = item.get("id") or f"call_{index}_{name}"
+            normalized.append(item)
+        return normalized
 
     def _decision_fallback_label(self, node: DecisionNode) -> str | None:
         """Return configured fallback route for invalid decision responses."""
@@ -456,30 +627,6 @@ class TinyCUALoop(BaseLoop):
                 return None
             return "passthrough"
         return node.classification_labels[0] if node.classification_labels else None
-
-    def _infer_query_analyst_route(self) -> str | None:
-        """Infer obvious query routes when the model response is invalid."""
-        worker_keywords = {
-            "plan",
-            "task",
-            "execute",
-            "execution",
-            "decompose",
-            "migrate",
-            "migration",
-            "worker mode",
-            "use worker",
-        }
-        passthrough_keywords = {"hello", "hi", "say hello", "what is", "who is"}
-        for message in reversed(self.root_session.input_context):
-            if message.get("role") != "user":
-                continue
-            content = str(message.get("content", "")).lower()
-            if any(keyword in content for keyword in worker_keywords):
-                return "worker"
-            if any(keyword in content for keyword in passthrough_keywords):
-                return "passthrough"
-        return None
 
     def _route_from_tool_calls(
         self,
@@ -521,10 +668,7 @@ class TinyCUALoop(BaseLoop):
                 analysis_response=llm_result,
                 classification_response=llm_result,
             )
-        if isinstance(node, TinyCUAQueryAnalystNode):
-            fallback_label = self._infer_query_analyst_route() or self._decision_fallback_label(node)
-        else:
-            fallback_label = self._decision_fallback_label(node)
+        fallback_label = self._decision_fallback_label(node)
         route_label = RouteClassifier(
             node.classification_labels,
             fallback_label=fallback_label,
@@ -563,6 +707,10 @@ class TinyCUALoop(BaseLoop):
             )
         if llm_result is not None and llm_result.metadata.get("tool_results"):
             trace_entry["tool_results"] = llm_result.metadata["tool_results"]
+        retry_exhaustion = getattr(node, "_last_retry_exhaustion", None)
+        if retry_exhaustion is not None:
+            trace_entry["retry_exhausted"] = True
+            trace_entry["retry_exhaustion"] = self._json_safe(retry_exhaustion)
         task_state = self._task_state_snapshot()
         if task_state is not None:
             trace_entry["task_state"] = task_state
@@ -700,6 +848,7 @@ class TinyCUALoop(BaseLoop):
         node: Node,
         content_parts: list[str],
         collected_tool_calls: list[dict[str, Any]],
+        resolved_tools: list[Tool],
     ) -> str:
         """Finalize a streamed node: record output, fire lifecycle hooks.
 
@@ -707,12 +856,16 @@ class TinyCUALoop(BaseLoop):
             node: The node that was streamed.
             content_parts: Accumulated text delta parts.
             collected_tool_calls: Collected tool call events.
+            resolved_tools: Tools allowed for the streamed node.
 
         Returns:
             The combined content string.
         """
         combined = "".join(content_parts)
+        tool_results = self._execute_tool_calls(collected_tool_calls, resolved_tools)
         llm_result = self._record_node_output(node, combined, collected_tool_calls)
+        if tool_results:
+            llm_result.metadata["tool_results"] = tool_results
 
         self._apply_loop_result_hook(node, llm_result, None)
         self._publish_structured_outputs_to_root(node)
@@ -855,8 +1008,21 @@ class TinyCUALoop(BaseLoop):
                             content_parts.append(event.get("delta", ""))
                         elif event_type == "response.tool_call":
                             collected_tool_calls.append(event)
+                        elif event_type == "tool_call.ready":
+                            collected_tool_calls.append(
+                                {
+                                    "id": event.get("id") or event.get("call_id"),
+                                    "type": "function",
+                                    "function": {
+                                        "name": event.get("name", ""),
+                                        "arguments": event.get("arguments", "{}"),
+                                    },
+                                }
+                            )
                         elif event_type == "response.usage":
                             self._usage_events.append(event)
+                        if is_terminal_node and event_type == "response.output_text.delta":
+                            self._final_response_events.append(dict(event))
                         enriched = self._enrich_and_yield(
                             event,
                             include_meta,
@@ -886,8 +1052,13 @@ class TinyCUALoop(BaseLoop):
                     node,
                     content_parts,
                     collected_tool_calls,
+                    resolved_tools,
                 )
-                if node.is_terminal and not combined.strip():
+                if (
+                    node.is_terminal
+                    and not combined.strip()
+                    and self._synthetic_terminal_fallback_enabled()
+                ):
                     combined = self._fallback_terminal_content()
 
                 # Record assistant response in working messages
@@ -924,12 +1095,14 @@ class TinyCUALoop(BaseLoop):
                     )
 
                 # Stop at terminal nodes — do not advance past them
-                if node.is_terminal:
+                if node.is_terminal and self.queue.current is node:
                     finalize_terminal_output(
                         node.session or self.root_session,
                         self.root_session,
                     )
                     break
+                if node.is_terminal:
+                    continue
 
                 # Advance queue (calls propagate on current node)
                 self.queue.advance()
@@ -968,6 +1141,7 @@ class TinyCUALoop(BaseLoop):
         # Wire queue on QueryAnalystNode before execution
         if isinstance(node, TinyCUAQueryAnalystNode):
             node._queue = self.queue
+        self._inject_active_task_input(node)
 
         messages, resolved_tools = self._prepare_node(
             node,
@@ -1045,6 +1219,30 @@ class TinyCUALoop(BaseLoop):
 
         return content, llm_result.tool_calls
 
+    def _inject_active_task_input(self, node: Node) -> None:
+        """Inject read-only active task context for TaskExecutor nodes."""
+        if node.node_id != "task_executor" or self.queue.current is not node:
+            return
+        active = self.root_session.task_store.get_active_task()
+        if active is None or node.node_id in self.queue._inputs:  # noqa: SLF001 - loop owns queue internals.
+            return
+        self.queue.set_input(
+            node,
+            [
+                {
+                    "role": "assistant",
+                    "content": json.dumps(
+                        {
+                            "active_task_id": active.task_id,
+                            "active_task": self._json_safe(active.__dict__),
+                            "read_only": True,
+                        },
+                        default=str,
+                    ),
+                }
+            ],
+        )
+
     def _find_parent_session(self, node: Node) -> Session | None:
         """Find the parent session for a node by looking at queue position.
 
@@ -1102,48 +1300,48 @@ class TinyCUALoop(BaseLoop):
             else:
                 for m in context_session.session_context:
                     if isinstance(m, dict):
-                        messages.append(
-                            {
-                                "role": m.get("role", "user"),
-                                "content": str(m.get("content", "")),
-                            }
-                        )
+                            self._append_nonblank_message(
+                                messages,
+                                m.get("role", "user"),
+                                str(m.get("content", "")),
+                            )
                     else:
-                        messages.append(
-                            {
-                                "role": "user",
-                                "content": str(m.content),
-                            }
-                        )
+                        self._append_nonblank_message(messages, m.role, str(m.content))
 
         # Add chat history if policy says so
         if (
             node.config.message_policy.include_chat_history
             and self.root_session.chat_history
         ):
-            messages.extend(
-                {
-                    "role": m.role,
-                    "content": str(m.content),
-                }
-                for m in self.root_session.chat_history
-            )
+            for m in self.root_session.chat_history:
+                self._append_nonblank_message(messages, m.role, str(m.content))
 
         # Add input context (merged SDK messages) as continuation
         if self.root_session.input_context:
-            messages.extend(
-                {
-                    "role": m["role"],
-                    "content": m["content"],
-                }
-                for m in self.root_session.input_context
-            )
+            for m in self.root_session.input_context:
+                self._append_nonblank_message(messages, m["role"], str(m["content"]))
 
         if self.queue.current is node:
             node_input = self.queue.input_for_current()
             try:
-                messages.extend(convert_node_input_to_messages(node_input))
+                for message in convert_node_input_to_messages(node_input):
+                    self._append_nonblank_message(
+                        messages,
+                        message.get("role", "user"),
+                        str(message.get("content", "")),
+                    )
             except (TypeError, ValueError):
                 logger.debug("node=%s invalid_node_input_ignored", node.node_id)
 
         return messages
+
+    def _append_nonblank_message(
+        self,
+        messages: list[dict[str, Any]],
+        role: str,
+        content: str,
+    ) -> None:
+        """Append a message only when content is non-whitespace."""
+        if not content.strip():
+            return
+        messages.append({"role": role, "content": content})

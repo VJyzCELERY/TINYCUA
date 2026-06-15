@@ -110,10 +110,10 @@ class NodeQueue:
                 # Convert current-node output entries to NodeInput format.
                 node_input: NodeInputLike = cast(
                     "NodeInputLike",
-                    [
-                        {"role": "user", "content": str(e.content)}
-                        for e in output_entries
-                    ],
+                        [
+                            {"role": e.role, "content": str(e.content)}
+                            for e in output_entries
+                        ],
                 )
                 self.set_input(next_node, node_input)
                 if next_node.session is not None:

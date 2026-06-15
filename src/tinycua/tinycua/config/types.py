@@ -1,13 +1,21 @@
-"""Placeholder type stubs for node configuration types.
-
-These are forward references for types that will be implemented in later milestones.
-Currently defined as simple stubs to satisfy type annotations in node config.
-"""
+"""Shared node configuration protocol and result types."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
+
+from tinycua.models.state_object import StateObject
+
+__all__ = [
+    "AgentMonitor",
+    "LLMResult",
+    "NodeMonitor",
+    "StateObject",
+    "Tool",
+    "ValidationError",
+    "ValidationResult",
+]
 
 
 class Tool:
@@ -35,16 +43,6 @@ class Tool:
             "description": self.description,
             "parameters": self.parameters,
         }
-
-
-class StateObject:
-    """Placeholder for state object type.
-
-    Conceptual design exists in tinycua.specs.state_objects but not yet implemented.
-    Use Any for now.
-    """
-
-    pass
 
 
 @dataclass

@@ -8,8 +8,9 @@ from tinycua.loops.node import ProcessNode
 
 if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
-    from tinycua.models.node_input import NodeInputLike
     from tinycua.config.types import LLMResult
+    from tinycua.loops.node_queue import NodeQueue
+    from tinycua.models.node_input import NodeInputLike
 
 
 class ResponseNode(ProcessNode):
@@ -67,3 +68,35 @@ class ResponseNode(ProcessNode):
         result = super().__call__(input)
         self.captured_content = result.content
         return result
+
+    def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
+        """Optionally suspend for information digestion before final response."""
+        del response
+        if not self._should_request_digest():
+            return
+
+        from tinycua.config.node_config import create_node_config
+        from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
+
+        digester = TinyCUAInformationDigesterNode(
+            node_id="digester",
+            config=create_node_config("digester"),
+        )
+        digester.parent = self
+        self.config.metadata["digest_requested"] = True
+        queue.suspend_current_and_prepend([digester])
+
+    def _should_request_digest(self) -> bool:
+        """Return whether response synthesis should first gather context."""
+        if not self.config.metadata.get("require_digest"):
+            return False
+        if self.config.metadata.get("digest_requested"):
+            return False
+        if self.session is None:
+            return True
+        from tinycua.models.digested_information import DigestedInformation
+
+        return not any(
+            isinstance(entry.content, DigestedInformation)
+            for entry in self.session.session_context
+        )

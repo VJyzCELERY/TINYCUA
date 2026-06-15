@@ -1,4 +1,4 @@
-"""Todo tracking tool stubs for TinyCUA nodes.
+"""Session-bound todo tracking tools for TinyCUA nodes.
 
 Provides concrete Tool instances for todo read/write operations.
 """
@@ -6,34 +6,46 @@ Provides concrete Tool instances for todo read/write operations.
 from __future__ import annotations
 
 from tinycua.config.types import Tool
-from tinycua.models.todo import Todo
-
-
-_DEFAULT_TODO = Todo()
+from typing import Any
 
 
 class TodoReadTool(Tool):
-    """Tool stub for reading todo list state."""
+    """Tool for reading todo list state."""
 
     def __init__(self) -> None:
         super().__init__(name="todo_read")
+        self._todo_store: list[dict[str, Any]] = []
+
+    def bind_todo_store(self, todo_store: list[dict[str, Any]]) -> None:
+        """Bind this tool to the active session's todo list."""
+        self._todo_store = todo_store
 
     def __call__(self) -> list[dict]:
         """Read the current todo list."""
-        return [item.__dict__ for item in _DEFAULT_TODO.items]
+        return [dict(item) for item in self._todo_store]
 
 
 class TodoWriteTool(Tool):
-    """Tool stub for writing/updating todo list state."""
+    """Tool for writing/updating todo list state."""
 
     def __init__(self) -> None:
         super().__init__(name="todo_write")
+        self._todo_store: list[dict[str, Any]] = []
 
-    def __call__(self, descriptions: list[str] | None = None, done_index: int | None = None) -> list[dict]:
+    def bind_todo_store(self, todo_store: list[dict[str, Any]]) -> None:
+        """Bind this tool to the active session's todo list."""
+        self._todo_store = todo_store
+
+    def __call__(
+        self,
+        descriptions: list[str] | None = None,
+        done_index: int | None = None,
+    ) -> list[dict]:
         """Append todo items or mark one done."""
         if descriptions is not None:
             for description in descriptions:
-                _DEFAULT_TODO.append(description)
+                self._todo_store.append({"description": description, "done": False})
         if done_index is not None:
-            _DEFAULT_TODO.mark_done(done_index)
-        return TodoReadTool()()
+            if 0 <= done_index < len(self._todo_store):
+                self._todo_store[done_index]["done"] = True
+        return [dict(item) for item in self._todo_store]

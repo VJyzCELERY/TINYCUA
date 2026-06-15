@@ -112,7 +112,7 @@ class TestCLIRunConfigLoading:
 
         with patch.dict("os.environ", {
             "TINYCUA_BASE_URL": "http://localhost:8080/v1",
-        }, clear=False):
+        }, clear=True):
             with pytest.raises(ValueError, match="api_key"):
                 load_config(base_url=None, api_key=None, model=None)
 
@@ -127,6 +127,9 @@ class TestCLIRunExitCodes:
         mock_loop = MagicMock()
         mock_loop._working_messages = []
         mock_loop.get_usage_events = MagicMock(return_value=[])
+        mock_loop.get_execution_trace = MagicMock(return_value=[])
+        mock_loop.get_state_snapshot = MagicMock(return_value={"task_tree": {}})
+        mock_loop.get_final_response_events = MagicMock(return_value=[])
 
         mock_agent = MagicMock()
         mock_agent.loop = mock_loop
@@ -147,6 +150,11 @@ class TestCLIRunExitCodes:
                     verbose=False,
                 )
                 assert exit_code == 0
+                output_dir = tmp_path / "test_out"
+                assert (output_dir / "execution_trace.json").exists()
+                assert (output_dir / "state_snapshot.json").exists()
+                assert (output_dir / "task_tree.json").exists()
+                assert (output_dir / "final_response_events.json").exists()
 
     def test_exit_code_1_on_error(self, tmp_path):
         """Given an agent crash, exit code is 1."""

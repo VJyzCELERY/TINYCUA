@@ -10,6 +10,11 @@ import pytest
 IMAGE_TAG = "tinycua-benchmark:test"
 
 
+def _project_root() -> Path:
+    """Return the repository root used as the Docker build context."""
+    return Path(__file__).parent.parent.parent.parent.parent
+
+
 @pytest.fixture
 def test_workspace(tmp_path: Path) -> Path:
     """Provide a temporary workspace directory for Docker volume mounts."""
@@ -24,7 +29,7 @@ class TestDockerfileBuild:
         """Dockerfile exists at the project root."""
         from pathlib import Path
 
-        dockerfile = Path(__file__).parent.parent.parent.parent.parent / "Dockerfile"
+        dockerfile = _project_root() / "Dockerfile"
         assert dockerfile.exists(), "Dockerfile must exist at project root"
 
     @pytest.mark.slow
@@ -35,6 +40,7 @@ class TestDockerfileBuild:
             capture_output=True,
             text=True,
             timeout=300,
+            cwd=_project_root(),
         )
         assert result.returncode == 0, f"Build failed:\n{result.stderr}"
 

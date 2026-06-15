@@ -163,7 +163,7 @@ class NodeConfigBase:
         custom_instruction_append: Custom text appended to system instruction.
         custom_continuation_append: Custom text appended to continuation.
         custom_retry_append: Custom text appended to retry messages.
-        propagation: Propagation rule (placeholder for future implementation).
+        propagation: Propagation rule for session/root context transfer.
         tool_policy: Tool scope resolution policy.
         stream_policy: Streaming behavior policy.
         retry_policy: Retry behavior policy.
@@ -226,6 +226,24 @@ def create_node_config(
     else:
         factory = policy_factories.get(normalized)
         tool_policy = factory() if factory is not None else config.tool_policy
+    retry_policy = config.retry_policy
+    if normalized == "query_analyst":
+        retry_policy = replace(
+            retry_policy,
+            required_tool_calls=["select_query_route"],
+        )
+    elif normalized == "worker":
+        retry_policy = replace(
+            retry_policy,
+            required_tool_calls=["select_worker_route"],
+        )
+    else:
+        retry_policy = replace(retry_policy, required_tool_calls=[])
     metadata = dict(config.metadata)
     metadata["node_kind"] = normalized
-    return replace(config, tool_policy=tool_policy, metadata=metadata)
+    return replace(
+        config,
+        tool_policy=tool_policy,
+        retry_policy=retry_policy,
+        metadata=metadata,
+    )

@@ -60,14 +60,11 @@ def build_messages_with_dedupe(
 
         context_entries = deduped_entries
 
-    # Convert entries to message dicts
+    # Convert entries to message dicts, dropping blank content at the API boundary.
     for entry in context_entries:
-        messages.append(
-            {
-                "role": "user",  # Default role for context entries
-                "content": str(entry.content),
-            }
-        )
+        content = str(entry.content)
+        if content.strip():
+            messages.append({"role": entry.role, "content": content})
 
     return messages
 
@@ -136,6 +133,7 @@ class Node(ABC):
         self.parent = None
         self.is_terminal = is_terminal
         self._instruction = instruction
+        self._last_retry_exhaustion: dict[str, Any] | None = None
 
     def ensure_session(self, root_or_parent_session: Session) -> Session:
         """Create or adopt a session.
@@ -226,33 +224,38 @@ class Node(ABC):
         ):
             for m in session.session_context:
                 if isinstance(m, dict):
-                    messages.append(
-                        {
-                            "role": m.get("role", "user"),
-                            "content": str(m.get("content", "")),
-                        }
-                    )
+                    content = str(m.get("content", ""))
+                    if content.strip():
+                        messages.append(
+                            {
+                                "role": m.get("role", "user"),
+                                "content": content,
+                            }
+                        )
                 else:
-                    messages.append(
-                        {
-                            "role": "user",
-                            "content": str(m.content),
-                        }
-                    )
+                    content = str(m.content)
+                    if content.strip():
+                        messages.append(
+                            {
+                                "role": m.role,
+                                "content": content,
+                            }
+                        )
 
         # Add chat history if policy says so
         if self.config.message_policy.include_chat_history and session.chat_history:
-            messages.extend(
-                {
-                    "role": m.role,
-                    "content": str(m.content),
-                }
-                for m in session.chat_history
-            )
+            for m in session.chat_history:
+                content = str(m.content)
+                if content.strip():
+                    messages.append({"role": m.role, "content": content})
 
         # Add continuation messages from input
         continuation = convert_node_input_to_messages(input, source="internal")
-        messages.extend(continuation)  # type: ignore[arg-type]
+        messages.extend(
+            message
+            for message in continuation
+            if str(message.get("content", "")).strip()
+        )  # type: ignore[arg-type]
 
         return messages
 
@@ -438,31 +441,43 @@ class Node(ABC):
             self._record_failure(validation, max_attempts)
 
     def _record_failure(self, validation: ValidationResult, max_attempts: int) -> None:
-        """Record failure state to session context.
+        """Record retry exhaustion as internal diagnostics.
 
-        Creates a ``SessionContextEntry`` with ``segment="output"``
-        containing failure metadata and calls ``propagate()`` if a
-        propagation rule exists.
+        Stores failure metadata on session diagnostics, not on
+        ``session_context``. Retry exhaustion is debug/trace state and must
+        not become reusable downstream LLM context.
 
         Args:
             validation: The validation result with error details.
             max_attempts: The maximum attempts that were allowed.
         """
-        from tinycua.models.session_context_entry import SessionContextEntry
-
         error_msg = "; ".join(validation.errors)
-        content = (
-            f"RETRY_EXHAUSTED node={self.node_id} "
-            f"attempts={max_attempts} errors={error_msg}"
-        )
+        diagnostic = {
+            "type": "retry_exhausted",
+            "node_id": self.node_id,
+            "attempts": max_attempts,
+            "errors": list(validation.errors),
+            "message": (
+                f"RETRY_EXHAUSTED node={self.node_id} "
+                f"attempts={max_attempts} errors={error_msg}"
+            ),
+        }
+        self._last_retry_exhaustion = diagnostic
 
         if self.session is not None:
-            self.session.session_context.append(
-                SessionContextEntry(
-                    content=content,
-                    segment="output",
+            self.session.diagnostics.append(diagnostic)
+            from tinycua.models.chat_record import ChatRecord
+
+            self.session.chat_history.append(
+                ChatRecord(
+                    role="assistant",
+                    record_type="retry",
+                    content=diagnostic["message"],
+                    visibility="internal",
                     source_node_id=self.node_id,
                     source_session_id=self.session.session_id,
+                    created_seq=len(self.session.chat_history),
+                    metadata=diagnostic,
                 )
             )
 
@@ -729,10 +744,11 @@ class DecisionNode(ProcessNode):
         labels_str = ", ".join(self.classification_labels)
         classification_messages.append(
             {
-                "role": "user",
+                "role": "assistant",
                 "content": (
-                    f"Classify your analysis into one of these categories: "
-                    f"{labels_str}. Respond with only the category label."
+                    "Internal continuation: classify the prior analysis into "
+                    f"one of these categories: {labels_str}. Respond with "
+                    "only the category label."
                 ),
             }
         )

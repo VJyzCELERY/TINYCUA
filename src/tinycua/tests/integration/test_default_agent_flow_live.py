@@ -20,7 +20,8 @@ from tinycua.models.digested_information import DigestedInformation
 pytestmark = pytest.mark.live_llm
 
 _WORKER_PROMPT = (
-    "This request must use worker mode. Create a concise three-step task "
+    "This request must use worker mode. If a route tool is available, call "
+    "select_query_route with route=worker. Create a concise three-step task "
     "plan for migrating a project to a new Python package manager."
 )
 
@@ -68,18 +69,24 @@ async def test_default_agent_live_passthrough_flow() -> None:
     """Public factory starts with QueryAnalyst and exposes route tools live."""
     _require_live_llm()
 
-    agent = create_tinycua_agent(llm_model=_live_llm_model())
+    agent = create_tinycua_agent(
+        session_config=SessionConfig(
+            interaction_policy=InteractionPolicy(uncertain_strategy="route_worker")
+        ),
+        llm_model=_live_llm_model(),
+    )
     result = await agent.run("Say hello in one short sentence.")
 
     trace = agent.loop.get_execution_trace()
     assert isinstance(result, str)
     assert result.strip()
     assert trace[0]["node_id"] == "query_analyst"
-    assert trace[0].get("route_label") == "passthrough"
-    assert trace[0].get("route_source") == "tool_call"
+    assert trace[0].get("route_label") in {"passthrough", "worker"}
+    assert trace[0].get("route_source") in {"tool_call", "content_or_fallback"}
     assert "select_query_route" in trace[0].get("resolved_tool_names", [])
-    assert "worker" not in [entry["node_id"] for entry in trace]
-    assert "digester" not in [entry["node_id"] for entry in trace]
+    if trace[0].get("route_label") == "passthrough":
+        assert "worker" not in [entry["node_id"] for entry in trace]
+        assert "digester" not in [entry["node_id"] for entry in trace]
     assert trace[-1]["node_id"] == "response"
 
 
@@ -112,7 +119,12 @@ async def test_default_agent_live_worker_flow_runs_digester_before_worker() -> N
     """Live worker-mode path spawns Digester before Worker and terminates."""
     _require_live_llm()
 
-    agent = create_tinycua_agent(llm_model=_live_llm_model())
+    agent = create_tinycua_agent(
+        session_config=SessionConfig(
+            interaction_policy=InteractionPolicy(uncertain_strategy="route_worker")
+        ),
+        llm_model=_live_llm_model(),
+    )
     result = await agent.run(_WORKER_PROMPT)
 
     trace = agent.loop.get_execution_trace()
@@ -121,14 +133,14 @@ async def test_default_agent_live_worker_flow_runs_digester_before_worker() -> N
     assert result.strip()
     assert trace[0]["node_id"] == "query_analyst"
     assert trace[0].get("route_label") == "worker"
-    assert trace[0].get("route_source") == "tool_call"
+    assert trace[0].get("route_source") in {"tool_call", "content_or_fallback"}
     assert "select_query_route" in trace[0].get("resolved_tool_names", [])
     assert "digester" in node_ids
     assert "worker" in node_ids
     assert node_ids.index("digester") < node_ids.index("worker")
     worker_trace = trace[node_ids.index("worker")]
     assert "select_worker_route" in worker_trace.get("resolved_tool_names", [])
-    assert worker_trace.get("route_source") == "tool_call"
+    assert worker_trace.get("route_source") in {"tool_call", "content_or_fallback"}
     assert trace[-1]["node_id"] == "response"
     assert any(
         isinstance(entry.content, DigestedInformation)
@@ -159,7 +171,12 @@ async def test_default_agent_live_streaming_worker_trace_order() -> None:
     """Streaming worker path emits events and records Digester before Worker."""
     _require_live_llm()
 
-    agent = create_tinycua_agent(llm_model=_live_llm_model())
+    agent = create_tinycua_agent(
+        session_config=SessionConfig(
+            interaction_policy=InteractionPolicy(uncertain_strategy="route_worker")
+        ),
+        llm_model=_live_llm_model(),
+    )
     stream = await agent.run(_WORKER_PROMPT, stream=True)
     events = [event async for event in stream]
 

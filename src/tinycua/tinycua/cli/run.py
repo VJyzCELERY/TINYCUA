@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
 import time
 import threading
@@ -246,6 +247,8 @@ def run_command(
         usage_path = output_dir / "usage.json"
         write_usage_summary(usage_path, usage_events, elapsed)
 
+        _write_runtime_exports(loop, output_dir)
+
         print(f"Agent completed in {elapsed:.1f}s", flush=True)
         if result:
             print(result, flush=True)
@@ -293,3 +296,37 @@ async def _run_agent_with_timeout(
     except asyncio.CancelledError:
         raise
     return result
+
+
+def _write_runtime_exports(loop: Any, output_dir: Path) -> None:
+    """Write trace, state, task tree, and final-response event artifacts."""
+    state_snapshot = _safe_loop_call(loop, "get_state_snapshot", default={})
+    exports = {
+        "execution_trace.json": _safe_loop_call(loop, "get_execution_trace", default=[]),
+        "state_snapshot.json": state_snapshot,
+        "task_tree.json": state_snapshot.get("task_tree", {})
+        if isinstance(state_snapshot, dict)
+        else {},
+        "final_response_events.json": _safe_loop_call(
+            loop,
+            "get_final_response_events",
+            default=[],
+        ),
+    }
+    for filename, payload in exports.items():
+        (output_dir / filename).write_text(
+            json.dumps(payload, indent=2, default=str),
+            encoding="utf-8",
+        )
+
+
+def _safe_loop_call(loop: Any, method_name: str, *, default: Any) -> Any:
+    """Call an optional loop export method and return default on absence/error."""
+    method = getattr(loop, method_name, None)
+    if not callable(method):
+        return default
+    try:
+        return method()
+    except Exception:  # noqa: BLE001 - export failure must not fail a completed run.
+        logger.debug("runtime_export_failed method=%s", method_name, exc_info=True)
+        return default

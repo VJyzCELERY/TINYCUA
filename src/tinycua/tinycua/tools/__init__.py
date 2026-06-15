@@ -1,4 +1,4 @@
-"""Tool stubs for TinyCUA node tool scoping."""
+"""TinyCUA node tools and tool-scope helpers."""
 
 from tinycua.tools.digest_information import DigestInformationTool
 from tinycua.tools.enhanced_context_retrieval import EnhancedContextRetrievalTool

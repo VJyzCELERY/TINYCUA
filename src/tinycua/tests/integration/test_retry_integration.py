@@ -104,7 +104,7 @@ def test_retry_with_validation_fn_integration():
 
 
 def test_exhaustion_record_failure_integration():
-    """End-to-end: retry exhaustion writes failure state to session."""
+    """End-to-end: retry exhaustion records diagnostics, not context."""
     mock_llm = MockLLM(
         [
             {"role": "assistant", "content": "bad"},
@@ -122,9 +122,11 @@ def test_exhaustion_record_failure_integration():
     node = ProcessNode(node_id="test", config=config, instruction="Do work")
     node.session = Session()
     node("input")
-    # Session should have failure state recorded
-    contents = [e.content for e in node.session.session_context]
-    assert any("RETRY_EXHAUSTED" in c for c in contents)
+    assert not any("RETRY_EXHAUSTED" in str(e.content) for e in node.session.session_context)
+    assert any(
+        "RETRY_EXHAUSTED" in item["message"]
+        for item in node.session.diagnostics
+    )
 
 
 def test_exhaustion_raise_integration():

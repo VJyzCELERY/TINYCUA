@@ -12,6 +12,8 @@ from typing import Any
 
 from tinycua_sdk.tools.decorators import tool
 
+from tinycua.agent.tools.native.context import bind_workspace_to_tool, get_workspace_dir
+
 
 @tool
 def run_python(code: str, timeout: int = 30) -> dict[str, Any]:
@@ -33,11 +35,13 @@ def run_python(code: str, timeout: int = 30) -> dict[str, Any]:
     }
 
     try:
+        workspace = get_workspace_dir()
         completed = subprocess.run(
             [sys.executable, "-c", code],
             capture_output=True,
             text=True,
             timeout=timeout,
+            cwd=str(workspace) if workspace is not None else None,
         )
         result["stdout"] = completed.stdout or ""
         result["stderr"] = completed.stderr or ""
@@ -55,3 +59,6 @@ def run_python(code: str, timeout: int = 30) -> dict[str, Any]:
         result["error"] = str(exc)
 
     return result
+
+
+bind_workspace_to_tool(run_python)

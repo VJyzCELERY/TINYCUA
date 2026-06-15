@@ -176,7 +176,6 @@ def result_aggregation_tool_scope() -> NodeToolPolicy:
     Returns:
         NodeToolPolicy for ResultAggregationNode.
     """
-    # Aggregation tools — stub for now
     return NodeToolPolicy(
         node_tools=[TaskInspectTool()],
         include_agent_tools="none",

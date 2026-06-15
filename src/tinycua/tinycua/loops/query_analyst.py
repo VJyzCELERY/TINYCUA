@@ -26,12 +26,13 @@ _QUERY_ANALYST_INSTRUCTION = (
     "route it to the appropriate handler. "
     "Analyze the user's request and determine whether it requires "
     "task execution (worker), is uncertain, or should pass through directly. "
-    "Prefer calling select_query_route with exactly one route: worker, "
+    "You MUST call select_query_route with exactly one route: worker, "
     "uncertain, or passthrough. If tools are unavailable, respond with only "
     "the route label and no extra text. Choose worker for requests that ask you to "
     "plan, create, execute, decompose, inspect, or update tasks. Choose "
     "passthrough for simple conversational or factual responses. Choose "
-    "uncertain only when the request cannot be classified safely."
+    "uncertain only when the request cannot be classified safely. Do not answer "
+    "the user directly from this node."
 )
 
 

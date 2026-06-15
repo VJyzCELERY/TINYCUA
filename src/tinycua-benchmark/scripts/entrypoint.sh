@@ -61,6 +61,10 @@ echo "Model endpoint: ${TINYCUA_BASE_URL}" >&2
 echo "Model: ${TINYCUA_MODEL}" >&2
 echo "Task prompt length: ${#TASK_PROMPT} chars" >&2
 
+if [ "$#" -gt 0 ]; then
+    exec "$@"
+fi
+
 # Pass TASK_PROMPT via environment variable to avoid shell interpretation of
 # special characters (quotes, backticks, $ signs) in the prompt string.
 # The CLI reads from TASK_PROMPT env var when --prompt is not provided.

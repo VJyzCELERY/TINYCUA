@@ -13,6 +13,8 @@ from typing import Any
 
 from tinycua_sdk.tools.decorators import tool
 
+from tinycua.agent.tools.native.context import bind_workspace_to_tool, get_workspace_dir
+
 
 @tool
 def run_shell(command: str, timeout: int = 30) -> dict[str, Any]:
@@ -25,17 +27,18 @@ def run_shell(command: str, timeout: int = 30) -> dict[str, Any]:
     Returns:
         A dict with keys: stdout, stderr, exit_code, timed_out, error.
     """
-    process = subprocess.Popen(
-        command,
-        shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        encoding="utf-8",
-        preexec_fn=os.setsid,
-    )
-
     try:
+        workspace = get_workspace_dir()
+        process = subprocess.Popen(
+            command,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            preexec_fn=os.setsid,
+            cwd=str(workspace) if workspace is not None else None,
+        )
         stdout, stderr = process.communicate(timeout=timeout)
         return {
             "stdout": stdout or "",
@@ -70,3 +73,6 @@ def run_shell(command: str, timeout: int = 30) -> dict[str, Any]:
             "timed_out": False,
             "error": str(exc),
         }
+
+
+bind_workspace_to_tool(run_shell)

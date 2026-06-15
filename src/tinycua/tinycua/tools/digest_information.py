@@ -1,4 +1,4 @@
-"""Structured digest output tool stub for TinyCUA nodes.
+"""Structured digest output tool for TinyCUA nodes.
 
 Provides DigestInformationTool for producing structured digest output.
 """
@@ -11,7 +11,7 @@ from tinycua.config.types import Tool
 
 
 class DigestInformationTool(Tool):
-    """Tool stub for producing structured digest output.
+    """Tool for producing structured digest output.
 
     Used by InformationDigesterNode to produce structured digests
     of gathered information for downstream nodes.
@@ -34,7 +34,22 @@ class DigestInformationTool(Tool):
         Returns:
             A dict containing the structured digest.
         """
+        lines = [line.strip() for line in information.splitlines() if line.strip()]
+        key_points = [
+            line.lstrip("-*•0123456789. )")
+            for line in lines
+            if line.startswith(("-", "*", "•")) or line[:1].isdigit()
+        ]
+        constraints = [
+            line
+            for line in lines
+            if any(term in line.lower() for term in {"must", "never", "constraint", "require"})
+        ]
+        summary = " ".join(lines[:2])[:800]
         return {
-            "digest": information,
-            "format": "structured",
+            "summary": summary,
+            "key_points": key_points[:10],
+            "constraints": constraints[:10],
+            "source_length": len(information),
+            "format": "structured_digest",
         }
