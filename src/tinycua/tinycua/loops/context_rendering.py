@@ -10,6 +10,13 @@ from typing import Any
 
 
 _MAX_CONTEXT_CHARS = 4_000
+_INTERNAL_REPR_MARKERS = (
+    "DigestedInformation(",
+    "AggregatedResult(",
+    "TaskResult(",
+    "WorkerResult(",
+)
+_INTERNAL_CONTROL_LINES = {"task_init()"}
 
 
 def should_include_chat_record(record: Any) -> bool:
@@ -26,7 +33,7 @@ def render_llm_content(value: Any, *, max_chars: int = _MAX_CONTEXT_CHARS) -> st
     if value is None:
         return ""
     if isinstance(value, str):
-        return _bound(value, max_chars)
+        return _bound(sanitize_internal_reprs(value), max_chars)
     rendered = json.dumps(
         _context_payload(value),
         default=str,
@@ -34,6 +41,20 @@ def render_llm_content(value: Any, *, max_chars: int = _MAX_CONTEXT_CHARS) -> st
         separators=(",", ":"),
     )
     return _bound(rendered, max_chars)
+
+
+def sanitize_internal_reprs(content: str) -> str:
+    """Remove echoed Python reprs for internal TinyCUA model objects."""
+    clean_lines = []
+    for raw_line in content.splitlines():
+        if any(marker in raw_line for marker in _INTERNAL_REPR_MARKERS):
+            continue
+        if raw_line.strip() in _INTERNAL_CONTROL_LINES:
+            continue
+        if raw_line.strip() in {"</think>", "<think>"}:
+            continue
+        clean_lines.append(raw_line)
+    return "\n".join(clean_lines)
 
 
 def _context_payload(value: Any) -> Any:

@@ -15,9 +15,21 @@ from tinycua_sdk.tools.decorators import tool
 
 from tinycua.agent.tools.native.context import bind_workspace_to_tool, get_workspace_dir
 
+_DEFAULT_TIMEOUT_SECONDS = 30
+_MAX_TIMEOUT_SECONDS = 30
+
+
+def _bounded_timeout(timeout: int) -> int:
+    """Return a safe timeout for model-requested shell execution."""
+    try:
+        requested = int(timeout)
+    except (TypeError, ValueError):
+        return _DEFAULT_TIMEOUT_SECONDS
+    return min(max(requested, 1), _MAX_TIMEOUT_SECONDS)
+
 
 @tool
-def run_shell(command: str, timeout: int = 30) -> dict[str, Any]:
+def run_shell(command: str, timeout: int = _DEFAULT_TIMEOUT_SECONDS) -> dict[str, Any]:
     """Execute a shell command and capture its output.
 
     Args:
@@ -27,6 +39,7 @@ def run_shell(command: str, timeout: int = 30) -> dict[str, Any]:
     Returns:
         A dict with keys: stdout, stderr, exit_code, timed_out, error.
     """
+    effective_timeout = _bounded_timeout(timeout)
     try:
         workspace = get_workspace_dir()
         process = subprocess.Popen(
@@ -39,7 +52,7 @@ def run_shell(command: str, timeout: int = 30) -> dict[str, Any]:
             preexec_fn=os.setsid,
             cwd=str(workspace) if workspace is not None else None,
         )
-        stdout, stderr = process.communicate(timeout=timeout)
+        stdout, stderr = process.communicate(timeout=effective_timeout)
         return {
             "stdout": stdout or "",
             "stderr": stderr or "",
@@ -55,7 +68,7 @@ def run_shell(command: str, timeout: int = 30) -> dict[str, Any]:
             "stderr": stderr or "",
             "exit_code": -1,
             "timed_out": True,
-            "error": f"Command timed out after {timeout}s",
+            "error": f"Command timed out after {effective_timeout}s",
         }
     except subprocess.SubprocessError as exc:
         return {

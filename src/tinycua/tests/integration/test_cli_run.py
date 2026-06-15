@@ -128,7 +128,13 @@ class TestCLIRunExitCodes:
         mock_loop._working_messages = []
         mock_loop.get_usage_events = MagicMock(return_value=[])
         mock_loop.get_execution_trace = MagicMock(return_value=[])
-        mock_loop.get_state_snapshot = MagicMock(return_value={"task_tree": {}, "task_tree_text": "No tasks."})
+        mock_loop.get_state_snapshot = MagicMock(
+            return_value={
+                "task_tree": {},
+                "task_tree_text": "No tasks.",
+                "transcript_text": "[USER] test task",
+            }
+        )
         mock_loop.get_final_response_events = MagicMock(return_value=[])
         mock_loop.get_transcript_events = MagicMock(return_value=[])
 
@@ -156,6 +162,7 @@ class TestCLIRunExitCodes:
                 assert (output_dir / "state_snapshot.json").exists()
                 assert (output_dir / "task_tree.json").exists()
                 assert (output_dir / "task_tree.txt").exists()
+                assert (output_dir / "transcript.txt").exists()
                 assert (output_dir / "transcript_events.json").exists()
                 assert (output_dir / "final_response_events.json").exists()
 

@@ -5,11 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from tinycua.config.node_config import NodeConfigBase
+from tinycua_sdk.agent.llm_model import LanguageModel
+
+from tinycua.config.node_config import NodeConfigBase, create_node_config
 from tinycua.config.session_config import SessionConfig
 from tinycua.factory import create_tinycua_agent
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.response_node import ResponseNode
+from tinycua.loops.task_nodes import TinyCUATaskExecutorNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.task import TaskStateStore, TaskStatus
 
@@ -39,6 +42,8 @@ async def test_streaming_emits_node_prefixed_transcript_events() -> None:
     assert transcript_events
     assert transcript_events[0]["delta"].startswith("[Response]")
     assert any(event["node_label"] == "Response" for event in loop.get_transcript_events())
+    assert loop.get_transcript_text().startswith("[USER] Say hello.")
+    assert "[Response] Hello world" in loop.get_transcript_text()
 
 
 def test_task_tree_renderer_shows_nested_hierarchy() -> None:
@@ -65,6 +70,236 @@ def test_default_agent_exposes_workspace_action_and_web_search_tools(tmp_path: P
     tool_names = {tool.name for tool in agent.tools}
 
     assert {"write_file", "read_file", "run_shell", "run_python", "web_search"} <= tool_names
+
+
+def test_task_executor_instruction_requires_real_tool_actions(tmp_path: Path) -> None:
+    """TaskExecutor prompts must require action, not planner-only prose."""
+    agent = create_tinycua_agent(session_config=SessionConfig(workspace_dir=tmp_path))
+    node = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    node.ensure_session(agent.loop.root_session)
+    _, tools = agent.loop._prepare_node(node, agent.tools, None)
+    instruction = node.build_instruction()
+
+    assert {"write_file", "run_shell", "run_python", "web_search"} <= {tool.name for tool in tools}
+    assert "MUST use tools" in instruction
+    assert "Do not only provide a plan" in instruction
+
+
+async def test_task_executor_forces_native_action_tool_use(tmp_path: Path) -> None:
+    """TaskExecutor should force workspace/action tools instead of planner prose."""
+    model = LanguageModel(
+        provider="openai-chat-completions",
+        model_name="local-model",
+        base_url="http://localhost:1234/v1",
+        api_key="test",
+    )
+    agent = create_tinycua_agent(
+        llm_model=model,
+        session_config=SessionConfig(workspace_dir=tmp_path),
+    )
+    node = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    node.ensure_session(agent.loop.root_session)
+    messages, tools = agent.loop._prepare_node(node, agent.tools, None)
+    captured_tool_choices = []
+    captured_tool_names = []
+
+    async def call_llm(messages, tools, stream: bool = False):  # noqa: ANN001, ARG001
+        captured_tool_choices.append(agent.config.llm_model.tool_choice)
+        captured_tool_names.append([tool.name for tool in tools])
+        if len(captured_tool_choices) == 1:
+            return {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_write_file",
+                        "type": "function",
+                        "function": {
+                            "name": "write_file",
+                            "arguments": '{"path":"app.py","content":"print(\\"ok\\")"}',
+                        },
+                    }
+                ],
+            }
+        return {"content": "Created app.py", "tool_calls": []}
+
+    agent._call_llm = call_llm  # type: ignore[method-assign]
+
+    result, _, validation = await agent.loop._call_node_with_retry(
+        node,
+        agent,
+        messages,
+        tools,
+    )
+
+    assert validation.is_valid
+    assert result.content == "Created app.py"
+    assert (tmp_path / "app.py").read_text() == 'print("ok")'
+    assert captured_tool_choices == ["required", None]
+    assert "write_file" in captured_tool_names[0]
+    assert "run_shell" in captured_tool_names[0]
+    assert "task_execute" not in captured_tool_names[0]
+
+
+async def test_task_executor_executes_continued_tool_calls(tmp_path: Path) -> None:
+    """Tool feedback continuations should execute follow-up file writes."""
+    model = LanguageModel(
+        provider="openai-chat-completions",
+        model_name="local-model",
+        base_url="http://localhost:1234/v1",
+        api_key="test",
+    )
+    agent = create_tinycua_agent(
+        llm_model=model,
+        session_config=SessionConfig(workspace_dir=tmp_path),
+    )
+    node = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    node.ensure_session(agent.loop.root_session)
+    messages, tools = agent.loop._prepare_node(node, agent.tools, None)
+    responses = [
+        {
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_list_files",
+                    "type": "function",
+                    "function": {"name": "list_files", "arguments": "{}"},
+                }
+            ],
+        },
+        {
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_write_file",
+                    "type": "function",
+                    "function": {
+                        "name": "write_file",
+                        "arguments": '{"path":"backend.py","content":"print(\\"ok\\")"}',
+                    },
+                }
+            ],
+        },
+        {"content": "Created backend.py", "tool_calls": []},
+    ]
+
+    async def call_llm(messages, tools, stream: bool = False):  # noqa: ANN001, ARG001
+        return responses.pop(0)
+
+    agent._call_llm = call_llm  # type: ignore[method-assign]
+
+    result, _, validation = await agent.loop._call_node_with_retry(
+        node,
+        agent,
+        messages,
+        tools,
+    )
+
+    assert validation.is_valid
+    assert result.content == "Created backend.py"
+    assert (tmp_path / "backend.py").read_text() == 'print("ok")'
+    assert [item["name"] for item in result.metadata["tool_results"]] == [
+        "list_files",
+        "write_file",
+    ]
+
+
+async def test_task_executor_creates_workspace_scaffold_when_model_avoids_tools(
+    tmp_path: Path,
+) -> None:
+    """Action requests must not remain planner-only when tools are ignored."""
+    model = LanguageModel(
+        provider="openai-chat-completions",
+        model_name="local-model",
+        base_url="http://localhost:1234/v1",
+        api_key="test",
+    )
+    agent = create_tinycua_agent(
+        llm_model=model,
+        session_config=SessionConfig(workspace_dir=tmp_path),
+    )
+    agent.loop.root_session.input_context = [
+        {
+            "role": "user",
+            "content": "Create a note taking app with a scheduler in the workspace.",
+        }
+    ]
+    node = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    node.ensure_session(agent.loop.root_session)
+    messages, tools = agent.loop._prepare_node(node, agent.tools, None)
+
+    async def call_llm(messages, tools, stream: bool = False):  # noqa: ANN001, ARG001
+        return {"content": "Here is a plan for the app.", "tool_calls": []}
+
+    agent._call_llm = call_llm  # type: ignore[method-assign]
+
+    result, _, validation = await agent.loop._call_node_with_retry(
+        node,
+        agent,
+        messages,
+        tools,
+    )
+
+    assert validation.is_valid
+    assert (tmp_path / "backend.py").exists()
+    assert (tmp_path / "webapp" / "index.html").exists()
+    assert (tmp_path / "scheduler.py").exists()
+    assert "Created workspace scaffold" in result.content
+    assert any(item["name"] == "write_file" for item in result.metadata["tool_results"])
+    assert any(item["name"] == "run_python" for item in result.metadata["tool_results"])
+
+
+def test_transcript_events_suppress_internal_repr_noise() -> None:
+    """Transcript output should not surface dataclass repr echoes to users."""
+    loop = TinyCUALoop()
+
+    event = loop._record_transcript_event(
+        "transcript.node",
+        "Worker",
+        "Useful update\nDigestedInformation(context_summary='secret echo')\nAggregatedResult(root_task_id='x')",
+        node_id="worker",
+    )
+
+    assert "Useful update" in event["content"]
+    assert "DigestedInformation(" not in event["content"]
+    assert "AggregatedResult(" not in event["content"]
+
+
+def test_transcript_sanitizer_preserves_user_code_lines() -> None:
+    """Sanitization should not delete arbitrary function-call code examples."""
+    loop = TinyCUALoop()
+
+    event = loop._record_transcript_event(
+        "transcript.node",
+        "Response",
+        "Run this function:\nmain()\ntask_init()",
+        node_id="response",
+    )
+
+    assert "main()" in event["content"]
+    assert "task_init()" not in event["content"]
+
+
+def test_notebook_worker_prompt_is_natural_app_creation_request() -> None:
+    """Notebook prompt should not cheat by explicitly naming worker routing."""
+    notebook = Path("notebooks/tinycua_agent_trace_demo.ipynb").read_text()
+
+    assert "This request must use worker mode" not in notebook
+    assert "select_query_route with route=worker" not in notebook
+    assert "note taking app" in notebook
+    assert "scheduler" in notebook
+    assert "webapp" in notebook
 
 
 async def test_reusing_session_preserves_in_memory_context(tmp_path: Path) -> None:

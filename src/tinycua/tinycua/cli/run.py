@@ -326,6 +326,8 @@ def _write_runtime_exports(loop: Any, output_dir: Path) -> None:
     if isinstance(state_snapshot, dict):
         task_tree_text = str(state_snapshot.get("task_tree_text", "No tasks."))
         (output_dir / "task_tree.txt").write_text(task_tree_text, encoding="utf-8")
+        transcript_text = str(state_snapshot.get("transcript_text", ""))
+        (output_dir / "transcript.txt").write_text(transcript_text, encoding="utf-8")
 
 
 def _safe_loop_call(loop: Any, method_name: str, *, default: Any) -> Any:

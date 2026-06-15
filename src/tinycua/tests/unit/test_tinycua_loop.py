@@ -95,6 +95,29 @@ async def test_execute_node_calls_agent_with_node_messages():
     agent._call_llm.assert_called()
 
 
+async def test_run_sync_honors_max_iterations():
+    """Loop execution stops at max_iterations instead of running unbounded."""
+    stub = StubNode("node output")
+    terminal = ResponseNode()
+    queue = NodeQueue(items=[stub, terminal])
+
+    loop = TinyCUALoop(queue=queue, max_iterations=1)
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+    agent._call_llm = AsyncMock(return_value={"content": "ok", "tool_calls": None})
+
+    await loop.run(
+        agent=agent,
+        messages=[],
+        tools=[],
+        override_instructions=None,
+        stream=False,
+    )
+
+    assert agent._call_llm.call_count == 1
+
+
 async def test_execute_node_records_chat_history():
     """_execute_node() appends each node's LLM call to root_session.chat_history."""
     stub = StubNode("history test")

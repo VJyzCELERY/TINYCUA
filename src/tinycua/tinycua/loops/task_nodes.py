@@ -9,9 +9,47 @@ from tinycua.loops.node import ProcessNode
 from tinycua.models.task import AggregatedResult, ReviewerDecision, TaskResult, TaskStatus
 
 if TYPE_CHECKING:
+    from tinycua.config.node_config import NodeConfigBase
     from tinycua.config.types import LLMResult
     from tinycua.loops.node_queue import NodeQueue
     from tinycua.models.node_input import NodeInputLike
+
+
+_TASK_ANALYZER_INSTRUCTION = (
+    "You are the TaskAnalyzer. Convert the request into concrete, actionable "
+    "tasks. Prefer tasks that can be verified by files, commands, tests, or "
+    "search results. Do not repeat upstream context verbatim."
+)
+
+_TASK_ASSESSOR_INSTRUCTION = (
+    "You are the TaskAssessor. Inspect the active task and decide what concrete "
+    "execution evidence is needed. Be concise and do not repeat upstream context."
+)
+
+_TASK_EXECUTOR_INSTRUCTION = (
+    "You are the TaskExecutor. You MUST use tools when the active task requires "
+    "workspace action, research, file creation, command execution, or testing. "
+    "Use write_file/read_file/list_files/run_shell/run_python/web_search as "
+    "needed. Do not only provide a plan for actionable tasks. Record concise "
+    "results after observing tool outputs."
+)
+
+_RESULT_REVIEWER_INSTRUCTION = (
+    "You are the ResultReviewer. Review the latest task result against the "
+    "requested outcome and tool evidence. Respond with approved, retry, replan, "
+    "or open_question plus a brief reason. Do not repeat upstream context."
+)
+
+_RESULT_AGGREGATION_INSTRUCTION = (
+    "You are the ResultAggregation node. Summarize completed task results, "
+    "artifacts, and verification evidence concisely. Do not include Python reprs "
+    "or duplicate upstream context."
+)
+
+_ANALYSIS_EFFORT_INSTRUCTION = (
+    "You are the AnalysisEffort node. Select concise effort guidance for the "
+    "task tree. Do not repeat upstream context."
+)
 
 
 def _candidate_lines(content: str) -> list[str]:
@@ -30,6 +68,17 @@ def _candidate_lines(content: str) -> list[str]:
 
 class TinyCUATaskAnalyzerNode(ProcessNode):
     """Analyze or refine task structure."""
+
+    def __init__(
+        self,
+        node_id: str,
+        config: NodeConfigBase,
+        *,
+        instruction: str = _TASK_ANALYZER_INSTRUCTION,
+        is_terminal: bool = False,
+    ) -> None:
+        """Initialize the task analyzer node."""
+        super().__init__(node_id, config, instruction=instruction, is_terminal=is_terminal)
 
     def parse_loop_result(
         self,
@@ -56,6 +105,17 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
 class TinyCUATaskAssessorNode(ProcessNode):
     """Assess task readiness and progress."""
 
+    def __init__(
+        self,
+        node_id: str,
+        config: NodeConfigBase,
+        *,
+        instruction: str = _TASK_ASSESSOR_INSTRUCTION,
+        is_terminal: bool = False,
+    ) -> None:
+        """Initialize the task assessor node."""
+        super().__init__(node_id, config, instruction=instruction, is_terminal=is_terminal)
+
     def parse_loop_result(
         self,
         llm_result: LLMResult,
@@ -72,6 +132,17 @@ class TinyCUATaskAssessorNode(ProcessNode):
 
 class TinyCUATaskExecutorNode(ProcessNode):
     """Execute or dispatch task work."""
+
+    def __init__(
+        self,
+        node_id: str,
+        config: NodeConfigBase,
+        *,
+        instruction: str = _TASK_EXECUTOR_INSTRUCTION,
+        is_terminal: bool = False,
+    ) -> None:
+        """Initialize the task executor node."""
+        super().__init__(node_id, config, instruction=instruction, is_terminal=is_terminal)
 
     def parse_loop_result(
         self,
@@ -128,6 +199,17 @@ class TinyCUATaskExecutorNode(ProcessNode):
 class TinyCUAResultReviewerNode(ProcessNode):
     """Review task execution results."""
 
+    def __init__(
+        self,
+        node_id: str,
+        config: NodeConfigBase,
+        *,
+        instruction: str = _RESULT_REVIEWER_INSTRUCTION,
+        is_terminal: bool = False,
+    ) -> None:
+        """Initialize the result reviewer node."""
+        super().__init__(node_id, config, instruction=instruction, is_terminal=is_terminal)
+
     def _task_to_review(self):
         """Return the most recent completed task that needs review."""
         if self.session is None:
@@ -183,6 +265,17 @@ class TinyCUAResultReviewerNode(ProcessNode):
 
 class TinyCUAResultAggregationNode(ProcessNode):
     """Aggregate task results into worker output."""
+
+    def __init__(
+        self,
+        node_id: str,
+        config: NodeConfigBase,
+        *,
+        instruction: str = _RESULT_AGGREGATION_INSTRUCTION,
+        is_terminal: bool = False,
+    ) -> None:
+        """Initialize the result aggregation node."""
+        super().__init__(node_id, config, instruction=instruction, is_terminal=is_terminal)
 
     def parse_loop_result(
         self,
@@ -256,6 +349,17 @@ class TinyCUAResultAggregationNode(ProcessNode):
 
 class TinyCUAAnalysisEffortNode(ProcessNode):
     """Determine analysis effort for worker-mode planning."""
+
+    def __init__(
+        self,
+        node_id: str,
+        config: NodeConfigBase,
+        *,
+        instruction: str = _ANALYSIS_EFFORT_INSTRUCTION,
+        is_terminal: bool = False,
+    ) -> None:
+        """Initialize the analysis effort node."""
+        super().__init__(node_id, config, instruction=instruction, is_terminal=is_terminal)
 
     def parse_loop_result(
         self,

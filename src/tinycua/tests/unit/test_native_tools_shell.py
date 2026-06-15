@@ -1,6 +1,28 @@
 """Unit tests for shell.py — mocking subprocess for edge cases."""
 
 
+def test_run_shell_caps_model_requested_timeout(monkeypatch):
+    """Excessive model-supplied timeout values are capped for responsiveness."""
+    from tinycua.agent.tools.native import shell
+
+    observed = {}
+
+    class FakeProcess:
+        returncode = 0
+        pid = 123
+
+        def communicate(self, timeout=None):
+            observed["timeout"] = timeout
+            return "ok", ""
+
+    monkeypatch.setattr(shell.subprocess, "Popen", lambda *args, **kwargs: FakeProcess())
+
+    result = shell.run_shell("sleep 999", timeout=1_200_000)
+
+    assert observed["timeout"] == 30
+    assert result["stdout"] == "ok"
+
+
 def test_run_shell_empty_command():
     """Empty command returns success with empty output."""
     from tinycua.agent.tools.native.shell import run_shell

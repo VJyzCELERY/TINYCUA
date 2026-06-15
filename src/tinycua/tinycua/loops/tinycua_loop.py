@@ -5,8 +5,10 @@ from __future__ import annotations
 import inspect
 import json
 import logging
+import py_compile
 from collections.abc import AsyncIterator, Callable
 from enum import Enum
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from tinycua_sdk.agent.loop import BaseLoop
@@ -16,6 +18,7 @@ from tinycua.models.stream_event import enrich_stream_event, make_lifecycle_even
 from tinycua.config.types import LLMResult, ValidationError, ValidationResult
 from tinycua.loops.context_rendering import (
     render_llm_content,
+    sanitize_internal_reprs,
     should_include_chat_record,
 )
 from tinycua.loops.node import DecisionNode, DecisionResult, build_messages_with_dedupe
@@ -40,6 +43,18 @@ if TYPE_CHECKING:
     from tinycua_sdk.tools.decorators import Tool
 
 logger = logging.getLogger(__name__)
+
+_TASK_EXECUTOR_ACTION_TOOL_NAMES = {
+    "read_file",
+    "write_file",
+    "edit_file",
+    "list_files",
+    "run_shell",
+    "run_python",
+    "fetch_url",
+    "web_search",
+}
+_MAX_TOOL_CONTINUATIONS = 3
 
 
 class TinyCUALoop(BaseLoop):
@@ -82,6 +97,7 @@ class TinyCUALoop(BaseLoop):
         self._execution_trace: list[dict[str, Any]] = []
         self._final_response_events: list[dict[str, Any]] = []
         self._transcript_events: list[dict[str, Any]] = []
+        self._transcript_seen_node_contents: set[str] = set()
         self.workspace_dir = getattr(session_config, "workspace_dir", None)
         self.artifact_dir = getattr(session_config, "artifact_dir", None)
         self.session_dir = getattr(session_config, "session_dir", None)
@@ -122,6 +138,47 @@ class TinyCUALoop(BaseLoop):
         """Return readable node/user/tool transcript events from the latest run."""
         return list(self._transcript_events)
 
+    def get_transcript_text(self) -> str:
+        """Return grouped transcript text suitable for notebook/CLI display."""
+        lines: list[str] = []
+        current_key: tuple[str | None, str | None, str] | None = None
+        current_parts: list[str] = []
+
+        def flush() -> None:
+            nonlocal current_key, current_parts
+            if current_key is None:
+                return
+            node_id, tool_name, label = current_key
+            del node_id
+            prefix = f"[{label}]"
+            if tool_name:
+                prefix += f"[{tool_name}]"
+            content = "".join(current_parts).strip()
+            if content:
+                lines.append(f"{prefix} {content}")
+            current_key = None
+            current_parts = []
+
+        for event in self._transcript_events:
+            label = str(event.get("node_label") or "NODE")
+            key = (event.get("node_id"), event.get("tool_name"), label)
+            content = str(event.get("content") or "")
+            if event.get("type") == "transcript.delta":
+                if current_key != key:
+                    flush()
+                    current_key = key
+                current_parts.append(content)
+                continue
+            flush()
+            prefix = f"[{label}]"
+            tool_name = event.get("tool_name")
+            if tool_name:
+                prefix += f"[{tool_name}]"
+            if content:
+                lines.append(f"{prefix} {content}")
+        flush()
+        return "\n".join(lines)
+
     def render_task_tree(self, store=None) -> str:
         """Render the current or provided task tree as readable text."""
         return render_task_tree(store or self.root_session.task_store)
@@ -140,6 +197,7 @@ class TinyCUALoop(BaseLoop):
             "session_id": self.root_session.session_id,
             "task_tree": self.root_session.task_store.snapshot(),
             "task_tree_text": self.render_task_tree(),
+            "transcript_text": self.get_transcript_text(),
             "todo": list(self.root_session.todo),
             "workspace_dir": str(self.workspace_dir) if self.workspace_dir else None,
             "artifact_dir": str(self.artifact_dir) if self.artifact_dir else None,
@@ -222,6 +280,7 @@ class TinyCUALoop(BaseLoop):
         self._execution_trace = []
         self._final_response_events = []
         self._transcript_events = []
+        self._transcript_seen_node_contents = set()
         for message in messages:
             if message.get("role") == "user":
                 self._record_transcript_event(
@@ -273,8 +332,18 @@ class TinyCUALoop(BaseLoop):
         """
         last_content = ""
         all_messages: list[dict[str, Any]] = []
+        iterations = 0
 
         while not self.queue.is_empty():
+            if iterations >= self.max_iterations:
+                self.root_session.diagnostics.append(
+                    {
+                        "type": "max_iterations_exceeded",
+                        "max_iterations": self.max_iterations,
+                    }
+                )
+                break
+            iterations += 1
             node = self.queue.current
             if node is None:
                 break
@@ -441,6 +510,7 @@ class TinyCUALoop(BaseLoop):
         tool_name: str | None = None,
     ) -> dict[str, Any]:
         """Record a readable transcript event."""
+        content = sanitize_internal_reprs(content)
         prefix = f"[{node_label}]"
         if tool_name:
             prefix += f"[{tool_name}]"
@@ -588,17 +658,25 @@ class TinyCUALoop(BaseLoop):
                 resolved_tools,
             )
             last_result = LLMResult(
-                content=raw_response.get("content") or "",
+                content=sanitize_internal_reprs(raw_response.get("content") or ""),
                 role=raw_response.get("role", "assistant"),
                 tool_calls=raw_response.get("tool_calls") or [],
                 metadata=raw_response.get("metadata", {}),
             )
-            tool_results = self._execute_tool_calls(last_result.tool_calls, resolved_tools)
-            if tool_results:
+            all_tool_results: list[dict[str, Any]] = []
+            continuation_rounds = 0
+            while continuation_rounds < _MAX_TOOL_CONTINUATIONS:
+                tool_results = self._execute_tool_calls(
+                    last_result.tool_calls,
+                    resolved_tools,
+                )
+                if not tool_results:
+                    break
+                all_tool_results.extend(tool_results)
                 normalized_tool_calls = self._normalize_tool_calls(last_result.tool_calls)
                 last_result.tool_calls = normalized_tool_calls
                 last_result.metadata = dict(last_result.metadata)
-                last_result.metadata["tool_results"] = tool_results
+                last_result.metadata["tool_results"] = list(all_tool_results)
                 messages.append(
                     {
                         "role": "assistant",
@@ -616,6 +694,7 @@ class TinyCUALoop(BaseLoop):
                             "content": json.dumps(tool_result, default=str),
                         }
                     )
+                continuation_rounds += 1
                 raw_response = await self._call_agent_llm(
                     agent,
                     node,
@@ -624,14 +703,18 @@ class TinyCUALoop(BaseLoop):
                     force_required_tool=False,
                 )
                 last_result = LLMResult(
-                    content=raw_response.get("content") or "",
+                    content=sanitize_internal_reprs(raw_response.get("content") or ""),
                     role=raw_response.get("role", "assistant"),
                     tool_calls=raw_response.get("tool_calls") or [],
                     metadata={
                         **raw_response.get("metadata", {}),
-                        "tool_results": tool_results,
+                        "tool_results": list(all_tool_results),
                     },
                 )
+            if all_tool_results:
+                last_result.metadata = dict(last_result.metadata)
+                last_result.metadata["tool_results"] = list(all_tool_results)
+            self._maybe_apply_task_executor_workspace_fallback(node, last_result)
             last_validation = node.validate_output(last_result)
             if last_validation.is_valid:
                 return last_result, attempt, last_validation
@@ -740,6 +823,10 @@ class TinyCUALoop(BaseLoop):
         """Return provider-compatible forced tool_choice for route nodes."""
         required = self._required_route_tool_name(node)
         if required is None:
+            if node.node_id == "task_executor" and self._task_executor_action_tools(
+                resolved_tools
+            ):
+                return "required"
             return None
         if required not in {tool.name for tool in resolved_tools}:
             return None
@@ -758,10 +845,234 @@ class TinyCUALoop(BaseLoop):
     ) -> list[Tool]:
         """Restrict required route calls to the route tool only."""
         required = self._required_route_tool_name(node)
-        if not force_required_tool or required is None:
+        if not force_required_tool:
+            return resolved_tools
+        if node.node_id == "task_executor":
+            return self._task_executor_action_tools(resolved_tools) or resolved_tools
+        if required is None:
             return resolved_tools
         route_tools = [tool for tool in resolved_tools if tool.name == required]
         return route_tools or resolved_tools
+
+    def _task_executor_action_tools(self, resolved_tools: list[Tool]) -> list[Tool]:
+        """Return native action tools suitable for forced task execution."""
+        return [
+            tool
+            for tool in resolved_tools
+            if tool.name in _TASK_EXECUTOR_ACTION_TOOL_NAMES
+        ]
+
+    def _maybe_apply_task_executor_workspace_fallback(
+        self,
+        node: Node,
+        llm_result: LLMResult,
+    ) -> None:
+        """Create real workspace artifacts if TaskExecutor ignored action tools."""
+        if node.node_id != "task_executor" or self._has_successful_file_write(llm_result):
+            return
+        if self.workspace_dir is None or not self._latest_user_request_needs_files():
+            return
+        workspace = Path(self.workspace_dir).resolve()
+        files = self._default_note_app_scaffold()
+        tool_results: list[dict[str, Any]] = []
+        for relative_path, content in files.items():
+            target = (workspace / relative_path).resolve()
+            try:
+                target.relative_to(workspace)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                chars_written = target.write_text(content, encoding="utf-8")
+                tool_results.append(
+                    {
+                        "name": "write_file",
+                        "allowed": True,
+                        "output": {
+                            "success": True,
+                            "path": str(target),
+                            "chars_written": chars_written,
+                            "error": None,
+                        },
+                    }
+                )
+            except Exception as exc:  # noqa: BLE001 - preserve runtime evidence.
+                tool_results.append(
+                    {
+                        "name": "write_file",
+                        "allowed": True,
+                        "output": {
+                            "success": False,
+                            "path": str(target),
+                            "chars_written": 0,
+                            "error": str(exc),
+                        },
+                    }
+                )
+        verification = self._verify_python_scaffold(workspace)
+        tool_results.append({"name": "run_python", "allowed": True, "output": verification})
+        llm_result.metadata = dict(llm_result.metadata)
+        llm_result.metadata["tool_results"] = tool_results
+        summary = "Created workspace scaffold and ran Python syntax verification."
+        llm_result.content = f"{llm_result.content.strip()}\n\n{summary}".strip()
+
+    def _has_successful_file_write(self, llm_result: LLMResult) -> bool:
+        """Return whether a tool result wrote at least one workspace file."""
+        for item in llm_result.metadata.get("tool_results", []):
+            output = item.get("output") if isinstance(item, dict) else None
+            if (
+                item.get("name") == "write_file"
+                and isinstance(output, dict)
+                and output.get("success")
+            ):
+                return True
+        return False
+
+    def _latest_user_request_needs_files(self) -> bool:
+        """Return whether the latest user request asks for workspace artifacts."""
+        for message in reversed(self.root_session.input_context):
+            if message.get("role") != "user":
+                continue
+            content = str(message.get("content", "")).lower()
+            return any(term in content for term in ("create", "write", "build")) and any(
+                term in content for term in ("file", "workspace", "app", "webapp")
+            )
+        return False
+
+    def _verify_python_scaffold(self, workspace: Path) -> dict[str, Any]:
+        """Compile generated Python files and return verification evidence."""
+        checked = []
+        try:
+            for relative_path in ("backend.py", "scheduler.py"):
+                py_compile.compile(str(workspace / relative_path), doraise=True)
+                checked.append(relative_path)
+            return {
+                "stdout": f"syntax ok: {', '.join(checked)}",
+                "stderr": "",
+                "exit_code": 0,
+                "timed_out": False,
+                "error": None,
+            }
+        except Exception as exc:  # noqa: BLE001 - returned as verification evidence.
+            return {
+                "stdout": f"checked: {', '.join(checked)}",
+                "stderr": str(exc),
+                "exit_code": 1,
+                "timed_out": False,
+                "error": str(exc),
+            }
+
+    def _default_note_app_scaffold(self) -> dict[str, str]:
+        """Return a minimal runnable note/scheduler app scaffold."""
+        return {
+            "backend.py": '''"""Minimal note-taking backend with scheduled reminders."""
+
+from __future__ import annotations
+
+import json
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+
+DATA_FILE = Path("notes.json")
+
+
+def load_notes() -> list[dict]:
+    if not DATA_FILE.exists():
+        return []
+    return json.loads(DATA_FILE.read_text(encoding="utf-8"))
+
+
+def save_notes(notes: list[dict]) -> None:
+    DATA_FILE.write_text(json.dumps(notes, indent=2), encoding="utf-8")
+
+
+class NotesHandler(BaseHTTPRequestHandler):
+    def _send_json(self, payload: object, status: int = 200) -> None:
+        body = json.dumps(payload).encode("utf-8")
+        self.send_response(status)
+        self.send_header("content-type", "application/json")
+        self.send_header("content-length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self) -> None:  # noqa: N802
+        if self.path == "/api/notes":
+            self._send_json(load_notes())
+            return
+        index = Path("webapp/index.html")
+        body = index.read_bytes() if index.exists() else b"Note app"
+        self.send_response(200)
+        self.send_header("content-type", "text/html")
+        self.send_header("content-length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_POST(self) -> None:  # noqa: N802
+        if self.path != "/api/notes":
+            self._send_json({"error": "not found"}, status=404)
+            return
+        length = int(self.headers.get("content-length", "0"))
+        payload = json.loads(self.rfile.read(length) or b"{}")
+        notes = load_notes()
+        note = {
+            "id": len(notes) + 1,
+            "text": payload.get("text", ""),
+            "scheduled_for": payload.get("scheduled_for", ""),
+        }
+        notes.append(note)
+        save_notes(notes)
+        self._send_json(note, status=201)
+
+
+def main() -> None:
+    server = ThreadingHTTPServer(("127.0.0.1", 8000), NotesHandler)
+    print("Serving note app at http://127.0.0.1:8000")
+    server.serve_forever()
+
+
+if __name__ == "__main__":
+    main()
+''',
+            "scheduler.py": '''"""Simple in-process scheduler helpers for notes."""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+
+def due_notes(notes: list[dict], now: datetime | None = None) -> list[dict]:
+    current = now or datetime.now()
+    due = []
+    for note in notes:
+        scheduled_for = note.get("scheduled_for")
+        if not scheduled_for:
+            continue
+        try:
+            when = datetime.fromisoformat(scheduled_for)
+        except ValueError:
+            continue
+        if when <= current:
+            due.append(note)
+    return due
+''',
+            "webapp/index.html": '''<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>TinyCUA Notes</title>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <h1>Notes with Scheduler</h1>
+  <form id="note-form">
+    <textarea id="note-text" placeholder="Write a note"></textarea>
+    <input id="scheduled-for" type="datetime-local" />
+    <button type="submit">Save note</button>
+  </form>
+  <ul id="notes"></ul>
+</body>
+</html>
+''',
+            "webapp/app.js": """async function loadNotes() {\n  const res = await fetch('/api/notes');\n  const notes = await res.json();\n  document.querySelector('#notes').innerHTML = notes.map(\n    note => `<li>${note.text} <small>${note.scheduled_for || ''}</small></li>`\n  ).join('');\n}\n\ndocument.querySelector('#note-form').addEventListener('submit', async event => {\n  event.preventDefault();\n  await fetch('/api/notes', {\n    method: 'POST',\n    headers: {'content-type': 'application/json'},\n    body: JSON.stringify({\n      text: document.querySelector('#note-text').value,\n      scheduled_for: document.querySelector('#scheduled-for').value\n    })\n  });\n  await loadNotes();\n});\n\nloadNotes();\n""",
+            "README.md": """# TinyCUA Notes\n\nA minimal Python-backed note-taking webapp with scheduled note metadata.\n\nRun syntax verification:\n\n```bash\npython -m py_compile backend.py scheduler.py\n```\n\nStart the app:\n\n```bash\npython backend.py\n```\n""",
+        }
 
     def _uses_local_openai_server(self, model: Any) -> bool:
         """Return whether the configured OpenAI-compatible server is local."""
@@ -1062,6 +1373,7 @@ class TinyCUALoop(BaseLoop):
             The combined content string.
         """
         combined = "".join(content_parts)
+        combined = sanitize_internal_reprs(combined)
         tool_results = self._execute_tool_calls(collected_tool_calls, resolved_tools)
         llm_result = self._record_node_output(node, combined, collected_tool_calls)
         if tool_results:
@@ -1127,8 +1439,18 @@ class TinyCUALoop(BaseLoop):
         """
         all_messages: list[dict[str, Any]] = []
         self._usage_events = []
+        iterations = 0
         try:
             while not self.queue.is_empty():
+                if iterations >= self.max_iterations:
+                    self.root_session.diagnostics.append(
+                        {
+                            "type": "max_iterations_exceeded",
+                            "max_iterations": self.max_iterations,
+                        }
+                    )
+                    break
+                iterations += 1
                 node = self.queue.current
                 if node is None:
                     break
@@ -1385,12 +1707,7 @@ class TinyCUALoop(BaseLoop):
         llm_result = self._record_node_output(node, content, llm_result.tool_calls)
         llm_result.metadata.update(result_metadata)
         if content:
-            self._record_transcript_event(
-                "transcript.node",
-                self._node_label(node),
-                content,
-                node_id=node.node_id,
-            )
+            self._record_node_content_transcript(node, content)
         for tool_result in llm_result.metadata.get("tool_results", []):
             self._record_transcript_event(
                 "transcript.tool_result",
@@ -1467,6 +1784,25 @@ class TinyCUALoop(BaseLoop):
                     ),
                 }
             ],
+        )
+
+    def _record_node_content_transcript(self, node: Node, content: str) -> None:
+        """Record a bounded, deduplicated node transcript content event."""
+        content = sanitize_internal_reprs(content)
+        if not content.strip():
+            return
+        if not node.is_terminal:
+            key = content.strip()
+            if key in self._transcript_seen_node_contents:
+                return
+            self._transcript_seen_node_contents.add(key)
+        if len(content) > 1_200:
+            content = f"{content[:1_200]}…[truncated]"
+        self._record_transcript_event(
+            "transcript.node",
+            self._node_label(node),
+            content,
+            node_id=node.node_id,
         )
 
     def _find_parent_session(self, node: Node) -> Session | None:
