@@ -52,6 +52,15 @@ Implementation tasks for TinyCUA Final Prototype Runtime. Check off items as com
 - [x] Verify notebook/CLI artifacts, task tree export, route/tool decisions, and no fallback-as-success <!-- id: 18 -->
 - [ ] Verify worker event volume and task tree snapshots are bounded <!-- id: 19 -->
 
+## Runtime Reliability Follow-up
+
+- [x] Force QueryAnalyst and Worker required route tool choice without modifying `src/tinycua-sdk/` <!-- id: 20 -->
+- [x] Remove required-route “tools unavailable” fallback prompt wording <!-- id: 21 -->
+- [x] Render LLM-bound internal context as compact JSON instead of Python repr strings <!-- id: 22 -->
+- [x] Exclude retry diagnostics and tool-only audit records from final LLM prompts <!-- id: 23 -->
+- [x] Run deterministic reliability suite: `179 passed, 2 warnings` <!-- id: 24 -->
+- [x] Rerun live LLM and notebook acceptance after route retry-spam fix <!-- id: 25 -->
+
 ---
 
 *Task IDs enable tracking and cross-referencing*

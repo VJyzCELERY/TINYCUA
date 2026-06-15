@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from tinycua.config.system_prompt import SystemPromptBuilder
 from tinycua.config.types import LLMResult, ValidationError, ValidationResult
+from tinycua.loops.context_rendering import render_llm_content
 from tinycua.loops.route_classifier import RouteClassifier
 from tinycua.models.node_input import (
     NodeInputLike,
@@ -62,7 +63,7 @@ def build_messages_with_dedupe(
 
     # Convert entries to message dicts, dropping blank content at the API boundary.
     for entry in context_entries:
-        content = str(entry.content)
+        content = render_llm_content(entry.content)
         if content.strip():
             messages.append({"role": entry.role, "content": content})
 
@@ -224,7 +225,7 @@ class Node(ABC):
         ):
             for m in session.session_context:
                 if isinstance(m, dict):
-                    content = str(m.get("content", ""))
+                    content = render_llm_content(m.get("content", ""))
                     if content.strip():
                         messages.append(
                             {
@@ -233,7 +234,7 @@ class Node(ABC):
                             }
                         )
                 else:
-                    content = str(m.content)
+                    content = render_llm_content(m.content)
                     if content.strip():
                         messages.append(
                             {
@@ -245,7 +246,7 @@ class Node(ABC):
         # Add chat history if policy says so
         if self.config.message_policy.include_chat_history and session.chat_history:
             for m in session.chat_history:
-                content = str(m.content)
+                content = render_llm_content(m.content)
                 if content.strip():
                     messages.append({"role": m.role, "content": content})
 

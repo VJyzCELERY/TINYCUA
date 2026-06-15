@@ -14,6 +14,10 @@ from tinycua_sdk.agent.loop import BaseLoop
 from tinycua.config.system_prompt import SystemPromptBuilder
 from tinycua.models.stream_event import enrich_stream_event, make_lifecycle_event
 from tinycua.config.types import LLMResult, ValidationError, ValidationResult
+from tinycua.loops.context_rendering import (
+    render_llm_content,
+    should_include_chat_record,
+)
 from tinycua.loops.node import DecisionNode, DecisionResult, build_messages_with_dedupe
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.propagation import (
@@ -513,13 +517,17 @@ class TinyCUALoop(BaseLoop):
         resolved_tools: list[Tool],
     ) -> tuple[LLMResult, int, ValidationResult]:
         """Loop-owned LLM call, validation, and retry lifecycle."""
-        retry_policy = node.config.retry_policy
-        max_attempts = max(retry_policy.max_attempts, 1)
+        max_attempts = self._effective_max_attempts(node)
         last_result = LLMResult()
         last_validation = ValidationResult(is_valid=True, errors=[])
 
         for attempt in range(1, max_attempts + 1):
-            raw_response = await agent._call_llm(messages, resolved_tools)  # type: ignore[arg-type]
+            raw_response = await self._call_agent_llm(
+                agent,
+                node,
+                messages,
+                resolved_tools,
+            )
             last_result = LLMResult(
                 content=raw_response.get("content") or "",
                 role=raw_response.get("role", "assistant"),
@@ -549,7 +557,13 @@ class TinyCUALoop(BaseLoop):
                             "content": json.dumps(tool_result, default=str),
                         }
                     )
-                raw_response = await agent._call_llm(messages, resolved_tools)  # type: ignore[arg-type]
+                raw_response = await self._call_agent_llm(
+                    agent,
+                    node,
+                    messages,
+                    resolved_tools,
+                    force_required_tool=False,
+                )
                 last_result = LLMResult(
                     content=raw_response.get("content") or "",
                     role=raw_response.get("role", "assistant"),
@@ -575,6 +589,133 @@ class TinyCUALoop(BaseLoop):
 
         node._handle_exhaustion(last_validation, max_attempts)
         return last_result, max_attempts, last_validation
+
+    def _effective_max_attempts(self, node: Node) -> int:
+        """Return bounded retry attempts for the loop-owned call path."""
+        retry_policy = node.config.retry_policy
+        if self._required_route_tool_name(node) is not None:
+            return 1
+        return max(retry_policy.max_attempts, 1)
+
+    async def _call_agent_llm(
+        self,
+        agent: Agent,
+        node: Node,
+        messages: list[dict[str, Any]],
+        resolved_tools: list[Tool],
+        *,
+        stream: bool = False,
+        force_required_tool: bool = True,
+    ) -> Any:
+        """Call the SDK agent, optionally forcing a node-required route tool.
+
+        The SDK reads ``tool_choice`` from the immutable ``LanguageModel``
+        bound to the agent/client. TinyCUA keeps this reliability hook outside
+        SDK source by temporarily swapping the model value and cached client for
+        only this call, then restoring both immediately afterward.
+        """
+        tool_choice = None
+        if force_required_tool:
+            tool_choice = self._forced_tool_choice_for_node(agent, node, resolved_tools)
+        llm_tools = self._llm_tools_for_required_choice(
+            node,
+            resolved_tools,
+            force_required_tool=tool_choice is not None,
+        )
+        if tool_choice is None:
+            return await self._invoke_agent_llm(
+                agent,
+                messages,
+                llm_tools,
+                stream=stream,
+            )
+
+        config = getattr(agent, "config", None)
+        model = getattr(config, "llm_model", None)
+        if model is None or not hasattr(model, "model_copy"):
+            return await self._invoke_agent_llm(
+                agent,
+                messages,
+                llm_tools,
+                stream=stream,
+            )
+
+        previous_model = config.llm_model
+        had_client_attr = hasattr(agent, "_llm_client")
+        previous_client = getattr(agent, "_llm_client", None)
+        config.llm_model = model.model_copy(update={"tool_choice": tool_choice})
+        if had_client_attr:
+            agent._llm_client = None  # type: ignore[attr-defined]
+        try:
+            return await self._invoke_agent_llm(
+                agent,
+                messages,
+                llm_tools,
+                stream=stream,
+            )
+        finally:
+            config.llm_model = previous_model
+            if had_client_attr:
+                agent._llm_client = previous_client  # type: ignore[attr-defined]
+
+    async def _invoke_agent_llm(
+        self,
+        agent: Agent,
+        messages: list[dict[str, Any]],
+        resolved_tools: list[Tool],
+        *,
+        stream: bool = False,
+    ) -> Any:
+        """Invoke agent._call_llm while supporting async iterators in tests."""
+        result = agent._call_llm(messages, resolved_tools, stream=stream)  # type: ignore[arg-type]
+        if inspect.isawaitable(result):
+            return await result
+        return result
+
+    def _forced_tool_choice_for_node(
+        self,
+        agent: Agent,
+        node: Node,
+        resolved_tools: list[Tool],
+    ) -> str | dict[str, Any] | None:
+        """Return provider-compatible forced tool_choice for route nodes."""
+        required = self._required_route_tool_name(node)
+        if required is None:
+            return None
+        if required not in {tool.name for tool in resolved_tools}:
+            return None
+        model = getattr(agent, "llm_model", None)
+        provider = getattr(model, "provider", "")
+        if provider == "openai-chat-completions" and not self._uses_local_openai_server(model):
+            return {"type": "function", "function": {"name": required}}
+        return "required"
+
+    def _llm_tools_for_required_choice(
+        self,
+        node: Node,
+        resolved_tools: list[Tool],
+        *,
+        force_required_tool: bool,
+    ) -> list[Tool]:
+        """Restrict required route calls to the route tool only."""
+        required = self._required_route_tool_name(node)
+        if not force_required_tool or required is None:
+            return resolved_tools
+        route_tools = [tool for tool in resolved_tools if tool.name == required]
+        return route_tools or resolved_tools
+
+    def _uses_local_openai_server(self, model: Any) -> bool:
+        """Return whether the configured OpenAI-compatible server is local."""
+        base_url = str(getattr(model, "base_url", "") or "")
+        return any(host in base_url for host in ("localhost", "127.0.0.1", "0.0.0.0"))
+
+    def _required_route_tool_name(self, node: Node) -> str | None:
+        """Return the route-selection tool that must be called by a node."""
+        required = list(getattr(node.config.retry_policy, "required_tool_calls", []))
+        for tool_name in ("select_query_route", "select_worker_route"):
+            if tool_name in required:
+                return tool_name
+        return None
 
     def _record_retry_continuation(
         self,
@@ -995,13 +1136,13 @@ class TinyCUALoop(BaseLoop):
                 content_parts: list[str] = []
                 collected_tool_calls: list[dict[str, Any]] = []
                 try:
-                    stream_result = agent._call_llm(
+                    stream_result = await self._call_agent_llm(
+                        agent,
+                        node,
                         messages,
                         resolved_tools,
                         stream=True,
                     )
-                    if inspect.isawaitable(stream_result):
-                        stream_result = await stream_result
                     async for event in stream_result:  # type: ignore[union-attr]
                         event_type = event.get("type")
                         if event_type == "response.output_text.delta":
@@ -1300,13 +1441,13 @@ class TinyCUALoop(BaseLoop):
             else:
                 for m in context_session.session_context:
                     if isinstance(m, dict):
-                            self._append_nonblank_message(
-                                messages,
-                                m.get("role", "user"),
-                                str(m.get("content", "")),
-                            )
+                        self._append_nonblank_message(
+                            messages,
+                            m.get("role", "user"),
+                            m.get("content", ""),
+                        )
                     else:
-                        self._append_nonblank_message(messages, m.role, str(m.content))
+                        self._append_nonblank_message(messages, m.role, m.content)
 
         # Add chat history if policy says so
         if (
@@ -1314,12 +1455,13 @@ class TinyCUALoop(BaseLoop):
             and self.root_session.chat_history
         ):
             for m in self.root_session.chat_history:
-                self._append_nonblank_message(messages, m.role, str(m.content))
+                if should_include_chat_record(m):
+                    self._append_nonblank_message(messages, m.role, m.content)
 
         # Add input context (merged SDK messages) as continuation
         if self.root_session.input_context:
             for m in self.root_session.input_context:
-                self._append_nonblank_message(messages, m["role"], str(m["content"]))
+                self._append_nonblank_message(messages, m["role"], m["content"])
 
         if self.queue.current is node:
             node_input = self.queue.input_for_current()
@@ -1328,7 +1470,7 @@ class TinyCUALoop(BaseLoop):
                     self._append_nonblank_message(
                         messages,
                         message.get("role", "user"),
-                        str(message.get("content", "")),
+                        message.get("content", ""),
                     )
             except (TypeError, ValueError):
                 logger.debug("node=%s invalid_node_input_ignored", node.node_id)
@@ -1339,9 +1481,10 @@ class TinyCUALoop(BaseLoop):
         self,
         messages: list[dict[str, Any]],
         role: str,
-        content: str,
+        content: Any,
     ) -> None:
         """Append a message only when content is non-whitespace."""
+        content = render_llm_content(content)
         if not content.strip():
             return
         messages.append({"role": role, "content": content})

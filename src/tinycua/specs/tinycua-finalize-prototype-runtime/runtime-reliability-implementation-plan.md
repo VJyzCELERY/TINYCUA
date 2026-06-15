@@ -70,6 +70,18 @@ prototype runtime:
 - AggregatedResult publication for ResponseNode consumption.
 - CLI exports for execution trace, state snapshot, task tree, and final response events.
 - TinyCUA factory default model temperature lowered to `0.1` unless explicitly set.
+- QueryAnalyst and Worker route nodes now force route tool choice from TinyCUA
+  without modifying `src/tinycua-sdk/`.
+- Local OpenAI-compatible Chat Completions endpoints use `tool_choice="required"`
+  with the LLM-visible tool list restricted to the single required route tool;
+  remote Chat Completions providers use the OpenAI function object form.
+- Required-route failures are single-attempt failovers so local models do not
+  receive retry continuations and generate retry-spam text when function calling
+  is ignored.
+- Required-route prompts no longer include “If tools are unavailable” fallback
+  language.
+- LLM-bound internal context now renders known TinyCUA model payloads as compact
+  bounded JSON and excludes retry/tool-only audit records from final prompts.
 
 Recent deterministic verification:
 
@@ -110,14 +122,14 @@ remaining failure modes observed in live logs.
 
 ### Key Test Scenarios
 
-- [ ] **Forced decision tool choice**: QueryAnalyst and Worker route calls send
+- [x] **Forced decision tool choice**: QueryAnalyst and Worker route calls send
   provider payloads with `tool_choice` forcing the required route-selection tool,
   not only `tool_choice="auto"`.
-- [ ] **No “tools unavailable” fallback prompt**: Required-tool decision node
+- [x] **No “tools unavailable” fallback prompt**: Required-tool decision node
   prompts do not instruct the model to answer with text if tools are unavailable.
-- [ ] **Clean final prompts**: ResponseNode input excludes retry diagnostics,
+- [x] **Clean final prompts**: ResponseNode input excludes retry diagnostics,
   raw object dumps, duplicate digests, and internal route retries.
-- [ ] **Structured internal context**: DigestedInformation, AggregatedResult,
+- [x] **Structured internal context**: DigestedInformation, AggregatedResult,
   task snapshots, and tool results are rendered as compact JSON or concise
   summaries, not Python repr strings.
 - [ ] **Live worker acceptance**: Local model completes passthrough and worker
@@ -129,9 +141,9 @@ remaining failure modes observed in live logs.
 
 ### Automated Tests
 
-- [ ] Deterministic provider payload tests for `tool_choice` forcing.
-- [ ] Unit tests for prompt text of QueryAnalyst and Worker required-tool nodes.
-- [ ] Unit tests for compact internal context serialization.
+- [x] Deterministic provider payload tests for `tool_choice` forcing.
+- [x] Unit tests for prompt text of QueryAnalyst and Worker required-tool nodes.
+- [x] Unit tests for compact internal context serialization.
 - [ ] Integration tests for full worker lifecycle and final response cleanliness.
 - [ ] Existing targeted suite:
   `cd src/tinycua && uv run pytest tests/unit/test_design_gap_contracts.py tests/integration/test_final_prototype_runtime.py -q`
@@ -167,6 +179,68 @@ remaining failure modes observed in live logs.
 - [ ] Confirm `temperature` is `0.1` by default for TinyCUA-created agents unless
   explicitly overridden.
 - [ ] Confirm final responses do not include retry diagnostics or Python object reprs.
+
+### Latest Deterministic Verification
+
+```bash
+cd src/tinycua && uv run pytest \
+  tests/unit/test_design_gap_contracts.py \
+  tests/unit/test_native_tools_workspace.py \
+  tests/unit/test_factory_native_tools.py \
+  tests/unit/test_final_response_contract.py \
+  tests/unit/test_worker_runtime_controller.py \
+  tests/unit/test_no_runtime_stubs.py \
+  tests/unit/test_native_tools_files.py \
+  tests/unit/test_native_tools_shell.py \
+  tests/unit/test_native_tools_python.py \
+  tests/unit/test_factory.py \
+  tests/unit/test_tinycua_loop.py \
+  tests/unit/test_retry_validation.py \
+  tests/unit/test_decision_node_retry.py \
+  tests/unit/test_tool_result_feedback.py \
+  tests/unit/test_message_contract.py \
+  tests/unit/test_route_contracts.py \
+  tests/unit/test_route_tool_choice.py \
+  tests/integration/test_final_prototype_runtime.py \
+  tests/integration/test_notebook_contract.py \
+  tests/integration/test_native_tools_files.py \
+  tests/integration/test_native_tools_shell.py \
+  tests/integration/test_native_tools_python.py \
+  tests/integration/test_retry_integration.py \
+  tests/integration/test_cli_run.py \
+  tests/integration/test_streaming.py -q
+```
+
+Result: `179 passed, 2 warnings in 9.94s`.
+
+### Latest Live Verification
+
+```bash
+cd src/tinycua && TINYCUA_LIVE_LLM=1 \
+  OPENAI_CHAT_COMPLETIONS_BASE_URL=http://localhost:1234/v1 \
+  OPENAI_CHAT_COMPLETIONS_MODEL=qwen/qwen3.5-4b \
+  OPENAI_CHAT_COMPLETIONS_API_KEY=tinycua-local-test \
+  TINYCUA_BASE_URL=http://localhost:1234/v1 \
+  TINYCUA_MODEL=qwen/qwen3.5-4b \
+  TINYCUA_API_KEY=tinycua-local-test \
+  uv run pytest tests/integration/test_default_agent_flow_live.py \
+    tests/integration/test_final_prototype_live.py -q
+```
+
+Result: `6 passed in 543.76s (0:09:03)`.
+
+```bash
+cd src/tinycua && TINYCUA_LIVE_LLM=1 \
+  OPENAI_CHAT_COMPLETIONS_BASE_URL=http://localhost:1234/v1 \
+  OPENAI_CHAT_COMPLETIONS_MODEL=qwen/qwen3.5-4b \
+  OPENAI_CHAT_COMPLETIONS_API_KEY=tinycua-local-test \
+  TINYCUA_BASE_URL=http://localhost:1234/v1 \
+  TINYCUA_MODEL=qwen/qwen3.5-4b \
+  TINYCUA_API_KEY=tinycua-local-test \
+  uv run pytest tests/integration/test_notebook_contract_live.py -q
+```
+
+Result: `1 passed, 1 warning in 160.08s (0:02:40)`.
 
 ### Performance Considerations
 
