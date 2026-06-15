@@ -41,6 +41,8 @@ Benchmark Data (5.5/5.6 artifacts)
 | `docs/benchmark/README.md` | Modified | Added link to analysis report in "Analysis Report" section |
 | `specs/5.7-benchmark-analysis-report/spec.md` | New | This spec |
 | `specs/5.7-benchmark-analysis-report/design.md` | New | This design |
+| `specs/5.7-benchmark-analysis-report/task.md` | New | Task tracking checklist for this milestone |
+| `specs/5.7-benchmark-analysis-report/implementation-plan.md` | New | Implementation plan for this milestone |
 
 ---
 

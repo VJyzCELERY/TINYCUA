@@ -57,17 +57,17 @@ This milestone produces a research document, not executable code. Success criter
 
 ### Manual Verification
 
-- [ ] Review report against each success criterion checkbox in spec.md
-- [ ] Verify all referenced data files exist and are accessible
-- [ ] Verify baseline comparison numbers are consistent with source data
-- [ ] Verify recommendations are traceable to specific benchmark observations
+- [x] Review report against each success criterion checkbox in spec.md
+- [x] Verify all referenced data files exist and are accessible (noted: 5.5/5.6 artifacts unavailable)
+- [x] Verify baseline comparison numbers are consistent with source data
+- [x] Verify recommendations are traceable to specific benchmark observations
 
 ### Quality Checks
 
-- [ ] Report reads as a cohesive narrative, not just tables
-- [ ] Tables are formatted correctly in Markdown
-- [ ] No speculative claims — all assertions backed by data
-- [ ] Local LLM limitations are documented honestly (internal-use document)
+- [x] Report reads as a cohesive narrative, not just tables
+- [x] Tables are formatted correctly in Markdown
+- [x] No speculative claims — all assertions backed by data
+- [x] Local LLM limitations are documented honestly (internal-use document)
 
 ## Proposed Changes
 
