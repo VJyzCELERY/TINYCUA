@@ -111,7 +111,7 @@ N/A — no API changes.
 - [x] Depends on Milestone 5.5 (smoke run data artifacts)
 - [x] Depends on Milestone 5.6 (full 60-task run data, if completed)
 - [x] Depends on Milestone 5.4 (transcript and usage format)
-- [ ] Blocks: None (report is a standalone deliverable)
+- [x] Blocks: None (report is a standalone deliverable)
 
 ## Risks and Mitigations
 
