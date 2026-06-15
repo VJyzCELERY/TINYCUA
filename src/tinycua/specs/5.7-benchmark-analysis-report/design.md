@@ -38,7 +38,7 @@ Benchmark Data (5.5/5.6 artifacts)
 | Component | Change Type | Notes |
 |-----------|-------------|-------|
 | `docs/benchmark/analysis-report.md` | New | The benchmark analysis report document |
-| `docs/benchmark/README.md` | No change | Existing benchmark Docker documentation |
+| `docs/benchmark/README.md` | Modified | Added link to analysis report in "Analysis Report" section |
 | `specs/5.7-benchmark-analysis-report/spec.md` | New | This spec |
 | `specs/5.7-benchmark-analysis-report/design.md` | New | This design |
 
