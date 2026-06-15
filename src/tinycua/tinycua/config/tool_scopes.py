@@ -14,6 +14,7 @@ from __future__ import annotations
 from tinycua.config.node_config import NodeToolPolicy
 from tinycua.tools.digest_information import DigestInformationTool
 from tinycua.tools.enhanced_context_retrieval import EnhancedContextRetrievalTool
+from tinycua.tools.routing import QueryRouteSelectionTool, WorkerRouteSelectionTool
 from tinycua.tools.task_tools import (
     FinalResponseSynthesisTool,
     TaskCreateTool,
@@ -37,7 +38,7 @@ def query_analyst_tool_scope() -> NodeToolPolicy:
         NodeToolPolicy for QueryAnalystNode.
     """
     return NodeToolPolicy(
-        node_tools=[TaskInspectTool()],
+        node_tools=[QueryRouteSelectionTool(), TaskInspectTool()],
         include_agent_tools="none",
     )
 
@@ -69,9 +70,8 @@ def worker_tool_scope() -> NodeToolPolicy:
     Returns:
         NodeToolPolicy for WorkerNode.
     """
-    # Worker decision tools — stub names for now
     return NodeToolPolicy(
-        node_tools=[TaskInspectTool()],
+        node_tools=[WorkerRouteSelectionTool(), TaskInspectTool()],
         include_agent_tools="none",
     )
 

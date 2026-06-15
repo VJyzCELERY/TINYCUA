@@ -42,7 +42,11 @@ class ResponseNode(ProcessNode):
         super().__init__(
             node_id=node_id,
             config=config or create_node_config("response"),
-            instruction="Generate the final response.",
+            instruction=(
+                "Generate the final user-facing response. Use the available "
+                "conversation and node outputs as context, and always return "
+                "a concise non-empty answer."
+            ),
             is_terminal=True,
         )
         self.captured_content: str = ""

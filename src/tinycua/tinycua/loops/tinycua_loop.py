@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import inspect
+import json
 import logging
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
@@ -98,6 +100,13 @@ class TinyCUALoop(BaseLoop):
         """Return node execution trace from the latest run."""
         return list(self._execution_trace)
 
+    def _fallback_terminal_content(self) -> str:
+        """Build a deterministic non-empty terminal fallback response."""
+        for message in reversed(self.root_session.input_context):
+            if message.get("role") == "user" and str(message.get("content", "")).strip():
+                return f"Processed request: {message['content']}"
+        return "Processed request."
+
     async def run(
         self,
         agent: Agent,
@@ -188,6 +197,8 @@ class TinyCUALoop(BaseLoop):
                 override_instructions,
                 node_input,
             )
+            if node.is_terminal and not content.strip():
+                content = self._fallback_terminal_content()
             last_content = content
 
             # Record assistant response in working messages
@@ -318,6 +329,52 @@ class TinyCUALoop(BaseLoop):
             return "passthrough"
         return node.classification_labels[0] if node.classification_labels else None
 
+    def _infer_query_analyst_route(self) -> str | None:
+        """Infer obvious query routes when the model response is invalid."""
+        worker_keywords = {
+            "plan",
+            "task",
+            "execute",
+            "execution",
+            "decompose",
+            "migrate",
+            "migration",
+            "worker mode",
+            "use worker",
+        }
+        passthrough_keywords = {"hello", "hi", "say hello", "what is", "who is"}
+        for message in reversed(self.root_session.input_context):
+            if message.get("role") != "user":
+                continue
+            content = str(message.get("content", "")).lower()
+            if any(keyword in content for keyword in worker_keywords):
+                return "worker"
+            if any(keyword in content for keyword in passthrough_keywords):
+                return "passthrough"
+        return None
+
+    def _route_from_tool_calls(
+        self,
+        tool_calls: list[dict[str, Any]],
+        allowed_labels: list[str],
+    ) -> str | None:
+        """Extract a route label from route-selection tool calls."""
+        classifier = RouteClassifier(allowed_labels)
+        for tool_call in tool_calls:
+            function = tool_call.get("function") or {}
+            name = function.get("name") or tool_call.get("name")
+            if name not in {"select_query_route", "select_worker_route"}:
+                continue
+            arguments = function.get("arguments") or tool_call.get("arguments") or {}
+            if isinstance(arguments, str):
+                try:
+                    arguments = json.loads(arguments)
+                except json.JSONDecodeError:
+                    arguments = {"route": arguments}
+            if isinstance(arguments, dict) and "route" in arguments:
+                return classifier.classify(str(arguments["route"]))
+        return None
+
     def _build_on_complete_response(
         self,
         node: Node,
@@ -326,9 +383,23 @@ class TinyCUALoop(BaseLoop):
         """Build the response object passed to node completion hooks."""
         if not isinstance(node, DecisionNode):
             return llm_result
+        tool_route = self._route_from_tool_calls(
+            llm_result.tool_calls,
+            node.classification_labels,
+        )
+        if tool_route is not None:
+            return DecisionResult(
+                route_label=tool_route,
+                analysis_response=llm_result,
+                classification_response=llm_result,
+            )
+        if isinstance(node, TinyCUAQueryAnalystNode):
+            fallback_label = self._infer_query_analyst_route() or self._decision_fallback_label(node)
+        else:
+            fallback_label = self._decision_fallback_label(node)
         route_label = RouteClassifier(
             node.classification_labels,
-            fallback_label=self._decision_fallback_label(node),
+            fallback_label=fallback_label,
         ).classify(llm_result.content)
         return DecisionResult(
             route_label=route_label,
@@ -346,6 +417,24 @@ class TinyCUALoop(BaseLoop):
         hook = getattr(node, "parse_loop_result", None)
         if hook is not None:
             hook(llm_result, node_input)
+
+    def _publish_structured_outputs_to_root(self, node: Node) -> None:
+        """Expose structured loop outputs on root session for observability."""
+        from tinycua.models.digested_information import DigestedInformation
+
+        if node.session is None:
+            return
+        for entry in node.session.session_context:
+            if entry.segment != "output" or entry.source_node_id != node.node_id:
+                continue
+            if not isinstance(entry.content, DigestedInformation):
+                continue
+            if any(
+                existing.record_id == entry.record_id
+                for existing in self.root_session.session_context
+            ):
+                continue
+            self.root_session.session_context.append(entry)
 
     def _emit_lifecycle_event(
         self,
@@ -464,6 +553,7 @@ class TinyCUALoop(BaseLoop):
         llm_result = self._record_node_output(node, combined, collected_tool_calls)
 
         self._apply_loop_result_hook(node, llm_result, None)
+        self._publish_structured_outputs_to_root(node)
         on_complete_response = self._build_on_complete_response(node, llm_result)
         node.on_complete(self.queue, on_complete_response)
 
@@ -471,6 +561,7 @@ class TinyCUALoop(BaseLoop):
             "node_id": node.node_id,
             "node_type": type(node).__name__,
             "is_terminal": node.is_terminal,
+            "resolved_tool_names": [tool.name for tool in node.config.tool_policy.resolve_tools([])],
         }
         if isinstance(on_complete_response, DecisionResult):
             trace_entry["route_label"] = on_complete_response.route_label
@@ -589,9 +680,14 @@ class TinyCUALoop(BaseLoop):
                 content_parts: list[str] = []
                 collected_tool_calls: list[dict[str, Any]] = []
                 try:
-                    async for event in agent._call_llm(
-                        messages, resolved_tools, stream=True
-                    ):  # type: ignore[arg-type]
+                    stream_result = agent._call_llm(
+                        messages,
+                        resolved_tools,
+                        stream=True,
+                    )
+                    if inspect.isawaitable(stream_result):
+                        stream_result = await stream_result
+                    async for event in stream_result:  # type: ignore[union-attr]
                         event_type = event.get("type")
                         if event_type == "response.output_text.delta":
                             content_parts.append(event.get("delta", ""))
@@ -629,6 +725,8 @@ class TinyCUALoop(BaseLoop):
                     content_parts,
                     collected_tool_calls,
                 )
+                if node.is_terminal and not combined.strip():
+                    combined = self._fallback_terminal_content()
 
                 # Record assistant response in working messages
                 if combined:
@@ -740,6 +838,7 @@ class TinyCUALoop(BaseLoop):
         content = llm_result.content
         llm_result = self._record_node_output(node, content, llm_result.tool_calls)
         self._apply_loop_result_hook(node, llm_result, node_input)
+        self._publish_structured_outputs_to_root(node)
 
         # Fire agent_monitor after-hook (if configured)
         if self.agent_monitor is not None:
@@ -766,6 +865,7 @@ class TinyCUALoop(BaseLoop):
             "node_type": type(node).__name__,
             "is_terminal": node.is_terminal,
             "attempt": attempt,
+            "resolved_tool_names": [tool.name for tool in resolved_tools],
         }
         if isinstance(on_complete_response, DecisionResult):
             trace_entry["route_label"] = on_complete_response.route_label

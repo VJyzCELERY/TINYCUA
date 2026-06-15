@@ -25,7 +25,11 @@ _WORKER_INSTRUCTION = (
     "You are a worker node responsible for task planning and execution "
     "orchestration. Analyze the digested information and determine the "
     "appropriate next step: create tasks, recreate tasks, reanalyze, "
-    "pass through, or proceed with execution."
+    "pass through, or proceed with execution. Prefer calling "
+    "select_worker_route with exactly one route. If tools are unavailable, "
+    "respond with only the route label and no extra text: task_creation, task_recreation, "
+    "task_reanalysis, passthrough, or proceed_execution. Choose "
+    "task_creation for a new task plan that has not yet been initialized."
 )
 
 

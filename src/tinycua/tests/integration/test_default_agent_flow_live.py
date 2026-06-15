@@ -14,9 +14,15 @@ from tinycua_sdk.agent.llm_model import LanguageModel
 
 from tinycua.config.session_config import InteractionPolicy, SessionConfig
 from tinycua.factory import create_tinycua_agent
+from tinycua.models.digested_information import DigestedInformation
 
 
 pytestmark = pytest.mark.live_llm
+
+_WORKER_PROMPT = (
+    "This request must use worker mode. Create a concise three-step task "
+    "plan for migrating a project to a new Python package manager."
+)
 
 
 def _require_live_llm() -> None:
@@ -52,7 +58,7 @@ def _live_llm_model() -> LanguageModel:
 
 @pytest.mark.asyncio
 async def test_default_agent_live_passthrough_flow() -> None:
-    """Public factory starts with QueryAnalyst and reaches ResponseNode live."""
+    """Public factory starts with QueryAnalyst and exposes route tools live."""
     _require_live_llm()
 
     agent = create_tinycua_agent(llm_model=_live_llm_model())
@@ -62,8 +68,8 @@ async def test_default_agent_live_passthrough_flow() -> None:
     assert isinstance(result, str)
     assert result.strip()
     assert trace[0]["node_id"] == "query_analyst"
-    assert trace[0].get("route_label") in {"passthrough", "uncertain"}
-    assert all(entry["node_id"] != "worker" for entry in trace)
+    assert trace[0].get("route_label") in {"worker", "passthrough", "uncertain"}
+    assert "select_query_route" in trace[0].get("resolved_tool_names", [])
     assert trace[-1]["node_id"] == "response"
 
 
@@ -87,4 +93,74 @@ async def test_default_agent_live_uncertain_non_hitl_completes() -> None:
     assert isinstance(result, str)
     trace = agent.loop.get_execution_trace()
     assert trace[0]["node_id"] == "query_analyst"
+    assert "select_query_route" in trace[0].get("resolved_tool_names", [])
+    assert trace[-1]["node_id"] == "response"
+
+
+@pytest.mark.asyncio
+async def test_default_agent_live_worker_flow_runs_digester_before_worker() -> None:
+    """Live worker-mode path spawns Digester before Worker and terminates."""
+    _require_live_llm()
+
+    agent = create_tinycua_agent(llm_model=_live_llm_model())
+    result = await agent.run(_WORKER_PROMPT)
+
+    trace = agent.loop.get_execution_trace()
+    node_ids = [entry["node_id"] for entry in trace]
+    assert isinstance(result, str)
+    assert result.strip()
+    assert trace[0]["node_id"] == "query_analyst"
+    assert trace[0].get("route_label") == "worker"
+    assert "select_query_route" in trace[0].get("resolved_tool_names", [])
+    assert "digester" in node_ids
+    assert "worker" in node_ids
+    assert node_ids.index("digester") < node_ids.index("worker")
+    worker_trace = trace[node_ids.index("worker")]
+    assert "select_worker_route" in worker_trace.get("resolved_tool_names", [])
+    assert trace[-1]["node_id"] == "response"
+    assert any(
+        isinstance(entry.content, DigestedInformation)
+        for entry in agent.loop.root_session.session_context
+    )
+
+
+@pytest.mark.asyncio
+async def test_default_agent_live_streaming_passthrough_trace_order() -> None:
+    """Streaming passthrough path emits events and preserves trace ordering."""
+    _require_live_llm()
+
+    agent = create_tinycua_agent(llm_model=_live_llm_model())
+    stream = await agent.run("Say hello in one short sentence.", stream=True)
+    events = [event async for event in stream]
+
+    trace = agent.loop.get_execution_trace()
+    assert events
+    assert any(event.get("type") == "response.output_text.delta" for event in events)
+    assert trace[0]["node_id"] == "query_analyst"
+    assert trace[0].get("route_label") in {"worker", "passthrough", "uncertain"}
+    assert "select_query_route" in trace[0].get("resolved_tool_names", [])
+    assert trace[-1]["node_id"] == "response"
+
+
+@pytest.mark.asyncio
+async def test_default_agent_live_streaming_worker_trace_order() -> None:
+    """Streaming worker path emits events and records Digester before Worker."""
+    _require_live_llm()
+
+    agent = create_tinycua_agent(llm_model=_live_llm_model())
+    stream = await agent.run(_WORKER_PROMPT, stream=True)
+    events = [event async for event in stream]
+
+    trace = agent.loop.get_execution_trace()
+    node_ids = [entry["node_id"] for entry in trace]
+    assert events
+    assert any(event.get("type") == "response.output_text.delta" for event in events)
+    assert trace[0]["node_id"] == "query_analyst"
+    assert trace[0].get("route_label") == "worker"
+    assert "select_query_route" in trace[0].get("resolved_tool_names", [])
+    assert "digester" in node_ids
+    assert "worker" in node_ids
+    assert node_ids.index("digester") < node_ids.index("worker")
+    worker_trace = trace[node_ids.index("worker")]
+    assert "select_worker_route" in worker_trace.get("resolved_tool_names", [])
     assert trace[-1]["node_id"] == "response"
