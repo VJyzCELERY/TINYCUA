@@ -153,22 +153,22 @@ This milestone produces a document, not executable interfaces. The report sectio
 
 ### Phase 2 — Report Writing (required)
 
-- [ ] Write executive summary with headline metrics
-- [ ] Write methodology section documenting setup, models, hardware, caveats
-- [ ] Write overall comparison section with baseline table
-- [ ] Write per-category breakdown sections
-- [ ] Write failure taxonomy with counts and examples
-- [ ] Write local LLM limitations section
-- [ ] Write judge configuration notes
-- [ ] Write recommendations section with at least three concrete items
-- [ ] Write appendix with raw data file references
+- [x] Write executive summary with headline metrics
+- [x] Write methodology section documenting setup, models, hardware, caveats
+- [x] Write overall comparison section with baseline table
+- [x] Write per-category breakdown sections
+- [x] Write failure taxonomy with counts and examples
+- [x] Write local LLM limitations section
+- [x] Write judge configuration notes
+- [x] Write recommendations section with at least three concrete items
+- [x] Write appendix with raw data file references
 
 ### Phase 3 — Review and Validation (required)
 
-- [ ] Verify all success criteria checkboxes are met
-- [ ] Verify baseline comparison numbers match source data
-- [ ] Verify recommendations are traceable to specific observations
-- [ ] Peer review of report quality and completeness
+- [x] Verify all success criteria checkboxes are met
+- [x] Verify baseline comparison numbers match source data
+- [x] Verify recommendations are traceable to specific observations
+- [x] Peer review of report quality and completeness
 
 ---
 
