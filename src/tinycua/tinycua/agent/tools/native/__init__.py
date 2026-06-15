@@ -13,6 +13,7 @@ from tinycua.agent.tools.native.files import (
 from tinycua.agent.tools.native.python_exec import run_python
 from tinycua.agent.tools.native.shell import run_shell
 from tinycua.agent.tools.native.web import fetch_url
+from tinycua.agent.tools.native.web_search import web_search
 
 __all__ = [
     "run_shell",
@@ -21,5 +22,6 @@ __all__ = [
     "edit_file",
     "list_files",
     "fetch_url",
+    "web_search",
     "run_python",
 ]

@@ -148,7 +148,17 @@ def task_executor_tool_scope() -> NodeToolPolicy:
             TodoWriteTool(),
         ],
         include_agent_tools="selected",
-        allowed_agent_tool_names=["web_search", "file_read", "calculator"],
+        allowed_agent_tool_names=[
+            "web_search",
+            "fetch_url",
+            "read_file",
+            "write_file",
+            "edit_file",
+            "list_files",
+            "run_shell",
+            "run_python",
+            "calculator",
+        ],
     )
 
 
@@ -207,5 +217,15 @@ def response_tool_scope(allow_digest: bool = True) -> NodeToolPolicy:
     return NodeToolPolicy(
         node_tools=node_tools,
         include_agent_tools="selected",
-        allowed_agent_tool_names=["web_search", "file_read", "calculator"],
+        allowed_agent_tool_names=[
+            "web_search",
+            "fetch_url",
+            "read_file",
+            "write_file",
+            "edit_file",
+            "list_files",
+            "run_shell",
+            "run_python",
+            "calculator",
+        ],
     )

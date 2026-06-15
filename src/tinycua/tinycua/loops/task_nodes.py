@@ -96,10 +96,33 @@ class TinyCUATaskExecutorNode(ProcessNode):
                 TaskResult(
                     content=result_content,
                     success=True,
-                    metadata={"source_node_id": self.node_id},
+                    artifacts=self._artifacts_from_tool_results(tool_results),
+                    metadata={
+                        "source_node_id": self.node_id,
+                        "tool_results": tool_results,
+                    },
                 ),
             )
+            for artifact in active.result.artifacts if active.result else []:
+                active.artifacts.append(artifact)
             active.metadata["last_executed"] = True
+
+    def _artifacts_from_tool_results(self, tool_results: list[dict]) -> list[dict]:
+        """Extract artifact references from file-writing tool results."""
+        artifacts = []
+        for item in tool_results:
+            output = item.get("output") if isinstance(item, dict) else None
+            if item.get("name") != "write_file" or not isinstance(output, dict):
+                continue
+            if output.get("success") and output.get("path"):
+                artifacts.append(
+                    {
+                        "path": output["path"],
+                        "kind": "file",
+                        "metadata": {"tool_name": "write_file"},
+                    }
+                )
+        return artifacts
 
 
 class TinyCUAResultReviewerNode(ProcessNode):

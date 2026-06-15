@@ -307,6 +307,11 @@ def _write_runtime_exports(loop: Any, output_dir: Path) -> None:
         "task_tree.json": state_snapshot.get("task_tree", {})
         if isinstance(state_snapshot, dict)
         else {},
+        "transcript_events.json": _safe_loop_call(
+            loop,
+            "get_transcript_events",
+            default=[],
+        ),
         "final_response_events.json": _safe_loop_call(
             loop,
             "get_final_response_events",
@@ -318,6 +323,9 @@ def _write_runtime_exports(loop: Any, output_dir: Path) -> None:
             json.dumps(payload, indent=2, default=str),
             encoding="utf-8",
         )
+    if isinstance(state_snapshot, dict):
+        task_tree_text = str(state_snapshot.get("task_tree_text", "No tasks."))
+        (output_dir / "task_tree.txt").write_text(task_tree_text, encoding="utf-8")
 
 
 def _safe_loop_call(loop: Any, method_name: str, *, default: Any) -> Any:

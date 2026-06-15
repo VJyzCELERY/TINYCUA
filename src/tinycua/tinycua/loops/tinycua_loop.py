@@ -27,6 +27,7 @@ from tinycua.loops.propagation import (
 )
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.loops.route_classifier import RouteClassifier
+from tinycua.loops.task_tree_rendering import render_task_tree
 from tinycua.models.node_input import convert_node_input_to_messages
 from tinycua.models.session import Session
 
@@ -80,6 +81,7 @@ class TinyCUALoop(BaseLoop):
         self._usage_events: list[dict[str, Any]] = []
         self._execution_trace: list[dict[str, Any]] = []
         self._final_response_events: list[dict[str, Any]] = []
+        self._transcript_events: list[dict[str, Any]] = []
         self.workspace_dir = getattr(session_config, "workspace_dir", None)
         self.artifact_dir = getattr(session_config, "artifact_dir", None)
         self.session_dir = getattr(session_config, "session_dir", None)
@@ -116,6 +118,14 @@ class TinyCUALoop(BaseLoop):
         """Return user-visible final-response events from the latest run."""
         return list(self._final_response_events)
 
+    def get_transcript_events(self) -> list[dict[str, Any]]:
+        """Return readable node/user/tool transcript events from the latest run."""
+        return list(self._transcript_events)
+
+    def render_task_tree(self, store=None) -> str:
+        """Render the current or provided task tree as readable text."""
+        return render_task_tree(store or self.root_session.task_store)
+
     def get_task_trace(self) -> list[dict[str, Any]]:
         """Return task-state snapshots captured in execution trace entries."""
         return [
@@ -129,6 +139,7 @@ class TinyCUALoop(BaseLoop):
         return {
             "session_id": self.root_session.session_id,
             "task_tree": self.root_session.task_store.snapshot(),
+            "task_tree_text": self.render_task_tree(),
             "todo": list(self.root_session.todo),
             "workspace_dir": str(self.workspace_dir) if self.workspace_dir else None,
             "artifact_dir": str(self.artifact_dir) if self.artifact_dir else None,
@@ -210,6 +221,15 @@ class TinyCUALoop(BaseLoop):
         self.root_session.input_context = list(messages)
         self._execution_trace = []
         self._final_response_events = []
+        self._transcript_events = []
+        for message in messages:
+            if message.get("role") == "user":
+                self._record_transcript_event(
+                    "transcript.user",
+                    "USER",
+                    str(message.get("content", "")),
+                    node_id=None,
+                )
 
         # Each public run starts from the configured entry graph. Durable state
         # lives on ``root_session``; consumed queue nodes do not persist across
@@ -397,6 +417,45 @@ class TinyCUALoop(BaseLoop):
             self._record_tool_chat_result(tool_result)
             results.append(tool_result)
         return results
+
+    def _node_label(self, node: Node) -> str:
+        """Return a compact human-readable node label."""
+        label = type(node).__name__
+        for prefix in ("TinyCUA",):
+            if label.startswith(prefix):
+                label = label[len(prefix):]
+        for suffix in ("Node",):
+            if label.endswith(suffix):
+                label = label[: -len(suffix)]
+        if label == "QueryAnalyst":
+            return "QueryAnalyst"
+        return label or node.node_id
+
+    def _record_transcript_event(
+        self,
+        event_type: str,
+        node_label: str,
+        content: str,
+        *,
+        node_id: str | None,
+        tool_name: str | None = None,
+    ) -> dict[str, Any]:
+        """Record a readable transcript event."""
+        prefix = f"[{node_label}]"
+        if tool_name:
+            prefix += f"[{tool_name}]"
+        event = {
+            "type": event_type,
+            "node_id": node_id,
+            "node_type": node_label,
+            "node_label": node_label,
+            "tool_name": tool_name,
+            "attempt": 1,
+            "content": content,
+            "delta": f"{prefix} {content}" if content else prefix,
+        }
+        self._transcript_events.append(event)
+        return event
 
     def _record_tool_chat_result(self, tool_result: dict[str, Any]) -> None:
         """Append a durable internal chat-history record for a tool result."""
@@ -1146,7 +1205,14 @@ class TinyCUALoop(BaseLoop):
                     async for event in stream_result:  # type: ignore[union-attr]
                         event_type = event.get("type")
                         if event_type == "response.output_text.delta":
-                            content_parts.append(event.get("delta", ""))
+                            delta = event.get("delta", "")
+                            content_parts.append(delta)
+                            transcript = self._record_transcript_event(
+                                "transcript.delta",
+                                self._node_label(node),
+                                delta,
+                                node_id=node.node_id,
+                            )
                         elif event_type == "response.tool_call":
                             collected_tool_calls.append(event)
                         elif event_type == "tool_call.ready":
@@ -1173,6 +1239,8 @@ class TinyCUALoop(BaseLoop):
                         )
                         if not final_only or is_terminal_node:
                             yield enriched
+                            if event_type == "response.output_text.delta":
+                                yield transcript
                 except Exception:
                     error_event = self._make_error_event(
                         node.node_id,
@@ -1313,7 +1381,24 @@ class TinyCUALoop(BaseLoop):
             resolved_tools,
         )
         content = llm_result.content
+        result_metadata = dict(llm_result.metadata)
         llm_result = self._record_node_output(node, content, llm_result.tool_calls)
+        llm_result.metadata.update(result_metadata)
+        if content:
+            self._record_transcript_event(
+                "transcript.node",
+                self._node_label(node),
+                content,
+                node_id=node.node_id,
+            )
+        for tool_result in llm_result.metadata.get("tool_results", []):
+            self._record_transcript_event(
+                "transcript.tool_result",
+                self._node_label(node),
+                json.dumps(tool_result, default=str),
+                node_id=node.node_id,
+                tool_name=str(tool_result.get("name", "tool")),
+            )
         self._apply_loop_result_hook(node, llm_result, node_input)
         self._publish_structured_outputs_to_root(node)
         self._apply_task_lifecycle_marker(node, content)

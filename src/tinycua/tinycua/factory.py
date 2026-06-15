@@ -33,7 +33,7 @@ def create_default_queue(session_config: SessionConfig | None = None) -> NodeQue
 def create_tinycua_agent(
     session: Session | None = None,
     session_config: SessionConfig | None = None,
-    enable_native_tools: bool = False,
+    enable_native_tools: bool = True,
     native_tool_policy: NativeToolPolicy | None = None,
     **agent_kwargs: Any,
 ) -> Agent:
@@ -48,7 +48,8 @@ def create_tinycua_agent(
         session_config: Optional session configuration. Applied to the
             session and stored on the loop.
         enable_native_tools: When True, attach native file, shell, Python,
-            and web tools to the SDK Agent.
+            fetch, and SearXNG web search tools to the SDK Agent. Defaults to
+            True because TinyCUA's prototype runtime is actionable by default.
         native_tool_policy: Optional allowlist policy for native tools.
         **agent_kwargs: Additional keyword arguments passed through to the
             SDK Agent constructor (e.g., name, instructions, tools).
@@ -113,9 +114,19 @@ def _native_tools(policy: NativeToolPolicy | None = None) -> list[Any]:
         read_file,
         run_python,
         run_shell,
+        web_search,
         write_file,
     )
 
     tool_policy = policy or NativeToolPolicy()
-    tools = [read_file, write_file, edit_file, list_files, run_shell, run_python, fetch_url]
+    tools = [
+        read_file,
+        write_file,
+        edit_file,
+        list_files,
+        run_shell,
+        run_python,
+        fetch_url,
+        web_search,
+    ]
     return [tool for tool in tools if tool_policy.permits(tool.name)]
