@@ -36,7 +36,7 @@ RUN uv pip install --no-cache-dir --system ./tinycua-sdk && \
     uv pip install --no-cache-dir --system ./tinycua
 
 # Copy entrypoint script
-COPY scripts/entrypoint.sh /app/entrypoint.sh
+COPY src/tinycua-benchmark/scripts/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 # Configure working directory for benchmark tasks
