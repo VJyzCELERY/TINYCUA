@@ -78,9 +78,9 @@ This milestone produces a research document, not executable code. Success criter
 - **Description**: The complete benchmark analysis report document with all sections defined in the design
 - **Dependencies**: Benchmark artifacts from Milestones 5.5/5.6, WildClawBench baseline data
 
-#### [MODIFY] `src/tinycua/docs/benchmark/README.md` (if needed)
+#### [MODIFY] `src/tinycua/docs/benchmark/README.md`
 
-- **Description**: Potentially add a reference/link to the new analysis report
+- **Description**: Added link to analysis report in "Analysis Report" section (line 7)
 - **Breaking changes**: None
 
 ## Architecture Changes
@@ -88,7 +88,7 @@ This milestone produces a research document, not executable code. Success criter
 | Component | Change Type | Description |
 |-----------|-------------|-------------|
 | `docs/benchmark/analysis-report.md` | New | The benchmark analysis report document |
-| `docs/benchmark/README.md` | Potential modify | Add link to analysis report |
+| `docs/benchmark/README.md` | Modified | Add link to analysis report |
 
 ## Data Model Changes
 

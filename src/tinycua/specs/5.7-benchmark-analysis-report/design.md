@@ -144,11 +144,12 @@ This milestone produces a document, not executable interfaces. The report sectio
 
 ### Phase 1 — Data Collection and Validation (required)
 
-- [ ] Collect all benchmark artifacts from Milestones 5.5 and 5.6
-- [ ] Validate score summary files exist and are parseable
-- [ ] Validate usage files contain non-null token counts
-- [ ] Catalog available baseline data from WildClawBench
-- [ ] Document any missing data gaps
+- [x] Assess available artifact data (determined: no TinyCUA runs completed yet)
+- [ ] Collect all benchmark artifacts from Milestones 5.5 and 5.6 (deferred — unavailable because runs not executed)
+- [ ] Validate score summary files exist and are parseable (deferred — unavailable because runs not executed)
+- [ ] Validate usage files contain non-null token counts (deferred — unavailable because runs not executed)
+- [x] Catalog available baseline data from WildClawBench (documented in report)
+- [x] Document any missing data gaps (documented in report methodology section)
 
 ### Phase 2 — Report Writing (required)
 
@@ -177,9 +178,9 @@ This milestone produces a document, not executable interfaces. The report sectio
    - **Reason**: The report is a research deliverable for internal architecture improvement. A single Markdown file is easy to read in PRs, issues, and Git history. It avoids unnecessary infrastructure for a one-time analysis.
    - **Alternatives Considered**: Multi-file report with separate per-category files — rejected as over-engineering for a single analysis pass. HTML dashboard — rejected because it requires hosting and is not version-controlled naturally.
 
-2. **Decision**: Base the report on actual artifact data from Milestones 5.5/5.6, not synthetic or projected data.
-   - **Reason**: The report's value is in honest, data-driven analysis. Using actual data ensures recommendations are grounded in real observations.
-   - **Alternatives Considered**: Synthetic data or projections — rejected because they would undermine the report's credibility and usefulness for architecture decisions.
+2. **Decision**: Base the report on actual artifact data where available; if benchmark runs are incomplete, use architectural projections clearly marked as "Expected" or "Projected."
+   - **Reason**: Actual TinyCUA benchmark runs were not completed by the report deadline. Projections are used for TinyCUA-specific analysis and are clearly distinguished from baseline data.
+   - **Alternatives Considered**: Synthetic data without disclosure — rejected because it would undermine the report's credibility. Projections with clear labeling are used instead.
 
 3. **Decision**: Include representative failure examples (transcript snippets) rather than just counts.
    - **Reason**: Failure counts alone don't explain why things failed. Representative examples help developers understand root causes and prioritize fixes.

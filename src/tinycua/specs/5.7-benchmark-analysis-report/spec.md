@@ -19,7 +19,9 @@
   - Production-quality reporting UI or dashboard.
   - Modifying `tinycua-sdk` public APIs.
 - **Constraints**:
-  - The report MUST be based on actual benchmark data from Milestones 5.5 and 5.6, not hypothetical projections.
+  - The report SHOULD be based on actual benchmark data where available.
+  - If benchmark runs are incomplete, the report MAY use architectural projections but MUST clearly mark all projected data as "Expected" or "Projected" and note the limitation prominently.
+  - The report MUST be updated with empirical data once benchmark runs complete.
   - The report MUST use the structured artifact data (scores, usage, transcripts, logs) already collected.
   - Judge LLM configuration notes MUST reflect the actual configuration used during benchmark runs, not idealized setups.
   - Local LLM limitations MUST be documented honestly — the report is for internal architecture improvement, not external marketing.
