@@ -2,7 +2,7 @@
 # Builds a container for WildClawBench benchmark evaluation
 # See src/tinycua/docs/benchmark/README.md for usage instructions
 
-FROM python:3.11-slim AS base
+FROM python:3.12-slim AS base
 
 # Prevent Python from writing .pyc files and enable unbuffered output
 ENV PYTHONDONTWRITEBYTECODE=1 \
