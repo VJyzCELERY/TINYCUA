@@ -7,8 +7,8 @@ from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua.factory import create_tinycua_agent
 
 
-def test_factory_defaults_local_runtime_temperature_to_low_value() -> None:
-    """TinyCUA should not inherit SDK's creative default for orchestration nodes."""
+def test_factory_defaults_local_runtime_temperature_to_balanced_value() -> None:
+    """TinyCUA applies its orchestration sampling default when unset."""
     model = LanguageModel(
         provider="openai-chat-completions",
         model_name="local-model",
@@ -18,7 +18,7 @@ def test_factory_defaults_local_runtime_temperature_to_low_value() -> None:
 
     agent = create_tinycua_agent(llm_model=model)
 
-    assert agent.llm_model.temperature == 0.1
+    assert agent.llm_model.temperature == 0.6
 
 
 def test_factory_preserves_explicit_temperature() -> None:

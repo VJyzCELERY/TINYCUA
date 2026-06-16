@@ -14,7 +14,7 @@ from tinycua.loops.response_node import ResponseNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.session import Session
 
-_TINYCUA_DEFAULT_TEMPERATURE = 0.1
+_TINYCUA_DEFAULT_TEMPERATURE = 0.6
 
 
 def create_default_queue(session_config: SessionConfig | None = None) -> NodeQueue:

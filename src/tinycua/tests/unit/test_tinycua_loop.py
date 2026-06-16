@@ -439,6 +439,83 @@ def test_coerce_structured_tool_calls_accepts_allowed_tool_key_payload() -> None
     ]
 
 
+def test_coerce_structured_tool_calls_accepts_multiline_allowed_tool_payload() -> None:
+    """Local models may emit explicit tool JSON with literal newlines."""
+    loop = TinyCUALoop()
+    tool = Tool(
+        name="task_result_update",
+        parameters={
+            "type": "object",
+            "properties": {
+                "content": {"type": "string"},
+                "task_id": {"type": "string"},
+                "success": {"type": "boolean"},
+            },
+            "required": ["content"],
+            "additionalProperties": False,
+        },
+    )
+    result = LLMResult(
+        content=(
+            '{"task_result_update":{"content":"Successfully initialized\n'
+            '**Status:**\nAll required infrastructure is in place.",'
+            '"task_id":"task-1","success":true}}</tool_call>'
+        ),
+    )
+
+    loop._coerce_structured_tool_calls(result, [tool])
+
+    assert result.tool_calls
+    assert result.tool_calls[0]["function"]["name"] == "task_result_update"
+    arguments = result.tool_calls[0]["function"]["arguments"]
+    assert "All required infrastructure" in arguments
+
+
+def test_coerce_structured_tool_calls_accepts_name_arguments_payload() -> None:
+    """Local models may emit explicit {name, arguments} tool-call JSON."""
+    loop = TinyCUALoop()
+    tool = Tool(
+        name="task_execute",
+        parameters={
+            "type": "object",
+            "properties": {"task_id": {"type": "string"}},
+            "additionalProperties": False,
+        },
+    )
+    result = LLMResult(
+        content=(
+            '{"name":"task_execute",'
+            '"arguments":{"task_id":"task-1"}}</tool_call>'
+        ),
+    )
+
+    loop._coerce_structured_tool_calls(result, [tool])
+
+    assert result.tool_calls
+    assert result.tool_calls[0]["function"]["name"] == "task_execute"
+    assert result.tool_calls[0]["function"]["arguments"] == '{"task_id": "task-1"}'
+
+
+def test_coerce_structured_tool_calls_accepts_multiple_name_arguments_payloads() -> None:
+    """Multiple explicit local-model tool payloads become one tool batch."""
+    loop = TinyCUALoop()
+    tools = [Tool(name="task_execute"), Tool(name="list_files")]
+    result = LLMResult(
+        content=(
+            '{"name":"task_execute","arguments":{"task_id":"task-1"}}'
+            "</tool_call>\n"
+            '{"name":"list_files","arguments":{"path":"."}}</tool_call>'
+        ),
+    )
+
+    loop._coerce_structured_tool_calls(result, tools)
+
+    assert [item["function"]["name"] for item in result.tool_calls] == [
+        "task_execute",
+        "list_files",
+    ]
+
+
 def test_coerce_structured_tool_calls_ignores_prose_without_allowed_tool_key() -> None:
     """Compatibility coercion still ignores arbitrary prose JSON."""
     loop = TinyCUALoop()

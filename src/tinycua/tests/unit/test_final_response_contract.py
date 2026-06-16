@@ -435,6 +435,188 @@ def test_task_executor_read_only_evidence_retries_executor_not_replan() -> None:
     ]
 
 
+def test_task_executor_success_claim_proceeds_to_reviewer_without_artifact_gate() -> None:
+    """Executor success claims are reviewer-owned, not runtime artifact-gated."""
+    loop = TinyCUALoop()
+    task = loop.root_session.task_store.create_task("initialize backend")
+    loop.root_session.task_store.record_result(
+        task.task_id,
+        TaskResult(content="Created venv and requirements.txt", success=True),
+    )
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+
+    validation = loop._validate_node_result(
+        executor,
+        LLMResult(
+            metadata={
+                "tool_results": [
+                    {
+                        "name": "task_execute",
+                        "output": {"success": True, "task_id": task.task_id},
+                    },
+                    {
+                        "name": "task_result_update",
+                        "output": {"success": True, "task_id": task.task_id},
+                    },
+                ]
+            },
+        ),
+    )
+
+    assert validation.is_valid is True
+
+
+def test_task_executor_success_claim_is_not_downgraded_before_review() -> None:
+    """Runtime preserves executor result so reviewer can inspect and decide."""
+    loop = TinyCUALoop()
+    task = loop.root_session.task_store.create_task("initialize backend")
+    loop.root_session.task_store.record_result(
+        task.task_id,
+        TaskResult(content="Created venv and requirements.txt", success=True),
+    )
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    result = LLMResult(
+        metadata={
+            "tool_results": [
+                {
+                    "name": "task_execute",
+                    "output": {"success": True, "task_id": task.task_id},
+                },
+                {
+                    "name": "task_result_update",
+                    "output": {"success": True, "task_id": task.task_id},
+                },
+            ]
+        },
+    )
+
+    loop._enrich_task_results_from_tool_batch(
+        executor,
+        result.metadata["tool_results"],
+    )
+    validation = loop._validate_node_result(executor, result)
+
+    assert validation.is_valid is True
+    assert task.result is not None
+    assert task.result.success is True
+    assert task.result.execution_status == "succeeded"
+    assert "runtime_success_rejected" not in task.result.metadata
+
+
+def test_task_executor_prior_missing_evidence_review_still_reaches_reviewer() -> None:
+    """Reviewer remains responsible for repeated missing-evidence claims."""
+    loop = TinyCUALoop()
+    task = loop.root_session.task_store.create_task("create requirements file")
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    unsupported_results = [
+        {
+            "name": "task_execute",
+            "output": {"success": True, "task_id": task.task_id},
+        },
+        {
+            "name": "task_result_update",
+            "output": {"success": True, "task_id": task.task_id},
+        },
+    ]
+    loop.root_session.task_store.record_result(
+        task.task_id,
+        TaskResult(content="Created requirements.txt", success=True),
+    )
+    loop._enrich_task_results_from_tool_batch(executor, unsupported_results)
+    task.reviewer_decisions.append(
+        {
+            "decision": "needs_revision",
+            "rationale": "No concrete implementation evidence or artifacts were created.",
+            "metadata": {},
+        }
+    )
+    loop.root_session.task_store.record_result(
+        task.task_id,
+        TaskResult(content="Created requirements.txt", success=True),
+    )
+    result = LLMResult(metadata={"tool_results": unsupported_results})
+
+    loop._enrich_task_results_from_tool_batch(executor, unsupported_results)
+    validation = loop._validate_node_result(executor, result)
+
+    assert validation.is_valid is True
+
+
+def test_task_executor_read_only_evidence_proceeds_to_reviewer() -> None:
+    """Read/list evidence is preserved for reviewer-owned verification."""
+    loop = TinyCUALoop()
+    task = loop.root_session.task_store.create_task("create models")
+    loop.root_session.task_store.record_result(
+        task.task_id,
+        TaskResult(content="Created app/models.py", success=True),
+    )
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+
+    validation = loop._validate_node_result(
+        executor,
+        LLMResult(
+            metadata={
+                "tool_results": [
+                    {"name": "list_files", "output": ["app/models.py"]},
+                    {"name": "read_file", "output": "existing contents"},
+                    {
+                        "name": "task_result_update",
+                        "output": {"success": True, "task_id": task.task_id},
+                    },
+                ]
+            },
+        ),
+    )
+
+    assert validation.is_valid is True
+
+
+def test_task_executor_success_result_accepts_concrete_action_evidence() -> None:
+    """Successful result update is valid when backed by implementation tools."""
+    loop = TinyCUALoop()
+    task = loop.root_session.task_store.create_task("write backend model")
+    loop.root_session.task_store.record_result(
+        task.task_id,
+        TaskResult(content="Created app/models.py", success=True),
+    )
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+
+    validation = loop._validate_node_result(
+        executor,
+        LLMResult(
+            metadata={
+                "tool_results": [
+                    {
+                        "name": "write_file",
+                        "output": {"success": True, "path": "app/models.py"},
+                    },
+                    {
+                        "name": "task_result_update",
+                        "output": {"success": True, "task_id": task.task_id},
+                    },
+                ]
+            },
+        ),
+    )
+
+    assert validation.is_valid is True
+
+
 def test_result_reviewer_approval_with_artifacts_requires_inspection() -> None:
     """Reviewer is a quality gate and must inspect artifacts before approval."""
     loop = TinyCUALoop()
@@ -477,6 +659,41 @@ def test_result_reviewer_approval_with_artifacts_requires_inspection() -> None:
 
     assert validation.is_valid is False
     assert any("inspect" in error.lower() for error in validation.errors)
+
+
+def test_result_reviewer_cannot_approve_failed_task_result() -> None:
+    """Runtime-rejected or failed executor results require revision/replan review."""
+    loop = TinyCUALoop()
+    task = loop.root_session.task_store.create_task("create models")
+    loop.root_session.task_store.record_result(
+        task.task_id,
+        TaskResult(content="Runtime rejected claimed success", success=False),
+    )
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="result_reviewer",
+        config=create_node_config("result_reviewer"),
+    )
+
+    validation = loop._validate_node_result(
+        reviewer,
+        LLMResult(
+            metadata={
+                "tool_results": [
+                    {
+                        "name": "task_review_decision",
+                        "output": {
+                            "success": True,
+                            "task_id": task.task_id,
+                            "decision": "approved",
+                        },
+                    }
+                ]
+            },
+        ),
+    )
+
+    assert validation.is_valid is False
+    assert any("cannot approve a failed task result" in error for error in validation.errors)
 
 
 def test_task_assessor_validation_failure_skips_analyzer_gate() -> None:
@@ -554,7 +771,14 @@ async def test_task_executor_stops_after_successful_result_update() -> None:
     )
     response = ResponseNode()
     loop = TinyCUALoop(queue=NodeQueue(items=[executor, reviewer, response]))
-    loop.root_session.task_store.create_task("write dependency file")
+    task = loop.root_session.task_store.create_task("write dependency file")
+    task.metadata["executor_partial_tool_results"] = [
+        {
+            "name": "write_file",
+            "allowed": True,
+            "output": {"success": True, "path": "requirements.txt"},
+        }
+    ]
     agent = ExecutorResultThenReviewerAgent()
 
     result = await loop.run(

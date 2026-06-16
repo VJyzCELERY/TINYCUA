@@ -546,6 +546,33 @@ class TinyCUALoop(BaseLoop):
                     task.artifacts.append(artifact)
                     existing_task_paths.add(artifact.get("path"))
 
+    def _downgrade_unsupported_executor_success(
+        self,
+        task: Any,
+        tool_results: list[dict[str, Any]],
+    ) -> None:
+        """Turn unsupported executor success into a non-successful result."""
+        if task.result is None or task.result.success is not True:
+            return
+        if self._has_concrete_executor_action_evidence(tool_results):
+            return
+        original_content = task.result.content
+        task.result.success = False
+        task.result.execution_status = "failed"
+        task.result.metadata["runtime_success_rejected"] = {
+            "reason": (
+                "TaskExecutor recorded success=True without concrete action "
+                "evidence from write_file, edit_file, run_shell, or run_python."
+            ),
+            "tool_results": self._json_safe(tool_results),
+        }
+        task.result.content = (
+            "Runtime rejected the successful task_result_update because no "
+            "concrete implementation evidence was observed. Original claimed "
+            f"result: {original_content}"
+        )
+        task.result.summary = task.result.content
+
     def _artifacts_from_tool_results(
         self,
         tool_results: list[dict[str, Any]],
@@ -1434,12 +1461,117 @@ class TinyCUALoop(BaseLoop):
         for extra_validation in (
             self._validate_task_executor_action(node, llm_result),
             self._validate_tool_owned_task_state(node, llm_result),
+            self._validate_result_reviewer_failed_approval(node, llm_result),
             self._validate_result_reviewer_inspection(node, llm_result),
             self._validate_final_response_content(node, llm_result),
         ):
             if not extra_validation.is_valid:
                 validation.is_valid = False
                 validation.errors.extend(extra_validation.errors)
+        return validation
+
+    def _validate_task_executor_repeated_missing_evidence(
+        self,
+        node: Node,
+        llm_result: LLMResult,
+    ) -> ValidationResult:
+        """Retry executor locally after repeated missing-evidence revisions."""
+        validation = ValidationResult(is_valid=True, errors=[])
+        if node.node_id != "task_executor":
+            return validation
+        tool_results = [
+            item for item in llm_result.metadata.get("tool_results", [])
+            if isinstance(item, dict)
+        ]
+        for task_id in self._task_result_update_ids(tool_results):
+            try:
+                task = self.root_session.task_store.get_task(task_id)
+            except ValueError:
+                continue
+            if task.result is None:
+                continue
+            if "runtime_success_rejected" not in task.result.metadata:
+                continue
+            if not self._task_has_prior_missing_evidence_review(task):
+                continue
+            validation.is_valid = False
+            validation.errors.append(
+                "Repeated missing-evidence result after reviewer revision. First use "
+                "write_file, edit_file, run_shell, or run_python to create or verify "
+                "the required artifact before finalizing a successful result."
+            )
+            return validation
+        return validation
+
+    def _task_result_update_ids(
+        self,
+        tool_results: list[dict[str, Any]],
+    ) -> list[str]:
+        """Return task IDs mentioned by task_result_update tool outputs."""
+        task_ids: list[str] = []
+        for item in tool_results:
+            if item.get("name") != "task_result_update":
+                continue
+            output = item.get("output")
+            if not isinstance(output, dict) or output.get("success") is not True:
+                continue
+            task_id = output.get("task_id")
+            if isinstance(task_id, str):
+                task_ids.append(task_id)
+        return task_ids
+
+    def _task_has_prior_missing_evidence_review(self, task: Any) -> bool:
+        """Return whether reviewer already rejected missing implementation evidence."""
+        for decision in task.reviewer_decisions:
+            if not isinstance(decision, dict):
+                continue
+            if decision.get("decision") not in {"needs_revision", "rejected"}:
+                continue
+            rationale = str(decision.get("rationale", "")).lower()
+            if (
+                "evidence" in rationale
+                or "artifact" in rationale
+                or "write_file" in rationale
+                or "implementation" in rationale
+            ):
+                return True
+        return False
+
+    def _validate_result_reviewer_failed_approval(
+        self,
+        node: Node,
+        llm_result: LLMResult,
+    ) -> ValidationResult:
+        """Prevent approval from accepting failed executor evidence as done."""
+        validation = ValidationResult(is_valid=True, errors=[])
+        if node.node_id != "result_reviewer":
+            return validation
+        tool_results = [
+            item for item in llm_result.metadata.get("tool_results", [])
+            if isinstance(item, dict)
+        ]
+        for item in reversed(tool_results):
+            if item.get("name") != "task_review_decision":
+                continue
+            output = item.get("output")
+            if not isinstance(output, dict) or output.get("decision") != "approved":
+                return validation
+            task_id = output.get("task_id")
+            if not isinstance(task_id, str):
+                return validation
+            try:
+                task = self.root_session.task_store.get_task(task_id)
+            except ValueError:
+                return validation
+            if task.result is None or task.result.success is not False:
+                return validation
+            validation.is_valid = False
+            validation.errors.append(
+                "ResultReviewer cannot approve a failed task result. Choose "
+                "needs_revision, rejected, replan, or open_question after "
+                "inspecting the failure evidence."
+            )
+            return validation
         return validation
 
     def _validate_result_reviewer_inspection(
@@ -1578,6 +1710,105 @@ class TinyCUALoop(BaseLoop):
             "result, or report a blocked state; do not return a plan-only answer."
         )
         return validation
+
+    def _validate_task_executor_success_evidence(
+        self,
+        node: Node,
+        llm_result: LLMResult,
+    ) -> ValidationResult:
+        """Require concrete action evidence for successful executor results."""
+        validation = ValidationResult(is_valid=True, errors=[])
+        if node.node_id != "task_executor":
+            return validation
+        tool_results = [
+            item for item in llm_result.metadata.get("tool_results", [])
+            if isinstance(item, dict)
+        ]
+        successful_task_ids = self._successful_task_result_update_ids(tool_results)
+        if not successful_task_ids:
+            return validation
+        evidence = [*tool_results, *self._stored_executor_partial_results(successful_task_ids)]
+        if self._has_concrete_executor_action_evidence(evidence):
+            return validation
+        validation.is_valid = False
+        validation.errors.append(
+            "TaskExecutor success=True task_result_update requires concrete action "
+            "evidence from write_file, edit_file, run_shell, or run_python. "
+            "task_execute, prose/planning, and read/list-only evidence cannot prove "
+            "successful implementation."
+        )
+        return validation
+
+    def _successful_task_result_update_ids(
+        self,
+        tool_results: list[dict[str, Any]],
+    ) -> list[str]:
+        """Return task IDs whose persisted result is semantic success."""
+        task_ids: list[str] = []
+        for item in tool_results:
+            if item.get("name") != "task_result_update":
+                continue
+            output = item.get("output")
+            if not isinstance(output, dict) or output.get("success") is not True:
+                continue
+            task_id = output.get("task_id")
+            if not isinstance(task_id, str):
+                continue
+            try:
+                task = self.root_session.task_store.get_task(task_id)
+            except ValueError:
+                continue
+            if task.result is not None and task.result.success is True:
+                task_ids.append(task_id)
+        return task_ids
+
+    def _stored_executor_partial_results(self, task_ids: list[str]) -> list[dict[str, Any]]:
+        """Return previously observed executor evidence for task IDs."""
+        stored: list[dict[str, Any]] = []
+        for task_id in task_ids:
+            try:
+                task = self.root_session.task_store.get_task(task_id)
+            except ValueError:
+                continue
+            stored.extend(
+                item for item in task.metadata.get("executor_partial_tool_results", [])
+                if isinstance(item, dict)
+            )
+            if task.result is not None:
+                stored.extend(
+                    item for item in task.result.metadata.get("tool_results", [])
+                    if isinstance(item, dict)
+                )
+        return stored
+
+    def _has_concrete_executor_action_evidence(
+        self,
+        tool_results: list[dict[str, Any]],
+    ) -> bool:
+        """Return whether executor evidence includes successful implementation work."""
+        concrete_action_tools = {"write_file", "edit_file", "run_shell", "run_python"}
+        return any(
+            item.get("name") in concrete_action_tools
+            and self._tool_result_succeeded(item)
+            for item in tool_results
+        )
+
+    def _tool_result_succeeded(self, item: dict[str, Any]) -> bool:
+        """Return whether a tool result represents a successful operation."""
+        if item.get("error"):
+            return False
+        output = item.get("output")
+        if isinstance(output, dict):
+            if output.get("success") is False:
+                return False
+            if output.get("error"):
+                return False
+            if output.get("timed_out") is True:
+                return False
+            exit_code = output.get("exit_code")
+            if exit_code is not None and exit_code != 0:
+                return False
+        return True
 
     def _validate_tool_owned_task_state(
         self,
@@ -1755,15 +1986,32 @@ class TinyCUALoop(BaseLoop):
     ) -> dict[str, Any] | None:
         """Parse explicit tool JSON payloads without inferring from prose."""
         stripped = content.strip()
-        candidates = [stripped, *self._json_object_candidates(stripped)]
-        for candidate in candidates:
+        try:
+            parsed = json.loads(stripped, strict=False)
+        except json.JSONDecodeError:
+            parsed = None
+        normalized = self._normalize_structured_tool_payload(parsed, allowed)
+        if normalized is not None:
+            return normalized
+
+        tool_calls: list[dict[str, Any]] = []
+        for candidate in self._json_object_candidates(stripped):
             try:
-                parsed = json.loads(candidate)
+                parsed = json.loads(candidate, strict=False)
             except json.JSONDecodeError:
                 continue
             normalized = self._normalize_structured_tool_payload(parsed, allowed)
-            if normalized is not None:
-                return normalized
+            if normalized is None:
+                continue
+            candidate_calls = normalized.get("tool_calls")
+            if not isinstance(candidate_calls, list):
+                continue
+            tool_calls.extend(
+                item for item in candidate_calls
+                if isinstance(item, dict)
+            )
+        if tool_calls:
+            return {"tool_calls": tool_calls}
         return None
 
     def _json_object_candidates(self, content: str) -> list[str]:
@@ -1806,6 +2054,30 @@ class TinyCUALoop(BaseLoop):
             return None
         if isinstance(parsed.get("tool_calls"), list):
             return parsed
+        name = parsed.get("name")
+        if isinstance(name, str) and name in allowed:
+            arguments = parsed.get("arguments", {})
+            if isinstance(arguments, str):
+                try:
+                    arguments = json.loads(arguments, strict=False) if arguments else {}
+                except json.JSONDecodeError:
+                    return None
+            if not isinstance(arguments, dict):
+                return None
+            return {"tool_calls": [{"name": name, "arguments": arguments}]}
+        function = parsed.get("function")
+        if isinstance(function, dict):
+            name = function.get("name")
+            if isinstance(name, str) and name in allowed:
+                arguments = function.get("arguments", {})
+                if isinstance(arguments, str):
+                    try:
+                        arguments = json.loads(arguments, strict=False) if arguments else {}
+                    except json.JSONDecodeError:
+                        return None
+                if not isinstance(arguments, dict):
+                    return None
+                return {"tool_calls": [{"name": name, "arguments": arguments}]}
         allowed_keys = [key for key in parsed if key in allowed]
         if len(allowed_keys) != 1:
             return None
@@ -2069,7 +2341,10 @@ class TinyCUALoop(BaseLoop):
         if tool_results:
             llm_result.metadata["tool_results"] = tool_results
             self._prepend_retry_tool_results(llm_result, retry_tool_results or [])
-            self._enrich_task_results_from_tool_batch(node, tool_results)
+            self._enrich_task_results_from_tool_batch(
+                node,
+                llm_result.metadata["tool_results"],
+            )
             self._record_tool_result_transcripts(node, tool_results)
             self._fill_content_from_recorded_task_result(llm_result)
         elif retry_tool_results:
