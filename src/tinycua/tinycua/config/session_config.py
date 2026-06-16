@@ -19,8 +19,8 @@ class InteractionPolicy:
     """
 
     hitl_enabled: bool = False
-    uncertain_strategy: Literal["fallback_response", "route_worker", "ask", "fail"] = (
-        "fallback_response"
+    uncertain_strategy: Literal["passthrough", "route_worker", "ask", "fail"] = (
+        "passthrough"
     )
     allow_clarifying_questions: bool = False
 
@@ -49,9 +49,8 @@ class SessionConfig:
         artifact_dir: Directory where run artifacts should be written.
         session_dir: Directory for session-scoped persisted state.
         metadata: Arbitrary metadata attached to the session.
-        allow_synthetic_terminal_fallback: Allow deterministic terminal filler
-            when ResponseNode emits no text. Defaults to False so empty final
-            responses are visible contract failures instead of synthetic success.
+        worker_effort: Worker decomposition effort. ``medium`` defaults to two
+            task-analysis passes before execution.
     """
 
     compaction_strategy: CompactionStrategy | None = None
@@ -62,7 +61,7 @@ class SessionConfig:
     artifact_dir: Path | None = None
     session_dir: Path | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
-    allow_synthetic_terminal_fallback: bool = False
+    worker_effort: Literal["none", "low", "medium", "high"] = "medium"
 
     def __post_init__(self) -> None:
         """Normalize filesystem paths supplied through the public API."""

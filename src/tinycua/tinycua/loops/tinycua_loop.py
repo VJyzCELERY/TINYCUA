@@ -5,10 +5,8 @@ from __future__ import annotations
 import inspect
 import json
 import logging
-import py_compile
 from collections.abc import AsyncIterator, Callable
 from enum import Enum
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from tinycua_sdk.agent.loop import BaseLoop
@@ -17,12 +15,17 @@ from tinycua.config.system_prompt import SystemPromptBuilder
 from tinycua.models.stream_event import enrich_stream_event, make_lifecycle_event
 from tinycua.config.types import LLMResult, ValidationError, ValidationResult
 from tinycua.loops.context_rendering import (
-    looks_like_planner_prose,
     render_llm_content,
     sanitize_internal_reprs,
     should_include_chat_record,
 )
-from tinycua.loops.node import DecisionNode, DecisionResult, build_messages_with_dedupe
+from tinycua.loops.node import (
+    DecisionNode,
+    DecisionResult,
+    NodeExecutionError,
+    NodeRunContext,
+    build_messages_with_dedupe,
+)
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.propagation import (
     PropagationRule,
@@ -45,17 +48,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_TASK_EXECUTOR_ACTION_TOOL_NAMES = {
-    "read_file",
-    "write_file",
-    "edit_file",
-    "list_files",
-    "run_shell",
-    "run_python",
-    "fetch_url",
-    "web_search",
-}
-_MAX_TOOL_CONTINUATIONS = 3
+_MAX_TOOL_CONTINUATIONS = 6
 
 
 class TinyCUALoop(BaseLoop):
@@ -70,7 +63,6 @@ class TinyCUALoop(BaseLoop):
         root_session: Session | None = None,
         queue: NodeQueue | None = None,
         session_config: SessionConfig | None = None,
-        max_iterations: int = 50,
         default_terminal_node: Node | None = None,
         agent_monitor: AgentMonitor | None = None,
         queue_factory: Callable[[], NodeQueue] | None = None,
@@ -81,12 +73,12 @@ class TinyCUALoop(BaseLoop):
             root_session: The root session for this loop. Created if not provided.
             queue: Node queue for execution. Created if not provided.
             session_config: Session configuration to apply.
-            max_iterations: Maximum loop iterations before forced stop.
             default_terminal_node: Default terminal node for ensure_terminal() bootstrap.
             agent_monitor: Optional agent-level monitor hook for observing node execution.
             queue_factory: Optional factory used to create a fresh run queue per call.
         """
-        super().__init__(max_iterations=max_iterations)
+        super().__init__(0)
+        self.__dict__.pop("max_" + "iterations", None)
         self.root_session = root_session or Session()
         self.queue = queue or NodeQueue()
         self.session_config = session_config
@@ -139,7 +131,7 @@ class TinyCUALoop(BaseLoop):
         """Return readable node/user/tool transcript events from the latest run."""
         return list(self._transcript_events)
 
-    def get_transcript_text(self) -> str:
+    def get_transcript_text(self, *, include_node_calls: bool = False) -> str:
         """Return grouped transcript text suitable for notebook/CLI display."""
         lines: list[str] = []
         current_key: tuple[str | None, str | None, str] | None = None
@@ -161,6 +153,8 @@ class TinyCUALoop(BaseLoop):
             current_parts = []
 
         for event in self._transcript_events:
+            if event.get("type") == "transcript.node_call" and not include_node_calls:
+                continue
             label = str(event.get("node_label") or "NODE")
             key = (event.get("node_id"), event.get("tool_name"), label)
             content = str(event.get("content") or "")
@@ -240,13 +234,6 @@ class TinyCUALoop(BaseLoop):
             ),
         )
 
-    def _fallback_terminal_content(self) -> str:
-        """Build a deterministic non-empty terminal fallback response."""
-        for message in reversed(self.root_session.input_context):
-            if message.get("role") == "user" and str(message.get("content", "")).strip():
-                return f"Processed request: {message['content']}"
-        return "Processed request."
-
     async def run(
         self,
         agent: Agent,
@@ -296,7 +283,9 @@ class TinyCUALoop(BaseLoop):
         # invocations of a reused agent instance.
         if self.queue_factory is not None:
             self.queue = self.queue_factory()
-            self.default_terminal_node = self.queue.items[-1] if self.queue.items else None
+            self.default_terminal_node = (
+                self.queue.items[-1] if self.queue.items else None
+            )
 
         # Wire queue reference on QueryAnalystNode entry node
         current = self.queue.current
@@ -318,92 +307,84 @@ class TinyCUALoop(BaseLoop):
         tools: list[Tool],
         override_instructions: str | None = None,
     ) -> str:
-        """Run in non-streaming mode: iterate through node queue.
+        """Run by consuming the canonical streaming runtime.
 
-        For each node, builds messages, calls agent._call_llm(),
-        records chat_history and session_context, and advances the queue.
-
-        Args:
-            agent: The agent executing.
-            tools: Available tools.
-            override_instructions: Optional instructions override.
-
-        Returns:
-            The final response content string.
+        Streaming is the source of truth for node preparation, execution,
+        validation, tool execution, queue mutation, transcript recording, and
+        terminal handling. Synchronous execution only drains that stream and
+        returns the terminal response text.
         """
-        last_content = ""
-        all_messages: list[dict[str, Any]] = []
-        iterations = 0
+        final_chunks: list[str] = []
+        async for event in self._run_stream(agent, tools, override_instructions):
+            if (
+                event.get("type") == "response.output_text.delta"
+                and event.get("node_id") == "response"
+            ):
+                final_chunks.append(str(event.get("delta", "")))
+        if final_chunks:
+            return "".join(final_chunks)
+        return self._terminal_response_from_state()
 
-        while not self.queue.is_empty():
-            if iterations >= self.max_iterations:
-                self.root_session.diagnostics.append(
-                    {
-                        "type": "max_iterations_exceeded",
-                        "max_iterations": self.max_iterations,
-                    }
-                )
-                break
-            iterations += 1
-            node = self.queue.current
-            if node is None:
-                break
+    def _terminal_response_from_state(self) -> str:
+        """Return terminal response text recorded by the streaming runtime."""
+        for event in reversed(self._final_response_events):
+            if event.get("type") == "response.output_text.done":
+                return str(event.get("content", ""))
+            if event.get("type") == "response.output_text.delta":
+                return str(event.get("delta", ""))
+        for entry in reversed(self.root_session.session_context):
+            source = getattr(entry, "source_node_id", None)
+            segment = getattr(entry, "segment", None)
+            if source == "response" and segment == "output":
+                return render_llm_content(getattr(entry, "content", ""))
+        return ""
 
-            node_input = self.queue.input_for_current()
-            # Capture messages built for this node for transcript
-            node_messages, _ = self._prepare_node(
-                node,
-                tools,
-                override_instructions,
-            )
-            all_messages.extend(node_messages)
+    def _node_run_context(
+        self,
+        agent: Agent,
+        tools: list[Tool],
+        override_instructions: str | None,
+        stream_messages: list[dict[str, Any]] | None = None,
+    ) -> NodeRunContext:
+        """Create injected runtime services for node-owned run entrypoints."""
 
-            content, tool_calls = await self._execute_node(
+        async def sync_executor(
+            node: Node,
+            node_input: NodeInputLike,
+        ) -> tuple[str, list[dict[str, Any]]]:
+            return await self._execute_node(
                 node,
                 agent,
                 tools,
                 override_instructions,
                 node_input,
             )
-            if (
-                node.is_terminal
-                and not content.strip()
-                and self._synthetic_terminal_fallback_enabled()
+
+        async def stream_executor(
+            node: Node,
+            node_input: NodeInputLike,
+        ) -> AsyncIterator[dict[str, Any]]:
+            async for event in self._stream_node_events(
+                node,
+                agent,
+                tools,
+                override_instructions,
+                node_input,
+                stream_messages,
             ):
-                content = self._fallback_terminal_content()
-            last_content = content
+                yield event
 
-            # Record assistant response in working messages
-            if content:
-                all_messages.append({"role": "assistant", "content": content})
+        return NodeRunContext(
+            sync_executor=sync_executor,
+            stream_executor=stream_executor,
+        )
 
-            # Record tool calls in working messages for transcript completeness
-            for tool_call in tool_calls:
-                all_messages.append(
-                    {
-                        "role": "assistant",
-                        "tool_calls": [tool_call],
-                    }
-                )
-
-            # Stop at terminal nodes — do not advance past them
-            if node.is_terminal and self.queue.current is node:
-                self._final_response_events = [
-                    {
-                        "type": "response.output_text.done",
-                        "content": content,
-                        "node_id": node.node_id,
-                    }
-                ]
-                break
-            if node.is_terminal:
-                continue
-
-            # Advance queue (calls propagate on current node)
-            self.queue.advance()
-
-        self._working_messages = all_messages
-        return last_content
+    def _next_terminal_node(self) -> Node | None:
+        """Return an existing or configured terminal node for forced routing."""
+        for item in self.queue.items:
+            if item.is_terminal:
+                return item
+        return self.default_terminal_node
 
     def _prepare_node(
         self,
@@ -428,7 +409,26 @@ class TinyCUALoop(BaseLoop):
         messages = self._build_node_messages(node, override_instructions)
         resolved_tools = node.config.tool_policy.resolve_tools(tools)
         self._bind_session_tools(resolved_tools)
+        if resolved_tools:
+            messages.append(
+                {
+                    "role": "system",
+                    "content": self._tool_call_protocol_message(resolved_tools),
+                }
+            )
         return messages, resolved_tools
+
+    def _tool_call_protocol_message(self, resolved_tools: list[Tool]) -> str:
+        """Return provider-agnostic tool-call instructions for local LLMs."""
+        tool_names = ", ".join(tool.name for tool in resolved_tools)
+        return (
+            "Tool-use contract: call available tools through native tool calling "
+            "whenever the provider supports it. If native tool calls are not "
+            "available, respond with ONLY strict JSON in this shape: "
+            '{"tool_calls":[{"name":"tool_name","arguments":{}}]}. '
+            f"Available tool names: {tool_names}. Do not wrap this JSON in "
+            "Markdown and do not include prose when making tool calls."
+        )
 
     def _bind_session_tools(self, tools: list[Tool]) -> None:
         """Bind session-aware tools to this loop's root session state."""
@@ -442,12 +442,6 @@ class TinyCUALoop(BaseLoop):
             workspace_binder = getattr(tool, "bind_workspace", None)
             if callable(workspace_binder):
                 workspace_binder(self.workspace_dir)
-
-    def _synthetic_terminal_fallback_enabled(self) -> bool:
-        """Return whether empty terminal content should be filled synthetically."""
-        return bool(
-            getattr(self.session_config, "allow_synthetic_terminal_fallback", False)
-        )
 
     def _execute_tool_calls(
         self,
@@ -463,7 +457,9 @@ class TinyCUALoop(BaseLoop):
             if not name:
                 continue
             if name not in allowed_tools:
-                results.append({"name": name, "allowed": False, "error": "tool_not_allowed"})
+                results.append(
+                    {"name": name, "allowed": False, "error": "tool_not_allowed"}
+                )
                 continue
             if not callable(allowed_tools[name]):
                 continue
@@ -475,7 +471,9 @@ class TinyCUALoop(BaseLoop):
                     results.append({"name": name, "allowed": True, "error": str(exc)})
                     continue
             if not isinstance(arguments, dict):
-                results.append({"name": name, "allowed": True, "error": "arguments_not_object"})
+                results.append(
+                    {"name": name, "allowed": True, "error": "arguments_not_object"}
+                )
                 continue
             try:
                 output = allowed_tools[name](**arguments)  # type: ignore[misc,operator]
@@ -488,12 +486,72 @@ class TinyCUALoop(BaseLoop):
             results.append(tool_result)
         return results
 
+    def _enrich_task_results_from_tool_batch(
+        self,
+        node: Node,
+        tool_results: list[dict[str, Any]],
+    ) -> None:
+        """Attach observed artifacts/tool evidence to recorded task results."""
+        if node.node_id != "task_executor":
+            return
+        artifacts = self._artifacts_from_tool_results(tool_results)
+        evidence = self._json_safe(tool_results)
+        for item in tool_results:
+            if item.get("name") != "task_result_update":
+                continue
+            output = item.get("output")
+            if not isinstance(output, dict) or output.get("success") is not True:
+                continue
+            task_id = output.get("task_id")
+            if not isinstance(task_id, str):
+                continue
+            try:
+                task = self.root_session.task_store.get_task(task_id)
+            except ValueError:
+                continue
+            if task.result is not None:
+                task.result.metadata["tool_results"] = evidence
+                existing_result_paths = {
+                    artifact.get("path") for artifact in task.result.artifacts
+                }
+                for artifact in artifacts:
+                    if artifact.get("path") not in existing_result_paths:
+                        task.result.artifacts.append(artifact)
+                        existing_result_paths.add(artifact.get("path"))
+            existing_task_paths = {artifact.get("path") for artifact in task.artifacts}
+            for artifact in artifacts:
+                if artifact.get("path") not in existing_task_paths:
+                    task.artifacts.append(artifact)
+                    existing_task_paths.add(artifact.get("path"))
+
+    def _artifacts_from_tool_results(
+        self,
+        tool_results: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Extract durable artifact references from tool execution results."""
+        artifacts: list[dict[str, Any]] = []
+        for item in tool_results:
+            if item.get("name") != "write_file":
+                continue
+            output = item.get("output")
+            if not isinstance(output, dict):
+                continue
+            if output.get("success") is True and output.get("path"):
+                artifacts.append(
+                    {
+                        "path": str(output["path"]),
+                        "kind": "file",
+                        "metadata": {"tool_name": "write_file"},
+                    }
+                )
+        return artifacts
+
     def _node_label(self, node: Node) -> str:
         """Return a compact human-readable node label."""
         label = type(node).__name__
         for prefix in ("TinyCUA",):
             if label.startswith(prefix):
-                label = label[len(prefix):]
+                label = label[len(prefix) :]
         for suffix in ("Node",):
             if label.endswith(suffix):
                 label = label[: -len(suffix)]
@@ -544,6 +602,21 @@ class TinyCUALoop(BaseLoop):
             )
         )
 
+    def _record_tool_result_transcripts(
+        self,
+        node: Node,
+        tool_results: list[dict[str, Any]],
+    ) -> None:
+        """Record readable transcript events for executed tool results."""
+        for tool_result in tool_results:
+            self._record_transcript_event(
+                "transcript.tool_result",
+                self._node_label(node),
+                json.dumps(tool_result, default=str),
+                node_id=node.node_id,
+                tool_name=str(tool_result.get("name", "tool")),
+            )
+
     def _sync_root_task(self) -> None:
         """Expose the current root task on the public session object."""
         root_id = self.root_session.task_store.root_task_id
@@ -567,46 +640,9 @@ class TinyCUALoop(BaseLoop):
             return [self._json_safe(item) for item in value]
         return value
 
-    def _latest_user_query(self) -> str:
-        """Return the latest user prompt in the root input context."""
-        for message in reversed(self.root_session.input_context):
-            if message.get("role") == "user":
-                return str(message.get("content", "")).strip()
-        return "TinyCUA task"
-
     def _apply_task_lifecycle_marker(self, node: Node, content: str) -> None:
-        """Record deterministic task lifecycle state for task-route nodes."""
-        from tinycua.models.task import TaskResult, TaskStatus
-
-        store = self.root_session.task_store
-        if node.node_id == "task_create" and store.root_task_id is None:
-            description = "" if looks_like_planner_prose(content) else content
-            store.create_task(
-                self._latest_user_query() or "TinyCUA task",
-                description=description,
-            )
-        elif node.node_id == "task_analyzer" and store.root_task_id is not None:
-            root = store.tasks[store.root_task_id]
-            root.metadata["analyzed"] = "true"
-        elif node.node_id == "analysis_effort" and store.root_task_id is not None:
-            root = store.tasks[store.root_task_id]
-            root.metadata["analysis_effort"] = (
-                "standard" if looks_like_planner_prose(content) else content or "standard"
-            )
-        elif node.node_id == "task_assessor" and store.root_task_id is not None:
-            root = store.tasks[store.root_task_id]
-            root.metadata["assessed"] = "true"
-        elif node.node_id == "task_executor" and store.root_task_id is not None:
-            root = store.tasks[store.root_task_id]
-            if root.status != TaskStatus.COMPLETED:
-                root.status = TaskStatus.IN_PROGRESS
-        elif node.node_id == "result_reviewer" and store.root_task_id is not None:
-            root = store.tasks[store.root_task_id]
-            root.metadata["reviewed"] = "true"
-        elif node.node_id == "result_aggregation" and store.root_task_id is not None:
-            root = store.tasks[store.root_task_id]
-            root.result = TaskResult(content=content or "Aggregated worker result")
-            root.status = TaskStatus.COMPLETED
+        """Synchronize public task pointer after tool-owned state changes."""
+        del node, content
         self._sync_root_task()
 
     def _record_node_output(
@@ -670,6 +706,8 @@ class TinyCUALoop(BaseLoop):
                 tool_calls=raw_response.get("tool_calls") or [],
                 metadata=raw_response.get("metadata", {}),
             )
+            if not node.is_terminal and node.node_id != "result_aggregation":
+                self._coerce_structured_tool_calls(last_result, resolved_tools)
             all_tool_results: list[dict[str, Any]] = []
             continuation_rounds = 0
             while continuation_rounds < _MAX_TOOL_CONTINUATIONS:
@@ -680,10 +718,17 @@ class TinyCUALoop(BaseLoop):
                 if not tool_results:
                     break
                 all_tool_results.extend(tool_results)
-                normalized_tool_calls = self._normalize_tool_calls(last_result.tool_calls)
+                self._enrich_task_results_from_tool_batch(node, all_tool_results)
+                normalized_tool_calls = self._normalize_tool_calls(
+                    last_result.tool_calls
+                )
                 last_result.tool_calls = normalized_tool_calls
                 last_result.metadata = dict(last_result.metadata)
                 last_result.metadata["tool_results"] = list(all_tool_results)
+                self._fill_content_from_recorded_task_result(last_result)
+                last_validation = self._validate_node_result(node, last_result)
+                if self._can_stop_after_tool_batch(node, last_result, last_validation):
+                    return last_result, attempt, last_validation
                 messages.append(
                     {
                         "role": "assistant",
@@ -692,16 +737,23 @@ class TinyCUALoop(BaseLoop):
                     }
                 )
                 for index, tool_result in enumerate(tool_results):
-                    tool_call = normalized_tool_calls[index] if index < len(normalized_tool_calls) else {}
+                    tool_call = (
+                        normalized_tool_calls[index]
+                        if index < len(normalized_tool_calls)
+                        else {}
+                    )
                     messages.append(
                         {
                             "role": "tool",
-                            "tool_call_id": tool_call.get("id") or tool_result.get("name", ""),
+                            "tool_call_id": tool_call.get("id")
+                            or tool_result.get("name", ""),
                             "name": tool_result.get("name", ""),
                             "content": json.dumps(tool_result, default=str),
                         }
                     )
                 continuation_rounds += 1
+                if continuation_rounds >= _MAX_TOOL_CONTINUATIONS:
+                    break
                 raw_response = await self._call_agent_llm(
                     agent,
                     node,
@@ -718,20 +770,33 @@ class TinyCUALoop(BaseLoop):
                         "tool_results": list(all_tool_results),
                     },
                 )
+                if not node.is_terminal and node.node_id != "result_aggregation":
+                    self._coerce_structured_tool_calls(last_result, resolved_tools)
             if all_tool_results:
                 last_result.metadata = dict(last_result.metadata)
                 last_result.metadata["tool_results"] = list(all_tool_results)
-            self._maybe_apply_task_executor_workspace_fallback(node, last_result)
-            last_validation = node.validate_output(last_result)
+                self._fill_content_from_recorded_task_result(last_result)
+            last_validation = self._validate_node_result(node, last_result)
             if last_validation.is_valid:
                 return last_result, attempt, last_validation
             if attempt < max_attempts:
                 error = ValidationError("; ".join(last_validation.errors))
-                retry_message = node._build_retry_text(error, attempt)
+                if self._should_request_structured_tool_protocol(
+                    agent,
+                    node,
+                    resolved_tools,
+                ):
+                    retry_message = self._structured_tool_retry_message(
+                        error,
+                        node,
+                        resolved_tools,
+                    )
+                else:
+                    retry_message = node._build_retry_text(error, attempt)
                 self._record_retry_continuation(node, retry_message, attempt)
                 messages.append(
                     {
-                        "role": "assistant",
+                        "role": "system",
                         "content": retry_message,
                     }
                 )
@@ -739,11 +804,90 @@ class TinyCUALoop(BaseLoop):
         node._handle_exhaustion(last_validation, max_attempts)
         return last_result, max_attempts, last_validation
 
+    def _fill_content_from_recorded_task_result(self, llm_result: LLMResult) -> None:
+        """Populate empty content from successful task_result_update state."""
+        if llm_result.content.strip():
+            return
+        for item in reversed(llm_result.metadata.get("tool_results", [])):
+            if not isinstance(item, dict) or item.get("name") != "task_result_update":
+                continue
+            output = item.get("output")
+            if not isinstance(output, dict) or output.get("success") is not True:
+                continue
+            task_id = output.get("task_id")
+            if not isinstance(task_id, str):
+                continue
+            try:
+                task = self.root_session.task_store.get_task(task_id)
+            except ValueError:
+                continue
+            if task.result is not None and task.result.content.strip():
+                llm_result.content = task.result.content
+                return
+
+    def _route_task_executor_failure_to_reviewer(
+        self,
+        node: Node,
+        validation: ValidationResult,
+        llm_result: LLMResult,
+    ) -> bool:
+        """Route TaskExecutor failures through ResultReviewer with evidence."""
+        if node.node_id != "task_executor" or node.is_terminal:
+            return False
+        if self.queue.current is not node:
+            return False
+        active = self.root_session.task_store.get_active_task()
+        if active is None:
+            return False
+
+        from tinycua.config.node_config import create_node_config
+        from tinycua.loops.task_nodes import TinyCUAResultReviewerNode
+        from tinycua.models.task import TaskResult
+
+        failure_content = self._validation_failure_content(node, validation)
+        tool_results = list(llm_result.metadata.get("tool_results", []))
+        self.root_session.task_store.record_result(
+            active.task_id,
+            TaskResult(
+                content=failure_content,
+                execution_status="failed",
+                success=False,
+                metadata={
+                    "source_node_id": node.node_id,
+                    "runtime_validation_errors": list(validation.errors),
+                    "tool_results": self._json_safe(tool_results),
+                },
+            ),
+        )
+        active.metadata["runtime_validation_failure"] = {
+            "source_node_id": node.node_id,
+            "errors": list(validation.errors),
+        }
+
+        self.queue.clear_after_current()
+        self.queue.items.append(
+            TinyCUAResultReviewerNode(
+                node_id="result_reviewer",
+                config=create_node_config("result_reviewer"),
+            )
+        )
+        return True
+
+    def _validation_failure_content(
+        self,
+        node: Node,
+        validation: ValidationResult,
+    ) -> str:
+        """Build a visible failure response from runtime validation errors."""
+        errors = "; ".join(validation.errors) or "unknown validation failure"
+        return (
+            f"TinyCUA could not complete the request because {node.node_id} "
+            f"failed runtime validation: {errors}"
+        )
+
     def _effective_max_attempts(self, node: Node) -> int:
         """Return bounded retry attempts for the loop-owned call path."""
         retry_policy = node.config.retry_policy
-        if self._required_route_tool_name(node) is not None:
-            return 1
         return max(retry_policy.max_attempts, 1)
 
     async def _call_agent_llm(
@@ -771,7 +915,16 @@ class TinyCUALoop(BaseLoop):
             resolved_tools,
             force_required_tool=tool_choice is not None,
         )
-        if tool_choice is None:
+        model_overrides: dict[str, Any] = {}
+        if tool_choice is not None:
+            model_overrides["tool_choice"] = tool_choice
+        elif self._should_request_structured_tool_protocol(agent, node, resolved_tools):
+            model_overrides["response_format"] = self._tool_protocol_response_format(
+                node,
+                resolved_tools
+            )
+
+        if not model_overrides:
             return await self._invoke_agent_llm(
                 agent,
                 messages,
@@ -792,7 +945,7 @@ class TinyCUALoop(BaseLoop):
         previous_model = config.llm_model
         had_client_attr = hasattr(agent, "_llm_client")
         previous_client = getattr(agent, "_llm_client", None)
-        config.llm_model = model.model_copy(update={"tool_choice": tool_choice})
+        config.llm_model = model.model_copy(update=model_overrides)
         if had_client_attr:
             agent._llm_client = None  # type: ignore[attr-defined]
         try:
@@ -807,6 +960,129 @@ class TinyCUALoop(BaseLoop):
             if had_client_attr:
                 agent._llm_client = previous_client  # type: ignore[attr-defined]
 
+    def _should_request_structured_tool_protocol(
+        self,
+        agent: Agent,
+        node: Node,
+        resolved_tools: list[Tool],
+    ) -> bool:
+        """Return whether to request JSON tool-call protocol from local LLMs."""
+        if node.is_terminal or node.node_id == "result_aggregation" or not resolved_tools:
+            return False
+        model = getattr(agent, "llm_model", None)
+        provider = getattr(model, "provider", "")
+        return bool(
+            provider == "openai-chat-completions"
+            and self._uses_local_openai_server(model)
+        )
+
+    def _tool_protocol_response_format(
+        self,
+        node: Node,
+        resolved_tools: list[Tool],
+    ) -> dict[str, Any]:
+        """Return JSON-schema response format for text-emitted tool calls."""
+        protocol_tools = self._structured_tool_protocol_tools(node, resolved_tools)
+        arguments_schema = self._structured_tool_arguments_schema(node, protocol_tools)
+        return {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "tinycua_tool_call_protocol",
+                "strict": False,
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "tool_calls": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 1,
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "enum": [tool.name for tool in protocol_tools],
+                                    },
+                                    "arguments": arguments_schema,
+                                },
+                                "required": ["name", "arguments"],
+                                "additionalProperties": False,
+                            },
+                        }
+                    },
+                    "required": ["tool_calls"],
+                    "additionalProperties": False,
+                },
+            },
+        }
+
+    def _structured_tool_retry_message(
+        self,
+        error: ValidationError,
+        node: Node,
+        resolved_tools: list[Tool],
+    ) -> str:
+        """Build a JSON-protocol retry instruction without prose framing."""
+        protocol_tools = self._structured_tool_protocol_tools(node, resolved_tools)
+        return (
+            f"Retry attempt after validation failed: {error!s}. Your next "
+            "response must be ONLY strict JSON matching the tool-call protocol: "
+            '{"tool_calls":[{"name":"tool_name","arguments":{}}]}. '
+            "Choose one or more valid tools and arguments from these available "
+            f"tools: {', '.join(tool.name for tool in protocol_tools)}."
+        )
+
+    def _structured_tool_protocol_tools(
+        self,
+        node: Node,
+        resolved_tools: list[Tool],
+    ) -> list[Tool]:
+        """Return tools eligible for provider-side JSON protocol selection."""
+        required_route = self._required_route_tool_name(node)
+        preferred_names: set[str] | None = None
+        if required_route is not None:
+            preferred_names = {required_route}
+        else:
+            preferred_names = {
+                "task_create": {"task_init"},
+                "task_analyzer": {"task_decompose", "task_update"},
+                "task_assessor": {"task_update"},
+                "result_reviewer": {"task_review_decision"},
+            }.get(node.node_id)
+        if preferred_names is None:
+            return resolved_tools
+        preferred_tools = [tool for tool in resolved_tools if tool.name in preferred_names]
+        return preferred_tools or resolved_tools
+
+    def _structured_tool_arguments_schema(
+        self,
+        node: Node,
+        protocol_tools: list[Tool],
+    ) -> dict[str, Any]:
+        """Return a JSON schema for protocol tool arguments when safe."""
+        required_route = self._required_route_tool_name(node)
+        if required_route is not None and hasattr(node, "classification_labels"):
+            return {
+                "type": "object",
+                "properties": {
+                    "route": {
+                        "type": "string",
+                        "enum": list(getattr(node, "classification_labels", [])),
+                    },
+                    "reason": {"type": "string"},
+                },
+                "required": ["route"],
+                "additionalProperties": False,
+            }
+        if len(protocol_tools) == 1:
+            parameters = getattr(protocol_tools[0], "parameters", None)
+            if isinstance(parameters, dict) and parameters.get("type") == "object":
+                schema = dict(parameters)
+                if schema.get("required") == []:
+                    schema.pop("required")
+                return schema
+        return {"type": "object"}
+
     async def _invoke_agent_llm(
         self,
         agent: Agent,
@@ -818,8 +1094,41 @@ class TinyCUALoop(BaseLoop):
         """Invoke agent._call_llm while supporting async iterators in tests."""
         result = agent._call_llm(messages, resolved_tools, stream=stream)  # type: ignore[arg-type]
         if inspect.isawaitable(result):
-            return await result
+            result = await result
+        if not stream and hasattr(result, "__aiter__"):
+            return await self._collect_async_stream_result(result)
         return result
+
+    async def _collect_async_stream_result(self, stream_result: Any) -> dict[str, Any]:
+        """Collect an async stream into a non-stream response dict."""
+        content_parts: list[str] = []
+        tool_calls: list[dict[str, Any]] = []
+        metadata: dict[str, Any] = {}
+        async for event in stream_result:
+            event_type = event.get("type") if isinstance(event, dict) else None
+            if event_type == "response.output_text.delta":
+                content_parts.append(str(event.get("delta", "")))
+            elif event_type == "response.tool_call":
+                tool_calls.append(event)
+            elif event_type == "tool_call.ready":
+                tool_calls.append(
+                    {
+                        "id": event.get("id") or event.get("call_id"),
+                        "type": "function",
+                        "function": {
+                            "name": event.get("name", ""),
+                            "arguments": event.get("arguments", "{}"),
+                        },
+                    }
+                )
+            elif event_type == "response.usage":
+                metadata["usage"] = event.get("usage")
+        return {
+            "role": "assistant",
+            "content": "".join(content_parts),
+            "tool_calls": tool_calls,
+            "metadata": metadata,
+        }
 
     def _forced_tool_choice_for_node(
         self,
@@ -830,16 +1139,18 @@ class TinyCUALoop(BaseLoop):
         """Return provider-compatible forced tool_choice for route nodes."""
         required = self._required_route_tool_name(node)
         if required is None:
-            if node.node_id == "task_executor" and self._task_executor_action_tools(
-                resolved_tools
-            ):
-                return "required"
             return None
         if required not in {tool.name for tool in resolved_tools}:
             return None
         model = getattr(agent, "llm_model", None)
         provider = getattr(model, "provider", "")
-        if provider == "openai-chat-completions" and not self._uses_local_openai_server(model):
+        if provider == "openai-chat-completions" and self._uses_local_openai_server(
+            model
+        ):
+            return None
+        if provider == "openai-chat-completions" and not self._uses_local_openai_server(
+            model
+        ):
             return {"type": "function", "function": {"name": required}}
         return "required"
 
@@ -854,232 +1165,173 @@ class TinyCUALoop(BaseLoop):
         required = self._required_route_tool_name(node)
         if not force_required_tool:
             return resolved_tools
-        if node.node_id == "task_executor":
-            return self._task_executor_action_tools(resolved_tools) or resolved_tools
         if required is None:
             return resolved_tools
         route_tools = [tool for tool in resolved_tools if tool.name == required]
         return route_tools or resolved_tools
 
-    def _task_executor_action_tools(self, resolved_tools: list[Tool]) -> list[Tool]:
-        """Return native action tools suitable for forced task execution."""
-        return [
-            tool
-            for tool in resolved_tools
-            if tool.name in _TASK_EXECUTOR_ACTION_TOOL_NAMES
-        ]
-
-    def _maybe_apply_task_executor_workspace_fallback(
+    def _validate_node_result(
         self,
         node: Node,
         llm_result: LLMResult,
-    ) -> None:
-        """Create real workspace artifacts if TaskExecutor ignored action tools."""
-        if node.node_id != "task_executor" or self._has_successful_file_write(llm_result):
-            return
-        if self.workspace_dir is None or not self._latest_user_request_needs_files():
-            return
-        workspace = Path(self.workspace_dir).resolve()
-        files = self._default_note_app_scaffold()
-        tool_results: list[dict[str, Any]] = []
-        for relative_path, content in files.items():
-            target = (workspace / relative_path).resolve()
-            try:
-                target.relative_to(workspace)
-                target.parent.mkdir(parents=True, exist_ok=True)
-                chars_written = target.write_text(content, encoding="utf-8")
-                tool_results.append(
-                    {
-                        "name": "write_file",
-                        "allowed": True,
-                        "output": {
-                            "success": True,
-                            "path": str(target),
-                            "chars_written": chars_written,
-                            "error": None,
-                        },
-                    }
-                )
-            except Exception as exc:  # noqa: BLE001 - preserve runtime evidence.
-                tool_results.append(
-                    {
-                        "name": "write_file",
-                        "allowed": True,
-                        "output": {
-                            "success": False,
-                            "path": str(target),
-                            "chars_written": 0,
-                            "error": str(exc),
-                        },
-                    }
-                )
-        verification = self._verify_python_scaffold(workspace)
-        tool_results.append({"name": "run_python", "allowed": True, "output": verification})
-        llm_result.metadata = dict(llm_result.metadata)
-        llm_result.metadata["tool_results"] = tool_results
-        summary = "Created workspace scaffold and ran Python syntax verification."
-        llm_result.content = f"{llm_result.content.strip()}\n\n{summary}".strip()
+    ) -> ValidationResult:
+        """Validate node output plus TinyCUA runtime invariants."""
+        validation = node.validate_output(llm_result)
+        for extra_validation in (
+            self._validate_task_executor_action(node, llm_result),
+            self._validate_tool_owned_task_state(node, llm_result),
+            self._validate_final_response_content(node, llm_result),
+        ):
+            if not extra_validation.is_valid:
+                validation.is_valid = False
+                validation.errors.extend(extra_validation.errors)
+        return validation
 
-    def _has_successful_file_write(self, llm_result: LLMResult) -> bool:
-        """Return whether a tool result wrote at least one workspace file."""
-        for item in llm_result.metadata.get("tool_results", []):
-            output = item.get("output") if isinstance(item, dict) else None
-            if (
-                item.get("name") == "write_file"
-                and isinstance(output, dict)
-                and output.get("success")
-            ):
+    def _validate_final_response_content(
+        self,
+        node: Node,
+        llm_result: LLMResult,
+    ) -> ValidationResult:
+        """Validate that the terminal response is user-facing text."""
+        validation = ValidationResult(is_valid=True, errors=[])
+        if node.node_id != "response":
+            return validation
+        content = llm_result.content.strip()
+        if not content:
+            validation.is_valid = False
+            validation.errors.append("Final response must be non-empty.")
+            return validation
+        if '"tool_calls"' in content or "</tool_call>" in content:
+            validation.is_valid = False
+            validation.errors.append(
+                "Final response must be natural user-facing text, not a tool-call "
+                "protocol payload."
+            )
+        store = self.root_session.task_store
+        if (
+            store.root_task_id is not None
+            and not store.all_done()
+            and not self._allows_incomplete_task_terminal_response()
+        ):
+            validation.is_valid = False
+            validation.errors.append(
+                "Final response cannot synthesize success before every task in "
+                "the worker task tree is completed or failed by reviewer-owned "
+                "state."
+            )
+        return validation
+
+    def _allows_incomplete_task_terminal_response(self) -> bool:
+        """Return whether terminal response is an explicit open question."""
+        for task in self.root_session.task_store.tasks.values():
+            if task.metadata.get("open_question_reason"):
                 return True
         return False
 
-    def _latest_user_request_needs_files(self) -> bool:
-        """Return whether the latest user request asks for workspace artifacts."""
-        for message in reversed(self.root_session.input_context):
-            if message.get("role") != "user":
-                continue
-            content = str(message.get("content", "")).lower()
-            return any(term in content for term in ("create", "write", "build")) and any(
-                term in content for term in ("file", "workspace", "app", "webapp")
-            )
+    def _can_stop_after_tool_batch(
+        self,
+        node: Node,
+        llm_result: LLMResult,
+        validation: ValidationResult,
+    ) -> bool:
+        """Return whether a tool batch completed this nonterminal node."""
+        if node.is_terminal or not validation.is_valid:
+            return False
+        required_route = self._required_route_tool_name(node)
+        if required_route is not None:
+            return True
+        if node.node_id == "digester":
+            return self._tool_results_include(llm_result, "digest_information")
+        if node.node_id in {
+            "task_create",
+            "task_analyzer",
+            "task_assessor",
+            "result_reviewer",
+        }:
+            return bool(llm_result.metadata.get("tool_results"))
+        if node.node_id == "task_executor":
+            return self._tool_results_include(llm_result, "task_result_update")
         return False
 
-    def _verify_python_scaffold(self, workspace: Path) -> dict[str, Any]:
-        """Compile generated Python files and return verification evidence."""
-        checked = []
-        try:
-            for relative_path in ("backend.py", "scheduler.py"):
-                py_compile.compile(str(workspace / relative_path), doraise=True)
-                checked.append(relative_path)
-            return {
-                "stdout": f"syntax ok: {', '.join(checked)}",
-                "stderr": "",
-                "exit_code": 0,
-                "timed_out": False,
-                "error": None,
-            }
-        except Exception as exc:  # noqa: BLE001 - returned as verification evidence.
-            return {
-                "stdout": f"checked: {', '.join(checked)}",
-                "stderr": str(exc),
-                "exit_code": 1,
-                "timed_out": False,
-                "error": str(exc),
-            }
+    def _tool_results_include(self, llm_result: LLMResult, tool_name: str) -> bool:
+        """Return whether metadata contains a result for a named tool."""
+        return any(
+            isinstance(item, dict) and item.get("name") == tool_name
+            for item in llm_result.metadata.get("tool_results", [])
+        )
 
-    def _default_note_app_scaffold(self) -> dict[str, str]:
-        """Return a minimal runnable note/scheduler app scaffold."""
-        return {
-            "backend.py": '''"""Minimal note-taking backend with scheduled reminders."""
+    def _validate_task_executor_action(
+        self,
+        node: Node,
+        llm_result: LLMResult,
+    ) -> ValidationResult:
+        """Validate that TaskExecutor performed work through tools."""
+        validation = ValidationResult(is_valid=True, errors=[])
+        if node.node_id != "task_executor":
+            return validation
+        if llm_result.metadata.get("tool_results"):
+            return validation
+        validation.is_valid = False
+        validation.errors.append(
+            "TaskExecutor must use tools to execute, inspect, verify, record a "
+            "result, or report a blocked state; do not return a plan-only answer."
+        )
+        return validation
 
-from __future__ import annotations
-
-import json
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
-
-DATA_FILE = Path("notes.json")
-
-
-def load_notes() -> list[dict]:
-    if not DATA_FILE.exists():
-        return []
-    return json.loads(DATA_FILE.read_text(encoding="utf-8"))
-
-
-def save_notes(notes: list[dict]) -> None:
-    DATA_FILE.write_text(json.dumps(notes, indent=2), encoding="utf-8")
-
-
-class NotesHandler(BaseHTTPRequestHandler):
-    def _send_json(self, payload: object, status: int = 200) -> None:
-        body = json.dumps(payload).encode("utf-8")
-        self.send_response(status)
-        self.send_header("content-type", "application/json")
-        self.send_header("content-length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def do_GET(self) -> None:  # noqa: N802
-        if self.path == "/api/notes":
-            self._send_json(load_notes())
-            return
-        index = Path("webapp/index.html")
-        body = index.read_bytes() if index.exists() else b"Note app"
-        self.send_response(200)
-        self.send_header("content-type", "text/html")
-        self.send_header("content-length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def do_POST(self) -> None:  # noqa: N802
-        if self.path != "/api/notes":
-            self._send_json({"error": "not found"}, status=404)
-            return
-        length = int(self.headers.get("content-length", "0"))
-        payload = json.loads(self.rfile.read(length) or b"{}")
-        notes = load_notes()
-        note = {
-            "id": len(notes) + 1,
-            "text": payload.get("text", ""),
-            "scheduled_for": payload.get("scheduled_for", ""),
+    def _validate_tool_owned_task_state(
+        self,
+        node: Node,
+        llm_result: LLMResult,
+    ) -> ValidationResult:
+        """Validate task-state nodes mutate state through tools, not prose."""
+        validation = ValidationResult(is_valid=True, errors=[])
+        tool_results = llm_result.metadata.get("tool_results", [])
+        successful_tool_names = {
+            str(item.get("name"))
+            for item in tool_results
+            if isinstance(item, dict)
+            and isinstance(item.get("output"), dict)
+            and item["output"].get("success") is True
         }
-        notes.append(note)
-        save_notes(notes)
-        self._send_json(note, status=201)
-
-
-def main() -> None:
-    server = ThreadingHTTPServer(("127.0.0.1", 8000), NotesHandler)
-    print("Serving note app at http://127.0.0.1:8000")
-    server.serve_forever()
-
-
-if __name__ == "__main__":
-    main()
-''',
-            "scheduler.py": '''"""Simple in-process scheduler helpers for notes."""
-
-from __future__ import annotations
-
-from datetime import datetime
-
-
-def due_notes(notes: list[dict], now: datetime | None = None) -> list[dict]:
-    current = now or datetime.now()
-    due = []
-    for note in notes:
-        scheduled_for = note.get("scheduled_for")
-        if not scheduled_for:
-            continue
-        try:
-            when = datetime.fromisoformat(scheduled_for)
-        except ValueError:
-            continue
-        if when <= current:
-            due.append(note)
-    return due
-''',
-            "webapp/index.html": '''<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>TinyCUA Notes</title>
-  <script defer src="app.js"></script>
-</head>
-<body>
-  <h1>Notes with Scheduler</h1>
-  <form id="note-form">
-    <textarea id="note-text" placeholder="Write a note"></textarea>
-    <input id="scheduled-for" type="datetime-local" />
-    <button type="submit">Save note</button>
-  </form>
-  <ul id="notes"></ul>
-</body>
-</html>
-''',
-            "webapp/app.js": """async function loadNotes() {\n  const res = await fetch('/api/notes');\n  const notes = await res.json();\n  document.querySelector('#notes').innerHTML = notes.map(\n    note => `<li>${note.text} <small>${note.scheduled_for || ''}</small></li>`\n  ).join('');\n}\n\ndocument.querySelector('#note-form').addEventListener('submit', async event => {\n  event.preventDefault();\n  await fetch('/api/notes', {\n    method: 'POST',\n    headers: {'content-type': 'application/json'},\n    body: JSON.stringify({\n      text: document.querySelector('#note-text').value,\n      scheduled_for: document.querySelector('#scheduled-for').value\n    })\n  });\n  await loadNotes();\n});\n\nloadNotes();\n""",
-            "README.md": """# TinyCUA Notes\n\nA minimal Python-backed note-taking webapp with scheduled note metadata.\n\nRun syntax verification:\n\n```bash\npython -m py_compile backend.py scheduler.py\n```\n\nStart the app:\n\n```bash\npython backend.py\n```\n""",
+        required_by_node = {
+            "task_create": {"task_init"},
+            "task_executor": {"task_result_update"},
+            "result_reviewer": {"task_review_decision"},
         }
+        any_of_by_node = {
+            "task_analyzer": {"task_decompose", "task_update"},
+            "task_assessor": {"task_update"},
+        }
+        any_of = any_of_by_node.get(node.node_id)
+        if any_of is not None:
+            if successful_tool_names.intersection(any_of):
+                return validation
+            validation.is_valid = False
+            validation.errors.append(
+                f"{node.node_id} must call at least one successful "
+                f"task-state tool from {sorted(any_of)}; task state cannot "
+                "be inferred from prose."
+            )
+            return validation
+        required = required_by_node.get(node.node_id)
+        if node.node_id == "result_aggregation":
+            store = self.root_session.task_store
+            if store.root_task_id is not None and store.all_done():
+                return validation
+            validation.is_valid = False
+            validation.errors.append(
+                "result_aggregation requires an existing completed task tree; "
+                "it cannot synthesize completion from missing task state."
+            )
+            return validation
+        if required is None or required.issubset(successful_tool_names):
+            return validation
+        validation.is_valid = False
+        validation.errors.append(
+            f"{node.node_id} must call successful task-state tool(s): "
+            f"{sorted(required)}. Task state cannot be inferred from prose."
+        )
+        return validation
 
     def _uses_local_openai_server(self, model: Any) -> bool:
         """Return whether the configured OpenAI-compatible server is local."""
@@ -1134,17 +1386,57 @@ def due_notes(notes: list[dict], now: datetime | None = None) -> list[dict]:
             normalized.append(item)
         return normalized
 
-    def _decision_fallback_label(self, node: DecisionNode) -> str | None:
-        """Return configured fallback route for invalid decision responses."""
-        if isinstance(node, TinyCUAQueryAnalystNode):
-            policy = getattr(self.session_config, "interaction_policy", None)
-            strategy = getattr(policy, "uncertain_strategy", "fallback_response")
-            if strategy == "route_worker":
-                return "worker"
-            if strategy == "fail":
-                return None
-            return "passthrough"
-        return node.classification_labels[0] if node.classification_labels else None
+    def _coerce_structured_tool_calls(
+        self,
+        llm_result: LLMResult,
+        resolved_tools: list[Tool],
+    ) -> None:
+        """Convert strict JSON tool-call protocol content into tool_calls.
+
+        This is a provider-compatibility adapter, not a behavioral fallback: the
+        LLM must explicitly select tool names and arguments in the documented
+        JSON tool-call protocol. Arbitrary prose, labels, or partial JSON are
+        ignored and remain validation failures.
+        """
+        if llm_result.tool_calls or not llm_result.content.strip():
+            return
+        allowed = {tool.name for tool in resolved_tools}
+        try:
+            parsed = json.loads(llm_result.content)
+        except json.JSONDecodeError:
+            return
+        if not isinstance(parsed, dict) or not isinstance(parsed.get("tool_calls"), list):
+            return
+        tool_calls: list[dict[str, Any]] = []
+        for index, item in enumerate(parsed["tool_calls"]):
+            if not isinstance(item, dict):
+                continue
+            function = item.get("function") if isinstance(item.get("function"), dict) else {}
+            name = item.get("name") or function.get("name")
+            if not isinstance(name, str) or name not in allowed:
+                continue
+            arguments = item.get("arguments", function.get("arguments", {}))
+            if isinstance(arguments, str):
+                try:
+                    arguments = json.loads(arguments) if arguments else {}
+                except json.JSONDecodeError:
+                    arguments = {}
+            if not isinstance(arguments, dict):
+                arguments = {}
+            tool_calls.append(
+                {
+                    "id": item.get("id") or f"call_json_{index}_{name}",
+                    "type": "function",
+                    "function": {
+                        "name": name,
+                        "arguments": json.dumps(arguments),
+                    },
+                }
+            )
+        if tool_calls:
+            llm_result.tool_calls = tool_calls
+            llm_result.metadata = dict(llm_result.metadata)
+            llm_result.metadata["structured_tool_protocol"] = True
 
     def _route_from_tool_calls(
         self,
@@ -1186,13 +1478,8 @@ def due_notes(notes: list[dict], now: datetime | None = None) -> list[dict]:
                 analysis_response=llm_result,
                 classification_response=llm_result,
             )
-        fallback_label = self._decision_fallback_label(node)
-        route_label = RouteClassifier(
-            node.classification_labels,
-            fallback_label=fallback_label,
-        ).classify(llm_result.content)
         return DecisionResult(
-            route_label=route_label,
+            route_label="",
             analysis_response=llm_result,
             classification_response=llm_result,
         )
@@ -1221,8 +1508,13 @@ def due_notes(notes: list[dict], now: datetime | None = None) -> list[dict]:
                     on_complete_response.classification_response.tool_calls,
                     [on_complete_response.route_label],
                 )
-                else "content_or_fallback"
+                else "missing_tool_call"
             )
+        if llm_result is not None:
+            if llm_result.content:
+                trace_entry["llm_content"] = llm_result.content
+            if llm_result.tool_calls:
+                trace_entry["tool_calls"] = self._json_safe(llm_result.tool_calls)
         if llm_result is not None and llm_result.metadata.get("tool_results"):
             trace_entry["tool_results"] = llm_result.metadata["tool_results"]
         retry_exhaustion = getattr(node, "_last_retry_exhaustion", None)
@@ -1367,7 +1659,10 @@ def due_notes(notes: list[dict], now: datetime | None = None) -> list[dict]:
         content_parts: list[str],
         collected_tool_calls: list[dict[str, Any]],
         resolved_tools: list[Tool],
-    ) -> str:
+        node_input: NodeInputLike | None = None,
+        *,
+        attempt: int = 1,
+    ) -> tuple[str, ValidationResult, LLMResult]:
         """Finalize a streamed node: record output, fire lifecycle hooks.
 
         Args:
@@ -1375,18 +1670,47 @@ def due_notes(notes: list[dict], now: datetime | None = None) -> list[dict]:
             content_parts: Accumulated text delta parts.
             collected_tool_calls: Collected tool call events.
             resolved_tools: Tools allowed for the streamed node.
+            node_input: Direct input passed to the streamed node.
+            attempt: Current retry attempt number for trace metadata.
 
         Returns:
-            The combined content string.
+            The combined content, validation result, and LLMResult.
         """
         combined = "".join(content_parts)
         combined = sanitize_internal_reprs(combined)
+        llm_result = LLMResult(
+            content=combined,
+            role="assistant",
+            tool_calls=collected_tool_calls,
+        )
+        self._coerce_structured_tool_calls(llm_result, resolved_tools)
+        collected_tool_calls = llm_result.tool_calls
         tool_results = self._execute_tool_calls(collected_tool_calls, resolved_tools)
-        llm_result = self._record_node_output(node, combined, collected_tool_calls)
         if tool_results:
             llm_result.metadata["tool_results"] = tool_results
+            self._enrich_task_results_from_tool_batch(node, tool_results)
+            self._record_tool_result_transcripts(node, tool_results)
+            self._fill_content_from_recorded_task_result(llm_result)
+        combined = llm_result.content
+        result_metadata = dict(llm_result.metadata)
+        llm_result = self._record_node_output(node, combined, llm_result.tool_calls)
+        llm_result.metadata.update(result_metadata)
 
-        self._apply_loop_result_hook(node, llm_result, None)
+        validation = self._validate_node_result(node, llm_result)
+        if not validation.is_valid:
+            on_complete_response = self._build_on_complete_response(node, llm_result)
+            trace_entry = self._trace_entry(
+                node,
+                attempt,
+                resolved_tools,
+                on_complete_response,
+                llm_result,
+            )
+            trace_entry["validation_errors"] = list(validation.errors)
+            self._execution_trace.append(trace_entry)
+            return combined, validation, llm_result
+
+        self._apply_loop_result_hook(node, llm_result, node_input)
         self._publish_structured_outputs_to_root(node)
         self._apply_task_lifecycle_marker(node, combined)
         on_complete_response = self._build_on_complete_response(node, llm_result)
@@ -1394,8 +1718,8 @@ def due_notes(notes: list[dict], now: datetime | None = None) -> list[dict]:
 
         trace_entry = self._trace_entry(
             node,
-            1,
-            node.config.tool_policy.resolve_tools([]),
+            attempt,
+            resolved_tools,
             on_complete_response,
             llm_result,
         )
@@ -1411,9 +1735,9 @@ def due_notes(notes: list[dict], now: datetime | None = None) -> list[dict]:
             rule,
         )
 
-        return combined
+        return combined, validation, llm_result
 
-    async def _run_stream(  # noqa: C901 — streaming lifecycle complexity is inherent
+    async def _run_stream(
         self,
         agent: Agent,
         tools: list[Tool],
@@ -1445,192 +1769,23 @@ def due_notes(notes: list[dict], now: datetime | None = None) -> list[dict]:
             Stream event dicts from the LLM and lifecycle transitions.
         """
         all_messages: list[dict[str, Any]] = []
+        node_context = self._node_run_context(
+            agent,
+            tools,
+            override_instructions,
+            all_messages,
+        )
         self._usage_events = []
-        iterations = 0
         try:
             while not self.queue.is_empty():
-                if iterations >= self.max_iterations:
-                    self.root_session.diagnostics.append(
-                        {
-                            "type": "max_iterations_exceeded",
-                            "max_iterations": self.max_iterations,
-                        }
-                    )
-                    break
-                iterations += 1
                 node = self.queue.current
                 if node is None:
                     break
-
-                # Wire queue on QueryAnalystNode before execution
-                if isinstance(node, TinyCUAQueryAnalystNode):
-                    node._queue = self.queue
-
-                messages, resolved_tools = self._prepare_node(
-                    node,
-                    tools,
-                    override_instructions,
-                )
-                all_messages.extend(messages)
-
-                # Determine policy settings for this node
-                policy = node.config.stream_policy
-                emit_lifecycle = policy.emit_internal_events
-                include_meta = policy.include_node_metadata
-                final_only = policy.final_response_only
-                is_terminal_node = node.is_terminal
-                node_type = type(node).__name__
-                attempt = 1
-
-                # Emit node.started lifecycle event
-                started = self._emit_lifecycle_event(
-                    "node.started",
-                    node.node_id,
-                    node_type,
-                    attempt,
-                    emit_lifecycle,
-                    final_only,
-                    is_terminal_node,
-                )
-                if started is not None:
-                    yield self._enrich_and_yield(
-                        started,
-                        include_meta,
-                        node.node_id,
-                        node_type,
-                        attempt,
-                    )
-
-                # Emit node.llm_call lifecycle event
-                llm_call = self._emit_lifecycle_event(
-                    "node.llm_call",
-                    node.node_id,
-                    node_type,
-                    attempt,
-                    emit_lifecycle,
-                    final_only,
-                    is_terminal_node,
-                )
-                if llm_call is not None:
-                    yield self._enrich_and_yield(
-                        llm_call,
-                        include_meta,
-                        node.node_id,
-                        node_type,
-                        attempt,
-                    )
-
-                # Stream from agent._call_llm() and yield events
-                content_parts: list[str] = []
-                collected_tool_calls: list[dict[str, Any]] = []
-                try:
-                    stream_result = await self._call_agent_llm(
-                        agent,
-                        node,
-                        messages,
-                        resolved_tools,
-                        stream=True,
-                    )
-                    async for event in stream_result:  # type: ignore[union-attr]
-                        event_type = event.get("type")
-                        if event_type == "response.output_text.delta":
-                            delta = event.get("delta", "")
-                            content_parts.append(delta)
-                            transcript = self._record_transcript_event(
-                                "transcript.delta",
-                                self._node_label(node),
-                                delta,
-                                node_id=node.node_id,
-                            )
-                        elif event_type == "response.tool_call":
-                            collected_tool_calls.append(event)
-                        elif event_type == "tool_call.ready":
-                            collected_tool_calls.append(
-                                {
-                                    "id": event.get("id") or event.get("call_id"),
-                                    "type": "function",
-                                    "function": {
-                                        "name": event.get("name", ""),
-                                        "arguments": event.get("arguments", "{}"),
-                                    },
-                                }
-                            )
-                        elif event_type == "response.usage":
-                            self._usage_events.append(event)
-                        if is_terminal_node and event_type == "response.output_text.delta":
-                            self._final_response_events.append(dict(event))
-                        enriched = self._enrich_and_yield(
-                            event,
-                            include_meta,
-                            node.node_id,
-                            node_type,
-                            attempt,
-                        )
-                        if not final_only or is_terminal_node:
-                            yield enriched
-                            if event_type == "response.output_text.delta":
-                                yield transcript
-                except Exception:
-                    error_event = self._make_error_event(
-                        node.node_id,
-                        node_type,
-                        attempt,
-                    )
-                    yield self._enrich_and_yield(
-                        error_event,
-                        include_meta,
-                        node.node_id,
-                        node_type,
-                        attempt,
-                    )
-                    raise
-
-                # Finalize node: record output, fire hooks, propagate
-                combined = self._finalize_streamed_node(
-                    node,
-                    content_parts,
-                    collected_tool_calls,
-                    resolved_tools,
-                )
-                if (
-                    node.is_terminal
-                    and not combined.strip()
-                    and self._synthetic_terminal_fallback_enabled()
+                async for event in node.stream(
+                    node_context,
+                    self.queue.input_for_current(),
                 ):
-                    combined = self._fallback_terminal_content()
-
-                # Record assistant response in working messages
-                if combined:
-                    all_messages.append({"role": "assistant", "content": combined})
-
-                # Record tool calls in working messages for transcript completeness
-                for tool_call in collected_tool_calls:
-                    all_messages.append({
-                        "role": "assistant",
-                        "tool_calls": [tool_call],
-                    })
-
-                # Emit node.completed lifecycle event
-                finish_reason = "completed" if combined else "empty"
-                completed = self._emit_lifecycle_event(
-                    "node.completed",
-                    node.node_id,
-                    node_type,
-                    attempt,
-                    emit_lifecycle,
-                    final_only,
-                    is_terminal_node,
-                    content=combined,
-                    finish_reason=finish_reason,
-                )
-                if completed is not None:
-                    yield self._enrich_and_yield(
-                        completed,
-                        include_meta,
-                        node.node_id,
-                        node_type,
-                        attempt,
-                    )
+                    yield event
 
                 # Stop at terminal nodes — do not advance past them
                 if node.is_terminal and self.queue.current is node:
@@ -1646,6 +1801,545 @@ def due_notes(notes: list[dict], now: datetime | None = None) -> list[dict]:
                 self.queue.advance()
         finally:
             self._working_messages = all_messages
+
+    async def _stream_node_events(
+        self,
+        node: Node,
+        agent: Agent,
+        tools: list[Tool],
+        override_instructions: str | None,
+        node_input: NodeInputLike,
+        stream_messages: list[dict[str, Any]] | None = None,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Stream one node through its lifecycle and runtime services."""
+        if isinstance(node, TinyCUAQueryAnalystNode):
+            node._queue = self.queue
+        self._inject_active_task_input(node)
+        messages, resolved_tools = self._prepare_node(
+            node,
+            tools,
+            override_instructions,
+        )
+        self._record_node_call_transcript(node, messages, resolved_tools)
+        if stream_messages is not None:
+            stream_messages.extend(messages)
+
+        policy = node.config.stream_policy
+        emit_lifecycle = policy.emit_internal_events
+        include_meta = policy.include_node_metadata
+        final_only = policy.final_response_only
+        node_type = type(node).__name__
+        attempt = 1
+
+        async for event in self._stream_node_start(node, node_type, attempt):
+            yield self._enrich_and_yield(
+                event,
+                include_meta,
+                node.node_id,
+                node_type,
+                attempt,
+            )
+
+        deterministic_runner = getattr(node, "run_deterministic", None)
+        if callable(deterministic_runner):
+            async for event in self._stream_deterministic_node_events(
+                node,
+                resolved_tools,
+                stream_messages,
+                emit_lifecycle,
+                include_meta,
+                final_only,
+                node_type,
+                attempt,
+            ):
+                yield event
+            return
+
+        async for event in self._stream_llm_node_events(
+            node,
+            agent,
+            messages,
+            resolved_tools,
+            node_input,
+            stream_messages,
+            emit_lifecycle,
+            include_meta,
+            final_only,
+            node_type,
+            attempt,
+        ):
+            yield event
+
+    async def _stream_nonterminal_sync_node_events(
+        self,
+        node: Node,
+        agent: Agent,
+        tools: list[Tool],
+        override_instructions: str | None,
+        node_input: NodeInputLike,
+        stream_messages: list[dict[str, Any]] | None,
+        emit_lifecycle: bool,
+        include_meta: bool,
+        final_only: bool,
+        node_type: str,
+        attempt: int,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Execute nonterminal stream nodes through sync parity path."""
+        try:
+            combined, tool_calls = await self._execute_node(
+                node,
+                agent,
+                tools,
+                override_instructions,
+                node_input,
+            )
+        except Exception:
+            error_event = self._make_error_event(node.node_id, node_type, attempt)
+            yield self._enrich_and_yield(
+                error_event,
+                include_meta,
+                node.node_id,
+                node_type,
+                attempt,
+            )
+            raise
+        if stream_messages is not None:
+            if combined:
+                stream_messages.append({"role": "assistant", "content": combined})
+            for tool_call in tool_calls:
+                stream_messages.append({"role": "assistant", "tool_calls": [tool_call]})
+        completed = self._emit_lifecycle_event(
+            "node.completed",
+            node.node_id,
+            node_type,
+            attempt,
+            emit_lifecycle,
+            final_only,
+            False,
+            content=combined,
+            finish_reason="completed" if combined else "empty",
+        )
+        if completed is not None:
+            yield self._enrich_and_yield(
+                completed,
+                include_meta,
+                node.node_id,
+                node_type,
+                attempt,
+            )
+
+    async def _stream_node_start(
+        self,
+        node: Node,
+        node_type: str,
+        attempt: int,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Emit a node.started lifecycle event if policy allows it."""
+        policy = node.config.stream_policy
+        started = self._emit_lifecycle_event(
+            "node.started",
+            node.node_id,
+            node_type,
+            attempt,
+            policy.emit_internal_events,
+            policy.final_response_only,
+            node.is_terminal,
+        )
+        if started is not None:
+            yield started
+
+    async def _stream_deterministic_node_events(
+        self,
+        node: Node,
+        resolved_tools: list[Tool],
+        stream_messages: list[dict[str, Any]] | None,
+        emit_lifecycle: bool,
+        include_meta: bool,
+        final_only: bool,
+        node_type: str,
+        attempt: int,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Run a deterministic node and emit completion lifecycle events."""
+        combined, tool_calls = self._execute_deterministic_node(node, resolved_tools)
+        if stream_messages is not None:
+            if combined:
+                stream_messages.append({"role": "assistant", "content": combined})
+            for tool_call in tool_calls:
+                stream_messages.append({"role": "assistant", "tool_calls": [tool_call]})
+        completed = self._emit_lifecycle_event(
+            "node.completed",
+            node.node_id,
+            node_type,
+            attempt,
+            emit_lifecycle,
+            final_only,
+            node.is_terminal,
+            content=combined,
+            finish_reason="completed",
+        )
+        if completed is not None:
+            yield self._enrich_and_yield(
+                completed,
+                include_meta,
+                node.node_id,
+                node_type,
+                attempt,
+            )
+
+    async def _stream_llm_node_events(
+        self,
+        node: Node,
+        agent: Agent,
+        messages: list[dict[str, Any]],
+        resolved_tools: list[Tool],
+        node_input: NodeInputLike,
+        stream_messages: list[dict[str, Any]] | None,
+        emit_lifecycle: bool,
+        include_meta: bool,
+        final_only: bool,
+        node_type: str,
+        attempt: int,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Stream an LLM-backed node and finalize its output."""
+        max_attempts = self._effective_max_attempts(node)
+        last_validation = ValidationResult(is_valid=True, errors=[])
+        last_result = LLMResult()
+        last_combined = ""
+        for attempt_number in range(attempt, max_attempts + 1):
+            llm_call = self._emit_lifecycle_event(
+                "node.llm_call",
+                node.node_id,
+                node_type,
+                attempt_number,
+                emit_lifecycle,
+                final_only,
+                node.is_terminal,
+            )
+            if llm_call is not None:
+                yield self._enrich_and_yield(
+                    llm_call,
+                    include_meta,
+                    node.node_id,
+                    node_type,
+                    attempt_number,
+                )
+            content_parts: list[str] = []
+            collected_tool_calls: list[dict[str, Any]] = []
+            try:
+                async for event in self._collect_stream_events(
+                    node,
+                    agent,
+                    messages,
+                    resolved_tools,
+                    content_parts,
+                    collected_tool_calls,
+                    include_meta,
+                    final_only,
+                    node_type,
+                    attempt_number,
+                ):
+                    yield event
+            except Exception:
+                error_event = self._make_error_event(
+                    node.node_id,
+                    node_type,
+                    attempt_number,
+                )
+                yield self._enrich_and_yield(
+                    error_event,
+                    include_meta,
+                    node.node_id,
+                    node_type,
+                    attempt_number,
+                )
+                raise
+
+            combined, validation, llm_result = self._finalize_streamed_node(
+                node,
+                content_parts,
+                collected_tool_calls,
+                resolved_tools,
+                node_input,
+                attempt=attempt_number,
+            )
+            last_combined = combined
+            last_validation = validation
+            last_result = llm_result
+            if validation.is_valid:
+                if combined and not node.is_terminal:
+                    self._record_node_content_transcript(node, combined)
+                if stream_messages is not None:
+                    if combined:
+                        stream_messages.append({"role": "assistant", "content": combined})
+                    for tool_call in collected_tool_calls:
+                        stream_messages.append(
+                            {"role": "assistant", "tool_calls": [tool_call]}
+                        )
+                async for event in self._stream_node_completed(
+                    node,
+                    combined,
+                    emit_lifecycle,
+                    include_meta,
+                    final_only,
+                    node_type,
+                    attempt_number,
+                ):
+                    yield event
+                return
+            if attempt_number < max_attempts:
+                error = ValidationError("; ".join(validation.errors))
+                retry_message = self._stream_retry_message(
+                    agent,
+                    node,
+                    resolved_tools,
+                    error,
+                    attempt_number,
+                )
+                self._record_retry_continuation(node, retry_message, attempt_number)
+                self._append_tool_feedback_messages(messages, llm_result)
+                messages.append({"role": "system", "content": retry_message})
+
+        node._handle_exhaustion(last_validation, max_attempts)
+        if not self._route_task_executor_failure_to_reviewer(
+            node,
+            last_validation,
+            last_result,
+        ):
+            raise NodeExecutionError(self._validation_failure_content(node, last_validation))
+        async for event in self._stream_node_completed(
+            node,
+            last_combined,
+            emit_lifecycle,
+            include_meta,
+            final_only,
+            node_type,
+            max_attempts,
+        ):
+            yield event
+
+    def _stream_retry_message(
+        self,
+        agent: Agent,
+        node: Node,
+        resolved_tools: list[Tool],
+        error: ValidationError,
+        attempt: int,
+    ) -> str:
+        """Build retry guidance for the canonical streaming path."""
+        if self._should_request_structured_tool_protocol(agent, node, resolved_tools):
+            return self._structured_tool_retry_message(error, node, resolved_tools)
+        return node._build_retry_text(error, attempt)
+
+    def _append_tool_feedback_messages(
+        self,
+        messages: list[dict[str, Any]],
+        llm_result: LLMResult,
+    ) -> None:
+        """Append assistant tool calls and tool results for streamed retries."""
+        tool_results = llm_result.metadata.get("tool_results", [])
+        normalized_tool_calls = self._normalize_tool_calls(llm_result.tool_calls)
+        if llm_result.content or normalized_tool_calls:
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": llm_result.content,
+                    "tool_calls": normalized_tool_calls,
+                }
+            )
+        for index, tool_result in enumerate(tool_results):
+            if not isinstance(tool_result, dict):
+                continue
+            tool_call = (
+                normalized_tool_calls[index]
+                if index < len(normalized_tool_calls)
+                else {}
+            )
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call.get("id")
+                    or str(tool_result.get("name", "")),
+                    "name": str(tool_result.get("name", "")),
+                    "content": json.dumps(tool_result, default=str),
+                }
+            )
+
+    async def _collect_stream_events(
+        self,
+        node: Node,
+        agent: Agent,
+        messages: list[dict[str, Any]],
+        resolved_tools: list[Tool],
+        content_parts: list[str],
+        collected_tool_calls: list[dict[str, Any]],
+        include_meta: bool,
+        final_only: bool,
+        node_type: str,
+        attempt: int,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Collect provider stream events and yield policy-filtered events."""
+        stream_result = await self._call_agent_llm(
+            agent,
+            node,
+            messages,
+            resolved_tools,
+            stream=True,
+        )
+        async for event in self._iter_stream_result_events(stream_result):
+            transcript = self._handle_stream_event(
+                node,
+                event,
+                content_parts,
+                collected_tool_calls,
+            )
+            enriched = self._enrich_and_yield(
+                event,
+                include_meta,
+                node.node_id,
+                node_type,
+                attempt,
+            )
+            if not final_only or node.is_terminal:
+                yield enriched
+                if transcript is not None:
+                    yield transcript
+
+    async def _iter_stream_result_events(
+        self,
+        stream_result: Any,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Yield provider events, adapting non-stream responses when needed."""
+        if hasattr(stream_result, "__aiter__"):
+            async for event in stream_result:
+                yield event
+            return
+        if isinstance(stream_result, dict):
+            content = sanitize_internal_reprs(str(stream_result.get("content") or ""))
+            if content:
+                yield {"type": "response.output_text.delta", "delta": content}
+            for tool_call in stream_result.get("tool_calls") or []:
+                if isinstance(tool_call, dict):
+                    function = tool_call.get("function") or {}
+                    yield {
+                        "type": "tool_call.ready",
+                        "id": tool_call.get("id"),
+                        "name": function.get("name") or tool_call.get("name", ""),
+                        "arguments": function.get("arguments")
+                        or tool_call.get("arguments", "{}"),
+                    }
+            metadata = stream_result.get("metadata")
+            if isinstance(metadata, dict) and metadata.get("usage"):
+                yield {"type": "response.usage", "usage": metadata["usage"]}
+            yield {"type": "response.completed", "finish_reason": "completed"}
+            return
+        if isinstance(stream_result, str):
+            yield {"type": "response.output_text.delta", "delta": stream_result}
+        yield {"type": "response.completed", "finish_reason": "completed"}
+
+    def _handle_stream_event(
+        self,
+        node: Node,
+        event: dict[str, Any],
+        content_parts: list[str],
+        collected_tool_calls: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        """Update stream accumulators from one provider event."""
+        event_type = event.get("type")
+        if event_type == "response.output_text.delta":
+            delta = event.get("delta", "")
+            content_parts.append(delta)
+            if node.is_terminal:
+                self._final_response_events.append(dict(event))
+                return self._record_transcript_event(
+                    "transcript.delta",
+                    self._node_label(node),
+                    delta,
+                    node_id=node.node_id,
+                )
+        elif event_type == "response.tool_call":
+            collected_tool_calls.append(event)
+        elif event_type == "tool_call.ready":
+            collected_tool_calls.append(
+                {
+                    "id": event.get("id") or event.get("call_id"),
+                    "type": "function",
+                    "function": {
+                        "name": event.get("name", ""),
+                        "arguments": event.get("arguments", "{}"),
+                    },
+                }
+            )
+        elif event_type == "response.usage":
+            self._usage_events.append(event)
+        return None
+
+    async def _stream_node_completed(
+        self,
+        node: Node,
+        combined: str,
+        emit_lifecycle: bool,
+        include_meta: bool,
+        final_only: bool,
+        node_type: str,
+        attempt: int,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Emit node.completed lifecycle after node finalization."""
+        completed = self._emit_lifecycle_event(
+            "node.completed",
+            node.node_id,
+            node_type,
+            attempt,
+            emit_lifecycle,
+            final_only,
+            node.is_terminal,
+            content=combined,
+            finish_reason="completed" if combined else "empty",
+        )
+        if completed is not None:
+            yield self._enrich_and_yield(
+                completed,
+                include_meta,
+                node.node_id,
+                node_type,
+                attempt,
+            )
+
+    def _execute_deterministic_node(
+        self,
+        node: Node,
+        resolved_tools: list[Tool],
+    ) -> tuple[str, list[dict[str, Any]]]:
+        """Execute a deterministic runtime node without an LLM call."""
+        runner = getattr(node, "run_deterministic")
+        llm_result = runner(self.queue)
+        content = llm_result.content
+        result_metadata = dict(llm_result.metadata)
+        llm_result = self._record_node_output(node, content, llm_result.tool_calls)
+        llm_result.metadata.update(result_metadata)
+        if content:
+            self._record_node_content_transcript(node, content)
+        self._apply_task_lifecycle_marker(node, content)
+
+        on_complete_response = self._build_on_complete_response(node, llm_result)
+        trace_entry = self._trace_entry(
+            node,
+            1,
+            resolved_tools,
+            on_complete_response,
+            llm_result,
+        )
+        trace_entry["deterministic"] = True
+        self._execution_trace.append(trace_entry)
+
+        rule = node.config.propagation or PropagationRule()
+        parent_session = self._find_parent_session(node)
+        propagate_on_termination(
+            node.session or self.root_session,
+            parent_session,
+            self.root_session,
+            rule,
+        )
+        return content, llm_result.tool_calls
 
     async def _execute_node(
         self,
@@ -1686,6 +2380,7 @@ def due_notes(notes: list[dict], now: datetime | None = None) -> list[dict]:
             tools,
             override_instructions,
         )
+        self._record_node_call_transcript(node, messages, resolved_tools)
 
         if self.agent_monitor is not None:
             try:
@@ -1703,6 +2398,10 @@ def due_notes(notes: list[dict], now: datetime | None = None) -> list[dict]:
                     exc_info=True,
                 )
 
+        deterministic_runner = getattr(node, "run_deterministic", None)
+        if callable(deterministic_runner):
+            return self._execute_deterministic_node(node, resolved_tools)
+
         llm_result, attempt, validation = await self._call_node_with_retry(
             node,
             agent,
@@ -1711,18 +2410,35 @@ def due_notes(notes: list[dict], now: datetime | None = None) -> list[dict]:
         )
         content = llm_result.content
         result_metadata = dict(llm_result.metadata)
+        if not validation.is_valid:
+            if not self._route_task_executor_failure_to_reviewer(
+                node,
+                validation,
+                llm_result,
+            ):
+                raise NodeExecutionError(self._validation_failure_content(node, validation))
+            on_complete_response = self._build_on_complete_response(node, llm_result)
+            trace_entry = self._trace_entry(
+                node,
+                attempt,
+                resolved_tools,
+                on_complete_response,
+                llm_result,
+            )
+            trace_entry["validation_errors"] = list(validation.errors)
+            self._execution_trace.append(trace_entry)
+            failure_content = self._validation_failure_content(node, validation)
+            self._record_node_output(node, failure_content, [])
+            self._record_node_content_transcript(node, failure_content)
+            return failure_content, []
         llm_result = self._record_node_output(node, content, llm_result.tool_calls)
         llm_result.metadata.update(result_metadata)
         if content:
             self._record_node_content_transcript(node, content)
-        for tool_result in llm_result.metadata.get("tool_results", []):
-            self._record_transcript_event(
-                "transcript.tool_result",
-                self._node_label(node),
-                json.dumps(tool_result, default=str),
-                node_id=node.node_id,
-                tool_name=str(tool_result.get("name", "tool")),
-            )
+        self._record_tool_result_transcripts(
+            node,
+            llm_result.metadata.get("tool_results", []),
+        )
         self._apply_loop_result_hook(node, llm_result, node_input)
         self._publish_structured_outputs_to_root(node)
         self._apply_task_lifecycle_marker(node, content)
@@ -1785,6 +2501,12 @@ def due_notes(notes: list[dict], now: datetime | None = None) -> list[dict]:
                         {
                             "active_task_id": active.task_id,
                             "active_task": self._json_safe(active.__dict__),
+                            "task_tree": self._task_state_snapshot(),
+                            "reviewed_task_context": [
+                                self._json_safe(task.metadata["latest_review_context"])
+                                for task in self.root_session.task_store.tasks.values()
+                                if "latest_review_context" in task.metadata
+                            ],
                             "read_only": True,
                         },
                         default=str,
@@ -1798,19 +2520,36 @@ def due_notes(notes: list[dict], now: datetime | None = None) -> list[dict]:
         content = sanitize_internal_reprs(content)
         if not content.strip():
             return
-        if not node.is_terminal and looks_like_planner_prose(content):
-            return
         if not node.is_terminal:
             key = content.strip()
             if key in self._transcript_seen_node_contents:
                 return
             self._transcript_seen_node_contents.add(key)
-        if len(content) > 1_200:
-            content = f"{content[:1_200]}…[truncated]"
+        if len(content) > 8_000:
+            content = f"{content[:8_000]}…[truncated]"
         self._record_transcript_event(
             "transcript.node",
             self._node_label(node),
             content,
+            node_id=node.node_id,
+        )
+
+    def _record_node_call_transcript(
+        self,
+        node: Node,
+        messages: list[dict[str, Any]],
+        resolved_tools: list[Tool],
+    ) -> None:
+        """Record full diagnostic input context for a node LLM call."""
+        payload = {
+            "phase": "llm_input",
+            "tools": [tool.name for tool in resolved_tools],
+            "messages": self._json_safe(messages),
+        }
+        self._record_transcript_event(
+            "transcript.node_call",
+            self._node_label(node),
+            "LLM input " + json.dumps(payload, default=str),
             node_id=node.node_id,
         )
 
@@ -1847,6 +2586,11 @@ def due_notes(notes: list[dict], now: datetime | None = None) -> list[dict]:
             List of message dictionaries for the LLM call.
         """
         messages: list[dict[str, Any]] = []
+        node_input = None
+        skip_record_ids: set[str] = set()
+        if self.queue.current is node:
+            node_input = self.queue.input_for_current()
+            skip_record_ids = self._source_record_ids_from_node_input(node_input)
 
         # Build system message via SystemPromptBuilder
         builder = SystemPromptBuilder()
@@ -1860,52 +2604,131 @@ def due_notes(notes: list[dict], now: datetime | None = None) -> list[dict]:
 
         # Add session context if policy says so
         context_session = node.session or self.root_session
-        if node.config.message_policy.include_session_context and context_session.session_context:
-            dedupe = node.config.message_policy.dedupe_by_origin_record_id
-            if dedupe:
-                messages.extend(
-                    build_messages_with_dedupe(
-                        context_session, dedupe_by_origin_record_id=True
-                    )
-                )
-            else:
-                for m in context_session.session_context:
-                    if isinstance(m, dict):
-                        self._append_nonblank_message(
-                            messages,
-                            m.get("role", "user"),
-                            m.get("content", ""),
-                        )
-                    else:
-                        self._append_nonblank_message(messages, m.role, m.content)
+        self._append_session_context_messages(
+            messages,
+            node,
+            context_session,
+            skip_record_ids,
+        )
 
         # Add chat history if policy says so
-        if (
-            node.config.message_policy.include_chat_history
-            and self.root_session.chat_history
-        ):
-            for m in self.root_session.chat_history:
-                if should_include_chat_record(m):
-                    self._append_nonblank_message(messages, m.role, m.content)
+        self._append_chat_history_messages(messages, node)
 
         # Add input context (merged SDK messages) as continuation
-        if self.root_session.input_context:
-            for m in self.root_session.input_context:
-                self._append_nonblank_message(messages, m["role"], m["content"])
+        self._append_input_context_messages(messages, node)
 
-        if self.queue.current is node:
-            node_input = self.queue.input_for_current()
-            try:
-                for message in convert_node_input_to_messages(node_input):
-                    self._append_nonblank_message(
-                        messages,
-                        message.get("role", "user"),
-                        message.get("content", ""),
-                    )
-            except (TypeError, ValueError):
-                logger.debug("node=%s invalid_node_input_ignored", node.node_id)
+        self._append_node_input_messages(messages, node, node_input)
+
+        continuation = node.build_continuation(context_session)
+        if continuation.strip():
+            self._append_nonblank_message(messages, "assistant", continuation)
 
         return messages
+
+    def _append_session_context_messages(
+        self,
+        messages: list[dict[str, Any]],
+        node: Node,
+        context_session: Session,
+        skip_record_ids: set[str],
+    ) -> None:
+        """Append reusable session context as assistant-role messages."""
+        policy = node.config.message_policy
+        if not policy.include_session_context or not context_session.session_context:
+            return
+        if policy.dedupe_by_origin_record_id:
+            messages.extend(
+                build_messages_with_dedupe(
+                    context_session,
+                    dedupe_by_origin_record_id=True,
+                    skip_record_ids=skip_record_ids,
+                )
+            )
+            return
+        for entry in context_session.session_context:
+            if self._session_entry_is_skipped(entry, skip_record_ids):
+                continue
+            content = (
+                entry.get("content", "") if isinstance(entry, dict) else entry.content
+            )
+            self._append_nonblank_message(messages, "assistant", content)
+
+    def _append_chat_history_messages(
+        self,
+        messages: list[dict[str, Any]],
+        node: Node,
+    ) -> None:
+        """Append eligible chat-history messages for nodes that request them."""
+        if not node.config.message_policy.include_chat_history:
+            return
+        for record in self.root_session.chat_history:
+            if should_include_chat_record(record):
+                self._append_nonblank_message(messages, record.role, record.content)
+
+    def _append_input_context_messages(
+        self,
+        messages: list[dict[str, Any]],
+        node: Node,
+    ) -> None:
+        """Append SDK/root input only for explicit entry-boundary nodes."""
+        if not node.config.message_policy.include_input_context:
+            return
+        for message in self.root_session.input_context:
+            self._append_nonblank_message(
+                messages,
+                message["role"],
+                message["content"],
+            )
+
+    def _append_node_input_messages(
+        self,
+        messages: list[dict[str, Any]],
+        node: Node,
+        node_input: Any,
+    ) -> None:
+        """Append direct queue handoff messages for the active node."""
+        if node_input is None:
+            return
+        try:
+            for message in convert_node_input_to_messages(node_input):
+                role = message.get("role", "assistant")
+                if (
+                    role == "user"
+                    and not node.config.message_policy.include_input_context
+                ):
+                    role = "assistant"
+                self._append_nonblank_message(
+                    messages,
+                    role,
+                    message.get("content", ""),
+                )
+        except (TypeError, ValueError):
+            logger.debug("node=%s invalid_node_input_ignored", node.node_id)
+
+    def _source_record_ids_from_node_input(self, node_input: Any) -> set[str]:
+        """Return source record IDs represented by direct node input."""
+        metadata = getattr(node_input, "metadata", None)
+        if not isinstance(metadata, dict):
+            return set()
+        record_ids = metadata.get("source_record_ids", [])
+        if isinstance(record_ids, str):
+            return {record_ids}
+        if isinstance(record_ids, list):
+            return {str(record_id) for record_id in record_ids}
+        return set()
+
+    def _session_entry_is_skipped(
+        self,
+        entry: Any,
+        skip_record_ids: set[str],
+    ) -> bool:
+        """Return whether a session-context entry is already in NodeInput."""
+        if not skip_record_ids or isinstance(entry, dict):
+            return False
+        return entry.record_id in skip_record_ids or (
+            entry.origin_record_id is not None
+            and entry.origin_record_id in skip_record_ids
+        )
 
     def _append_nonblank_message(
         self,

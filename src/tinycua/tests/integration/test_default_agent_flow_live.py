@@ -82,7 +82,7 @@ async def test_default_agent_live_passthrough_flow() -> None:
     assert result.strip()
     assert trace[0]["node_id"] == "query_analyst"
     assert trace[0].get("route_label") in {"passthrough", "worker"}
-    assert trace[0].get("route_source") in {"tool_call", "content_or_fallback"}
+    assert trace[0].get("route_source") in {"tool_call", "missing_tool_call"}
     assert "select_query_route" in trace[0].get("resolved_tool_names", [])
     if trace[0].get("route_label") == "passthrough":
         assert "worker" not in [entry["node_id"] for entry in trace]
@@ -98,7 +98,7 @@ async def test_default_agent_live_uncertain_non_hitl_completes() -> None:
     session_config = SessionConfig(
         interaction_policy=InteractionPolicy(
             hitl_enabled=False,
-            uncertain_strategy="fallback_response",
+            uncertain_strategy="passthrough",
         )
     )
     agent = create_tinycua_agent(
@@ -133,14 +133,14 @@ async def test_default_agent_live_worker_flow_runs_digester_before_worker() -> N
     assert result.strip()
     assert trace[0]["node_id"] == "query_analyst"
     assert trace[0].get("route_label") == "worker"
-    assert trace[0].get("route_source") in {"tool_call", "content_or_fallback"}
+    assert trace[0].get("route_source") in {"tool_call", "missing_tool_call"}
     assert "select_query_route" in trace[0].get("resolved_tool_names", [])
     assert "digester" in node_ids
     assert "worker" in node_ids
     assert node_ids.index("digester") < node_ids.index("worker")
     worker_trace = trace[node_ids.index("worker")]
     assert "select_worker_route" in worker_trace.get("resolved_tool_names", [])
-    assert worker_trace.get("route_source") in {"tool_call", "content_or_fallback"}
+    assert worker_trace.get("route_source") in {"tool_call", "missing_tool_call"}
     assert trace[-1]["node_id"] == "response"
     assert any(
         isinstance(entry.content, DigestedInformation)

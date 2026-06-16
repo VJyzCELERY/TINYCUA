@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -27,6 +28,7 @@ logger = logging.getLogger(__name__)
 def build_messages_with_dedupe(
     session: Session,
     dedupe_by_origin_record_id: bool = False,
+    skip_record_ids: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Build messages for LLM call with optional deduplication.
 
@@ -37,11 +39,13 @@ def build_messages_with_dedupe(
     Args:
         session: The session containing context and history.
         dedupe_by_origin_record_id: Whether to deduplicate by origin_record_id.
+        skip_record_ids: Record IDs already represented by direct node input.
 
     Returns:
         List of message dictionaries for the LLM call.
     """
     messages: list[dict[str, Any]] = []
+    skip_record_ids = skip_record_ids or set()
 
     # Get session context entries
     context_entries = session.session_context
@@ -63,9 +67,14 @@ def build_messages_with_dedupe(
 
     # Convert entries to message dicts, dropping blank content at the API boundary.
     for entry in context_entries:
+        if entry.record_id in skip_record_ids or (
+            entry.origin_record_id is not None
+            and entry.origin_record_id in skip_record_ids
+        ):
+            continue
         content = render_llm_content(entry.content)
         if content.strip():
-            messages.append({"role": entry.role, "content": content})
+            messages.append({"role": "assistant", "content": content})
 
     return messages
 
@@ -90,6 +99,18 @@ class DecisionResult:
     route_label: str
     analysis_response: LLMResult
     classification_response: LLMResult
+
+
+@dataclass(frozen=True)
+class NodeRunContext:
+    """Runtime services a node uses to execute inside an orchestrator.
+
+    The loop owns queue orchestration. Nodes own the execution entrypoint and
+    call these injected services to perform provider/tool/runtime-specific work.
+    """
+
+    sync_executor: Callable[[Any, NodeInputLike], Awaitable[tuple[str, list[dict[str, Any]]]]]
+    stream_executor: Callable[[Any, NodeInputLike], AsyncIterator[dict[str, Any]]]
 
 
 class Node(ABC):
@@ -118,6 +139,7 @@ class Node(ABC):
         config: NodeConfigBase,
         *,
         instruction: str = "",
+        continuation: str = "",
         is_terminal: bool = False,
     ) -> None:
         """Initialize the node.
@@ -126,6 +148,7 @@ class Node(ABC):
             node_id: Unique identifier for this node.
             config: Node configuration.
             instruction: Hardcoded instruction string for this node type.
+            continuation: Hardcoded continuation string for this node type.
             is_terminal: Whether this node is terminal in the execution graph.
         """
         self.node_id = node_id
@@ -134,6 +157,7 @@ class Node(ABC):
         self.parent = None
         self.is_terminal = is_terminal
         self._instruction = instruction
+        self._continuation = continuation
         self._last_retry_exhaustion: dict[str, Any] | None = None
 
     def ensure_session(self, root_or_parent_session: Session) -> Session:
@@ -192,6 +216,23 @@ class Node(ABC):
 
         return "\n".join(parts) if parts else ""
 
+    def build_continuation(self, session: Session | None = None) -> str:
+        """Build the assistant-role continuation prompt for this node.
+
+        Args:
+            session: Optional node/root session for dynamic continuation context.
+
+        Returns:
+            The complete continuation prompt, or an empty string.
+        """
+        del session
+        parts: list[str] = []
+        if self._continuation:
+            parts.append(self._continuation)
+        if self.config.custom_continuation_append:
+            parts.append(self.config.custom_continuation_append)
+        return "\n".join(parts)
+
     def build_messages(
         self, session: Session, input: NodeInputLike
     ) -> list[dict[str, str]]:
@@ -229,7 +270,7 @@ class Node(ABC):
                     if content.strip():
                         messages.append(
                             {
-                                "role": m.get("role", "user"),
+                                "role": "assistant",
                                 "content": content,
                             }
                         )
@@ -238,7 +279,7 @@ class Node(ABC):
                     if content.strip():
                         messages.append(
                             {
-                                "role": m.role,
+                                "role": "assistant",
                                 "content": content,
                             }
                         )
@@ -252,11 +293,18 @@ class Node(ABC):
 
         # Add continuation messages from input
         continuation = convert_node_input_to_messages(input, source="internal")
-        messages.extend(
-            message
-            for message in continuation
-            if str(message.get("content", "")).strip()
-        )  # type: ignore[arg-type]
+        for message in continuation:
+            content = str(message.get("content", ""))
+            if not content.strip():
+                continue
+            role = message.get("role", "assistant")
+            if role == "user" and not self.config.message_policy.include_input_context:
+                role = "assistant"
+            messages.append({"role": role, "content": content})
+
+        node_continuation = self.build_continuation(session)
+        if node_continuation.strip():
+            messages.append({"role": "assistant", "content": node_continuation})
 
         return messages
 
@@ -512,9 +560,8 @@ class Node(ABC):
         Args:
             response: The LLM response to record.
         """
-        if (
-            self.session is not None
-            and (self.is_terminal or not looks_like_planner_prose(response.content))
+        if self.session is not None and (
+            self.is_terminal or not looks_like_planner_prose(response.content)
         ):
             from tinycua.models.session_context_entry import SessionContextEntry
 
@@ -564,6 +611,23 @@ class Node(ABC):
     @abstractmethod
     def __call__(self, input: NodeInputLike) -> Any:
         """Execute the node with the given input."""
+
+    async def run(
+        self,
+        context: NodeRunContext,
+        input: NodeInputLike,
+    ) -> tuple[str, list[dict[str, Any]]]:
+        """Run this node through an injected runtime context."""
+        return await context.sync_executor(self, input)
+
+    async def stream(
+        self,
+        context: NodeRunContext,
+        input: NodeInputLike,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Stream this node through an injected runtime context."""
+        async for event in context.stream_executor(self, input):
+            yield event
 
 
 class ProcessNode(Node):
@@ -691,6 +755,7 @@ class DecisionNode(ProcessNode):
         config: NodeConfigBase,
         *,
         instruction: str = "",
+        continuation: str = "",
         classification_labels: list[str] | None = None,
         is_terminal: bool = False,
     ) -> None:
@@ -700,6 +765,7 @@ class DecisionNode(ProcessNode):
             node_id: Unique identifier for this node.
             config: Node configuration.
             instruction: Hardcoded instruction for this node.
+            continuation: Hardcoded continuation for this node.
             classification_labels: Allowed classification labels.
             is_terminal: Whether this node is terminal.
         """
@@ -707,6 +773,7 @@ class DecisionNode(ProcessNode):
             node_id=node_id,
             config=config,
             instruction=instruction,
+            continuation=continuation,
             is_terminal=is_terminal,
         )
         self.classification_labels = classification_labels or []
@@ -760,16 +827,15 @@ class DecisionNode(ProcessNode):
         return self._call_llm(classification_messages)
 
     def _dispatch_route(self, classification_response: LLMResult) -> str:
-        """Map classification label to route.
+        """Map classification label to a validated route.
 
         Args:
             classification_response: The classification LLM response.
 
         Returns:
-            The matched route label, or the first allowed label as fallback.
+            The matched route label.
         """
-        fallback = self.classification_labels[0] if self.classification_labels else "default"
-        classifier = RouteClassifier(self.classification_labels, fallback_label=fallback)
+        classifier = RouteClassifier(self.classification_labels)
         return classifier.classify(classification_response.content)
 
     def _validate_classification(
@@ -819,7 +885,7 @@ class DecisionNode(ProcessNode):
 
         last_analysis: LLMResult | None = None
         last_classification: LLMResult | None = None
-        route_label = "default"
+        route_label = ""
 
         for attempt in range(1, max_attempts + 1):
             # Fire monitor before-hook
@@ -866,8 +932,7 @@ class DecisionNode(ProcessNode):
             else:
                 # Exhausted
                 self._handle_exhaustion(validation, max_attempts)
-                # If not raised, use fallback dispatch
-                route_label = self._dispatch_route(last_classification)
+                route_label = ""
 
         assert last_analysis is not None  # noqa: S101
         assert last_classification is not None  # noqa: S101

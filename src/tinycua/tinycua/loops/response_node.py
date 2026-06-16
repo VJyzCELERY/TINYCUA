@@ -12,6 +12,13 @@ if TYPE_CHECKING:
     from tinycua.loops.node_queue import NodeQueue
     from tinycua.models.node_input import NodeInputLike
 
+_RESPONSE_CONTINUATION = (
+    "Based on the accepted Worker result or direct-response context above, "
+    "synthesize the final user-facing answer. Be concise and mention concrete "
+    "artifacts or verification evidence when available. Do not emit JSON, "
+    "tool-call protocol payloads, or internal routing details."
+)
+
 
 class ResponseNode(ProcessNode):
     """Terminal node that captures the final response content.
@@ -46,8 +53,10 @@ class ResponseNode(ProcessNode):
             instruction=(
                 "Generate the final user-facing response. Use the available "
                 "conversation and node outputs as context, and always return "
-                "a concise non-empty answer."
+                "a concise non-empty answer in natural language. Do not emit "
+                "JSON or tool-call protocol payloads."
             ),
+            continuation=_RESPONSE_CONTINUATION,
             is_terminal=True,
         )
         self.captured_content: str = ""

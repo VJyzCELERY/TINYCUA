@@ -9,10 +9,8 @@ from tinycua.config.node_config import create_node_config
 from tinycua.loops.task_create import TinyCUATaskCreateNode
 from tinycua.loops.task_nodes import (
     TinyCUAAnalysisEffortNode,
-    TinyCUAResultAggregationNode,
     TinyCUAResultReviewerNode,
     TinyCUATaskAnalyzerNode,
-    TinyCUATaskAssessorNode,
     TinyCUATaskExecutorNode,
 )
 from tinycua.models.digested_information import DigestedInformation
@@ -35,6 +33,12 @@ _WORKER_INSTRUCTION = (
     "task_reanalysis, passthrough, or proceed_execution. Choose "
     "task_creation for a new task plan that has not yet been initialized. Do not "
     "answer the user directly from this node."
+)
+
+_WORKER_CONTINUATION = (
+    "Based on the digested information and current task state above, call "
+    "select_worker_route with the next Worker route. Do not answer the user "
+    "directly from this node."
 )
 
 
@@ -80,6 +84,7 @@ class TinyCUAWorkerNode(DecisionNode):
             node_id=node_id,
             config=config,
             instruction=instruction,
+            continuation=_WORKER_CONTINUATION,
             classification_labels=classification_labels or self.ROUTE_LABELS,
             is_terminal=is_terminal,
         )
@@ -102,7 +107,9 @@ class TinyCUAWorkerNode(DecisionNode):
         self.classification_labels = labels
         for index, tool in enumerate(self.config.tool_policy.node_tools):
             if tool.name == "select_worker_route":
-                self.config.tool_policy.node_tools[index] = WorkerRouteSelectionTool(labels)
+                self.config.tool_policy.node_tools[index] = WorkerRouteSelectionTool(
+                    labels
+                )
                 break
 
     def build_messages(
@@ -180,67 +187,75 @@ class TinyCUAWorkerNode(DecisionNode):
         if digest is not None:
             self._current_digest = digest
 
-        route_label = response.route_label if isinstance(response, DecisionResult) else ""
+        route_label = (
+            response.route_label if isinstance(response, DecisionResult) else ""
+        )
         if route_label == "task_creation":
-            queue.spawn_after_current([
-                TinyCUATaskCreateNode(
-                    node_id="task_create",
-                    config=create_node_config("task_create", self.config),
-                ),
-                TinyCUATaskAnalyzerNode(
-                    node_id="task_analyzer",
-                    config=create_node_config(
-                        "task_analyzer",
-                        self.config,
-                        mode="task_creation",
+            queue.spawn_after_current(
+                [
+                    TinyCUATaskCreateNode(
+                        node_id="task_create",
+                        config=create_node_config("task_create", self.config),
                     ),
-                ),
-                TinyCUAAnalysisEffortNode(
-                    node_id="analysis_effort",
-                    config=create_node_config("analysis_effort", self.config),
-                ),
-                TinyCUATaskAssessorNode(
-                    node_id="task_assessor",
-                    config=create_node_config("task_assessor", self.config),
-                ),
-                TinyCUATaskExecutorNode(
-                    node_id="task_executor",
-                    config=create_node_config("task_executor", self.config),
-                ),
-                TinyCUAResultReviewerNode(
-                    node_id="result_reviewer",
-                    config=create_node_config("result_reviewer", self.config),
-                ),
-                TinyCUAResultAggregationNode(
-                    node_id="result_aggregation",
-                    config=create_node_config("result_aggregation", self.config),
-                )
-            ])
+                    TinyCUATaskAnalyzerNode(
+                        node_id="task_analyzer",
+                        config=create_node_config(
+                            "task_analyzer",
+                            self.config,
+                            mode="initial_analysis",
+                        ),
+                    ),
+                    TinyCUAAnalysisEffortNode(
+                        node_id="analysis_effort",
+                        config=create_node_config("analysis_effort", self.config),
+                    ),
+                    TinyCUATaskExecutorNode(
+                        node_id="task_executor",
+                        config=create_node_config("task_executor", self.config),
+                    ),
+                    TinyCUAResultReviewerNode(
+                        node_id="result_reviewer",
+                        config=create_node_config("result_reviewer", self.config),
+                    ),
+                ]
+            )
         elif route_label in {"task_recreation", "task_reanalysis"}:
-            queue.spawn_after_current([
-                TinyCUATaskAnalyzerNode(
-                    node_id="task_analyzer",
-                    config=create_node_config("task_analyzer", self.config, mode=route_label),
-                )
-            ])
+            queue.spawn_after_current(
+                [
+                    TinyCUATaskAnalyzerNode(
+                        node_id="task_analyzer",
+                        config=create_node_config(
+                            "task_analyzer",
+                            self.config,
+                            mode=route_label,
+                        ),
+                    ),
+                    TinyCUAAnalysisEffortNode(
+                        node_id="analysis_effort",
+                        config=create_node_config("analysis_effort", self.config),
+                    ),
+                    TinyCUATaskExecutorNode(
+                        node_id="task_executor",
+                        config=create_node_config("task_executor", self.config),
+                    ),
+                    TinyCUAResultReviewerNode(
+                        node_id="result_reviewer",
+                        config=create_node_config("result_reviewer", self.config),
+                    ),
+                ]
+            )
         elif route_label == "proceed_execution":
-            queue.spawn_after_current([
-                TinyCUATaskAssessorNode(
-                    node_id="task_assessor",
-                    config=create_node_config("task_assessor", self.config),
-                ),
-                TinyCUATaskExecutorNode(
-                    node_id="task_executor",
-                    config=create_node_config("task_executor", self.config),
-                ),
-                TinyCUAResultReviewerNode(
-                    node_id="result_reviewer",
-                    config=create_node_config("result_reviewer", self.config),
-                ),
-                TinyCUAResultAggregationNode(
-                    node_id="result_aggregation",
-                    config=create_node_config("result_aggregation", self.config),
-                ),
-            ])
+            queue.spawn_after_current(
+                [
+                    TinyCUATaskExecutorNode(
+                        node_id="task_executor",
+                        config=create_node_config("task_executor", self.config),
+                    ),
+                    TinyCUAResultReviewerNode(
+                        node_id="result_reviewer",
+                        config=create_node_config("result_reviewer", self.config),
+                    ),
+                ]
+            )
 
         super().on_complete(queue, response)

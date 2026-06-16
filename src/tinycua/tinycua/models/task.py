@@ -168,15 +168,11 @@ class TaskStateStore:
         return task
 
     def record_result(self, task_id: str, result: TaskResult) -> Task:
-        """Persist task execution output and update completion status."""
+        """Persist task execution output without completing review state."""
         task = self.get_task(task_id)
         if task.status == TaskStatus.PENDING:
             self.transition(task_id, TaskStatus.IN_PROGRESS)
         task.result = result
-        target = TaskStatus.COMPLETED if result.success else TaskStatus.FAILED
-        if task.status != target:
-            self.transition(task_id, target)
-        self._complete_ready_parents()
         self._refresh_active_task()
         return task
 
@@ -206,7 +202,11 @@ class TaskStateStore:
                 task.status = TaskStatus.IN_PROGRESS
             self.active_task_id = task.task_id
         elif reviewer_decision == ReviewerDecision.APPROVED and task.result is not None:
-            self.record_result(task_id, task.result)
+            target = TaskStatus.COMPLETED if task.result.success else TaskStatus.FAILED
+            if task.status != target:
+                self.transition(task_id, target)
+            self._complete_ready_parents()
+            self._refresh_active_task()
         return task
 
     def add_artifact(

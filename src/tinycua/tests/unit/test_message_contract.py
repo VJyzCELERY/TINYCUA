@@ -3,12 +3,24 @@
 from __future__ import annotations
 
 from tinycua.config.node_config import NodeMessagePolicy, create_node_config
-from tinycua.config.types import LLMResult
-from tinycua.loops.node import DecisionNode
+from tinycua.config.types import LLMResult, Tool
+from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
+from tinycua.loops.node_queue import NodeQueue
+from tinycua.loops.node import DecisionNode, DecisionResult
+from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.loops.response_node import ResponseNode
+from tinycua.loops.task_create import TinyCUATaskCreateNode
+from tinycua.loops.task_nodes import (
+    TinyCUATaskAnalyzerNode,
+    TinyCUATaskAssessorNode,
+    TinyCUATaskExecutorNode,
+)
 from tinycua.loops.tinycua_loop import TinyCUALoop
+from tinycua.loops.worker import TinyCUAWorkerNode
 from tinycua.models.chat_record import ChatRecord
 from tinycua.models.digested_information import DigestedInformation
+from tinycua.models.node_input import NodeInput
+from tinycua.models.session import Session
 from tinycua.models.session_context_entry import SessionContextEntry
 from tinycua.models.task import AggregatedResult, TaskResult
 
@@ -16,14 +28,22 @@ from tinycua.models.task import AggregatedResult, TaskResult
 def test_build_node_messages_filters_blank_messages_and_preserves_roles() -> None:
     """LLM payloads contain no blank message content and keep assistant history."""
     loop = TinyCUALoop()
-    node = ResponseNode(config=create_node_config("response"))
-    node.config.message_policy = NodeMessagePolicy(include_chat_history=True)
+    node = TinyCUAQueryAnalystNode(
+        node_id="query_analyst",
+        config=create_node_config("query_analyst"),
+    )
+    node.config.message_policy = NodeMessagePolicy(
+        include_chat_history=True,
+        include_input_context=True,
+    )
     node.ensure_session(loop.root_session)
     loop.root_session.input_context = [
         {"role": "user", "content": "\n\n"},
         {"role": "user", "content": "Summarize this."},
     ]
-    loop.root_session.chat_history.append(ChatRecord(role="assistant", content="Prior answer"))
+    loop.root_session.chat_history.append(
+        ChatRecord(role="assistant", content="Prior answer")
+    )
     loop.root_session.session_context.append(
         SessionContextEntry(content="", segment="output", source_node_id="x")
     )
@@ -32,7 +52,160 @@ def test_build_node_messages_filters_blank_messages_and_preserves_roles() -> Non
 
     assert all(str(message.get("content", "")).strip() for message in messages)
     assert {message["role"] for message in messages} >= {"assistant", "user"}
-    assert any(message["role"] == "assistant" and message["content"] == "Prior answer" for message in messages)
+    assert any(
+        message["role"] == "assistant" and message["content"] == "Prior answer"
+        for message in messages
+    )
+
+
+def test_downstream_nodes_do_not_replay_raw_user_input() -> None:
+    """Only the entry node receives the SDK user message as user-role input."""
+    loop = TinyCUALoop()
+    raw_request = "Create a note-taking app in the workspace."
+    loop.root_session.input_context = [{"role": "user", "content": raw_request}]
+    loop.root_session.session_context.append(
+        SessionContextEntry(
+            content=DigestedInformation(
+                context_summary="Need a workspace note-taking app.",
+                original_query=raw_request,
+            ),
+            segment="output",
+            source_node_id="digester",
+        )
+    )
+
+    entry = TinyCUAQueryAnalystNode(
+        node_id="query_analyst",
+        config=create_node_config("query_analyst"),
+    )
+    task_create = TinyCUATaskCreateNode(
+        node_id="task_create",
+        config=create_node_config("task_create"),
+    )
+    task_analyzer = TinyCUATaskAnalyzerNode(
+        node_id="task_analyzer",
+        config=create_node_config("task_analyzer"),
+    )
+    task_executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    for node in (entry, task_create, task_analyzer, task_executor):
+        node.ensure_session(loop.root_session)
+
+    entry_messages = loop._build_node_messages(entry)
+    downstream_messages = [
+        loop._build_node_messages(task_create),
+        loop._build_node_messages(task_analyzer),
+        loop._build_node_messages(task_executor),
+    ]
+
+    assert any(
+        message["role"] == "user" and message["content"] == raw_request
+        for message in entry_messages
+    )
+    for messages in downstream_messages:
+        assert not any(
+            message["role"] == "user" and message["content"] == raw_request
+            for message in messages
+        )
+        assert any(
+            message["role"] == "assistant" and "Based on" in str(message["content"])
+            for message in messages
+        )
+
+
+def test_query_analyst_worker_route_handoff_is_assistant_context() -> None:
+    """Worker route passes a CEQ to Digester as internal assistant handoff."""
+    query = TinyCUAQueryAnalystNode(
+        node_id="query_analyst",
+        config=create_node_config("query_analyst"),
+    )
+    query.session = Session(
+        input_context=[
+            {"role": "user", "content": "Build a local note app."},
+        ]
+    )
+    response = ResponseNode(config=create_node_config("response"))
+    queue = NodeQueue(items=[query, response])
+    query._queue = queue
+
+    query.on_complete(
+        queue,
+        DecisionResult(
+            route_label="worker",
+            analysis_response=LLMResult(content="worker"),
+            classification_response=LLMResult(content="worker"),
+        ),
+    )
+
+    digester = queue.items[1]
+    node_input = queue._inputs[digester.node_id]
+
+    assert isinstance(node_input, NodeInput)
+    assert node_input.metadata["original_query"] == "Build a local note app."
+    assert node_input.messages
+    assert {message["role"] for message in node_input.messages} == {"assistant"}
+    assert "Context Enhanced Query" in node_input.messages[0]["content"]
+
+
+def test_forwarded_output_is_not_duplicated_in_next_node_prompt() -> None:
+    """Direct NodeInput handoff wins over duplicate session-context replay."""
+    loop = TinyCUALoop()
+    worker = TinyCUAWorkerNode(
+        node_id="worker",
+        config=create_node_config("worker"),
+    )
+    loop.queue = NodeQueue(items=[worker])
+    worker.ensure_session(loop.root_session)
+    entry = SessionContextEntry(
+        content=DigestedInformation(
+            context_summary="Need runtime hardening",
+            original_query="Finalize TinyCUA runtime",
+        ),
+        segment="output",
+        source_node_id="digester",
+    )
+    loop.root_session.session_context.append(entry)
+    loop.queue.set_input(
+        worker,
+        NodeInput(
+            input_type="forwarded_output",
+            source_node="digester",
+            target_node="worker",
+            messages=[
+                {
+                    "role": "assistant",
+                    "content": '{"context_summary":"Need runtime hardening"}',
+                }
+            ],
+            metadata={"source_record_ids": [entry.record_id]},
+        ),
+    )
+
+    messages = loop._build_node_messages(worker)
+    rendered = "\n".join(message["content"] for message in messages)
+
+    assert rendered.count("Need runtime hardening") == 1
+
+
+def test_streamed_task_executor_trace_keeps_native_tools() -> None:
+    """Streaming finalization records resolved outer native tools in traces."""
+    loop = TinyCUALoop()
+    node = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    node.ensure_session(loop.root_session)
+
+    loop._finalize_streamed_node(
+        node,
+        ["done"],
+        [],
+        node.config.tool_policy.resolve_tools([Tool(name="write_file")]),
+    )
+
+    assert "write_file" in loop.get_execution_trace()[-1]["resolved_tool_names"]
 
 
 def test_internal_output_context_uses_assistant_role_not_user() -> None:
@@ -56,8 +229,7 @@ def test_internal_output_context_uses_assistant_role_not_user() -> None:
         for message in messages
     )
     assert not any(
-        message["role"] == "user"
-        and message["content"] == "Worker internal analysis"
+        message["role"] == "user" and message["content"] == "Worker internal analysis"
         for message in messages
     )
 
@@ -155,3 +327,137 @@ def test_internal_retry_and_tool_only_chat_records_are_not_llm_bound() -> None:
     assert "RETRY_EXHAUSTED" not in rendered
     assert "task_inspect" not in rendered
     assert "Visible prior answer" in rendered
+
+
+def test_task_executor_prompt_is_limited_to_active_task_context() -> None:
+    """Executor prompts exclude root user/digester context and use active task input."""
+    loop = TinyCUALoop()
+    raw_request = "ORIGINAL FULL USER REQUEST SHOULD NOT REACH EXECUTOR"
+    loop.root_session.input_context = [{"role": "user", "content": raw_request}]
+    loop.root_session.session_context.append(
+        SessionContextEntry(
+            content=DigestedInformation(
+                context_summary="GLOBAL DIGEST SHOULD NOT REACH EXECUTOR",
+                original_query=raw_request,
+            ),
+            segment="output",
+            source_node_id="digester",
+        )
+    )
+    loop.root_session.chat_history.append(
+        ChatRecord(role="assistant", content="CHAT HISTORY SHOULD NOT REACH EXECUTOR")
+    )
+    root = loop.root_session.task_store.create_task("Build application")
+    active = loop.root_session.task_store.create_task(
+        "Create requirements.txt",
+        parent_id=root.task_id,
+    )
+    loop.root_session.task_store.active_task_id = active.task_id
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    loop.queue = NodeQueue(items=[executor])
+    loop._inject_active_task_input(executor)
+
+    messages, _ = loop._prepare_node(executor, [Tool(name="write_file")])
+    rendered = "\n".join(str(message.get("content", "")) for message in messages)
+
+    assert raw_request not in rendered
+    assert "GLOBAL DIGEST SHOULD NOT REACH EXECUTOR" not in rendered
+    assert "CHAT HISTORY SHOULD NOT REACH EXECUTOR" not in rendered
+    assert "Create requirements.txt" in rendered
+    assert "Build application" in rendered
+
+
+def test_task_assessor_prompt_is_whole_tree_decomposition_only() -> None:
+    """Assessor sees decomposition-gate context, not executor completion concepts."""
+    loop = TinyCUALoop()
+    root = loop.root_session.task_store.create_task("Build application")
+    loop.root_session.task_store.create_task("Create backend", parent_id=root.task_id)
+    loop.root_session.task_store.create_task("Create frontend", parent_id=root.task_id)
+    assessor = TinyCUATaskAssessorNode(
+        node_id="task_assessor",
+        config=create_node_config("task_assessor"),
+    )
+
+    messages, tools = loop._prepare_node(assessor, [])
+    rendered = "\n".join(str(message.get("content", "")) for message in messages)
+    task_update = next(tool for tool in tools if tool.name == "task_update")
+    tool_surface = f"{task_update.description} {task_update.parameters}"
+    combined = f"{rendered}\n{tool_surface}"
+
+    assert "whole task tree" in rendered.lower()
+    assert "further decomposition" in rendered.lower()
+    assert "task_result_update" not in combined
+    assert "complete" not in combined.lower()
+    assert "fail executed work" not in combined.lower()
+    assert "execution evidence" not in combined.lower()
+
+
+def test_task_assessor_local_replan_prompt_is_active_region_only() -> None:
+    """Reviewer replan assessor is scoped to the active/local task region."""
+    loop = TinyCUALoop()
+    root = loop.root_session.task_store.create_task("Build application")
+    active = loop.root_session.task_store.create_task(
+        "Create backend",
+        parent_id=root.task_id,
+    )
+    loop.root_session.task_store.create_task("Create frontend", parent_id=root.task_id)
+    loop.root_session.task_store.active_task_id = active.task_id
+    assessor = TinyCUATaskAssessorNode(
+        node_id="task_assessor",
+        config=create_node_config("task_assessor", mode="local_replan"),
+    )
+
+    messages, tools = loop._prepare_node(assessor, [])
+    rendered = "\n".join(str(message.get("content", "")) for message in messages)
+    task_update = next(tool for tool in tools if tool.name == "task_update")
+    combined = f"{rendered}\n{task_update.description} {task_update.parameters}"
+
+    assert "local replan" in rendered.lower()
+    assert "active task" in rendered.lower()
+    assert "Create backend" in rendered
+    assert "whole roadmap" in rendered.lower()
+    assert "task_result_update" not in combined
+    assert "execution evidence" not in combined.lower()
+
+
+def test_digester_may_digest_without_forced_context_retrieval() -> None:
+    """Digester can choose digest-only; retrieval is encouraged, not forced."""
+    loop = TinyCUALoop()
+    digester = TinyCUAInformationDigesterNode(
+        node_id="digester",
+        config=create_node_config("digester"),
+    )
+
+    digest_only = loop._validate_node_result(
+        digester,
+        LLMResult(
+            content="",
+            metadata={
+                "tool_results": [
+                    {"name": "digest_information", "allowed": True, "output": {}}
+                ]
+            },
+        ),
+    )
+    retrieved_and_digested = loop._validate_node_result(
+        digester,
+        LLMResult(
+            content="",
+            metadata={
+                "tool_results": [
+                    {
+                        "name": "enhanced_context_retrieval",
+                        "allowed": True,
+                        "output": {},
+                    },
+                    {"name": "digest_information", "allowed": True, "output": {}},
+                ]
+            },
+        ),
+    )
+
+    assert digest_only.is_valid is True
+    assert retrieved_and_digested.is_valid is True

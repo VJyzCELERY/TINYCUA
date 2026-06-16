@@ -7,8 +7,10 @@ import collections.abc
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from tinycua.config.node_config import NodeConfigBase, NodeToolPolicy
+from tinycua.config.node_config import NodeConfigBase, NodeToolPolicy, create_node_config
+from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
 from tinycua.loops.node_queue import NodeQueue
+from tinycua.loops.task_nodes import TinyCUATaskExecutorNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.session import Session
 from tinycua_sdk.agent import BaseLoop
@@ -57,16 +59,10 @@ def test_tinycua_loop_stores_session_config():
     assert loop.root_session.session_config is None
 
 
-def test_tinycua_loop_default_max_iterations():
-    """TinyCUALoop defaults to 50 max iterations."""
+def test_tinycua_loop_has_no_iteration_limit():
+    """TinyCUALoop does not impose an iteration limit."""
     loop = TinyCUALoop()
-    assert loop.max_iterations == 50
-
-
-def test_tinycua_loop_custom_max_iterations():
-    """TinyCUALoop accepts custom max_iterations."""
-    loop = TinyCUALoop(max_iterations=10)
-    assert loop.max_iterations == 10
+    assert not hasattr(loop, "max_iterations")
 
 
 # --- _execute_node tests ---
@@ -95,13 +91,13 @@ async def test_execute_node_calls_agent_with_node_messages():
     agent._call_llm.assert_called()
 
 
-async def test_run_sync_honors_max_iterations():
-    """Loop execution stops at max_iterations instead of running unbounded."""
+async def test_run_sync_continues_until_terminal():
+    """Loop continues through nonterminal nodes until ResponseNode."""
     stub = StubNode("node output")
     terminal = ResponseNode()
     queue = NodeQueue(items=[stub, terminal])
 
-    loop = TinyCUALoop(queue=queue, max_iterations=1)
+    loop = TinyCUALoop(queue=queue)
     agent = MagicMock()
     agent.instructions = "test"
     agent.skills = []
@@ -115,7 +111,7 @@ async def test_run_sync_honors_max_iterations():
         stream=False,
     )
 
-    assert agent._call_llm.call_count == 1
+    assert agent._call_llm.call_count == 2
 
 
 async def test_execute_node_records_chat_history():
@@ -360,6 +356,157 @@ async def test_stream_true_returns_async_iterator():
     events = [e async for e in result]
     assert len(events) > 0
     assert any(e["type"] == "response.output_text.delta" for e in events)
+
+
+async def test_run_sync_consumes_canonical_stream_runtime():
+    """Non-stream run drains _run_stream instead of executing a second loop."""
+    loop = TinyCUALoop()
+    calls = 0
+
+    async def fake_stream(agent, tools, override_instructions=None):
+        nonlocal calls
+        del agent, tools, override_instructions
+        calls += 1
+        yield {
+            "type": "response.output_text.delta",
+            "node_id": "response",
+            "delta": "final",
+        }
+
+    loop._run_stream = fake_stream  # type: ignore[method-assign]
+
+    result = await loop._run_sync(MagicMock(), [], None)
+
+    assert result == "final"
+    assert calls == 1
+
+
+async def test_stream_true_emits_nonterminal_token_deltas():
+    """Streaming mode emits token deltas for nonterminal LLM nodes too."""
+    stub = StubNode("streaming nonterminal", node_id="planner")
+    terminal = ResponseNode()
+    queue = NodeQueue(items=[stub, terminal])
+
+    loop = TinyCUALoop(queue=queue)
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+    call_count = 0
+
+    async def mock_stream(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            yield {"type": "response.output_text.delta", "delta": "plan"}
+            yield {"type": "response.output_text.delta", "delta": " tokens"}
+        else:
+            yield {"type": "response.output_text.delta", "delta": " final"}
+
+    agent._call_llm = mock_stream
+
+    result = await loop.run(agent, messages=[], tools=[], stream=True)
+    events = [event async for event in result]
+
+    planner_deltas = [
+        event
+        for event in events
+        if event.get("type") == "response.output_text.delta"
+        and event.get("node_id") == "planner"
+    ]
+    assert [event["delta"] for event in planner_deltas] == ["plan", " tokens"]
+
+
+async def test_stream_task_executor_receives_injected_active_task_context():
+    """Streaming executor path injects the same active-task context as sync path."""
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    queue = NodeQueue(items=[executor])
+    loop = TinyCUALoop(queue=queue)
+    root = loop.root_session.task_store.create_task("Build application")
+    active = loop.root_session.task_store.create_task(
+        "Create requirements.txt",
+        parent_id=root.task_id,
+    )
+    loop.root_session.task_store.active_task_id = active.task_id
+    captured_messages = []
+
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+
+    async def mock_stream(messages, tools, *, stream=False):
+        del tools, stream
+        captured_messages.extend(messages)
+        yield {"type": "response.output_text.delta", "delta": "working"}
+
+    agent._call_llm = mock_stream
+
+    async for _event in loop._stream_node_events(
+        executor,
+        agent,
+        [],
+        None,
+        loop.queue.input_for_current(),
+    ):
+        pass
+
+    rendered = "\n".join(str(message.get("content", "")) for message in captured_messages)
+    assert "Create requirements.txt" in rendered
+    assert "Build application" in rendered
+
+
+async def test_stream_digester_digest_only_does_not_route_to_response():
+    """Digester may choose digest-only without terminal failure routing."""
+    digester = TinyCUAInformationDigesterNode(
+        node_id="digester",
+        config=create_node_config("digester"),
+    )
+    response = ResponseNode()
+    queue = NodeQueue(items=[digester, response])
+    loop = TinyCUALoop(queue=queue)
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+
+    async def mock_stream(messages, tools, *, stream=False):
+        del messages, tools, stream
+        return {
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_digest",
+                    "type": "function",
+                    "function": {
+                        "name": "digest_information",
+                        "arguments": '{"information":"notes app"}',
+                    },
+                },
+            ],
+        }
+
+    agent._call_llm = mock_stream
+
+    events = [
+        event
+        async for event in loop._stream_node_events(
+            digester,
+            agent,
+            [],
+            None,
+            loop.queue.input_for_current(),
+        )
+    ]
+
+    assert any(
+        event.get("type") == "node.completed" and event.get("node_id") == "digester"
+        for event in events
+    )
+    assert loop.queue.current is digester
+    assert not any(
+        entry.get("node_id") == "response" for entry in loop.get_execution_trace()
+    )
 
 
 # --- Existing passthrough tests (backward compat) ---

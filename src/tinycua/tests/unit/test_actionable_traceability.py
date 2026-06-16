@@ -41,10 +41,14 @@ async def test_streaming_emits_node_prefixed_transcript_events() -> None:
     )
     events = [event async for event in stream]
 
-    transcript_events = [event for event in events if event.get("type") == "transcript.delta"]
+    transcript_events = [
+        event for event in events if event.get("type") == "transcript.delta"
+    ]
     assert transcript_events
     assert transcript_events[0]["delta"].startswith("[Response]")
-    assert any(event["node_label"] == "Response" for event in loop.get_transcript_events())
+    assert any(
+        event["node_label"] == "Response" for event in loop.get_transcript_events()
+    )
     assert loop.get_transcript_text().startswith("[USER] Say hello.")
     assert "[Response] Hello world" in loop.get_transcript_text()
 
@@ -67,7 +71,7 @@ def test_task_tree_renderer_shows_nested_hierarchy() -> None:
 
 
 def test_llm_messages_dedupe_original_query_for_digester() -> None:
-    """Notebook worker path should not send duplicate user queries to the LLM."""
+    """Digester receives one assistant handoff, not duplicate user queries."""
     user_message = {
         "role": "user",
         "content": "Please create a small note app in the workspace.",
@@ -92,10 +96,17 @@ def test_llm_messages_dedupe_original_query_for_digester() -> None:
 
     messages = loop._build_node_messages(digester)
 
-    user_messages = [
-        message for message in messages if message.get("role") == "user"
+    user_messages = [message for message in messages if message.get("role") == "user"]
+    assistant_handoffs = [
+        message
+        for message in messages
+        if message.get("role") == "assistant"
+        and message.get("content") == user_message["content"]
     ]
-    assert user_messages == [user_message]
+    assert user_messages == []
+    assert assistant_handoffs == [
+        {"role": "assistant", "content": user_message["content"]}
+    ]
 
 
 def test_nonterminal_planner_prose_is_not_replayed_in_transcript() -> None:
@@ -116,7 +127,7 @@ def test_nonterminal_planner_prose_is_not_replayed_in_transcript() -> None:
 
 
 def test_task_analyzer_ignores_project_tree_code_dump_titles() -> None:
-    """Task tree should stay actionable instead of copying project tree prose."""
+    """Task analyzer must not infer task state from project-tree prose."""
     session = Session()
     root = session.task_store.create_task("Create note scheduler app")
     node = TinyCUATaskAnalyzerNode(
@@ -124,34 +135,31 @@ def test_task_analyzer_ignores_project_tree_code_dump_titles() -> None:
         config=create_node_config("task_analyzer"),
     )
     node.ensure_session(session)
-    llm_result = MagicMock()
-    llm_result.content = """
-I cannot create files in a physical workspace or execute commands on your system.
-
-## Project Structure
-```
-note_scheduler_app/
-├── app.py              # Flask backend + SQLite database
-├── templates/
-│   └── index.html      # Frontend HTML/CSS/JS
-```
-"""
-
-    node.parse_loop_result(llm_result, None)
 
     titles = [session.task_store.tasks[task_id].title for task_id in root.children]
-    assert titles == ["Plan Create note scheduler app", "Execute Create note scheduler app"]
-    assert "## Project Structure" not in titles
-    assert "note_scheduler_app/" not in titles
+    assert titles == []
+    assert not hasattr(node, "parse_loop_result")
+    assert {tool.name for tool in node.config.tool_policy.node_tools} >= {
+        "task_inspect",
+        "task_decompose",
+    }
 
 
-def test_default_agent_exposes_workspace_action_and_web_search_tools(tmp_path: Path) -> None:
+def test_default_agent_exposes_workspace_action_and_web_search_tools(
+    tmp_path: Path,
+) -> None:
     """TinyCUA agents should be actionable by default, not planner-only."""
     agent = create_tinycua_agent(session_config=SessionConfig(workspace_dir=tmp_path))
 
     tool_names = {tool.name for tool in agent.tools}
 
-    assert {"write_file", "read_file", "run_shell", "run_python", "web_search"} <= tool_names
+    assert {
+        "write_file",
+        "read_file",
+        "run_shell",
+        "run_python",
+        "web_search",
+    } <= tool_names
 
 
 def test_task_executor_instruction_requires_real_tool_actions(tmp_path: Path) -> None:
@@ -165,13 +173,15 @@ def test_task_executor_instruction_requires_real_tool_actions(tmp_path: Path) ->
     _, tools = agent.loop._prepare_node(node, agent.tools, None)
     instruction = node.build_instruction()
 
-    assert {"write_file", "run_shell", "run_python", "web_search"} <= {tool.name for tool in tools}
+    assert {"write_file", "run_shell", "run_python", "web_search"} <= {
+        tool.name for tool in tools
+    }
     assert "MUST use tools" in instruction
     assert "Do not only provide a plan" in instruction
 
 
-async def test_task_executor_forces_native_action_tool_use(tmp_path: Path) -> None:
-    """TaskExecutor should force workspace/action tools instead of planner prose."""
+async def test_task_executor_validates_tool_owned_result_update(tmp_path: Path) -> None:
+    """TaskExecutor validates tool use without forcing model tool choice."""
     model = LanguageModel(
         provider="openai-chat-completions",
         model_name="local-model",
@@ -182,6 +192,7 @@ async def test_task_executor_forces_native_action_tool_use(tmp_path: Path) -> No
         llm_model=model,
         session_config=SessionConfig(workspace_dir=tmp_path),
     )
+    agent.loop.root_session.task_store.create_task("Create app.py")
     node = TinyCUATaskExecutorNode(
         node_id="task_executor",
         config=create_node_config("task_executor"),
@@ -208,6 +219,20 @@ async def test_task_executor_forces_native_action_tool_use(tmp_path: Path) -> No
                     }
                 ],
             }
+        if len(captured_tool_choices) == 2:
+            return {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_result_update",
+                        "type": "function",
+                        "function": {
+                            "name": "task_result_update",
+                            "arguments": '{"content":"Created app.py","success":true}',
+                        },
+                    }
+                ],
+            }
         return {"content": "Created app.py", "tool_calls": []}
 
     agent._call_llm = call_llm  # type: ignore[method-assign]
@@ -222,10 +247,10 @@ async def test_task_executor_forces_native_action_tool_use(tmp_path: Path) -> No
     assert validation.is_valid
     assert result.content == "Created app.py"
     assert (tmp_path / "app.py").read_text() == 'print("ok")'
-    assert captured_tool_choices == ["required", None]
+    assert captured_tool_choices == [None, None]
     assert "write_file" in captured_tool_names[0]
     assert "run_shell" in captured_tool_names[0]
-    assert "task_execute" not in captured_tool_names[0]
+    assert "task_execute" in captured_tool_names[0]
 
 
 async def test_task_executor_executes_continued_tool_calls(tmp_path: Path) -> None:
@@ -240,6 +265,7 @@ async def test_task_executor_executes_continued_tool_calls(tmp_path: Path) -> No
         llm_model=model,
         session_config=SessionConfig(workspace_dir=tmp_path),
     )
+    agent.loop.root_session.task_store.create_task("Create backend.py")
     node = TinyCUATaskExecutorNode(
         node_id="task_executor",
         config=create_node_config("task_executor"),
@@ -270,6 +296,19 @@ async def test_task_executor_executes_continued_tool_calls(tmp_path: Path) -> No
                 }
             ],
         },
+        {
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_result_update",
+                    "type": "function",
+                    "function": {
+                        "name": "task_result_update",
+                        "arguments": '{"content":"Created backend.py","success":true}',
+                    },
+                }
+            ],
+        },
         {"content": "Created backend.py", "tool_calls": []},
     ]
 
@@ -291,13 +330,14 @@ async def test_task_executor_executes_continued_tool_calls(tmp_path: Path) -> No
     assert [item["name"] for item in result.metadata["tool_results"]] == [
         "list_files",
         "write_file",
+        "task_result_update",
     ]
 
 
-async def test_task_executor_creates_workspace_scaffold_when_model_avoids_tools(
+async def test_task_executor_rejects_planner_only_without_scaffold_fallback(
     tmp_path: Path,
 ) -> None:
-    """Action requests must not remain planner-only when tools are ignored."""
+    """Planner-only executor output must fail visibly instead of scaffolding."""
     model = LanguageModel(
         provider="openai-chat-completions",
         model_name="local-model",
@@ -333,13 +373,12 @@ async def test_task_executor_creates_workspace_scaffold_when_model_avoids_tools(
         tools,
     )
 
-    assert validation.is_valid
-    assert (tmp_path / "backend.py").exists()
-    assert (tmp_path / "webapp" / "index.html").exists()
-    assert (tmp_path / "scheduler.py").exists()
-    assert "Created workspace scaffold" in result.content
-    assert any(item["name"] == "write_file" for item in result.metadata["tool_results"])
-    assert any(item["name"] == "run_python" for item in result.metadata["tool_results"])
+    assert not validation.is_valid
+    assert not (tmp_path / "backend.py").exists()
+    assert not (tmp_path / "webapp" / "index.html").exists()
+    assert not (tmp_path / "scheduler.py").exists()
+    assert "Created workspace scaffold" not in result.content
+    assert "tool_results" not in result.metadata
 
 
 def test_transcript_events_suppress_internal_repr_noise() -> None:
@@ -379,9 +418,9 @@ def test_notebook_worker_prompt_is_natural_app_creation_request() -> None:
 
     assert "This request must use worker mode" not in notebook
     assert "select_query_route with route=worker" not in notebook
-    assert "note taking app" in notebook
-    assert "scheduler" in notebook
-    assert "webapp" in notebook
+    assert "hello-world app" in notebook
+    assert "verification command" in notebook
+    assert "Python" in notebook
 
 
 async def test_reusing_session_preserves_in_memory_context(tmp_path: Path) -> None:

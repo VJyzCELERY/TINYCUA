@@ -20,8 +20,28 @@ async def test_query_route_does_not_use_keyword_inference_without_tool_call() ->
 
     first_trace = agent.loop.get_execution_trace()[0]
     assert first_trace["node_id"] == "query_analyst"
+    assert first_trace["route_label"] == ""
+    assert first_trace["route_source"] == "missing_tool_call"
+    assert first_trace["retry_exhausted"] is True
+
+
+async def test_query_route_accepts_strict_structured_tool_protocol() -> None:
+    """Local models may emit explicit JSON tool calls when native tools are absent."""
+    agent = create_tinycua_agent()
+
+    async def structured_route_response(messages, tools, stream=False):  # noqa: ANN001, ARG001
+        return {
+            "content": '{"tool_calls":[{"name":"select_query_route","arguments":{"route":"passthrough"}}]}',
+            "tool_calls": [],
+        }
+
+    agent._call_llm = structured_route_response  # type: ignore[method-assign]
+    await agent.run("Say hello.")
+
+    first_trace = agent.loop.get_execution_trace()[0]
+    assert first_trace["node_id"] == "query_analyst"
     assert first_trace["route_label"] == "passthrough"
-    assert first_trace["route_source"] == "content_or_fallback"
+    assert first_trace["route_source"] == "tool_call"
 
 
 def test_required_route_prompts_do_not_offer_tools_unavailable_fallback() -> None:

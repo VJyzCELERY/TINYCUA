@@ -8,12 +8,16 @@ from __future__ import annotations
 
 import os
 import resource
+from pathlib import Path
 from typing import Any
 
 import pytest
 
 from tinycua.config.node_config import NodeConfigBase
+from tinycua.agent.tools.native.context import bind_workspace
 from tinycua.models.session import Session
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 # ---------------------------------------------------------------------------
@@ -166,10 +170,22 @@ def _resource_limits(request: pytest.FixtureRequest) -> Any:
     Configure via environment variables:
       - TEST_MEMORY_LIMIT_MB: RSS limit in MB (default: 2048)
     """
+    bind_workspace(None)
+    try:
+        original_cwd = Path.cwd()
+    except FileNotFoundError:
+        original_cwd = _PROJECT_ROOT
+        os.chdir(original_cwd)
     mem_limit_mb = _DEFAULT_MEMORY_LIMIT_MB
     rss_before = _get_rss_mb()
 
     yield
+
+    bind_workspace(None)
+    try:
+        os.chdir(original_cwd)
+    except FileNotFoundError:
+        os.chdir(_PROJECT_ROOT)
 
     rss_after = _get_rss_mb()
     rss_delta = rss_after - rss_before

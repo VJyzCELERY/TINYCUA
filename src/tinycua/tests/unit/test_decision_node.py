@@ -7,6 +7,7 @@ import pytest
 from tinycua.config.node_config import NodeConfigBase
 from tinycua.config.types import LLMResult
 from tinycua.loops.node import DecisionNode, DecisionResult, NodeExecutionError
+from tinycua.loops.route_classifier import RouteClassificationError
 from tinycua.models.node_input import NodeInput
 from tinycua.models.session import Session
 
@@ -147,8 +148,8 @@ class TestDecisionNodeDispatchRoute:
         response = LLMResult(content="Worker")
         assert node._dispatch_route(response) == "worker"
 
-    def test_fallback_to_first(self) -> None:
-        """_dispatch_route falls back to first label."""
+    def test_fails_closed_for_unknown_label(self) -> None:
+        """_dispatch_route fails closed for unknown labels."""
         config = NodeConfigBase(llm_client=MockLLM())
         node = DecisionNode(
             node_id="test",
@@ -156,14 +157,16 @@ class TestDecisionNodeDispatchRoute:
             classification_labels=["passthrough", "worker"],
         )
         response = LLMResult(content="unknown label")
-        assert node._dispatch_route(response) == "passthrough"
+        with pytest.raises(RouteClassificationError):
+            node._dispatch_route(response)
 
-    def test_empty_labels(self) -> None:
-        """_dispatch_route returns 'default' with no labels."""
+    def test_empty_labels_fail_closed(self) -> None:
+        """_dispatch_route fails closed with no labels."""
         config = NodeConfigBase(llm_client=MockLLM())
         node = DecisionNode(node_id="test", config=config)
         response = LLMResult(content="anything")
-        assert node._dispatch_route(response) == "default"
+        with pytest.raises(RouteClassificationError):
+            node._dispatch_route(response)
 
 
 class TestDecisionNodeClassificationCall:

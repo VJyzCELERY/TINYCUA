@@ -7,8 +7,8 @@ import pytest
 from tinycua.models.task import ReviewerDecision, TaskResult, TaskStateStore, TaskStatus
 
 
-def test_task_store_tracks_active_task_and_traverses_unfinished_leaves() -> None:
-    """Task store exposes an active leaf and advances after completion."""
+def test_task_store_advances_after_reviewer_approval() -> None:
+    """Executor result alone does not advance; reviewer approval does."""
     store = TaskStateStore()
     root = store.create_task("Root")
     first = store.create_task("First", parent_id=root.task_id)
@@ -18,6 +18,10 @@ def test_task_store_tracks_active_task_and_traverses_unfinished_leaves() -> None
     assert store.get_active_task() is first
 
     store.record_result(first.task_id, TaskResult(content="done"))
+    assert first.status == TaskStatus.IN_PROGRESS
+    assert store.active_task_id == first.task_id
+
+    store.record_reviewer_decision(first.task_id, ReviewerDecision.APPROVED)
 
     assert store.active_task_id == second.task_id
     assert store.get_active_task() is second

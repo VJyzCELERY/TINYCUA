@@ -49,7 +49,7 @@ def test_factory_passes_agent_kwargs():
     assert agent.instructions == "Be helpful"
 
 
-def test_factory_default_loop_iterations():
-    """Factory creates loop with default 50 max iterations."""
+def test_factory_default_loop_has_no_iteration_limit():
+    """Factory creates loop without an iteration limit."""
     agent = create_tinycua_agent()
-    assert agent.loop.max_iterations == 50
+    assert not hasattr(agent.loop, "max_iterations")

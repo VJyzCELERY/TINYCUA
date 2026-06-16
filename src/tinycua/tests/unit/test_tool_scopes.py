@@ -122,11 +122,11 @@ class TestTaskCreateToolScope:
         tool_names = [t.name for t in policy.node_tools]
         assert "task_init" in tool_names
 
-    def test_includes_task_create(self) -> None:
-        """Includes TaskCreateTool."""
+    def test_excludes_task_create(self) -> None:
+        """Excludes child TaskCreateTool from root creation scope."""
         policy = task_create_tool_scope()
         tool_names = [t.name for t in policy.node_tools]
-        assert "task_create" in tool_names
+        assert "task_create" not in tool_names
 
     def test_no_inspect_or_update(self) -> None:
         """Does not include inspect or update tools."""
@@ -271,7 +271,7 @@ class TestTaskExecutorToolScope:
         policy = task_executor_tool_scope()
         assert policy.include_agent_tools == "selected"
         assert "web_search" in policy.allowed_agent_tool_names
-        assert "file_read" in policy.allowed_agent_tool_names
+        assert "read_file" in policy.allowed_agent_tool_names
         assert "calculator" in policy.allowed_agent_tool_names
 
 
@@ -283,11 +283,12 @@ class TestResultReviewerToolScope:
         policy = result_reviewer_tool_scope()
         assert isinstance(policy, NodeToolPolicy)
 
-    def test_includes_task_result_update(self) -> None:
-        """Includes TaskResultUpdateTool."""
+    def test_includes_task_review_decision(self) -> None:
+        """Includes TaskReviewDecisionTool."""
         policy = result_reviewer_tool_scope()
         tool_names = [t.name for t in policy.node_tools]
-        assert "task_result_update" in tool_names
+        assert "task_review_decision" in tool_names
+        assert "task_result_update" not in tool_names
 
     def test_no_task_init(self) -> None:
         """Does not include TaskInitTool."""
@@ -411,6 +412,6 @@ class TestDigestInformationOutput:
         """Returns a structured digest dict."""
         tool = DigestInformationTool()
         result = tool(information="test info")
-        assert "digest" in result
-        assert result["digest"] == "test info"
-        assert result["format"] == "structured"
+        assert "summary" in result
+        assert result["summary"] == "test info"
+        assert "key_points" in result

@@ -13,6 +13,9 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, cast
 
+from tinycua.loops.context_rendering import render_llm_content
+from tinycua.models.node_input import NodeInput
+
 if TYPE_CHECKING:
     from tinycua.loops.node import Node
     from tinycua.models.node_input import NodeInputLike
@@ -108,12 +111,20 @@ class NodeQueue:
             )
             if output_entries and next_node.node_id not in self._inputs:
                 # Convert current-node output entries to NodeInput format.
-                node_input: NodeInputLike = cast(
-                    "NodeInputLike",
-                        [
-                            {"role": e.role, "content": str(e.content)}
-                            for e in output_entries
-                        ],
+                node_input = NodeInput(
+                    input_type="forwarded_output",
+                    source_node=current_node.node_id,
+                    target_node=next_node.node_id,
+                    messages=[
+                        {
+                            "role": "assistant",
+                            "content": render_llm_content(e.content),
+                        }
+                        for e in output_entries
+                    ],
+                    metadata={
+                        "source_record_ids": [e.record_id for e in output_entries]
+                    },
                 )
                 self.set_input(next_node, node_input)
                 if next_node.session is not None:

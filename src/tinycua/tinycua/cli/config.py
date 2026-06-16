@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 
+from tinycua_sdk.agent.llm_model import LanguageModel
+
 
 def load_config(
     base_url: str | None,
@@ -53,3 +55,20 @@ def load_config(
         "api_key": resolved_api_key,
         "model": resolved_model,
     }
+
+
+def build_language_model(config: dict[str, str]) -> LanguageModel:
+    """Build the SDK LanguageModel expected by Agent.__init__.
+
+    Args:
+        config: Mapping returned by ``load_config``.
+
+    Returns:
+        OpenAI Chat Completions model configuration for TinyCUA runs.
+    """
+    return LanguageModel(
+        provider="openai-chat-completions",
+        model_name=config["model"],
+        base_url=config["base_url"],
+        api_key=config["api_key"],
+    )

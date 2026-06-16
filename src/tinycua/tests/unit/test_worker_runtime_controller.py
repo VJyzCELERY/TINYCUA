@@ -22,6 +22,25 @@ def test_worker_runtime_retry_keeps_same_active_task() -> None:
     assert [node.node_id for node in queue.items] == ["task_executor", "result_reviewer"]
 
 
+def test_worker_runtime_repeated_revision_never_routes_to_response() -> None:
+    """Incomplete tasks keep executing/reviewing until reviewer-owned completion."""
+    store = TaskStateStore()
+    root = store.create_task("Root")
+    active = store.create_task("Active", parent_id=root.task_id)
+    store.transition(active.task_id, TaskStatus.IN_PROGRESS)
+    for _ in range(5):
+        store.record_reviewer_decision(active.task_id, ReviewerDecision.NEEDS_REVISION)
+    queue = NodeQueue()
+
+    WorkerRuntimeController(store).schedule_after_review(queue)
+
+    assert store.all_done() is False
+    assert store.active_task_id == active.task_id
+    assert [node.node_id for node in queue.items] == ["task_executor", "result_reviewer"]
+    assert "mandatory_passthrough" not in store.tasks[active.task_id].metadata
+    assert "open_question_reason" not in store.tasks[active.task_id].metadata
+
+
 def test_worker_runtime_completed_task_advances_until_aggregation_ready() -> None:
     """Accepted leaf completion advances to next leaf, then aggregation."""
     store = TaskStateStore()
@@ -29,13 +48,15 @@ def test_worker_runtime_completed_task_advances_until_aggregation_ready() -> Non
     first = store.create_task("First", parent_id=root.task_id)
     second = store.create_task("Second", parent_id=root.task_id)
     store.record_result(first.task_id, TaskResult(content="ok"))
+    store.record_reviewer_decision(first.task_id, ReviewerDecision.APPROVED)
     queue = NodeQueue()
 
     WorkerRuntimeController(store).schedule_next(queue)
     assert store.active_task_id == second.task_id
-    assert [node.node_id for node in queue.items] == ["task_assessor", "task_executor", "result_reviewer"]
+    assert [node.node_id for node in queue.items] == ["task_executor", "result_reviewer"]
 
     store.record_result(second.task_id, TaskResult(content="ok"))
+    store.record_reviewer_decision(second.task_id, ReviewerDecision.APPROVED)
     queue = NodeQueue()
     WorkerRuntimeController(store).schedule_next(queue)
     assert [node.node_id for node in queue.items] == ["result_aggregation"]
@@ -53,3 +74,23 @@ def test_worker_runtime_open_question_routes_to_terminal_response() -> None:
     WorkerRuntimeController(store).schedule_after_review(queue)
 
     assert [node.node_id for node in queue.items] == ["response"]
+
+
+def test_worker_runtime_replan_uses_local_assessor_mode() -> None:
+    """Reviewer replan scopes TaskAssessor to active/local task region."""
+    store = TaskStateStore()
+    root = store.create_task("Root")
+    active = store.create_task("Active", parent_id=root.task_id)
+    store.transition(active.task_id, TaskStatus.IN_PROGRESS)
+    store.record_reviewer_decision(active.task_id, ReviewerDecision.REPLAN)
+    queue = NodeQueue()
+
+    WorkerRuntimeController(store).schedule_after_review(queue)
+
+    assert [node.node_id for node in queue.items] == [
+        "task_assessor",
+        "task_analyzer",
+        "task_executor",
+        "result_reviewer",
+    ]
+    assert queue.items[0].config.metadata["task_assessor_mode"] == "local_replan"

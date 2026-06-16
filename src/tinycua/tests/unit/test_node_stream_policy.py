@@ -137,7 +137,12 @@ async def test_include_node_metadata_false_no_enrichment():
     )
     events = [e async for e in result]
     # LLM events (non-lifecycle) should not have node metadata when disabled
-    llm_events = [e for e in events if not e["type"].startswith("node.")]
+    llm_events = [
+        e
+        for e in events
+        if not e["type"].startswith("node.")
+        and not e["type"].startswith("transcript.")
+    ]
     for e in llm_events:
         assert "node_id" not in e
         assert "node_type" not in e

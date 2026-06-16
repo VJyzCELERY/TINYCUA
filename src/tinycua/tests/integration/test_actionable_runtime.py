@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from tinycua.config.session_config import SessionConfig
@@ -11,31 +12,147 @@ from tinycua.factory import create_tinycua_agent
 class AppCreationScript:
     """Scripted model that uses real workspace tools to create an app."""
 
+    def _task_id(self, messages, key: str = "active_task_id") -> str:
+        """Extract a task id from task snapshots in prompt/tool messages."""
+        text = "\n".join(str(message.get("content", "")) for message in messages)
+        match = re.search(rf"'{key}': '([^']+)'", text) or re.search(
+            rf'"{key}": "([^"]+)"',
+            text,
+        )
+        if match:
+            return match.group(1)
+        match = re.search(r"'root_task_id': '([^']+)'", text) or re.search(
+            r'"root_task_id": "([^"]+)"',
+            text,
+        )
+        return match.group(1) if match else ""
+
     async def __call__(self, messages, tools, stream: bool = False):  # noqa: ANN001, ARG002
         tool_names = {tool.name for tool in tools}
         if "select_query_route" in tool_names:
             return {
                 "content": "",
                 "tool_calls": [
-                    {"function": {"name": "select_query_route", "arguments": '{"route":"worker"}'}}
+                    {
+                        "function": {
+                            "name": "select_query_route",
+                            "arguments": '{"route":"worker"}',
+                        }
+                    }
                 ],
             }
         if "select_worker_route" in tool_names:
             return {
                 "content": "",
                 "tool_calls": [
-                    {"function": {"name": "select_worker_route", "arguments": '{"route":"task_creation"}'}}
+                    {
+                        "function": {
+                            "name": "select_worker_route",
+                            "arguments": '{"route":"task_creation"}',
+                        }
+                    }
                 ],
             }
         if "digest_information" in tool_names:
-            return {"content": '{"context_summary":"Create a tiny Python app"}', "tool_calls": []}
+            return {
+                "content": '{"context_summary":"Create a tiny Python app"}',
+                "tool_calls": [],
+            }
         if "task_init" in tool_names:
-            return {"content": "Create a tiny Python app", "tool_calls": []}
+            if any(
+                message.get("role") == "tool"
+                and "task_init" in str(message.get("content", ""))
+                for message in messages
+            ):
+                return {"content": "Initialized task tree.", "tool_calls": []}
+            return {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "task_init",
+                            "arguments": '{"title":"Create a tiny Python app"}',
+                        }
+                    }
+                ],
+            }
         if "task_decompose" in tool_names:
-            return {"content": "Write app.py\nRun app verification", "tool_calls": []}
+            task_id = self._task_id(messages, "root_task_id")
+            if any(
+                message.get("role") == "tool"
+                and (
+                    "task_decompose" in str(message.get("content", ""))
+                    or "task_update" in str(message.get("content", ""))
+                )
+                for message in messages
+            ):
+                return {"content": "Task analysis recorded.", "tool_calls": []}
+            return {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "task_decompose",
+                            "arguments": (
+                                '{"task_id":"'
+                                + task_id
+                                + '","subtasks":["Write app.py","Run app verification"]}'
+                            ),
+                        }
+                    }
+                ],
+            }
+        if "task_update" in tool_names:
+            task_id = self._task_id(messages)
+            if any(
+                message.get("role") == "tool"
+                and "task_update" in str(message.get("content", ""))
+                for message in messages
+            ):
+                return {"content": "Assessment recorded.", "tool_calls": []}
+            return {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "task_update",
+                            "arguments": (
+                                '{"task_id":"'
+                                + task_id
+                                + '","assessment":"ready for execution"}'
+                            ),
+                        }
+                    }
+                ],
+            }
         if {"write_file", "run_shell"} <= tool_names:
-            if any(message.get("role") == "tool" for message in messages):
-                return {"content": "Created app.py and verified it runs.", "tool_calls": []}
+            if any(
+                message.get("role") == "tool"
+                and "task_result_update" in str(message.get("content", ""))
+                for message in messages
+            ):
+                return {
+                    "content": "Created app.py and verified it runs.",
+                    "tool_calls": [],
+                }
+            if any(
+                message.get("role") == "tool"
+                and "write_file" in str(message.get("content", ""))
+                for message in messages
+            ):
+                return {
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "id": "call_result_update",
+                            "type": "function",
+                            "function": {
+                                "name": "task_result_update",
+                                "arguments": '{"content":"Created app.py and verified it runs.","success":true}',
+                            },
+                        }
+                    ],
+                }
             return {
                 "content": "",
                 "tool_calls": [
@@ -57,6 +174,24 @@ class AppCreationScript:
                     },
                 ],
             }
+        if "task_review_decision" in tool_names:
+            if any(
+                message.get("role") == "tool"
+                and "task_review_decision" in str(message.get("content", ""))
+                for message in messages
+            ):
+                return {"content": "approved", "tool_calls": []}
+            return {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "task_review_decision",
+                            "arguments": '{"decision":"approved","rationale":"Tool evidence verifies the task."}',
+                        }
+                    }
+                ],
+            }
         return {"content": "final app creation summary", "tool_calls": []}
 
 
@@ -75,20 +210,99 @@ class PlannerOnlyScript:
             return {
                 "content": "",
                 "tool_calls": [
-                    {"function": {"name": "select_query_route", "arguments": '{"route":"worker"}'}}
+                    {
+                        "function": {
+                            "name": "select_query_route",
+                            "arguments": '{"route":"worker"}',
+                        }
+                    }
                 ],
             }
         if "select_worker_route" in tool_names:
             return {
                 "content": "",
                 "tool_calls": [
-                    {"function": {"name": "select_worker_route", "arguments": '{"route":"task_creation"}'}}
+                    {
+                        "function": {
+                            "name": "select_worker_route",
+                            "arguments": '{"route":"task_creation"}',
+                        }
+                    }
                 ],
             }
         return {"content": self.planner_text, "tool_calls": []}
 
 
-async def test_worker_action_request_writes_file_and_runs_verification(tmp_path: Path) -> None:
+class PromptEchoScript:
+    """Scripted model that routes but echoes prompts for all worker nodes."""
+
+    async def __call__(self, messages, tools, stream: bool = False):  # noqa: ANN001, ARG002
+        tool_names = {tool.name for tool in tools}
+        if "select_query_route" in tool_names:
+            return {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "select_query_route",
+                            "arguments": '{"route":"worker"}',
+                        }
+                    }
+                ],
+            }
+        if "select_worker_route" in tool_names:
+            return {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "select_worker_route",
+                            "arguments": '{"route":"task_creation"}',
+                        }
+                    }
+                ],
+            }
+        return {
+            "content": "\n\n".join(
+                str(message.get("content", ""))
+                for message in messages
+                if str(message.get("content", "")).strip()
+            ),
+            "tool_calls": [],
+        }
+
+
+class StreamingPromptEchoScript(PromptEchoScript):
+    """Prompt echo script that emits streamed deltas like the notebook path."""
+
+    def __call__(self, messages, tools, stream: bool = False):  # noqa: ANN001
+        if not stream:
+            return super().__call__(messages, tools, stream=stream)
+        return self._stream(messages, tools)
+
+    async def _stream(self, messages, tools):  # noqa: ANN001
+        """Yield stream events for the scripted prompt echo response."""
+        response = await super().__call__(messages, tools, stream=False)
+        tool_calls = response.get("tool_calls", [])
+        if tool_calls:
+            for tool_call in tool_calls:
+                function = tool_call.get("function", {})
+                yield {
+                    "type": "tool_call.ready",
+                    "id": tool_call.get("id"),
+                    "name": function.get("name", ""),
+                    "arguments": function.get("arguments", "{}"),
+                }
+            return
+        content = response.get("content", "")
+        if content:
+            yield {"type": "response.output_text.delta", "delta": content}
+        yield {"type": "response.completed", "finish_reason": "completed"}
+
+
+async def test_worker_action_request_writes_file_and_runs_verification(
+    tmp_path: Path,
+) -> None:
     """Worker execution must perform real workspace actions via tools."""
     agent = create_tinycua_agent(session_config=SessionConfig(workspace_dir=tmp_path))
     agent._call_llm = AppCreationScript()  # type: ignore[method-assign]
@@ -101,7 +315,8 @@ async def test_worker_action_request_writes_file_and_runs_verification(tmp_path:
     assert app_file.read_text() == 'print("hello app")\n'
     assert result.strip()
     assert any(
-        item.get("name") == "run_shell" and item.get("output", {}).get("stdout") == "hello app\n"
+        item.get("name") == "run_shell"
+        and item.get("output", {}).get("stdout") == "hello app\n"
         for entry in trace
         for item in entry.get("tool_results", [])
     )
@@ -110,12 +325,11 @@ async def test_worker_action_request_writes_file_and_runs_verification(tmp_path:
     assert task_snapshot["root_task_id"] is not None
 
 
-async def test_planner_only_worker_run_still_creates_workspace_artifacts(
+async def test_planner_only_worker_run_fails_without_workspace_artifacts(
     tmp_path: Path,
 ) -> None:
-    """Notebook path should stay usable even when the model emits planner prose."""
+    """Planner prose must not be converted into hardcoded workspace artifacts."""
     agent = create_tinycua_agent(session_config=SessionConfig(workspace_dir=tmp_path))
-    agent.loop.max_iterations = 9
     agent._call_llm = PlannerOnlyScript()  # type: ignore[method-assign]
 
     await agent.run(
@@ -127,15 +341,73 @@ async def test_planner_only_worker_run_still_creates_workspace_artifacts(
     transcript = agent.loop.get_transcript_text()
     trace = agent.loop.get_execution_trace()
 
-    assert (tmp_path / "backend.py").exists()
-    assert (tmp_path / "scheduler.py").exists()
-    assert (tmp_path / "webapp" / "index.html").exists()
+    assert not (tmp_path / "backend.py").exists()
+    assert not (tmp_path / "scheduler.py").exists()
+    assert not (tmp_path / "webapp" / "index.html").exists()
     assert "note_scheduler_app/" not in task_tree_text
     assert "├── app.py" not in task_tree_text
-    assert "I cannot create files" not in transcript
-    task_executor = next(entry for entry in trace if entry["node_id"] == "task_executor")
-    assert "write_file" in task_executor["resolved_tool_names"]
-    assert any(
-        item.get("name") == "write_file"
-        for item in task_executor.get("tool_results", [])
+    assert "failed runtime validation" in transcript
+    failed_node = next(entry for entry in trace if entry.get("retry_exhausted"))
+    assert failed_node["node_id"] == "task_create"
+    assert "task_init" in failed_node["resolved_tool_names"]
+
+
+async def test_prompt_echo_worker_run_keeps_clean_trace_without_artifacts(
+    tmp_path: Path,
+) -> None:
+    """Prompt echo models must not pollute state or synthesize artifacts."""
+    agent = create_tinycua_agent(session_config=SessionConfig(workspace_dir=tmp_path))
+    agent._call_llm = PromptEchoScript()  # type: ignore[method-assign]
+
+    await agent.run(
+        "Please create a small note taking app with a scheduler. Use Python for "
+        "the backend and make the frontend a webapp. Create the project files in "
+        "the workspace and run a simple verification command if possible."
     )
+
+    snapshot = agent.loop.get_state_snapshot()
+    task_tree_text = snapshot["task_tree_text"]
+    transcript = agent.loop.get_transcript_text()
+    trace = agent.loop.get_execution_trace()
+
+    assert not (tmp_path / "backend.py").exists()
+    assert not (tmp_path / "scheduler.py").exists()
+    assert not (tmp_path / "webapp" / "index.html").exists()
+    assert "Based on the external user request above" not in transcript
+    assert "Based on the external user request above" not in task_tree_text
+    assert "Context Enhanced Query:" not in task_tree_text
+    failed_node = next(entry for entry in trace if entry.get("retry_exhausted"))
+    assert failed_node["node_id"] == "task_create"
+    assert "task_init" in failed_node["resolved_tool_names"]
+
+
+async def test_streaming_prompt_echo_worker_run_keeps_notebook_state_clean(
+    tmp_path: Path,
+) -> None:
+    """Streaming notebook path must be robust to prompt-echo model output."""
+    agent = create_tinycua_agent(session_config=SessionConfig(workspace_dir=tmp_path))
+    agent._call_llm = StreamingPromptEchoScript()  # type: ignore[method-assign]
+
+    stream = await agent.run(
+        "Please create a small note taking app with a scheduler. Use Python for "
+        "the backend and make the frontend a webapp. Create the project files in "
+        "the workspace and run a simple verification command if possible.",
+        stream=True,
+    )
+    async for _ in stream:
+        pass
+
+    snapshot = agent.loop.get_state_snapshot()
+    task_tree_text = snapshot["task_tree_text"]
+    transcript = agent.loop.get_transcript_text()
+    trace = agent.loop.get_execution_trace()
+
+    assert not (tmp_path / "backend.py").exists()
+    assert not (tmp_path / "scheduler.py").exists()
+    assert not (tmp_path / "webapp" / "index.html").exists()
+    assert "Based on the external user request above" not in transcript
+    assert "Based on the external user request above" not in task_tree_text
+    assert "Context Enhanced Query:" not in task_tree_text
+    failed_node = next(entry for entry in trace if entry.get("retry_exhausted"))
+    assert failed_node["node_id"] == "task_create"
+    assert "task_init" in failed_node["resolved_tool_names"]

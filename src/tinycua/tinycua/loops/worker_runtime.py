@@ -8,6 +8,7 @@ from tinycua.config.node_config import create_node_config
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.response_node import ResponseNode
 from tinycua.loops.task_nodes import (
+    TinyCUAAnalysisEffortNode,
     TinyCUAResultAggregationNode,
     TinyCUAResultReviewerNode,
     TinyCUATaskAnalyzerNode,
@@ -22,7 +23,6 @@ class WorkerRuntimeController:
     """Mutate worker queues from task state instead of fixed linear chains."""
 
     store: TaskStateStore
-    reviewer_retry_threshold: int = 5
 
     def schedule_initial(self, queue: NodeQueue) -> None:
         """Schedule the initial analysis-through-review lifecycle."""
@@ -30,11 +30,11 @@ class WorkerRuntimeController:
             [
                 TinyCUATaskAnalyzerNode(
                     node_id="task_analyzer",
-                    config=create_node_config("task_analyzer", mode="task_creation"),
+                    config=create_node_config("task_analyzer", mode="initial_analysis"),
                 ),
-                TinyCUATaskAssessorNode(
-                    node_id="task_assessor",
-                    config=create_node_config("task_assessor"),
+                TinyCUAAnalysisEffortNode(
+                    node_id="analysis_effort",
+                    config=create_node_config("analysis_effort"),
                 ),
                 TinyCUATaskExecutorNode(
                     node_id="task_executor",
@@ -53,7 +53,7 @@ class WorkerRuntimeController:
             [
                 TinyCUATaskAssessorNode(
                     node_id="task_assessor",
-                    config=create_node_config("task_assessor"),
+                    config=create_node_config("task_assessor", mode="local_replan"),
                 ),
                 TinyCUATaskAnalyzerNode(
                     node_id="task_analyzer",
@@ -76,29 +76,6 @@ class WorkerRuntimeController:
         latest = active.reviewer_decisions[-1] if active and active.reviewer_decisions else {}
         decision = latest.get("decision")
         if decision in {ReviewerDecision.NEEDS_REVISION.value, ReviewerDecision.REJECTED.value}:
-            retry_count = max(
-                int(active.metadata.get("review_retry_count", 0)) + 1,
-                sum(
-                    1
-                    for item in active.reviewer_decisions
-                    if item.get("decision")
-                    in {
-                        ReviewerDecision.NEEDS_REVISION.value,
-                        ReviewerDecision.REJECTED.value,
-                    }
-                ),
-            )
-            active.metadata["review_retry_count"] = retry_count
-            if retry_count >= self.reviewer_retry_threshold:
-                active.metadata["mandatory_passthrough"] = True
-                active.metadata["open_question_reason"] = "review_retry_threshold_exceeded"
-                queue.items.append(
-                    ResponseNode(
-                        node_id="response",
-                        config=create_node_config("response"),
-                    )
-                )
-                return
             queue.items.extend(
                 [
                     TinyCUATaskExecutorNode(
@@ -138,10 +115,6 @@ class WorkerRuntimeController:
         if self.store.get_active_task() is not None:
             queue.items.extend(
                 [
-                    TinyCUATaskAssessorNode(
-                        node_id="task_assessor",
-                        config=create_node_config("task_assessor"),
-                    ),
                     TinyCUATaskExecutorNode(
                         node_id="task_executor",
                         config=create_node_config("task_executor"),

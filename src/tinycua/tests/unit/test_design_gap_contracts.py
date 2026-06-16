@@ -111,6 +111,7 @@ def test_result_aggregation_publishes_aggregated_result_context() -> None:
     root = session.task_store.create_task("root")
     child = session.task_store.create_task("child", parent_id=root.task_id)
     session.task_store.record_result(child.task_id, TaskResult(content="child output"))
+    session.task_store.record_reviewer_decision(child.task_id, ReviewerDecision.APPROVED)
     node = TinyCUAResultAggregationNode(
         node_id="result_aggregation",
         config=create_node_config("result_aggregation"),
@@ -125,8 +126,8 @@ def test_result_aggregation_publishes_aggregated_result_context() -> None:
     assert "child output" in aggregated[-1].final_context
 
 
-def test_reviewer_retry_threshold_escalates_to_open_question_response() -> None:
-    """Retry threshold prevents unbounded reviewer retry loops."""
+def test_reviewer_revisions_do_not_escalate_to_response_before_completion() -> None:
+    """Reviewer revisions must not synthesize a terminal response mid-task."""
     store = TaskStateStore()
     root = store.create_task("root")
     active = store.create_task("active", parent_id=root.task_id)
@@ -135,7 +136,7 @@ def test_reviewer_retry_threshold_escalates_to_open_question_response() -> None:
         store.record_reviewer_decision(active.task_id, ReviewerDecision.NEEDS_REVISION)
     queue = NodeQueue()
 
-    WorkerRuntimeController(store, reviewer_retry_threshold=5).schedule_after_review(queue)
+    WorkerRuntimeController(store).schedule_after_review(queue)
 
-    assert [node.node_id for node in queue.items] == ["response"]
-    assert store.tasks[active.task_id].metadata["mandatory_passthrough"] is True
+    assert [node.node_id for node in queue.items] == ["task_executor", "result_reviewer"]
+    assert "mandatory_passthrough" not in store.tasks[active.task_id].metadata

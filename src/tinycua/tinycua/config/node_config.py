@@ -19,6 +19,7 @@ class NodeMessagePolicy:
     Attributes:
         include_chat_history: Whether to include chat history in messages.
         include_session_context: Whether to include session context.
+        include_input_context: Whether to include SDK/root input context.
         max_context_messages: Maximum number of context messages (None = unlimited).
         dedupe_by_origin_record_id: Deduplicate messages by origin record ID.
         continuation_role: Role for internal node handoff messages.
@@ -26,6 +27,7 @@ class NodeMessagePolicy:
 
     include_chat_history: bool = False
     include_session_context: bool = True
+    include_input_context: bool = False
     max_context_messages: int | None = None
     dedupe_by_origin_record_id: bool = True
     continuation_role: str = "assistant"
@@ -216,7 +218,7 @@ def create_node_config(
         "task_executor": tool_scopes.task_executor_tool_scope,
         "result_reviewer": tool_scopes.result_reviewer_tool_scope,
         "result_aggregation": tool_scopes.result_aggregation_tool_scope,
-        "analysis_effort": tool_scopes.task_analyzer_tool_scope,
+        "analysis_effort": tool_scopes.deterministic_controller_tool_scope,
         "response": tool_scopes.response_tool_scope,
     }
 
@@ -241,9 +243,69 @@ def create_node_config(
         retry_policy = replace(retry_policy, required_tool_calls=[])
     metadata = dict(config.metadata)
     metadata["node_kind"] = normalized
+    if normalized == "task_assessor":
+        metadata["task_assessor_mode"] = mode or metadata.get(
+            "task_assessor_mode",
+            "upfront_decomposition",
+        )
+    retry_guidance = {
+        "digester": (
+            "If prior context is available, consider using "
+            "enhanced_context_retrieval to inspect it before calling "
+            "digest_information. Do not force retrieval when the provided "
+            "context is already sufficient."
+        ),
+        "information_digester": (
+            "If prior context is available, consider using "
+            "enhanced_context_retrieval to inspect it before calling "
+            "digest_information. Do not force retrieval when the provided "
+            "context is already sufficient."
+        ),
+        "query_analyst": (
+            "Use select_query_route with exactly one route. Do not answer with "
+            "the route in text only."
+        ),
+        "worker": (
+            "Use select_worker_route with exactly one currently allowed route. "
+            "Do not answer with the route in text only."
+        ),
+        "task_create": (
+            "Call task_init with a root title derived from the actual request. "
+            "Do not describe task creation only in prose."
+        ),
+        "task_analyzer": (
+            "Use task_inspect plus task_decompose or task_update when task "
+            "analysis changes or confirms the task tree."
+        ),
+        "task_assessor": (
+            "Use task_inspect and task_update to record assessment metadata "
+            "instead of prose-only state."
+        ),
+        "task_executor": (
+            "Use action/research tools as needed and then call "
+            "task_result_update with the observed result."
+        ),
+        "result_reviewer": (
+            "Call task_review_decision with approved, needs_revision, "
+            "rejected, replan, or open_question."
+        ),
+    }.get(normalized)
+    custom_retry_append = config.custom_retry_append
+    if retry_guidance:
+        custom_retry_append = " ".join(
+            part for part in (custom_retry_append, retry_guidance) if part
+        )
+    message_policy = replace(
+        config.message_policy,
+        include_chat_history=False,
+        include_session_context=normalized != "task_executor",
+        include_input_context=normalized == "query_analyst",
+    )
     return replace(
         config,
         tool_policy=tool_policy,
         retry_policy=retry_policy,
+        message_policy=message_policy,
         metadata=metadata,
+        custom_retry_append=custom_retry_append,
     )

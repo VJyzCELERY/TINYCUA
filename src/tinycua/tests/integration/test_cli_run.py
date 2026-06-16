@@ -30,6 +30,15 @@ class TestCLIRunArgumentParsing:
         args = parse_args(["hello world"])
         assert args.prompt == "hello world"
 
+    def test_run_accepts_prompt_option_and_dir_alias(self, tmp_path):
+        """Given --prompt and --dir, one-shot args are normalized."""
+        from tinycua.cli.run import parse_args
+
+        args = parse_args(["--dir", str(tmp_path), "--prompt", "hello world"])
+
+        assert args.prompt == "hello world"
+        assert args.workspace == tmp_path
+
     def test_run_defaults(self):
         """Given minimal args, defaults are applied correctly."""
         from tinycua.cli.run import parse_args

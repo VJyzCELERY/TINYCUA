@@ -22,6 +22,18 @@ _PLANNER_PROSE_MARKERS = (
     "copy into your local environment",
     "complete project structure and code",
 )
+_INTERNAL_PROMPT_ECHO_MARKERS = (
+    "based on the external user request above, classify the route",
+    "based on the context-enhanced query above, produce focused",
+    "based on the digested information and current task state above",
+    "based on the digested information above, initialize the root task",
+    "based on the current digested information or focused task context above",
+    "based on the task tree above, choose concise analysis effort",
+    "based on the active task and shallow roadmap above",
+    "based on the active task above, perform the required workspace",
+    "based on the latest task result and execution evidence above",
+    "do not answer the user from this node",
+)
 
 
 def should_include_chat_record(record: Any) -> bool:
@@ -65,9 +77,43 @@ def sanitize_internal_reprs(content: str) -> str:
 def looks_like_planner_prose(content: str) -> bool:
     """Return whether content is planner/code-dump prose instead of state evidence."""
     lowered = content.lower()
+    if looks_like_tool_protocol_payload(content):
+        return True
+    if looks_like_internal_prompt_echo(content):
+        return True
     if any(marker in lowered for marker in _PLANNER_PROSE_MARKERS):
         return True
     return len(content) > 1_500 and "```" in content and "project structure" in lowered
+
+
+def looks_like_tool_protocol_payload(content: str) -> bool:
+    """Return whether content is an internal tool-call protocol payload."""
+    stripped = content.strip()
+    if '"tool_calls"' in stripped:
+        return True
+    return "</tool_call>" in stripped or stripped.startswith("<tool_call>")
+
+
+def looks_like_internal_prompt_echo(content: str) -> bool:
+    """Return whether content is an echoed TinyCUA internal prompt."""
+    lowered = content.lower()
+    return any(marker in lowered for marker in _INTERNAL_PROMPT_ECHO_MARKERS)
+
+
+def clean_context_enhanced_query(content: str) -> str:
+    """Extract the user-facing query from a context-enhanced query echo."""
+    text = sanitize_internal_reprs(content).strip()
+    marker = "Context Enhanced Query:"
+    if marker in text:
+        text = text.split(marker, 1)[1].strip()
+    for split_marker in (
+        "\n\nBased on the context-enhanced query above",
+        "\nBased on the context-enhanced query above",
+        "Based on the context-enhanced query above",
+    ):
+        if split_marker in text:
+            text = text.split(split_marker, 1)[0].strip()
+    return " ".join(text.split())
 
 
 def _context_payload(value: Any) -> Any:

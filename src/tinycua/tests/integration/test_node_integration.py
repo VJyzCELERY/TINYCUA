@@ -222,7 +222,7 @@ def test_process_node_with_string_input() -> None:
 
 def test_decision_node_with_node_input() -> None:
     """DecisionNode subclass can classify input and return a route label."""
-    mock_llm = MockLLM(response="analysis result")
+    mock_llm = MockLLM(response="passthrough")
     config = NodeConfigBase(llm_client=mock_llm)
     node = MinimalDecisionNode(node_id="test-decision", config=config)
     session = Session()

@@ -12,6 +12,7 @@ def _make_config() -> MagicMock:
     """Create a properly configured mock config for TaskCreateNode."""
     config = MagicMock()
     config.custom_instruction_append = ""
+    config.custom_continuation_append = ""
     config.custom_retry_append = ""
     config.message_policy.include_session_context = True
     config.message_policy.include_chat_history = False

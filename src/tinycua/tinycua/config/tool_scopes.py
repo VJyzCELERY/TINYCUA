@@ -23,6 +23,7 @@ from tinycua.tools.task_tools import (
     TaskInitTool,
     TaskInspectTool,
     TaskResultUpdateTool,
+    TaskReviewDecisionTool,
     TaskUpdateTool,
 )
 from tinycua.tools.todo_tools import TodoReadTool, TodoWriteTool
@@ -77,16 +78,16 @@ def worker_tool_scope() -> NodeToolPolicy:
 
 
 def task_create_tool_scope() -> NodeToolPolicy:
-    """Deterministic root task creation tools (TaskInit/TaskCreate).
+    """Deterministic root task creation tools.
 
-    TaskCreateNode receives only TaskInit and TaskCreate for
-    initializing new task trees.
+    TaskCreateNode receives only TaskInit for initializing exactly one new
+    task tree root. Subtask creation is delegated to TaskAnalyzer.
 
     Returns:
         NodeToolPolicy for TaskCreateNode.
     """
     return NodeToolPolicy(
-        node_tools=[TaskInitTool(), TaskCreateTool()],
+        node_tools=[TaskInitTool()],
         include_agent_tools="none",
     )
 
@@ -172,7 +173,7 @@ def result_reviewer_tool_scope() -> NodeToolPolicy:
         NodeToolPolicy for ResultReviewerNode.
     """
     return NodeToolPolicy(
-        node_tools=[TaskResultUpdateTool()],
+        node_tools=[TaskReviewDecisionTool(), TaskInspectTool()],
         include_agent_tools="none",
     )
 
@@ -190,6 +191,11 @@ def result_aggregation_tool_scope() -> NodeToolPolicy:
         node_tools=[TaskInspectTool()],
         include_agent_tools="none",
     )
+
+
+def deterministic_controller_tool_scope() -> NodeToolPolicy:
+    """No-tool policy for deterministic orchestration controller nodes."""
+    return NodeToolPolicy(node_tools=[], include_agent_tools="none")
 
 
 def response_tool_scope(allow_digest: bool = True) -> NodeToolPolicy:

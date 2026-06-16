@@ -27,8 +27,6 @@ class TestDockerfileBuild:
 
     def test_dockerfile_exists(self) -> None:
         """Dockerfile exists at the project root."""
-        from pathlib import Path
-
         dockerfile = _project_root() / "Dockerfile"
         assert dockerfile.exists(), "Dockerfile must exist at project root"
 

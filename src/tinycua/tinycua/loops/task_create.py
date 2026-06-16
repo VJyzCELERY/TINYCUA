@@ -19,6 +19,12 @@ _TASK_CREATE_INSTRUCTION = (
     "well-defined, actionable tasks."
 )
 
+_TASK_CREATE_CONTINUATION = (
+    "Based on the digested information above, initialize the root task tree "
+    "using task tools. Create actionable tasks and avoid repeating upstream "
+    "context verbatim."
+)
+
 
 class TinyCUATaskCreateNode(ProcessNode):
     """First-time deterministic root task creation node.
@@ -47,6 +53,7 @@ class TinyCUATaskCreateNode(ProcessNode):
             node_id=node_id,
             config=config,
             instruction=instruction,
+            continuation=_TASK_CREATE_CONTINUATION,
             is_terminal=is_terminal,
         )
 
@@ -98,6 +105,8 @@ class TinyCUATaskCreateNode(ProcessNode):
                 content = entry.content
             if isinstance(content, DigestedInformation):
                 parts = [f"Context Summary: {content.context_summary}"]
+                if content.original_query:
+                    parts.append(f"Original Query: {content.original_query}")
 
                 if content.key_points:
                     parts.append("Key Points:")
@@ -119,7 +128,6 @@ class TinyCUATaskCreateNode(ProcessNode):
                     parts.append("Known Gaps:")
                     parts.extend(f"  - {gap}" for gap in content.known_gaps)
 
-                parts.append(f"Original Query: {content.original_query}")
                 return "\n".join(parts)
 
         return None

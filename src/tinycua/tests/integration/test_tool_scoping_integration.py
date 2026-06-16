@@ -36,7 +36,7 @@ class TestTaskExecutorReceivesCorrectTools:
         outer_tools = [
             MockTool("web_search"),
             MockTool("calculator"),
-            MockTool("file_read"),
+            MockTool("read_file"),
         ]
         policy = task_executor_tool_scope()
 
@@ -50,7 +50,7 @@ class TestTaskExecutorReceivesCorrectTools:
         assert "enhanced_context_retrieval" in tool_names
         assert "web_search" in tool_names
         assert "calculator" in tool_names
-        assert "file_read" in tool_names
+        assert "read_file" in tool_names
 
 
 class TestTaskAnalyzerExcludesTaskInitInCreationMode:
@@ -222,7 +222,7 @@ class TestTaskCreateReceivesRootCreationToolsOnly:
     """TaskCreateNode receives deterministic root task creation tools only."""
 
     def test_task_create_receives_root_creation_tools_only(self) -> None:
-        """TaskCreate receives only task_init and task_create."""
+        """TaskCreate receives only task_init."""
         # Arrange
         policy = task_create_tool_scope()
 
@@ -232,7 +232,7 @@ class TestTaskCreateReceivesRootCreationToolsOnly:
         # Assert
         tool_names = [t.name for t in resolved]
         assert "task_init" in tool_names
-        assert "task_create" in tool_names
+        assert "task_create" not in tool_names
         assert "task_inspect" not in tool_names
         assert "task_update" not in tool_names
 
@@ -273,10 +273,10 @@ class TestWorkerReceivesDecisionToolsOnly:
 
 
 class TestResultReviewerReceivesReviewAndUpdateTools:
-    """ResultReviewerNode receives review/decision + task result/context update tools."""
+    """ResultReviewerNode receives explicit review decision tools."""
 
     def test_result_reviewer_receives_review_and_update_tools(self) -> None:
-        """ResultReviewer receives task_result_update but not task_init."""
+        """ResultReviewer receives task_review_decision but not task_init."""
         # Arrange
         policy = result_reviewer_tool_scope()
 
@@ -285,7 +285,9 @@ class TestResultReviewerReceivesReviewAndUpdateTools:
 
         # Assert
         tool_names = [t.name for t in resolved]
-        assert "task_result_update" in tool_names
+        assert "task_review_decision" in tool_names
+        assert "task_inspect" in tool_names
+        assert "task_result_update" not in tool_names
         assert "task_init" not in tool_names
 
 

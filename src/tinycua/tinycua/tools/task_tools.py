@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from tinycua.config.types import Tool
-from tinycua.models.task import TaskResult, TaskStateStore, TaskStatus
+from tinycua.models.task import ReviewerDecision, TaskResult, TaskStateStore, TaskStatus
 
 
 _DEFAULT_STORE = TaskStateStore()
@@ -31,7 +31,30 @@ class TaskInitTool(SessionTaskToolMixin, Tool):
 
     def __init__(self) -> None:
         SessionTaskToolMixin.__init__(self)
-        Tool.__init__(self, name="task_init")
+        Tool.__init__(
+            self,
+            name="task_init",
+            description=(
+                "Initialize the worker task tree with exactly one root task. "
+                "Choose the title and description from the actual user request; "
+                "do not create subtasks with this tool."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "Concise root task title derived from the request.",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Optional root task description/context.",
+                    },
+                },
+                "required": ["title"],
+                "additionalProperties": False,
+            },
+        )
 
     def __call__(self, title: str, description: str = "") -> dict[str, Any]:
         """Initialize a root task tree."""
@@ -48,7 +71,21 @@ class TaskCreateTool(SessionTaskToolMixin, Tool):
 
     def __init__(self) -> None:
         SessionTaskToolMixin.__init__(self)
-        Tool.__init__(self, name="task_create")
+        Tool.__init__(
+            self,
+            name="task_create",
+            description="Create one child task under an existing parent task.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "parent_id": {"type": "string"},
+                    "description": {"type": "string"},
+                },
+                "required": ["title", "parent_id"],
+                "additionalProperties": False,
+            },
+        )
 
     def __call__(
         self,
@@ -73,7 +110,16 @@ class TaskInspectTool(SessionTaskToolMixin, Tool):
 
     def __init__(self) -> None:
         SessionTaskToolMixin.__init__(self)
-        Tool.__init__(self, name="task_inspect")
+        Tool.__init__(
+            self,
+            name="task_inspect",
+            description="Inspect the current task tree, active task, and statuses.",
+            parameters={
+                "type": "object",
+                "properties": {},
+                "additionalProperties": False,
+            },
+        )
 
     def __call__(self) -> dict[str, Any]:
         """Return the current task tree state."""
@@ -85,14 +131,59 @@ class TaskUpdateTool(SessionTaskToolMixin, Tool):
 
     def __init__(self) -> None:
         SessionTaskToolMixin.__init__(self)
-        Tool.__init__(self, name="task_update")
+        Tool.__init__(
+            self,
+            name="task_update",
+            description=(
+                "Update an existing task status or metadata. Use this for "
+                "assessment notes, selected decomposition targets, blocked state, "
+                "or other explicit task metadata."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": (
+                            "Optional task ID. Omit to update the active task."
+                        ),
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": ["pending", "in_progress", "blocked"],
+                        "description": (
+                            "Planning/assessment status only for assessor/analyzer "
+                            "metadata and decomposition readiness."
+                        ),
+                    },
+                },
+                "required": [],
+                "additionalProperties": True,
+            },
+        )
 
-    def __call__(self, task_id: str, status: str | None = None, **metadata: str) -> dict[str, Any]:
+    def __call__(
+        self,
+        task_id: str | None = None,
+        status: str | None = None,
+        **metadata: str,
+    ) -> dict[str, Any]:
         """Update task status and metadata."""
+        active_id = task_id or self._store.active_task_id
+        if active_id is None:
+            return {"success": False, "error": "No active task"}
+        if status in {TaskStatus.COMPLETED.value, TaskStatus.FAILED.value}:
+            return {
+                "success": False,
+                "error": (
+                    "task_update only records planning or assessment metadata; "
+                    "the requested status is not supported by this tool"
+                ),
+            }
         try:
-            task = self._store.get_task(task_id)
+            task = self._store.get_task(active_id)
             if status is not None:
-                task = self._store.transition(task_id, TaskStatus(status))
+                task = self._store.transition(active_id, TaskStatus(status))
             task.metadata.update(metadata)
         except ValueError as exc:
             return {"success": False, "error": str(exc)}
@@ -104,7 +195,27 @@ class TaskDecomposeTool(SessionTaskToolMixin, Tool):
 
     def __init__(self) -> None:
         SessionTaskToolMixin.__init__(self)
-        Tool.__init__(self, name="task_decompose")
+        Tool.__init__(
+            self,
+            name="task_decompose",
+            description=(
+                "Decompose an existing task into concrete sequential subtasks. "
+                "Choose subtasks from the request and current task state; do not "
+                "use a fixed template."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "task_id": {"type": "string"},
+                    "subtasks": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                },
+                "required": ["task_id", "subtasks"],
+                "additionalProperties": False,
+            },
+        )
 
     def __call__(self, task_id: str, subtasks: list[str]) -> dict[str, Any]:
         """Create child tasks below an existing task."""
@@ -124,7 +235,16 @@ class TaskExecuteTool(SessionTaskToolMixin, Tool):
 
     def __init__(self) -> None:
         SessionTaskToolMixin.__init__(self)
-        Tool.__init__(self, name="task_execute")
+        Tool.__init__(
+            self,
+            name="task_execute",
+            description="Mark the active or specified task as actively executing.",
+            parameters={
+                "type": "object",
+                "properties": {"task_id": {"type": "string"}},
+                "additionalProperties": False,
+            },
+        )
 
     def __call__(self, task_id: str | None = None) -> dict[str, Any]:
         """Mark a task as in progress for execution dispatch."""
@@ -143,7 +263,24 @@ class TaskResultUpdateTool(SessionTaskToolMixin, Tool):
 
     def __init__(self) -> None:
         SessionTaskToolMixin.__init__(self)
-        Tool.__init__(self, name="task_result_update")
+        Tool.__init__(
+            self,
+            name="task_result_update",
+            description=(
+                "Record the execution result for the active or specified task "
+                "after observing action/research/tool evidence."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "task_id": {"type": "string"},
+                    "content": {"type": "string"},
+                    "success": {"type": "boolean"},
+                },
+                "required": ["content"],
+                "additionalProperties": False,
+            },
+        )
 
     def __call__(
         self,
@@ -163,6 +300,70 @@ class TaskResultUpdateTool(SessionTaskToolMixin, Tool):
         except ValueError as exc:
             return {"success": False, "error": str(exc)}
         return {"success": True, "task_id": active_id, "status": task.status.value}
+
+
+class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
+    """Tool for recording reviewer decisions on task results."""
+
+    def __init__(self) -> None:
+        SessionTaskToolMixin.__init__(self)
+        Tool.__init__(
+            self,
+            name="task_review_decision",
+            description=(
+                "Record the review decision for a task result: approved, "
+                "needs_revision, rejected, replan, or open_question."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "task_id": {"type": "string"},
+                    "decision": {
+                        "type": "string",
+                        "enum": [
+                            "approved",
+                            "needs_revision",
+                            "rejected",
+                            "replan",
+                            "open_question",
+                        ],
+                    },
+                    "rationale": {"type": "string"},
+                },
+                "required": ["decision"],
+                "additionalProperties": False,
+            },
+        )
+
+    def __call__(
+        self,
+        task_id: str | None = None,
+        decision: str = ReviewerDecision.APPROVED.value,
+        rationale: str = "",
+    ) -> dict[str, Any]:
+        """Persist a reviewer decision for the active or specified task."""
+        active_id = task_id or self._store.active_task_id
+        if active_id is None:
+            for task in reversed(list(self._store.tasks.values())):
+                if task.result is not None and not task.reviewer_decisions:
+                    active_id = task.task_id
+                    break
+        if active_id is None:
+            return {"success": False, "error": "No active task"}
+        try:
+            task = self._store.record_reviewer_decision(
+                active_id,
+                ReviewerDecision(decision),
+                rationale=rationale,
+            )
+        except ValueError as exc:
+            return {"success": False, "error": str(exc)}
+        return {
+            "success": True,
+            "task_id": active_id,
+            "decision": ReviewerDecision(decision).value,
+            "status": task.status.value,
+        }
 
 
 class FinalResponseSynthesisTool(SessionTaskToolMixin, Tool):

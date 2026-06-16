@@ -19,8 +19,8 @@ def _route_tool_call(name: str, route: str) -> dict:
     }
 
 
-async def test_query_analyst_forces_route_tool_choice_for_chat_completions() -> None:
-    """QueryAnalyst must force its required route tool, not rely on auto tools."""
+async def test_query_analyst_uses_auto_tools_for_local_chat_completions() -> None:
+    """Local Chat Completions models get protocol guidance without forced choice."""
     model = LanguageModel(
         provider="openai-chat-completions",
         model_name="local-model",
@@ -43,13 +43,14 @@ async def test_query_analyst_forces_route_tool_choice_for_chat_completions() -> 
 
     await agent.run("Hello there.")
 
-    assert captured_tool_choices[0] == "required"
-    assert captured_tool_names[0] == ["select_query_route"]
+    assert captured_tool_choices[0] is None
+    assert "select_query_route" in captured_tool_names[0]
+    assert "task_inspect" in captured_tool_names[0]
     assert agent.config.llm_model.tool_choice is None
 
 
-async def test_worker_forces_route_tool_choice_for_chat_completions() -> None:
-    """WorkerNode must force select_worker_route for route decisions."""
+async def test_worker_uses_auto_tools_for_local_chat_completions() -> None:
+    """WorkerNode keeps local tool choice unforced for compatibility."""
     model = LanguageModel(
         provider="openai-chat-completions",
         model_name="local-model",
@@ -86,8 +87,8 @@ async def test_worker_forces_route_tool_choice_for_chat_completions() -> None:
 
     assert validation.is_valid
     assert result.tool_calls[0]["function"]["name"] == "select_worker_route"
-    assert captured_tool_choices == ["required"]
-    assert captured_tool_names == [["select_worker_route"]]
+    assert captured_tool_choices == [None]
+    assert "select_worker_route" in captured_tool_names[0]
     assert agent.config.llm_model.tool_choice is None
 
 
@@ -116,8 +117,8 @@ def test_remote_chat_completions_uses_openai_function_tool_choice_shape() -> Non
     }
 
 
-async def test_route_tool_failure_does_not_retry_with_text_continuations() -> None:
-    """Route nodes fail over after one bad response instead of teaching retry spam."""
+async def test_route_tool_failure_retries_then_fails_closed() -> None:
+    """Route nodes retry required tool calls and then fail closed."""
     model = LanguageModel(
         provider="openai-chat-completions",
         model_name="local-model",
@@ -148,10 +149,10 @@ async def test_route_tool_failure_does_not_retry_with_text_continuations() -> No
         tools,
     )
 
-    assert attempt == 1
+    assert attempt == 3
     assert not validation.is_valid
     assert result.content == "passthrough"
-    assert len(captured_messages) == 1
-    assert "Retry attempt" not in "\n".join(
-        message.get("content", "") for message in captured_messages[0]
+    assert len(captured_messages) == 3
+    assert "Retry attempt" in "\n".join(
+        message.get("content", "") for message in captured_messages[-1]
     )
