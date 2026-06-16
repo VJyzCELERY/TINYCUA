@@ -130,7 +130,7 @@ class NodeRetryPolicy:
     """Controls retry behavior, validation, and exhaustion handling.
 
     Attributes:
-        max_attempts: Maximum number of attempts (0 = no retries).
+        max_attempts: Maximum number of attempts (0 = no retries, None = unbounded).
         required_tool_calls: Tool calls required for validation.
         required_output_schema: Schema or type for output validation.
         validation_fn: Custom validation function.
@@ -138,7 +138,7 @@ class NodeRetryPolicy:
         on_retry_exhausted: Behavior when retries exhausted.
     """
 
-    max_attempts: int = 3
+    max_attempts: int | None = 3
     required_tool_calls: list[str] = field(default_factory=list)
     required_output_schema: dict | type[StateObject] | None = None
     validation_fn: Any | None = None  # Callable[[LLMResult], ValidationResult]
@@ -151,7 +151,7 @@ class NodeRetryPolicy:
 
     def __post_init__(self) -> None:
         """Validate max_attempts is non-negative."""
-        if self.max_attempts < 0:
+        if self.max_attempts is not None and self.max_attempts < 0:
             raise ValueError("max_attempts must be >= 0")
 
 
@@ -253,6 +253,8 @@ def create_node_config(
             "task_analyzer_mode",
             "task_creation",
         )
+    if normalized in {"task_executor", "result_reviewer"}:
+        retry_policy = replace(retry_policy, max_attempts=25)
     retry_guidance = {
         "digester": (
             "If prior context is available, consider using "

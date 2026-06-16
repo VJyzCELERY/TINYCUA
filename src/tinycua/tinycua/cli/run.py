@@ -16,6 +16,8 @@ from tinycua_sdk.agent import Agent
 
 from tinycua.cli.config import build_language_model
 from tinycua.cli.config import load_config
+from tinycua.cli.live_stream import print_summary as print_live_summary
+from tinycua.cli.live_stream import run_streaming
 from tinycua.cli.logging import write_log_entry
 from tinycua.cli.transcript import (
     convert_working_messages_to_openclaw,
@@ -133,6 +135,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=False,
         help="Enable debug logging output.",
     )
+    parser.add_argument(
+        "--stream",
+        action="store_true",
+        default=False,
+        help="Show live node reasoning, tool calls, tool results, and final output.",
+    )
+    parser.add_argument(
+        "--worker-effort",
+        choices=["none", "low", "medium", "high"],
+        default="medium",
+        help="Analysis effort pass count for worker mode (default: medium).",
+    )
     args = parser.parse_args(argv)
     if args.prompt_option:
         args.prompt = args.prompt_option
@@ -149,6 +163,8 @@ def run_command(
     api_key: str | None,
     model: str | None,
     verbose: bool,
+    stream: bool = False,
+    worker_effort: str = "medium",
 ) -> int:
     """Execute the tinycua run command.
 
@@ -164,6 +180,8 @@ def run_command(
         api_key: CLI override for API key.
         model: CLI override for model name.
         verbose: Whether to enable debug logging.
+        stream: Whether to render live node/tool progress while running.
+        worker_effort: Analysis effort setting passed to worker runtime.
 
     Returns:
         Exit code: 0 success, 1 error, 124 timeout.
@@ -209,6 +227,7 @@ def run_command(
             session_config=SessionConfig(
                 workspace_dir=workspace,
                 artifact_dir=output_dir,
+                worker_effort=worker_effort,
             ),
             llm_model=build_language_model(config),
         )
@@ -231,7 +250,10 @@ def run_command(
     write_log_entry(log_path, "agent_run", "info", {"prompt": prompt})
 
     try:
-        result = _run_async_safely(_run_agent_with_timeout(agent, prompt, timeout_event))
+        if stream:
+            result = _run_async_safely(run_streaming(agent, prompt))
+        else:
+            result = _run_async_safely(_run_agent_with_timeout(agent, prompt, timeout_event))
         elapsed = time.monotonic() - start_time
 
         if timeout_event.is_set():
@@ -268,7 +290,10 @@ def run_command(
         print(f"Agent completed in {elapsed:.1f}s", flush=True)
         if result:
             print(result, flush=True)
-        _print_runtime_summary(loop, workspace, output_dir)
+        if stream:
+            print_live_summary(loop, workspace, output_dir, result)
+        else:
+            _print_runtime_summary(loop, workspace, output_dir)
 
         return 0
     except asyncio.CancelledError:

@@ -7,7 +7,10 @@ from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua.config.node_config import create_node_config
 from tinycua.factory import create_tinycua_agent
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
+from tinycua.loops.task_nodes import TinyCUAResultReviewerNode
+from tinycua.loops.task_nodes import TinyCUATaskAnalyzerNode
 from tinycua.loops.task_nodes import TinyCUATaskAssessorNode
+from tinycua.loops.task_nodes import TinyCUATaskExecutorNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.loops.worker import TinyCUAWorkerNode
 
@@ -20,8 +23,8 @@ def _route_tool_call(name: str, route: str) -> dict:
     }
 
 
-async def test_query_analyst_uses_auto_tools_for_local_chat_completions() -> None:
-    """Local Chat Completions models get protocol guidance without forced choice."""
+async def test_query_analyst_requires_route_tool_for_local_chat_completions() -> None:
+    """Local Chat Completions models get string required route choice."""
     model = LanguageModel(
         provider="openai-chat-completions",
         model_name="local-model",
@@ -44,14 +47,13 @@ async def test_query_analyst_uses_auto_tools_for_local_chat_completions() -> Non
 
     await agent.run("Hello there.")
 
-    assert captured_tool_choices[0] is None
-    assert "select_query_route" in captured_tool_names[0]
-    assert "task_inspect" in captured_tool_names[0]
+    assert captured_tool_choices[0] == "required"
+    assert captured_tool_names[0] == ["select_query_route"]
     assert agent.config.llm_model.tool_choice is None
 
 
-async def test_worker_uses_auto_tools_for_local_chat_completions() -> None:
-    """WorkerNode keeps local tool choice unforced for compatibility."""
+async def test_worker_requires_route_tool_for_local_chat_completions() -> None:
+    """WorkerNode uses local-compatible required string route choice."""
     model = LanguageModel(
         provider="openai-chat-completions",
         model_name="local-model",
@@ -88,8 +90,8 @@ async def test_worker_uses_auto_tools_for_local_chat_completions() -> None:
 
     assert validation.is_valid
     assert result.tool_calls[0]["function"]["name"] == "select_worker_route"
-    assert captured_tool_choices == [None]
-    assert "select_worker_route" in captured_tool_names[0]
+    assert captured_tool_choices == ["required"]
+    assert captured_tool_names[0] == ["select_worker_route"]
     assert agent.config.llm_model.tool_choice is None
 
 
@@ -146,6 +148,105 @@ def test_local_state_single_tool_node_uses_function_tool_choice_shape() -> None:
     assert [tool.name for tool in narrowed_tools] == ["task_update"]
 
 
+def test_result_reviewer_requires_a_tool_without_narrowing_tools() -> None:
+    """Reviewer must call a tool but can inspect before deciding."""
+    model = LanguageModel(
+        provider="openai-chat-completions",
+        model_name="local-model",
+        base_url="http://localhost:1234/v1",
+        api_key="test",
+    )
+    agent = create_tinycua_agent(llm_model=model)
+    loop = TinyCUALoop()
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="result_reviewer",
+        config=create_node_config("result_reviewer"),
+    )
+    reviewer.ensure_session(loop.root_session)
+    _, tools = loop._prepare_node(reviewer, [], None)
+
+    tool_choice = loop._forced_tool_choice_for_node(agent, reviewer, tools)
+    llm_tools = loop._llm_tools_for_required_choice(
+        reviewer,
+        tools,
+        force_required_tool=True,
+    )
+
+    assert tool_choice == "required"
+    assert {tool.name for tool in llm_tools} >= {"task_inspect", "task_review_decision"}
+
+
+def test_result_reviewer_retry_narrows_to_review_decision_tool() -> None:
+    """Reviewer retry can force the missing decision after inspection."""
+    loop = TinyCUALoop()
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="result_reviewer",
+        config=create_node_config("result_reviewer"),
+    )
+    reviewer.ensure_session(loop.root_session)
+    _, tools = loop._prepare_node(reviewer, [], None)
+
+    retry_tools = loop._tools_for_retry_attempt(
+        reviewer,
+        tools,
+        "I need to call task_review_decision with the current evidence.",
+    )
+
+    assert [tool.name for tool in retry_tools] == ["task_review_decision"]
+
+
+def test_task_analyzer_retry_prefers_decompose_tool() -> None:
+    """Analyzer retry should mutate decomposition instead of prose looping."""
+    loop = TinyCUALoop()
+    analyzer = TinyCUATaskAnalyzerNode(
+        node_id="task_analyzer",
+        config=create_node_config("task_analyzer"),
+    )
+    analyzer.ensure_session(loop.root_session)
+    _, tools = loop._prepare_node(analyzer, [], None)
+    retry_message = loop._natural_retry_message(
+        ValueError(
+            "task_analyzer must call at least one successful task-state tool "
+            "from ['task_decompose', 'task_update']"
+        ),
+        analyzer,
+        tools,
+    )
+
+    retry_tools = loop._tools_for_retry_attempt(analyzer, tools, retry_message)
+
+    assert "task_decompose" in retry_message
+    assert [tool.name for tool in retry_tools] == ["task_decompose"]
+
+
+def test_task_executor_requires_a_tool_without_narrowing_tools() -> None:
+    """Executor must call tools while retaining action tools before result update."""
+    model = LanguageModel(
+        provider="openai-chat-completions",
+        model_name="local-model",
+        base_url="http://localhost:1234/v1",
+        api_key="test",
+    )
+    agent = create_tinycua_agent(llm_model=model)
+    loop = TinyCUALoop()
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    executor.ensure_session(loop.root_session)
+    _, tools = loop._prepare_node(executor, [], None)
+
+    tool_choice = loop._forced_tool_choice_for_node(agent, executor, tools)
+    llm_tools = loop._llm_tools_for_required_choice(
+        executor,
+        tools,
+        force_required_tool=True,
+    )
+
+    assert tool_choice == "required"
+    assert {tool.name for tool in llm_tools} >= {"task_execute", "task_result_update"}
+
+
 async def test_route_tool_failure_retries_then_fails_closed() -> None:
     """Route nodes retry required tool calls and then fail closed."""
     model = LanguageModel(
@@ -182,6 +283,16 @@ async def test_route_tool_failure_retries_then_fails_closed() -> None:
     assert not validation.is_valid
     assert result.content == "passthrough"
     assert len(captured_messages) == 3
-    assert "Retry attempt" in "\n".join(
+    assert "I need to call select_query_route" in "\n".join(
         message.get("content", "") for message in captured_messages[-1]
     )
+    retry_counts = [
+        sum(
+            "I need to call select_query_route" in str(message.get("content", ""))
+            for message in call_messages
+        )
+        for call_messages in captured_messages
+    ]
+    assert retry_counts == [0, 1, 1]
+    assert captured_messages[-1][-1]["role"] == "user"
+    assert "do not repeat this text" in captured_messages[-1][-1]["content"]

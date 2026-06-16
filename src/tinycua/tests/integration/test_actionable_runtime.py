@@ -30,7 +30,7 @@ class AppCreationScript:
         )
         return match.group(1) if match else ""
 
-    async def __call__(self, messages, tools, stream: bool = False):  # noqa: ANN001, ARG002
+    async def __call__(self, messages, tools, stream: bool = False):  # noqa: ANN001, ARG002, C901
         tool_names = {tool.name for tool in tools}
         if "select_query_route" in tool_names:
             return {
@@ -178,6 +178,26 @@ class AppCreationScript:
                 ],
             }
         if "task_review_decision" in tool_names:
+            if not any(
+                message.get("role") == "tool"
+                and (
+                    "task_inspect" in str(message.get("content", ""))
+                    or "read_file" in str(message.get("content", ""))
+                    or "list_files" in str(message.get("content", ""))
+                )
+                for message in messages
+            ):
+                return {
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": "task_inspect",
+                                "arguments": "{}",
+                            }
+                        }
+                    ],
+                }
             if any(
                 message.get("role") == "tool"
                 and "task_review_decision" in str(message.get("content", ""))
@@ -303,6 +323,34 @@ class StreamingPromptEchoScript(PromptEchoScript):
         yield {"type": "response.completed", "finish_reason": "completed"}
 
 
+def _assert_worker_trace_uses_allowed_edges(trace: list[dict]) -> None:
+    """Validate high-level worker lifecycle routing edges."""
+    allowed_edges = {
+        "query_analyst": {"digester", "response"},
+        "digester": {"worker", "response"},
+        "worker": {"task_create", "task_executor", "result_reviewer", "response"},
+        "task_create": {"task_analyzer"},
+        "task_analyzer": {"analysis_effort", "task_executor"},
+        "analysis_effort": {"task_assessor", "task_executor"},
+        "task_assessor": {"task_analyzer", "task_executor"},
+        "task_executor": {"task_executor", "result_reviewer"},
+        "result_reviewer": {
+            "task_executor",
+            "task_assessor",
+            "result_aggregation",
+            "response",
+        },
+        "result_aggregation": {"response"},
+    }
+    node_ids = [str(entry.get("node_id")) for entry in trace]
+    for current, next_node in zip(node_ids, node_ids[1:], strict=False):
+        if current == next_node:
+            continue
+        allowed = allowed_edges.get(current)
+        assert allowed is not None, f"unexpected node in trace: {current}"
+        assert next_node in allowed, f"illegal worker edge: {current} -> {next_node}"
+
+
 async def test_worker_action_request_writes_file_and_runs_verification(
     tmp_path: Path,
 ) -> None:
@@ -326,6 +374,7 @@ async def test_worker_action_request_writes_file_and_runs_verification(
     assert "task_tree_text" in agent.loop.get_state_snapshot()
     assert "Task [" in agent.loop.get_state_snapshot()["task_tree_text"]
     assert task_snapshot["root_task_id"] is not None
+    _assert_worker_trace_uses_allowed_edges(trace)
 
 
 async def test_planner_only_worker_run_fails_without_workspace_artifacts(

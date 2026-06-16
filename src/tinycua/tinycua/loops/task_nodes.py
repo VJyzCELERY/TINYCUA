@@ -97,15 +97,21 @@ _RESULT_REVIEWER_INSTRUCTION = (
     "You are the ResultReviewer. Review the latest task result against the "
     "requested outcome, tool evidence, and unified task-tree context. Read the "
     "whole task context before deciding so useful completed-work information can "
-    "inform unfinished future tasks. You MUST call task_review_decision with "
-    "approved, needs_revision, rejected, replan, or open_question plus a brief "
-    "rationale. Do not infer review state from prose-only output and do not "
-    "repeat upstream context. Never rewrite completed tasks."
+    "inform unfinished future tasks. When artifacts or paths are involved, use "
+    "read-only inspection tools such as task_inspect, list_files, or read_file "
+    "before approving. Treat duplicate scripts, misplaced files, nested accidental "
+    "workspace paths, unsupported claims, or incomplete implementation as quality "
+    "gate failures that require needs_revision, rejected, or replan. You MUST call "
+    "task_review_decision with approved, needs_revision, rejected, replan, or "
+    "open_question plus a brief rationale. Do not infer review state from "
+    "prose-only output and do not repeat upstream context. Never rewrite completed "
+    "tasks."
 )
 _RESULT_REVIEWER_CONTINUATION = (
     "Based on the latest task result, execution evidence, and unified task "
-    "context above, call task_review_decision with approved, needs_revision, "
-    "rejected, replan, or open_question and a brief reason."
+    "context above, inspect relevant artifacts/paths when present, then call "
+    "task_review_decision with approved, needs_revision, rejected, replan, or "
+    "open_question and a brief reason."
 )
 
 _RESULT_AGGREGATION_INSTRUCTION = (

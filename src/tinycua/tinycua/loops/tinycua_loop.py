@@ -49,6 +49,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _MAX_TOOL_CONTINUATIONS = 6
+_UNBOUNDED_RETRY_ATTEMPTS = 1_000_000_000
 
 
 class TinyCUALoop(BaseLoop):
@@ -713,13 +714,27 @@ class TinyCUALoop(BaseLoop):
         max_attempts = self._effective_max_attempts(node)
         last_result = LLMResult()
         last_validation = ValidationResult(is_valid=True, errors=[])
+        base_messages = [dict(message) for message in messages]
+        retry_message: str | None = None
+        retry_feedback: list[dict[str, Any]] = []
+        retry_tool_results: list[dict[str, Any]] = []
 
         for attempt in range(1, max_attempts + 1):
+            attempt_messages = self._messages_with_retry_prompt(
+                base_messages,
+                retry_feedback,
+                retry_message,
+            )
+            attempt_tools = self._tools_for_retry_attempt(
+                node,
+                resolved_tools,
+                retry_message,
+            )
             raw_response = await self._call_agent_llm(
                 agent,
                 node,
-                messages,
-                resolved_tools,
+                attempt_messages,
+                attempt_tools,
             )
             last_result = LLMResult(
                 content=sanitize_internal_reprs(raw_response.get("content") or ""),
@@ -728,13 +743,13 @@ class TinyCUALoop(BaseLoop):
                 metadata=raw_response.get("metadata", {}),
             )
             if not node.is_terminal and node.node_id != "result_aggregation":
-                self._coerce_structured_tool_calls(last_result, resolved_tools)
+                self._coerce_structured_tool_calls(last_result, attempt_tools)
             all_tool_results: list[dict[str, Any]] = []
             continuation_rounds = 0
             while continuation_rounds < _MAX_TOOL_CONTINUATIONS:
                 tool_results = self._execute_tool_calls(
                     last_result.tool_calls,
-                    resolved_tools,
+                    attempt_tools,
                 )
                 if not tool_results:
                     break
@@ -746,11 +761,12 @@ class TinyCUALoop(BaseLoop):
                 last_result.tool_calls = normalized_tool_calls
                 last_result.metadata = dict(last_result.metadata)
                 last_result.metadata["tool_results"] = list(all_tool_results)
+                self._prepend_retry_tool_results(last_result, retry_tool_results)
                 self._fill_content_from_recorded_task_result(last_result)
                 last_validation = self._validate_node_result(node, last_result)
                 if self._can_stop_after_tool_batch(node, last_result, last_validation):
                     return last_result, attempt, last_validation
-                messages.append(
+                attempt_messages.append(
                     {
                         "role": "assistant",
                         "content": last_result.content,
@@ -763,7 +779,7 @@ class TinyCUALoop(BaseLoop):
                         if index < len(normalized_tool_calls)
                         else {}
                     )
-                    messages.append(
+                    attempt_messages.append(
                         {
                             "role": "tool",
                             "tool_call_id": tool_call.get("id")
@@ -778,8 +794,8 @@ class TinyCUALoop(BaseLoop):
                 raw_response = await self._call_agent_llm(
                     agent,
                     node,
-                    messages,
-                    resolved_tools,
+                    attempt_messages,
+                    attempt_tools,
                     force_required_tool=False,
                 )
                 last_result = LLMResult(
@@ -792,38 +808,103 @@ class TinyCUALoop(BaseLoop):
                     },
                 )
                 if not node.is_terminal and node.node_id != "result_aggregation":
-                    self._coerce_structured_tool_calls(last_result, resolved_tools)
+                    self._coerce_structured_tool_calls(last_result, attempt_tools)
             if all_tool_results:
                 last_result.metadata = dict(last_result.metadata)
                 last_result.metadata["tool_results"] = list(all_tool_results)
+                self._prepend_retry_tool_results(last_result, retry_tool_results)
                 self._fill_content_from_recorded_task_result(last_result)
             last_validation = self._validate_node_result(node, last_result)
             if last_validation.is_valid:
                 return last_result, attempt, last_validation
             if attempt < max_attempts:
                 error = ValidationError("; ".join(last_validation.errors))
-                if self._should_request_structured_tool_protocol(
-                    agent,
+                retry_message = self._natural_retry_message(
+                    error,
                     node,
                     resolved_tools,
-                ):
-                    retry_message = self._structured_tool_retry_message(
-                        error,
-                        node,
-                        resolved_tools,
-                    )
-                else:
-                    retry_message = node._build_retry_text(error, attempt)
-                self._record_retry_continuation(node, retry_message, attempt)
-                messages.append(
-                    {
-                        "role": "system",
-                        "content": retry_message,
-                    }
                 )
+                retry_feedback = self._tool_feedback_messages(last_result)
+                retry_tool_results = self._tool_results_from_llm_result(last_result)
+                self._record_retry_continuation(node, retry_message, attempt)
 
         node._handle_exhaustion(last_validation, max_attempts)
         return last_result, max_attempts, last_validation
+
+    def _messages_with_retry_prompt(
+        self,
+        base_messages: list[dict[str, Any]],
+        retry_feedback: list[dict[str, Any]],
+        retry_message: str | None,
+    ) -> list[dict[str, Any]]:
+        """Return base node messages, latest tool feedback, and one retry prompt."""
+        messages = [dict(message) for message in base_messages]
+        messages.extend(dict(message) for message in retry_feedback)
+        if retry_message:
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        f"Retry prompt: {retry_message} Make the required tool "
+                        "call now; do not repeat this text."
+                    ),
+                }
+            )
+        return messages
+
+    def _tools_for_retry_attempt(
+        self,
+        node: Node,
+        resolved_tools: list[Tool],
+        retry_message: str | None,
+    ) -> list[Tool]:
+        """Narrow retry tools when validation names one required state tool."""
+        required = self._retry_required_tool_name(node, retry_message)
+        if required is None:
+            return resolved_tools
+        narrowed = [tool for tool in resolved_tools if tool.name == required]
+        return narrowed or resolved_tools
+
+    def _retry_required_tool_name(
+        self,
+        node: Node,
+        retry_message: str | None,
+    ) -> str | None:
+        """Return a required tool that should be isolated for this retry."""
+        if not retry_message:
+            return None
+        retry_required_by_node = {
+            "task_analyzer": "task_decompose",
+            "result_reviewer": "task_review_decision",
+        }
+        required = retry_required_by_node.get(node.node_id)
+        if required and required in retry_message:
+            return required
+        return None
+
+    def _prepend_retry_tool_results(
+        self,
+        llm_result: LLMResult,
+        retry_tool_results: list[dict[str, Any]],
+    ) -> None:
+        """Expose latest retry feedback tool results to current validation."""
+        if not retry_tool_results:
+            return
+        current = [
+            item for item in llm_result.metadata.get("tool_results", [])
+            if isinstance(item, dict)
+        ]
+        llm_result.metadata["tool_results"] = [*retry_tool_results, *current]
+
+    def _tool_results_from_llm_result(
+        self,
+        llm_result: LLMResult,
+    ) -> list[dict[str, Any]]:
+        """Return successful/failed tool result records carried by an LLM result."""
+        return [
+            item for item in llm_result.metadata.get("tool_results", [])
+            if isinstance(item, dict)
+        ]
 
     def _fill_content_from_recorded_task_result(self, llm_result: LLMResult) -> None:
         """Populate empty content from successful task_result_update state."""
@@ -916,25 +997,37 @@ class TinyCUALoop(BaseLoop):
         active.metadata["runtime_validation_failure"] = {
             "source_node_id": node.node_id,
             "errors": list(validation.errors),
-            "recovery": "local_replan",
+            "recovery": "executor_retry",
             "tool_results": self._json_safe(tool_results),
             "guidance": (
                 "Previous executor attempt did not record task_result_update. "
-                "If prior tools only inspected state, refine/decompose the local "
-                "task or require the next executor to perform a concrete action "
-                "or record a blocked result instead of repeating inspection."
+                "Retry the active task and call task_result_update with the "
+                "observed evidence or a concrete blocked result before review."
             ),
         }
         self._record_node_content_transcript(
             node,
-            "TaskExecutor validation failed after retries; scheduling local "
-            "replan for the active task instead of marking it failed.",
+            "TaskExecutor validation failed after retries; retrying the same "
+            "active task instead of bypassing ResultReviewer into replan.",
         )
-        from tinycua.loops.worker_runtime import WorkerRuntimeController
-
         terminal_nodes = [queued for queued in self.queue.items[1:] if queued.is_terminal]
         self.queue.clear_after_current()
-        WorkerRuntimeController(self.root_session.task_store).schedule_replan(self.queue)
+        from tinycua.config.node_config import create_node_config
+        from tinycua.loops.task_nodes import TinyCUAResultReviewerNode
+        from tinycua.loops.task_nodes import TinyCUATaskExecutorNode
+
+        self.queue.items.extend(
+            [
+                TinyCUATaskExecutorNode(
+                    node_id="task_executor",
+                    config=create_node_config("task_executor"),
+                ),
+                TinyCUAResultReviewerNode(
+                    node_id="result_reviewer",
+                    config=create_node_config("result_reviewer"),
+                ),
+            ]
+        )
         existing_terminal_ids = {
             queued.node_id for queued in self.queue.items if queued.is_terminal
         }
@@ -984,6 +1077,8 @@ class TinyCUALoop(BaseLoop):
     def _effective_max_attempts(self, node: Node) -> int:
         """Return bounded retry attempts for the loop-owned call path."""
         retry_policy = node.config.retry_policy
+        if retry_policy.max_attempts is None:
+            return _UNBOUNDED_RETRY_ATTEMPTS
         return max(retry_policy.max_attempts, 1)
 
     async def _call_agent_llm(
@@ -1085,15 +1180,9 @@ class TinyCUALoop(BaseLoop):
         node: Node,
         resolved_tools: list[Tool],
     ) -> bool:
-        """Return whether to request JSON tool-call protocol from local LLMs."""
-        if node.is_terminal or node.node_id == "result_aggregation" or not resolved_tools:
-            return False
-        model = getattr(agent, "llm_model", None)
-        provider = getattr(model, "provider", "")
-        return bool(
-            provider == "openai-chat-completions"
-            and self._uses_local_openai_server(model)
-        )
+        """Return whether to force provider-side JSON tool-call grammar."""
+        del agent, node, resolved_tools
+        return False
 
     def _tool_protocol_response_format(
         self,
@@ -1151,6 +1240,45 @@ class TinyCUALoop(BaseLoop):
             f"tools: {', '.join(tool.name for tool in protocol_tools)}."
         )
 
+    def _natural_retry_message(
+        self,
+        error: ValidationError,
+        node: Node,
+        resolved_tools: list[Tool],
+    ) -> str:
+        """Build an assistant self-correction retry continuation."""
+        del resolved_tools
+        required = self._missing_or_required_tool_name(node, str(error))
+        if required:
+            return (
+                f"I need to call {required} with the current evidence to finalize "
+                f"the {node.node_id} step before proceeding."
+            )
+        return (
+            f"I need to correct the {node.node_id} response based on the runtime "
+            f"validation error before proceeding: {error!s}"
+        )
+
+    def _missing_or_required_tool_name(self, node: Node, error_text: str) -> str | None:
+        """Return the most likely missing required tool for a retry message."""
+        if node.node_id == "task_analyzer" and "task_decompose" in error_text:
+            return "task_decompose"
+        for tool_name in getattr(node.config.retry_policy, "required_tool_calls", []):
+            if tool_name and tool_name in error_text:
+                return str(tool_name)
+        for tool_name in (
+            "task_result_update",
+            "task_review_decision",
+            "task_update",
+            "task_decompose",
+            "task_init",
+            "select_query_route",
+            "select_worker_route",
+        ):
+            if tool_name in error_text:
+                return tool_name
+        return self._required_single_tool_choice_name(node)
+
     def _structured_tool_protocol_tools(
         self,
         node: Node,
@@ -1166,7 +1294,6 @@ class TinyCUALoop(BaseLoop):
                 "task_create": {"task_init"},
                 "task_analyzer": {"task_decompose", "task_update"},
                 "task_assessor": {"task_update"},
-                "result_reviewer": {"task_review_decision"},
             }.get(node.node_id)
         if preferred_names is None:
             return resolved_tools
@@ -1255,8 +1382,10 @@ class TinyCUALoop(BaseLoop):
         node: Node,
         resolved_tools: list[Tool],
     ) -> str | dict[str, Any] | None:
-        """Return provider-compatible forced tool_choice for single-tool nodes."""
+        """Return provider-compatible forced tool_choice for tool-required nodes."""
         required = self._required_single_tool_choice_name(node)
+        if required is None and self._requires_any_tool_choice(node):
+            return "required" if resolved_tools else None
         if required is None:
             return None
         if required not in {tool.name for tool in resolved_tools}:
@@ -1268,12 +1397,16 @@ class TinyCUALoop(BaseLoop):
             and provider == "openai-chat-completions"
             and self._uses_local_openai_server(model)
         ):
-            return None
+            return "required"
         if provider == "openai-chat-completions" and not self._uses_local_openai_server(
             model
         ):
             return {"type": "function", "function": {"name": required}}
         return "required"
+
+    def _requires_any_tool_choice(self, node: Node) -> bool:
+        """Return whether a node must call some tool but not one fixed tool."""
+        return node.node_id in {"task_executor", "result_reviewer"}
 
     def _llm_tools_for_required_choice(
         self,
@@ -1301,11 +1434,58 @@ class TinyCUALoop(BaseLoop):
         for extra_validation in (
             self._validate_task_executor_action(node, llm_result),
             self._validate_tool_owned_task_state(node, llm_result),
+            self._validate_result_reviewer_inspection(node, llm_result),
             self._validate_final_response_content(node, llm_result),
         ):
             if not extra_validation.is_valid:
                 validation.is_valid = False
                 validation.errors.extend(extra_validation.errors)
+        return validation
+
+    def _validate_result_reviewer_inspection(
+        self,
+        node: Node,
+        llm_result: LLMResult,
+    ) -> ValidationResult:
+        """Require artifact inspection before reviewer approval."""
+        validation = ValidationResult(is_valid=True, errors=[])
+        if node.node_id != "result_reviewer":
+            return validation
+        tool_results = [
+            item for item in llm_result.metadata.get("tool_results", [])
+            if isinstance(item, dict)
+        ]
+        decision_result = None
+        for item in reversed(tool_results):
+            if item.get("name") == "task_review_decision":
+                output = item.get("output")
+                if isinstance(output, dict):
+                    decision_result = output
+                    break
+        if not decision_result or decision_result.get("decision") != "approved":
+            return validation
+        task_id = decision_result.get("task_id")
+        if not isinstance(task_id, str) or task_id not in self.root_session.task_store.tasks:
+            return validation
+        task = self.root_session.task_store.tasks[task_id]
+        artifacts = list(task.artifacts)
+        if task.result is not None:
+            artifacts.extend(task.result.artifacts)
+        if not artifacts:
+            return validation
+        inspected = any(
+            item.get("name") in {"task_inspect", "list_files", "read_file"}
+            and item.get("error") is None
+            for item in tool_results
+        )
+        if inspected:
+            return validation
+        validation.is_valid = False
+        validation.errors.append(
+            "ResultReviewer must inspect relevant task context or artifact files "
+            "with task_inspect, list_files, or read_file before approving tasks "
+            "that produced artifacts."
+        )
         return validation
 
     def _validate_final_response_content(
@@ -1475,7 +1655,6 @@ class TinyCUALoop(BaseLoop):
         return {
             "task_create": "task_init",
             "task_assessor": "task_update",
-            "result_reviewer": "task_review_decision",
         }.get(node.node_id)
 
     def _record_retry_continuation(
@@ -1860,6 +2039,7 @@ class TinyCUALoop(BaseLoop):
         node_input: NodeInputLike | None = None,
         *,
         attempt: int = 1,
+        retry_tool_results: list[dict[str, Any]] | None = None,
     ) -> tuple[str, ValidationResult, LLMResult]:
         """Finalize a streamed node: record output, fire lifecycle hooks.
 
@@ -1870,6 +2050,8 @@ class TinyCUALoop(BaseLoop):
             resolved_tools: Tools allowed for the streamed node.
             node_input: Direct input passed to the streamed node.
             attempt: Current retry attempt number for trace metadata.
+            retry_tool_results: Latest prior retry tool results to preserve for
+                validation of multi-step retry flows.
 
         Returns:
             The combined content, validation result, and LLMResult.
@@ -1886,9 +2068,12 @@ class TinyCUALoop(BaseLoop):
         tool_results = self._execute_tool_calls(collected_tool_calls, resolved_tools)
         if tool_results:
             llm_result.metadata["tool_results"] = tool_results
+            self._prepend_retry_tool_results(llm_result, retry_tool_results or [])
             self._enrich_task_results_from_tool_batch(node, tool_results)
             self._record_tool_result_transcripts(node, tool_results)
             self._fill_content_from_recorded_task_result(llm_result)
+        elif retry_tool_results:
+            self._prepend_retry_tool_results(llm_result, retry_tool_results)
         combined = llm_result.content
         result_metadata = dict(llm_result.metadata)
         llm_result = self._record_node_output(node, combined, llm_result.tool_calls)
@@ -2203,7 +2388,21 @@ class TinyCUALoop(BaseLoop):
         last_validation = ValidationResult(is_valid=True, errors=[])
         last_result = LLMResult()
         last_combined = ""
+        base_messages = [dict(message) for message in messages]
+        retry_message: str | None = None
+        retry_feedback: list[dict[str, Any]] = []
+        retry_tool_results: list[dict[str, Any]] = []
         for attempt_number in range(attempt, max_attempts + 1):
+            attempt_messages = self._messages_with_retry_prompt(
+                base_messages,
+                retry_feedback,
+                retry_message,
+            )
+            attempt_tools = self._tools_for_retry_attempt(
+                node,
+                resolved_tools,
+                retry_message,
+            )
             llm_call = self._emit_lifecycle_event(
                 "node.llm_call",
                 node.node_id,
@@ -2227,8 +2426,8 @@ class TinyCUALoop(BaseLoop):
                 async for event in self._collect_stream_events(
                     node,
                     agent,
-                    messages,
-                    resolved_tools,
+                    attempt_messages,
+                    attempt_tools,
                     content_parts,
                     collected_tool_calls,
                     include_meta,
@@ -2256,9 +2455,10 @@ class TinyCUALoop(BaseLoop):
                 node,
                 content_parts,
                 collected_tool_calls,
-                resolved_tools,
+                attempt_tools,
                 node_input,
                 attempt=attempt_number,
+                retry_tool_results=retry_tool_results,
             )
             last_combined = combined
             last_validation = validation
@@ -2293,9 +2493,9 @@ class TinyCUALoop(BaseLoop):
                     error,
                     attempt_number,
                 )
+                retry_feedback = self._tool_feedback_messages(llm_result)
+                retry_tool_results = self._tool_results_from_llm_result(llm_result)
                 self._record_retry_continuation(node, retry_message, attempt_number)
-                self._append_tool_feedback_messages(messages, llm_result)
-                messages.append({"role": "system", "content": retry_message})
 
         async for event in self._stream_exhausted_node_events(
             node,
@@ -2325,6 +2525,27 @@ class TinyCUALoop(BaseLoop):
         """Handle streamed retry exhaustion without terminal synthesis."""
         node._handle_exhaustion(validation, max_attempts)
         if self._recover_task_assessor_validation_failure(node, validation):
+            completed = self._emit_lifecycle_event(
+                "node.completed",
+                node.node_id,
+                node_type,
+                max_attempts,
+                emit_lifecycle,
+                final_only,
+                node.is_terminal,
+                content=combined,
+                finish_reason="completed",
+            )
+            if completed is not None:
+                yield self._enrich_and_yield(
+                    completed,
+                    include_meta,
+                    node.node_id,
+                    node_type,
+                    max_attempts,
+                )
+            return
+        if self._recover_task_analyzer_validation_failure(node, validation):
             completed = self._emit_lifecycle_event(
                 "node.completed",
                 node.node_id,
@@ -2411,6 +2632,36 @@ class TinyCUALoop(BaseLoop):
         )
         return True
 
+    def _recover_task_analyzer_validation_failure(
+        self,
+        node: Node,
+        validation: ValidationResult,
+    ) -> bool:
+        """Skip optional analyzer passes when the task tree can already execute."""
+        if node.node_id != "task_analyzer" or self.queue.current is not node:
+            return False
+        root_id = self.root_session.task_store.root_task_id
+        if root_id is None or root_id not in self.root_session.task_store.tasks:
+            return False
+        root = self.root_session.task_store.tasks[root_id]
+        if not root.children:
+            return False
+        root.metadata["analyzer_recovery"] = {
+            "source_node_id": node.node_id,
+            "errors": list(validation.errors),
+            "recovery": "skip_analyzer",
+            "reason": (
+                "Analyzer did not record additional decomposition or metadata; "
+                "continuing with the existing task tree."
+            ),
+        }
+        self._record_node_content_transcript(
+            node,
+            "TaskAnalyzer did not record additional task-state changes; "
+            "continuing with the existing task tree.",
+        )
+        return True
+
     def _stream_retry_message(
         self,
         agent: Agent,
@@ -2420,9 +2671,8 @@ class TinyCUALoop(BaseLoop):
         attempt: int,
     ) -> str:
         """Build retry guidance for the canonical streaming path."""
-        if self._should_request_structured_tool_protocol(agent, node, resolved_tools):
-            return self._structured_tool_retry_message(error, node, resolved_tools)
-        return node._build_retry_text(error, attempt)
+        del agent, attempt
+        return self._natural_retry_message(error, node, resolved_tools)
 
     def _append_tool_feedback_messages(
         self,
@@ -2430,9 +2680,16 @@ class TinyCUALoop(BaseLoop):
         llm_result: LLMResult,
     ) -> None:
         """Append assistant tool calls and tool results for streamed retries."""
+        messages.extend(self._tool_feedback_messages(llm_result))
+
+    def _tool_feedback_messages(self, llm_result: LLMResult) -> list[dict[str, Any]]:
+        """Return latest tool-call feedback messages for a retry attempt."""
         tool_results = llm_result.metadata.get("tool_results", [])
         normalized_tool_calls = self._normalize_tool_calls(llm_result.tool_calls)
-        if llm_result.content or normalized_tool_calls:
+        if not normalized_tool_calls and not tool_results:
+            return []
+        messages: list[dict[str, Any]] = []
+        if normalized_tool_calls:
             messages.append(
                 {
                     "role": "assistant",
@@ -2457,6 +2714,7 @@ class TinyCUALoop(BaseLoop):
                     "content": json.dumps(tool_result, default=str),
                 }
             )
+        return messages
 
     async def _collect_stream_events(
         self,
@@ -2705,6 +2963,18 @@ class TinyCUALoop(BaseLoop):
         content = llm_result.content
         result_metadata = dict(llm_result.metadata)
         if not validation.is_valid:
+            if self._recover_task_analyzer_validation_failure(node, validation):
+                on_complete_response = self._build_on_complete_response(node, llm_result)
+                trace_entry = self._trace_entry(
+                    node,
+                    attempt,
+                    resolved_tools,
+                    on_complete_response,
+                    llm_result,
+                )
+                trace_entry["validation_errors"] = list(validation.errors)
+                self._execution_trace.append(trace_entry)
+                return content, llm_result.tool_calls
             if self._recover_task_executor_validation_failure(
                 node,
                 validation,

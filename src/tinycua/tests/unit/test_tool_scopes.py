@@ -296,10 +296,15 @@ class TestResultReviewerToolScope:
         tool_names = [t.name for t in policy.node_tools]
         assert "task_init" not in tool_names
 
-    def test_no_outer_tools(self) -> None:
-        """Does not include outer agent tools."""
+    def test_read_only_outer_tools(self) -> None:
+        """Reviewer may inspect artifacts but cannot mutate workspace files."""
         policy = result_reviewer_tool_scope()
-        assert policy.include_agent_tools == "none"
+        assert policy.include_agent_tools == "selected"
+        assert "list_files" in policy.allowed_agent_tool_names
+        assert "read_file" in policy.allowed_agent_tool_names
+        assert "write_file" not in policy.allowed_agent_tool_names
+        assert "edit_file" not in policy.allowed_agent_tool_names
+        assert "run_shell" not in policy.allowed_agent_tool_names
 
 
 class TestResultAggregationToolScope:

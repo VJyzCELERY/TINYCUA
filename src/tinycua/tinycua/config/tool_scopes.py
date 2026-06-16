@@ -174,7 +174,8 @@ def result_reviewer_tool_scope() -> NodeToolPolicy:
     """
     return NodeToolPolicy(
         node_tools=[TaskReviewDecisionTool(), TaskInspectTool()],
-        include_agent_tools="none",
+        include_agent_tools="selected",
+        allowed_agent_tool_names=["read_file", "list_files"],
     )
 
 

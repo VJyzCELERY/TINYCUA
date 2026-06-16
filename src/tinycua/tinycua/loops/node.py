@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from tinycua.loops.node_queue import NodeQueue
 
 logger = logging.getLogger(__name__)
+_UNBOUNDED_RETRY_ATTEMPTS = 1_000_000_000
 
 
 def build_messages_with_dedupe(
@@ -686,7 +687,11 @@ class ProcessNode(Node):
 
         messages = self.build_messages(self.session, input)
         retry_policy = self.config.retry_policy
-        max_attempts = max(retry_policy.max_attempts, 1)
+        max_attempts = (
+            _UNBOUNDED_RETRY_ATTEMPTS
+            if retry_policy.max_attempts is None
+            else max(retry_policy.max_attempts, 1)
+        )
 
         last_response: LLMResult | None = None
         for attempt in range(1, max_attempts + 1):
@@ -881,7 +886,11 @@ class DecisionNode(ProcessNode):
 
         messages = self.build_messages(self.session, input)
         retry_policy = self.config.retry_policy
-        max_attempts = max(retry_policy.max_attempts, 1)
+        max_attempts = (
+            _UNBOUNDED_RETRY_ATTEMPTS
+            if retry_policy.max_attempts is None
+            else max(retry_policy.max_attempts, 1)
+        )
 
         last_analysis: LLMResult | None = None
         last_classification: LLMResult | None = None

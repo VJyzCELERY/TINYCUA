@@ -9,8 +9,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 from tinycua.config.node_config import NodeConfigBase, NodeToolPolicy, create_node_config
 from tinycua.config.types import LLMResult, Tool
+from tinycua.config.types import ValidationError
 from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
+from tinycua.loops.node import NodeExecutionError
 from tinycua.loops.node_queue import NodeQueue
+from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.loops.task_nodes import TinyCUATaskExecutorNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.session import Session
@@ -80,6 +83,36 @@ def test_compact_planning_nodes_have_output_budget() -> None:
 
     assert loop._node_max_tokens_override(planner, model=None) == 768
     assert loop._node_max_tokens_override(assessor, model=None) is None
+
+
+def test_worker_state_nodes_have_long_retry_budget() -> None:
+    """One-shot worker nodes should not exhaust after only a few attempts."""
+    executor = create_node_config("task_executor")
+    reviewer = create_node_config("result_reviewer")
+
+    assert executor.retry_policy.max_attempts >= 25
+    assert reviewer.retry_policy.max_attempts >= 25
+
+
+def test_retry_message_is_assistant_self_correction() -> None:
+    """Retry continuations should be natural assistant messages, not system force."""
+    loop = TinyCUALoop()
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+
+    message = loop._stream_retry_message(
+        agent=object(),
+        node=executor,
+        resolved_tools=[Tool(name="task_result_update")],
+        error=ValidationError("missing task_result_update"),
+        attempt=1,
+    )
+
+    assert message.startswith("I need to")
+    assert "task_result_update" in message
+    assert "ONLY strict JSON" not in message
 
 
 # --- _execute_node tests ---
@@ -597,6 +630,49 @@ async def test_stream_task_executor_receives_injected_active_task_context():
     rendered = "\n".join(str(message.get("content", "")) for message in captured_messages)
     assert "Create requirements.txt" in rendered
     assert "Build application" in rendered
+
+
+async def test_stream_retry_prompt_replaces_prior_retry_prompt() -> None:
+    """Streaming retries use base context plus one current retry prompt."""
+    query = TinyCUAQueryAnalystNode(
+        node_id="query_analyst",
+        config=create_node_config("query_analyst"),
+    )
+    loop = TinyCUALoop(queue=NodeQueue(items=[query]))
+    loop.root_session.input_context = [{"role": "user", "content": "hello"}]
+    query.ensure_session(loop.root_session)
+    captured_messages: list[list[dict]] = []
+
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+
+    async def mock_stream(messages, tools, *, stream=False):
+        del tools, stream
+        captured_messages.append(list(messages))
+        yield {"type": "response.output_text.delta", "delta": "passthrough"}
+        yield {"type": "response.completed", "finish_reason": "completed"}
+
+    agent._call_llm = mock_stream
+
+    with pytest.raises(NodeExecutionError):
+        async for _event in loop._stream_node_events(
+            query,
+            agent,
+            [],
+            None,
+            loop.queue.input_for_current(),
+        ):
+            pass
+
+    retry_counts = [
+        sum(
+            "I need to call select_query_route" in str(message.get("content", ""))
+            for message in call_messages
+        )
+        for call_messages in captured_messages
+    ]
+    assert retry_counts == [0, 1, 1]
 
 
 async def test_stream_digester_digest_only_does_not_route_to_response():
