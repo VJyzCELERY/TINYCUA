@@ -6,7 +6,6 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "tinycua-sdk>=0.1.0",
-    "hermes-benchmark>=0.1.0",
     "rich>=13.0.0",
     "prompt-toolkit>=3.0.0",
     "httpx>=0.27.0",
@@ -15,7 +14,6 @@ dependencies = [
 
 [tool.uv.sources]
 tinycua-sdk = { path = "../tinycua-sdk", editable = true }
-hermes-benchmark = { path = "../hermes-benchmark", editable = true }
 
 [project.optional-dependencies]
 tui = [

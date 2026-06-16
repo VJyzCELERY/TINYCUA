@@ -28,34 +28,6 @@ async def main():
 asyncio.run(main())
 ```
 
-## Benchmarking
-
-TinyCUA supports side-by-side benchmarking against the Hermes agent via the
-WildClawBench harness. Hermes benchmark adapter lives in
-[`src/hermes-benchmark/`](../hermes-benchmark/).
-
-### Run TinyCUA Benchmark
-
-```bash
-uv run python -m tinycua.scripts.run_benchmark \
-    --agent-backend tinycua \
-    --output-dir ./benchmark_results/tinycua
-```
-
-### Run Hermes Agent Benchmark (requires Docker)
-
-See `docs/hermes-benchmark-setup.md` in `src/hermes-benchmark/` for full
-setup instructions.
-
-### Compare Results
-
-```bash
-uv run python -m hermes_benchmark.compare_results \
-    ./benchmark_results/tinycua/summary_all.json \
-    ./benchmark_results/hermes/summary_all.json \
-    --output ./comparison.json
-```
-
 ## Module Structure
 
 - `tinycua/factory.py` — `create_tinycua_agent()` factory function

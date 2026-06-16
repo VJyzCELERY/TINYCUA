@@ -32,8 +32,6 @@ class BenchmarkConfig:
     preserve_artifacts: bool = True
     verbose: bool = False
     concurrent_tasks: int = 1
-    agent_backend: str = "tinycua"
-    hermes_config_path: str | None = None
 
     @classmethod
     def from_args(cls, args: argparse.Namespace | None = None) -> BenchmarkConfig:
@@ -58,10 +56,6 @@ class BenchmarkConfig:
             ),
             verbose=getattr(args, "verbose", cls.verbose),
             concurrent_tasks=getattr(args, "concurrent_tasks", cls.concurrent_tasks),
-            agent_backend=getattr(args, "agent_backend", cls.agent_backend),
-            hermes_config_path=getattr(
-                args, "hermes_config", cls.hermes_config_path
-            ),
         )
 
 
@@ -128,18 +122,5 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=int,
         default=1,
         help="Number of tasks to run concurrently (default: 1).",
-    )
-    parser.add_argument(
-        "--agent-backend",
-        type=str,
-        default="tinycua",
-        choices=["tinycua", "hermesagent"],
-        help="Agent backend to use: tinycua or hermesagent (default: tinycua).",
-    )
-    parser.add_argument(
-        "--hermes-config",
-        type=str,
-        default=None,
-        help="Path to Hermes agent config YAML file (required for hermesagent backend).",
     )
     return parser.parse_args(argv)
