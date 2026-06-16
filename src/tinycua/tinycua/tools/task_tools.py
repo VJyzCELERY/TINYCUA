@@ -220,11 +220,7 @@ class TaskDecomposeTool(SessionTaskToolMixin, Tool):
     def __call__(self, task_id: str, subtasks: list[str]) -> dict[str, Any]:
         """Create child tasks below an existing task."""
         try:
-            child_ids = [
-                self._store.create_task(title, parent_id=task_id).task_id
-                for title in subtasks
-                if title.strip()
-            ]
+            child_ids = self._store.decompose_task(task_id, subtasks)
         except ValueError as exc:
             return {"success": False, "error": str(exc)}
         return {"success": True, "task_id": task_id, "child_task_ids": child_ids}

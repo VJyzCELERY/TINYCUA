@@ -8,6 +8,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from tinycua.config.node_config import NodeConfigBase, NodeToolPolicy, create_node_config
+from tinycua.config.types import LLMResult, Tool
 from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.task_nodes import TinyCUATaskExecutorNode
@@ -63,6 +64,22 @@ def test_tinycua_loop_has_no_iteration_limit():
     """TinyCUALoop does not impose an iteration limit."""
     loop = TinyCUALoop()
     assert not hasattr(loop, "max_iterations")
+
+
+def test_compact_planning_nodes_have_output_budget() -> None:
+    """Planner/reviewer nodes are bounded; executor file-writing is not."""
+    loop = TinyCUALoop()
+    assessor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    planner = TinyCUAInformationDigesterNode(
+        node_id="digester",
+        config=create_node_config("digester"),
+    )
+
+    assert loop._node_max_tokens_override(planner, model=None) == 768
+    assert loop._node_max_tokens_override(assessor, model=None) is None
 
 
 # --- _execute_node tests ---
@@ -272,6 +289,131 @@ async def test_tool_scoping_all_tools():
     outer_tools = [tool_a, tool_b]
     resolved = config.tool_policy.resolve_tools(outer_tools)
     assert len(resolved) == 2
+
+
+def test_execute_tool_calls_unwraps_provider_nested_arguments() -> None:
+    """Provider adapters unwrap {arguments:{...}} only for real tool kwargs."""
+    loop = TinyCUALoop()
+    calls = []
+
+    class WriteLikeTool(Tool):
+        def __init__(self) -> None:
+            super().__init__(
+                name="write_file",
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string"},
+                        "content": {"type": "string"},
+                    },
+                    "required": ["path", "content"],
+                    "additionalProperties": False,
+                },
+            )
+
+        def __call__(self, path: str, content: str) -> dict[str, object]:
+            calls.append((path, content))
+            return {"success": True, "path": path}
+
+    results = loop._execute_tool_calls(
+        [
+            {
+                "type": "function",
+                "function": {
+                    "name": "write_file",
+                    "arguments": '{"arguments":{"path":"app.py","content":"print(1)"}}',
+                },
+            }
+        ],
+        [WriteLikeTool()],
+    )
+
+    assert calls == [("app.py", "print(1)")]
+    assert results[0]["output"] == {"success": True, "path": "app.py"}
+
+
+def test_execute_tool_calls_preserves_real_arguments_parameter() -> None:
+    """Nested unwrapping must not break tools with a genuine arguments kwarg."""
+    loop = TinyCUALoop()
+    calls = []
+
+    class ArgumentsTool(Tool):
+        def __init__(self) -> None:
+            super().__init__(
+                name="argument_sink",
+                parameters={
+                    "type": "object",
+                    "properties": {"arguments": {"type": "object"}},
+                    "required": ["arguments"],
+                    "additionalProperties": False,
+                },
+            )
+
+        def __call__(self, arguments: dict[str, object]) -> dict[str, object]:
+            calls.append(arguments)
+            return {"success": True}
+
+    results = loop._execute_tool_calls(
+        [
+            {
+                "type": "function",
+                "function": {
+                    "name": "argument_sink",
+                    "arguments": '{"arguments":{"value":1}}',
+                },
+            }
+        ],
+        [ArgumentsTool()],
+    )
+
+    assert calls == [{"value": 1}]
+    assert results[0]["output"] == {"success": True}
+
+
+def test_coerce_structured_tool_calls_accepts_allowed_tool_key_payload() -> None:
+    """Local tool-call shims may emit {tool_name:{...}} instead of tool_calls."""
+    loop = TinyCUALoop()
+    tool = Tool(
+        name="task_review_decision",
+        parameters={
+            "type": "object",
+            "properties": {
+                "decision": {"type": "string"},
+                "rationale": {"type": "string"},
+            },
+            "required": ["decision"],
+            "additionalProperties": False,
+        },
+    )
+    result = LLMResult(
+        content=(
+            '<tool_call>{"task_review_decision":{"decision":"needs_revision",'
+            '"rationale":"inspect requirements"}}</tool_call>'
+        ),
+    )
+
+    loop._coerce_structured_tool_calls(result, [tool])
+
+    assert result.tool_calls == [
+        {
+            "id": "call_json_0_task_review_decision",
+            "type": "function",
+            "function": {
+                "name": "task_review_decision",
+                "arguments": '{"decision": "needs_revision", "rationale": "inspect requirements"}',
+            },
+        }
+    ]
+
+
+def test_coerce_structured_tool_calls_ignores_prose_without_allowed_tool_key() -> None:
+    """Compatibility coercion still ignores arbitrary prose JSON."""
+    loop = TinyCUALoop()
+    result = LLMResult(content='I think {"decision":"approved"} is fine.')
+
+    loop._coerce_structured_tool_calls(result, [Tool(name="task_review_decision")])
+
+    assert result.tool_calls == []
 
 
 # --- override_instructions tests ---

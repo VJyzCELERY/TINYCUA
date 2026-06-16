@@ -62,6 +62,24 @@ def test_worker_runtime_completed_task_advances_until_aggregation_ready() -> Non
     assert [node.node_id for node in queue.items] == ["result_aggregation"]
 
 
+def test_worker_runtime_failed_task_retries_same_leaf() -> None:
+    """A failed leaf does not advance to siblings or aggregation."""
+    store = TaskStateStore()
+    root = store.create_task("Root")
+    first = store.create_task("First", parent_id=root.task_id)
+    second = store.create_task("Second", parent_id=root.task_id)
+    store.record_result(first.task_id, TaskResult(content="failed", success=False))
+    store.record_reviewer_decision(first.task_id, ReviewerDecision.APPROVED)
+    queue = NodeQueue()
+
+    WorkerRuntimeController(store).schedule_after_review(queue)
+
+    assert first.status == TaskStatus.FAILED
+    assert second.status == TaskStatus.PENDING
+    assert store.active_task_id == first.task_id
+    assert [node.node_id for node in queue.items] == ["task_executor", "result_reviewer"]
+
+
 def test_worker_runtime_open_question_routes_to_terminal_response() -> None:
     """Reviewer open questions must not proceed with execution or aggregation."""
     store = TaskStateStore()
@@ -94,3 +112,4 @@ def test_worker_runtime_replan_uses_local_assessor_mode() -> None:
         "result_reviewer",
     ]
     assert queue.items[0].config.metadata["task_assessor_mode"] == "local_replan"
+    assert queue.items[1].config.metadata["task_analyzer_mode"] == "local_replan"

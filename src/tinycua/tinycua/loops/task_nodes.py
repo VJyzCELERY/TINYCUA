@@ -32,8 +32,17 @@ _TASK_ANALYZER_CONTINUATION = (
     "Based on the current digested information or focused task context above, "
     "call task_inspect first. If the active/root task needs decomposition, "
     "call task_decompose with concrete sequential subtasks chosen from the "
-    "request. If no further decomposition is useful, call task_update to record "
-    "that assessment on the relevant task."
+    "request. Do not repeatedly decompose a task that already has children; "
+    "for local replan, refine only the active task or its local children. If no "
+    "further decomposition is useful, call task_update to record that assessment "
+    "on the relevant task."
+)
+_TASK_ANALYZER_LOCAL_REPLAN_CONTINUATION = (
+    "Based on the active task region above, refine only that local region if "
+    "the reviewer/runtime evidence shows the task is too broad, ambiguous, or "
+    "blocked. Do not decompose the root roadmap from a local replan. If the "
+    "active task already has adequate children or can continue execution, call "
+    "task_update to record that local assessment."
 )
 
 _TASK_ASSESSOR_UPFRONT_INSTRUCTION = (
@@ -78,20 +87,25 @@ _TASK_EXECUTOR_CONTINUATION = (
     "Based on the active task above, perform the required workspace or research "
     "actions with tools. Do not only provide a plan; create, inspect, run, or "
     "verify artifacts when the task requires action. Then call "
-    "task_result_update with a concise evidence-backed result."
+    "task_result_update with a concise evidence-backed result. If inspection "
+    "shows the task cannot be completed as written, call task_result_update "
+    "with success=false and the concrete blocker/evidence so ResultReviewer can "
+    "retry or replan; do not keep repeating read/list inspection."
 )
 
 _RESULT_REVIEWER_INSTRUCTION = (
     "You are the ResultReviewer. Review the latest task result against the "
-    "requested outcome and tool evidence. You MUST call task_review_decision "
-    "with approved, needs_revision, rejected, replan, or open_question plus a "
-    "brief rationale. Do not infer review state from prose-only output and do "
-    "not repeat upstream context."
+    "requested outcome, tool evidence, and unified task-tree context. Read the "
+    "whole task context before deciding so useful completed-work information can "
+    "inform unfinished future tasks. You MUST call task_review_decision with "
+    "approved, needs_revision, rejected, replan, or open_question plus a brief "
+    "rationale. Do not infer review state from prose-only output and do not "
+    "repeat upstream context. Never rewrite completed tasks."
 )
 _RESULT_REVIEWER_CONTINUATION = (
-    "Based on the latest task result and execution evidence above, call "
-    "task_review_decision with approved, needs_revision, rejected, replan, or "
-    "open_question and a brief reason."
+    "Based on the latest task result, execution evidence, and unified task "
+    "context above, call task_review_decision with approved, needs_revision, "
+    "rejected, replan, or open_question and a brief reason."
 )
 
 _RESULT_AGGREGATION_INSTRUCTION = (
@@ -120,11 +134,17 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
         is_terminal: bool = False,
     ) -> None:
         """Initialize the task analyzer node."""
+        mode = str(config.metadata.get("task_analyzer_mode", "task_creation"))
+        continuation = (
+            _TASK_ANALYZER_LOCAL_REPLAN_CONTINUATION
+            if mode == "local_replan"
+            else _TASK_ANALYZER_CONTINUATION
+        )
         super().__init__(
             node_id,
             config,
             instruction=instruction,
-            continuation=_TASK_ANALYZER_CONTINUATION,
+            continuation=continuation,
             is_terminal=is_terminal,
         )
 
@@ -133,7 +153,69 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
         base = super().build_continuation(session)
         if session is None:
             return base
-        return f"Task snapshot: {session.task_store.snapshot()}\n\n{base}"
+        mode = str(self.config.metadata.get("task_analyzer_mode", "task_creation"))
+        if mode == "local_replan":
+            region = _local_task_region(session)
+            return f"Local task region for replan: {region}\n\n{base}"
+        return f"Task snapshot: {_task_context_snapshot(session)}\n\n{base}"
+
+
+def _local_task_region(session: Session) -> dict:
+    """Return a compact active-task region for local replan prompts."""
+    store = session.task_store
+    active = store.get_active_task()
+    if active is None:
+        return {"active_task": None, "children": [], "siblings": []}
+    children = [store.tasks[child_id] for child_id in active.children]
+    siblings = []
+    if active.parent_id and active.parent_id in store.tasks:
+        parent = store.tasks[active.parent_id]
+        siblings = [
+            store.tasks[child_id]
+            for child_id in parent.children
+            if child_id != active.task_id and child_id in store.tasks
+        ]
+    return {
+        "active_task": {
+            "task_id": active.task_id,
+            "title": active.title,
+            "status": active.status.value,
+            "description": active.description,
+            "metadata": active.metadata,
+            "result": active.result.summary if active.result else None,
+            "reviewer_decisions": active.reviewer_decisions,
+        },
+        "children": [
+            {
+                "task_id": task.task_id,
+                "title": task.title,
+                "status": task.status.value,
+            }
+            for task in children
+        ],
+        "siblings": [
+            {
+                "task_id": task.task_id,
+                "title": task.title,
+                "status": task.status.value,
+            }
+            for task in siblings
+        ],
+    }
+
+
+def _task_context_snapshot(session: Session) -> dict:
+    """Return unified task context without stale unfinished parent aggregates."""
+    snapshot = session.task_store.snapshot()
+    tasks = snapshot.get("tasks", {})
+    if not isinstance(tasks, dict):
+        return snapshot
+    for task_data in tasks.values():
+        if not isinstance(task_data, dict):
+            continue
+        if task_data.get("children") and task_data.get("status") != "completed":
+            task_data["result"] = None
+    return snapshot
 
 
 class TinyCUATaskAssessorNode(ProcessNode):
@@ -173,15 +255,12 @@ class TinyCUATaskAssessorNode(ProcessNode):
         base = super().build_continuation(session)
         if session is None:
             return base
-        snapshot = session.task_store.snapshot()
+        snapshot = _task_context_snapshot(session)
         mode = str(self.config.metadata.get("task_assessor_mode", "upfront_decomposition"))
         if mode == "local_replan":
-            active = session.task_store.get_active_task()
             return (
                 "Local task-tree region for reviewer-requested replan:\n"
-                f"Active task: {getattr(active, 'task_id', None)} — "
-                f"{getattr(active, 'title', 'None')}\n"
-                f"Task tree snapshot: {snapshot}\n\n{base}"
+                f"{_local_task_region(session)}\n\n{base}"
             )
         return (
             f"Whole task tree snapshot for decomposition assessment: {snapshot}\n\n"
@@ -209,42 +288,28 @@ class TinyCUATaskExecutorNode(ProcessNode):
         )
 
     def build_continuation(self, session: Session | None = None) -> str:
-        """Build executor continuation with active task and shallow roadmap."""
+        """Build executor continuation with active task and unified context."""
         base = super().build_continuation(session)
         if session is None:
             return base
         active = session.task_store.get_active_task()
         if active is None:
             return base
-        shallow = [
-            {
-                "task_id": task.task_id,
-                "title": task.title,
-                "status": task.status.value,
-                "artifacts": task.artifacts,
-            }
-            for task in session.task_store.tasks.values()
-        ]
-        completed_context = []
-        for task in session.task_store.tasks.values():
-            if task.result is None or task.task_id == active.task_id:
-                continue
-            completed_context.append(
-                {
-                    "task_id": task.task_id,
-                    "title": task.title,
-                    "status": task.status.value,
-                    "result": task.result.summary,
-                    "success": task.result.success,
-                    "artifacts": task.artifacts or task.result.artifacts,
-                    "reviewer_decisions": task.reviewer_decisions,
-                }
-            )
+        workspace_dir = None
+        if session.session_config is not None and session.session_config.workspace_dir:
+            workspace_dir = str(session.session_config.workspace_dir)
         return (
             f"Active task: {active.task_id} — {active.title}\n"
             f"Task description: {active.description}\n"
-            f"Prior completed/reviewed task context: {completed_context}\n"
-            f"Shallow roadmap: {shallow}\n\n{base}"
+            f"Workspace root: {workspace_dir or 'not configured'}\n"
+            "Path discipline: use paths inside the workspace root. Prefer "
+            "relative paths such as 'templates/index.html' or "
+            "'static/css/style.css'; do not use filesystem-root absolute paths "
+            "like '/templates/index.html'. Shell discipline: commands run under "
+            "/bin/sh; do not rely on shell-specific brace expansion such as "
+            "'mkdir -p {a,b}', because it may create a literal brace-named "
+            "directory. Use explicit POSIX-safe paths/commands instead.\n"
+            f"Unified task context: {_task_context_snapshot(session)}\n\n{base}"
         )
 
     def _artifacts_from_tool_results(self, tool_results: list[dict]) -> list[dict]:
@@ -286,7 +351,7 @@ class TinyCUAResultReviewerNode(ProcessNode):
         )
 
     def build_continuation(self, session: Session | None = None) -> str:
-        """Build reviewer continuation with latest task result evidence."""
+        """Build reviewer continuation with latest result and unified context."""
         base = super().build_continuation(session)
         if session is None:
             return base
@@ -298,17 +363,23 @@ class TinyCUAResultReviewerNode(ProcessNode):
             f"Task under review: {task.task_id} — {task.title}\n"
             f"Task status: {task.status.value}\n"
             f"Task result: {result}\n"
-            f"Artifacts: {task.artifacts}\n\n{base}"
+            f"Artifacts: {task.artifacts}\n"
+            f"Unified task context: {_task_context_snapshot(session)}\n\n{base}"
         )
 
     def _task_to_review(self):
         """Return the most recent completed task that needs review."""
         if self.session is None:
             return None
+        active = self.session.task_store.get_active_task()
+        if active is not None and active.result is not None:
+            return active
         for task in reversed(list(self.session.task_store.tasks.values())):
+            if task.children:
+                continue
             if task.result is not None and not task.reviewer_decisions:
                 return task
-        return self.session.task_store.get_active_task()
+        return active
 
     def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
         """Schedule retry, replan, next task, or aggregation from task state."""
@@ -333,41 +404,15 @@ class TinyCUAResultReviewerNode(ProcessNode):
         llm_result: LLMResult,
         node_input: NodeInputLike | None,
     ) -> None:
-        """Publish reviewer-approved context for subsequent worker nodes."""
+        """Clear transient runtime recovery context after accepted successful work."""
         del node_input
         if self.session is None:
             return
         task = self._reviewed_task_from_result(llm_result)
         if task is None or task.result is None or not task.reviewer_decisions:
             return
-        latest = task.reviewer_decisions[-1]
-        task.metadata["latest_review_context"] = {
-            "decision": latest.get("decision"),
-            "rationale": latest.get("rationale"),
-            "result_summary": task.result.summary,
-            "success": task.result.success,
-            "artifacts": task.artifacts or task.result.artifacts,
-        }
-        from tinycua.models.session_context_entry import SessionContextEntry
-
-        self.session.session_context.append(
-            SessionContextEntry(
-                content={
-                    "type": "reviewed_task_context",
-                    "task_id": task.task_id,
-                    "title": task.title,
-                    "status": task.status.value,
-                    "decision": latest.get("decision"),
-                    "rationale": latest.get("rationale"),
-                    "result": task.result.summary,
-                    "success": task.result.success,
-                    "artifacts": task.artifacts or task.result.artifacts,
-                },
-                segment="output",
-                source_node_id=self.node_id,
-                source_session_id=self.session.session_id,
-            )
-        )
+        if task.result.success:
+            task.metadata.pop("runtime_validation_failure", None)
 
     def _reviewed_task_from_result(self, llm_result: LLMResult):
         """Return the task referenced by task_review_decision tool output."""

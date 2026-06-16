@@ -5,14 +5,18 @@ from __future__ import annotations
 import pytest
 
 from tinycua.config.node_config import create_node_config
+from tinycua.config.types import LLMResult, ValidationResult
 from tinycua.config.node_config import NodeConfigBase
 from tinycua.loops.node_queue import NodeQueue
-from tinycua.loops.node import ProcessNode
+from tinycua.loops.node import NodeExecutionError, ProcessNode
 from tinycua.loops.response_node import ResponseNode
 from tinycua.loops.task_nodes import TinyCUAResultReviewerNode
+from tinycua.loops.task_nodes import TinyCUATaskAnalyzerNode
+from tinycua.loops.task_nodes import TinyCUATaskAssessorNode
 from tinycua.loops.task_nodes import TinyCUATaskExecutorNode
 from tinycua.loops.task_create import TinyCUATaskCreateNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
+from tinycua.models.task import TaskResult
 
 
 class EmptyResponseAgent:
@@ -115,6 +119,13 @@ class ExecutorFailureThenReviewerAgent:
         return {"role": "assistant", "content": "Final failure summary."}
 
 
+class ExecutorValidationFailureAgent:
+    """Agent double: executor never records task_result_update."""
+
+    async def _call_llm(self, messages, tools, stream: bool = False):  # noqa: ANN001, ARG002
+        return {"role": "assistant", "content": "I forgot task_result_update."}
+
+
 class ExecutorResultThenReviewerAgent:
     """Agent double: executor records a result and must stop for reviewer."""
 
@@ -163,18 +174,17 @@ class ExecutorResultThenReviewerAgent:
 
 @pytest.mark.asyncio
 async def test_empty_terminal_response_is_not_synthetic_success() -> None:
-    """An empty ResponseNode result fails visibly instead of synthetic success."""
+    """An empty ResponseNode result raises instead of synthetic success."""
     loop = TinyCUALoop(queue=NodeQueue(items=[ResponseNode()]))
 
-    result = await loop.run(
-        EmptyResponseAgent(),
-        messages=[{"role": "user", "content": "do work"}],
-        tools=[],
-    )
+    with pytest.raises(NodeExecutionError, match="Final response must be non-empty"):
+        await loop.run(
+            EmptyResponseAgent(),
+            messages=[{"role": "user", "content": "do work"}],
+            tools=[],
+        )
 
-    assert "failed runtime validation" in result
-    assert "Final response must be non-empty" in result
-    assert "Processed request" not in result
+    assert "Processed request" not in loop.get_transcript_text()
 
 
 @pytest.mark.asyncio
@@ -201,8 +211,8 @@ async def test_final_response_events_capture_only_terminal_user_visible_stream()
 
 
 @pytest.mark.asyncio
-async def test_nonterminal_validation_failure_routes_to_response_node() -> None:
-    """A nonterminal validation failure must still terminate via ResponseNode."""
+async def test_nonterminal_validation_failure_does_not_route_to_response_node() -> None:
+    """A nonterminal validation failure must not synthesize Response output."""
     task_create = TinyCUATaskCreateNode(
         node_id="task_create",
         config=create_node_config("task_create"),
@@ -210,18 +220,21 @@ async def test_nonterminal_validation_failure_routes_to_response_node() -> None:
     response = ResponseNode()
     loop = TinyCUALoop(queue=NodeQueue(items=[task_create, response]))
 
-    result = await loop.run(
-        NonterminalFailureThenResponseAgent(),
-        messages=[{"role": "user", "content": "create a task"}],
-        tools=[],
-    )
+    with pytest.raises(NodeExecutionError, match="task_create failed runtime validation"):
+        await loop.run(
+            NonterminalFailureThenResponseAgent(),
+            messages=[{"role": "user", "content": "create a task"}],
+            tools=[],
+        )
 
     trace = loop.get_execution_trace()
-    assert result == "Final response saw the validation failure."
-    assert [entry["node_id"] for entry in trace] == ["task_create", "response"]
-    assert trace[0]["validation_errors"]
-    assert trace[-1]["is_terminal"] is True
-    assert "task_create failed runtime validation" in loop.get_transcript_text()
+    assert [entry["node_id"] for entry in trace] == [
+        "task_create",
+        "task_create",
+        "task_create",
+    ]
+    assert all(entry["validation_errors"] for entry in trace)
+    assert "response" not in [entry["node_id"] for entry in trace]
 
 
 @pytest.mark.asyncio
@@ -259,44 +272,204 @@ async def test_response_node_rejects_success_before_all_tasks_complete() -> None
     loop = TinyCUALoop(queue=NodeQueue(items=[ResponseNode()]))
     loop.root_session.task_store.create_task("unfinished worker task")
 
-    result = await loop.run(
-        TextResponseAgent("Done successfully."),
-        messages=[{"role": "user", "content": "finish the task"}],
-        tools=[],
-    )
-
-    assert "failed runtime validation" in result
-    assert "before every task" in result
+    with pytest.raises(NodeExecutionError, match="actually completed"):
+        await loop.run(
+            TextResponseAgent("Done successfully."),
+            messages=[{"role": "user", "content": "finish the task"}],
+            tools=[],
+        )
 
 
-@pytest.mark.asyncio
-async def test_task_executor_validation_failure_routes_to_reviewer() -> None:
-    """Executor failures must route through ResultReviewer, not ResponseNode."""
+def test_task_executor_validation_failure_schedules_local_replan() -> None:
+    """Executor validation failures become local replan, not task results."""
     executor = TinyCUATaskExecutorNode(
         node_id="task_executor",
         config=create_node_config("task_executor"),
     )
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="result_reviewer",
+        config=create_node_config("result_reviewer"),
+    )
     response = ResponseNode()
-    loop = TinyCUALoop(queue=NodeQueue(items=[executor, response]))
+    loop = TinyCUALoop(queue=NodeQueue(items=[executor, reviewer, response]))
     root = loop.root_session.task_store.create_task("build app")
     task = loop.root_session.task_store.create_task(
         "verify app locally",
         parent_id=root.task_id,
     )
 
-    result = await loop.run(
-        ExecutorFailureThenReviewerAgent(),
-        messages=[{"role": "user", "content": "test the app"}],
-        tools=[],
+    recovered = loop._recover_task_executor_validation_failure(
+        executor,
+        ValidationResult(is_valid=False, errors=["missing task_result_update"]),
+        LLMResult(content="I forgot task_result_update."),
     )
 
-    trace_ids = [entry["node_id"] for entry in loop.get_execution_trace()]
-    assert trace_ids[:2] == ["task_executor", "result_reviewer"]
-    assert "response" == trace_ids[-1]
-    assert "Final failure summary." == result
+    assert recovered is True
+    assert task.result is None
+    assert task.reviewer_decisions == []
+    assert loop.root_session.task_store.active_task_id == task.task_id
+    assert [node.node_id for node in loop.queue.items] == [
+        "task_executor",
+        "task_assessor",
+        "task_analyzer",
+        "task_executor",
+        "result_reviewer",
+        "response",
+    ]
+
+
+def test_task_executor_partial_action_evidence_continues_same_task() -> None:
+    """Successful action evidence keeps executing instead of replanning."""
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    response = ResponseNode()
+    loop = TinyCUALoop(queue=NodeQueue(items=[executor, response]))
+    task = loop.root_session.task_store.create_task("write frontend files")
+
+    recovered = loop._recover_task_executor_validation_failure(
+        executor,
+        ValidationResult(is_valid=False, errors=["missing task_result_update"]),
+        LLMResult(
+            metadata={
+                "tool_results": [
+                    {
+                        "name": "write_file",
+                        "allowed": True,
+                        "output": {"success": True, "path": "templates/index.html"},
+                    }
+                ]
+            }
+        ),
+    )
+
+    assert recovered is True
+    assert task.result is None
+    assert task.metadata["executor_partial_tool_results"]
+    assert [node.node_id for node in loop.queue.items] == [
+        "task_executor",
+        "task_executor",
+        "result_reviewer",
+        "response",
+    ]
+
+
+def test_task_result_update_merges_prior_partial_artifacts() -> None:
+    """Reviewer evidence includes files written before result update."""
+    loop = TinyCUALoop()
+    task = loop.root_session.task_store.create_task("write file")
+    loop.root_session.task_store.record_result(
+        task.task_id,
+        TaskResult(content="file written", success=True),
+    )
+    task.metadata["executor_partial_tool_results"] = [
+        {
+            "name": "write_file",
+            "allowed": True,
+            "output": {"success": True, "path": "jwt_utils.py"},
+        }
+    ]
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+
+    loop._enrich_task_results_from_tool_batch(
+        executor,
+        [
+            {
+                "name": "task_result_update",
+                "allowed": True,
+                "output": {"success": True, "task_id": task.task_id},
+            }
+        ],
+    )
+
     assert task.result is not None
-    assert task.result.success is False
-    assert task.reviewer_decisions[-1]["decision"] == "approved"
+    assert task.result.artifacts == [
+        {"path": "jwt_utils.py", "kind": "file", "metadata": {"tool_name": "write_file"}}
+    ]
+    assert "executor_partial_tool_results" not in task.metadata
+
+
+def test_task_executor_read_only_evidence_replans_instead_of_looping() -> None:
+    """Read/list-only inspection is not enough to continue executor forever."""
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    response = ResponseNode()
+    loop = TinyCUALoop(queue=NodeQueue(items=[executor, response]))
+    task = loop.root_session.task_store.create_task("implement search")
+
+    recovered = loop._recover_task_executor_validation_failure(
+        executor,
+        ValidationResult(is_valid=False, errors=["missing task_result_update"]),
+        LLMResult(
+            metadata={
+                "tool_results": [
+                    {
+                        "name": "read_file",
+                        "allowed": True,
+                        "output": "existing file contents",
+                    },
+                    {
+                        "name": "list_files",
+                        "allowed": True,
+                        "output": ["app.py"],
+                    },
+                ]
+            }
+        ),
+    )
+
+    assert recovered is True
+    assert "executor_partial_tool_results" not in task.metadata
+    assert task.metadata["runtime_validation_failure"]["recovery"] == "local_replan"
+    assert task.metadata["runtime_validation_failure"]["tool_results"]
+    assert "repeating inspection" in task.metadata["runtime_validation_failure"]["guidance"]
+    assert [node.node_id for node in loop.queue.items] == [
+        "task_executor",
+        "task_assessor",
+        "task_analyzer",
+        "task_executor",
+        "result_reviewer",
+        "response",
+    ]
+
+
+def test_task_assessor_validation_failure_skips_analyzer_gate() -> None:
+    """Assessor prose-only failure means no selected decomposition target."""
+    assessor = TinyCUATaskAssessorNode(
+        node_id="task_assessor",
+        config=create_node_config("task_assessor"),
+    )
+    analyzer = TinyCUATaskAnalyzerNode(
+        node_id="task_analyzer",
+        config=create_node_config("task_analyzer"),
+    )
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    response = ResponseNode()
+    loop = TinyCUALoop(queue=NodeQueue(items=[assessor, analyzer, executor, response]))
+    loop.root_session.task_store.create_task("Root")
+
+    recovered = loop._recover_task_assessor_validation_failure(
+        assessor,
+        ValidationResult(is_valid=False, errors=["missing task_update"]),
+    )
+
+    assert recovered is True
+    assert [node.node_id for node in loop.queue.items] == [
+        "task_assessor",
+        "task_executor",
+        "response",
+    ]
+    root = loop.root_session.task_store.tasks[loop.root_session.task_store.root_task_id]
+    assert root.metadata["assessor_recovery"]["recovery"] == "skip_analyzer"
 
 
 @pytest.mark.asyncio

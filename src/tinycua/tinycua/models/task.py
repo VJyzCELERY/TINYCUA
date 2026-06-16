@@ -128,6 +128,22 @@ class TaskStateStore:
         self._refresh_active_task()
         return task
 
+    def decompose_task(self, task_id: str, subtasks: list[str]) -> list[str]:
+        """Create child tasks only for an undecomposed parent.
+
+        Decomposition is intentionally idempotent. Once a parent owns children,
+        repeated analyzer/replan passes must refine metadata or focus on a local
+        child, not append another copy of the same roadmap.
+        """
+        task = self.get_task(task_id)
+        if task.children:
+            return list(task.children)
+        child_ids = []
+        for title in subtasks:
+            if title.strip():
+                child_ids.append(self.create_task(title, parent_id=task_id).task_id)
+        return child_ids
+
     def get_task(self, task_id: str) -> Task:
         """Return a task or raise a clear validation error."""
         try:
@@ -170,7 +186,7 @@ class TaskStateStore:
     def record_result(self, task_id: str, result: TaskResult) -> Task:
         """Persist task execution output without completing review state."""
         task = self.get_task(task_id)
-        if task.status == TaskStatus.PENDING:
+        if task.status in {TaskStatus.PENDING, TaskStatus.FAILED}:
             self.transition(task_id, TaskStatus.IN_PROGRESS)
         task.result = result
         self._refresh_active_task()
@@ -203,11 +219,46 @@ class TaskStateStore:
             self.active_task_id = task.task_id
         elif reviewer_decision == ReviewerDecision.APPROVED and task.result is not None:
             target = TaskStatus.COMPLETED if task.result.success else TaskStatus.FAILED
+            if task.result.success:
+                self._share_completed_context_with_unfinished_leaves(task)
             if task.status != target:
                 self.transition(task_id, target)
             self._complete_ready_parents()
             self._refresh_active_task()
         return task
+
+    def _share_completed_context_with_unfinished_leaves(self, source: Task) -> None:
+        """Expose approved source context to unfinished leaf tasks only.
+
+        Completed tasks are immutable after approval. Context from a newly
+        approved task is copied into unfinished leaf metadata so future executors
+        can use discoveries such as project layout without mutating prior work.
+        """
+        if source.result is None:
+            return
+        summary = source.result.summary.strip() or source.result.content.strip()
+        artifact_paths = [
+            str(artifact.get("path"))
+            for artifact in [*source.artifacts, *source.result.artifacts]
+            if isinstance(artifact, dict) and artifact.get("path")
+        ]
+        parts = [f"{source.title}: {summary}"]
+        if artifact_paths:
+            parts.append(f"Artifacts: {', '.join(artifact_paths)}")
+        context_line = " | ".join(part for part in parts if part.strip())
+        if not context_line.strip():
+            return
+        for task in self.tasks.values():
+            if task.task_id == source.task_id:
+                continue
+            if task.children or task.status == TaskStatus.COMPLETED:
+                continue
+            existing = str(task.metadata.get("context", "")).strip()
+            if context_line in existing:
+                continue
+            task.metadata["context"] = (
+                f"{existing}\n{context_line}" if existing else context_line
+            )
 
     def add_artifact(
         self,
@@ -223,7 +274,13 @@ class TaskStateStore:
         return task
 
     def next_unfinished_leaf(self) -> Task | None:
-        """Return the first unfinished leaf task in deterministic tree order."""
+        """Return the first leaf that still needs work.
+
+        Failed tasks are intentionally unfinished in one-shot worker runs. A
+        failed reviewed result means the same task must be retried or locally
+        replanned/decomposed; it is not a terminal state that permits sibling
+        advancement or final aggregation.
+        """
         if self.root_task_id is None:
             return None
 
@@ -234,20 +291,19 @@ class TaskStateStore:
                     found = visit(child_id)
                     if found is not None:
                         return found
-                if task.status not in {TaskStatus.COMPLETED, TaskStatus.FAILED}:
+                if task.status != TaskStatus.COMPLETED:
                     return task
                 return None
-            if task.status not in {TaskStatus.COMPLETED, TaskStatus.FAILED}:
+            if task.status != TaskStatus.COMPLETED:
                 return task
             return None
 
         return visit(self.root_task_id)
 
     def all_done(self) -> bool:
-        """Return True when every task is completed or failed."""
+        """Return True only when every task is actually completed."""
         return bool(self.tasks) and all(
-            task.status in {TaskStatus.COMPLETED, TaskStatus.FAILED}
-            for task in self.tasks.values()
+            task.status == TaskStatus.COMPLETED for task in self.tasks.values()
         )
 
     def snapshot(self) -> dict[str, Any]:

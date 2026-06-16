@@ -7,6 +7,7 @@ from tinycua_sdk.agent.llm_model import LanguageModel
 from tinycua.config.node_config import create_node_config
 from tinycua.factory import create_tinycua_agent
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
+from tinycua.loops.task_nodes import TinyCUATaskAssessorNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.loops.worker import TinyCUAWorkerNode
 
@@ -115,6 +116,34 @@ def test_remote_chat_completions_uses_openai_function_tool_choice_shape() -> Non
         "type": "function",
         "function": {"name": "select_worker_route"},
     }
+
+
+def test_local_state_single_tool_node_uses_function_tool_choice_shape() -> None:
+    """Local singleton state-tool nodes are forced to avoid prose-only drift."""
+    model = LanguageModel(
+        provider="openai-chat-completions",
+        model_name="local-model",
+        base_url="http://localhost:1234/v1",
+        api_key="test",
+    )
+    agent = create_tinycua_agent(llm_model=model)
+    loop = TinyCUALoop()
+    assessor = TinyCUATaskAssessorNode(
+        node_id="task_assessor",
+        config=create_node_config("task_assessor"),
+    )
+    assessor.ensure_session(loop.root_session)
+    _, tools = loop._prepare_node(assessor, [], None)
+
+    tool_choice = loop._forced_tool_choice_for_node(agent, assessor, tools)
+    narrowed_tools = loop._llm_tools_for_required_choice(
+        assessor,
+        tools,
+        force_required_tool=True,
+    )
+
+    assert tool_choice == "required"
+    assert [tool.name for tool in narrowed_tools] == ["task_update"]
 
 
 async def test_route_tool_failure_retries_then_fails_closed() -> None:

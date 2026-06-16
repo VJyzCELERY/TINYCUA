@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from tinycua.config.node_config import NodeMessagePolicy, create_node_config
+from tinycua.config.session_config import SessionConfig
 from tinycua.config.types import LLMResult, Tool
 from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
 from tinycua.loops.node_queue import NodeQueue
@@ -14,6 +15,7 @@ from tinycua.loops.task_nodes import (
     TinyCUATaskAnalyzerNode,
     TinyCUATaskAssessorNode,
     TinyCUATaskExecutorNode,
+    TinyCUAResultReviewerNode,
 )
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.loops.worker import TinyCUAWorkerNode
@@ -22,7 +24,7 @@ from tinycua.models.digested_information import DigestedInformation
 from tinycua.models.node_input import NodeInput
 from tinycua.models.session import Session
 from tinycua.models.session_context_entry import SessionContextEntry
-from tinycua.models.task import AggregatedResult, TaskResult
+from tinycua.models.task import AggregatedResult, ReviewerDecision, TaskResult, TaskStatus
 
 
 def test_build_node_messages_filters_blank_messages_and_preserves_roles() -> None:
@@ -370,6 +372,168 @@ def test_task_executor_prompt_is_limited_to_active_task_context() -> None:
     assert "Build application" in rendered
 
 
+def test_task_executor_prompt_includes_workspace_path_discipline(tmp_path) -> None:
+    """Executor prompts tell models how to address workspace paths generically."""
+    loop = TinyCUALoop(session_config=SessionConfig(workspace_dir=tmp_path))
+    loop.root_session.session_config = loop.session_config
+    loop.root_session.task_store.create_task("Write web files")
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+
+    messages, _ = loop._prepare_node(executor, [Tool(name="write_file")])
+    rendered = "\n".join(str(message.get("content", "")) for message in messages)
+
+    assert str(tmp_path.resolve()) in rendered
+    assert "Prefer relative paths" in rendered
+    assert "/templates/index.html" in rendered
+    assert "do not rely on shell-specific brace expansion" in rendered
+    assert "do not keep repeating read/list inspection" in rendered
+
+
+def test_result_reviewer_prompt_excludes_stale_session_review_context() -> None:
+    """Reviewer sees the active result under review, not old review blobs."""
+    loop = TinyCUALoop()
+    loop.root_session.session_context.append(
+        SessionContextEntry(
+            content={"type": "reviewed_task_context", "result": "STALE FAILURE"},
+            segment="output",
+            source_node_id="result_reviewer",
+        )
+    )
+    task = loop.root_session.task_store.create_task("Current task")
+    loop.root_session.task_store.record_result(
+        task.task_id,
+        TaskResult(content="CURRENT RESULT", success=True),
+    )
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="result_reviewer",
+        config=create_node_config("result_reviewer"),
+    )
+    reviewer.ensure_session(loop.root_session)
+
+    messages = loop._build_node_messages(reviewer)
+    rendered = "\n".join(str(message.get("content", "")) for message in messages)
+
+    assert "CURRENT RESULT" in rendered
+    assert "STALE FAILURE" not in rendered
+
+
+def test_result_reviewer_prefers_active_leaf_over_parent_aggregate() -> None:
+    """Reviewer prompt and default review tool target stay aligned."""
+    loop = TinyCUALoop()
+    root = loop.root_session.task_store.create_task("Parent aggregate")
+    active = loop.root_session.task_store.create_task("Active leaf", parent_id=root.task_id)
+    root.result = TaskResult(content="STALE PARENT AGGREGATE")
+    loop.root_session.task_store.record_result(
+        active.task_id,
+        TaskResult(content="ACTIVE LEAF RESULT", success=True),
+    )
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="result_reviewer",
+        config=create_node_config("result_reviewer"),
+    )
+    reviewer.ensure_session(loop.root_session)
+
+    messages = loop._build_node_messages(reviewer)
+    rendered = "\n".join(str(message.get("content", "")) for message in messages)
+
+    assert "ACTIVE LEAF RESULT" in rendered
+    assert "STALE PARENT AGGREGATE" not in rendered
+
+
+def test_result_reviewer_updates_unified_task_context_without_context_append() -> None:
+    """Reviewer context stays in the unified task tree, not session side channels."""
+    loop = TinyCUALoop()
+    task = loop.root_session.task_store.create_task("Retry task")
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="result_reviewer",
+        config=create_node_config("result_reviewer"),
+    )
+    reviewer.ensure_session(loop.root_session)
+
+    loop.root_session.task_store.record_result(
+        task.task_id,
+        TaskResult(content="failed attempt", success=False),
+    )
+    loop.root_session.task_store.record_reviewer_decision(
+        task.task_id,
+        ReviewerDecision.REJECTED,
+        rationale="needs retry",
+    )
+    reviewer.parse_loop_result(
+        LLMResult(
+            metadata={
+                "tool_results": [
+                    {"name": "task_review_decision", "output": {"task_id": task.task_id}}
+                ]
+            }
+        ),
+        None,
+    )
+
+    task.result = TaskResult(content="recovered result", success=True)
+    task.status = TaskStatus.IN_PROGRESS
+    loop.root_session.task_store.record_reviewer_decision(
+        task.task_id,
+        ReviewerDecision.APPROVED,
+        rationale="accepted",
+    )
+    reviewer.parse_loop_result(
+        LLMResult(
+            metadata={
+                "tool_results": [
+                    {"name": "task_review_decision", "output": {"task_id": task.task_id}}
+                ]
+            }
+        ),
+        None,
+    )
+
+    assert task.reviewer_decisions[-1]["decision"] == "approved"
+    assert task.result is not None
+    assert task.result.summary == "recovered result"
+    assert "latest_review_context" not in task.metadata
+    assert not any(
+        getattr(entry, "source_node_id", "") == "result_reviewer"
+        and getattr(entry, "content", {}).get("type") == "reviewed_task_context"
+        for entry in loop.root_session.session_context
+    )
+
+
+def test_result_reviewer_prompt_uses_unified_task_context() -> None:
+    """Reviewer sees active result plus future task context in one task snapshot."""
+    loop = TinyCUALoop()
+    root = loop.root_session.task_store.create_task("Build app")
+    first = loop.root_session.task_store.create_task(
+        "Create project scaffold",
+        parent_id=root.task_id,
+    )
+    second = loop.root_session.task_store.create_task(
+        "Create module x",
+        parent_id=root.task_id,
+    )
+    loop.root_session.task_store.record_result(
+        first.task_id,
+        TaskResult(content="Created backend/app.py and frontend/index.html."),
+    )
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="result_reviewer",
+        config=create_node_config("result_reviewer"),
+    )
+
+    messages, _tools = loop._prepare_node(reviewer, [])
+    rendered = "\n".join(str(message.get("content", "")) for message in messages)
+
+    assert "Unified task context" in rendered
+    assert "Task under review" in rendered
+    assert first.task_id in rendered
+    assert second.task_id in rendered
+    assert "Create module x" in rendered
+    assert "Created backend/app.py" in rendered
+
+
 def test_task_assessor_prompt_is_whole_tree_decomposition_only() -> None:
     """Assessor sees decomposition-gate context, not executor completion concepts."""
     loop = TinyCUALoop()
@@ -421,6 +585,30 @@ def test_task_assessor_local_replan_prompt_is_active_region_only() -> None:
     assert "whole roadmap" in rendered.lower()
     assert "task_result_update" not in combined
     assert "execution evidence" not in combined.lower()
+
+
+def test_task_analyzer_local_replan_prompt_does_not_replan_root() -> None:
+    """Local replan analyzer is scoped away from root-roadmap decomposition."""
+    loop = TinyCUALoop()
+    root = loop.root_session.task_store.create_task("ROOT ROADMAP")
+    active = loop.root_session.task_store.create_task(
+        "Create frontend files",
+        parent_id=root.task_id,
+    )
+    loop.root_session.task_store.create_task("Create backend API", parent_id=root.task_id)
+    loop.root_session.task_store.active_task_id = active.task_id
+    analyzer = TinyCUATaskAnalyzerNode(
+        node_id="task_analyzer",
+        config=create_node_config("task_analyzer", mode="local_replan"),
+    )
+
+    messages, _ = loop._prepare_node(analyzer, [])
+    rendered = "\n".join(str(message.get("content", "")) for message in messages)
+
+    assert "Local task region for replan" in rendered
+    assert "Create frontend files" in rendered
+    assert "Do not decompose the root roadmap" in rendered
+    assert "Task snapshot:" not in rendered
 
 
 def test_digester_may_digest_without_forced_context_retrieval() -> None:

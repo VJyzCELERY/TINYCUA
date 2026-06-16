@@ -57,7 +57,7 @@ class WorkerRuntimeController:
                 ),
                 TinyCUATaskAnalyzerNode(
                     node_id="task_analyzer",
-                    config=create_node_config("task_analyzer", mode="task_reanalysis"),
+                    config=create_node_config("task_analyzer", mode="local_replan"),
                 ),
                 TinyCUATaskExecutorNode(
                     node_id="task_executor",

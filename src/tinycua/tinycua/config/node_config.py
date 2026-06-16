@@ -248,6 +248,11 @@ def create_node_config(
             "task_assessor_mode",
             "upfront_decomposition",
         )
+    if normalized == "task_analyzer":
+        metadata["task_analyzer_mode"] = mode or metadata.get(
+            "task_analyzer_mode",
+            "task_creation",
+        )
     retry_guidance = {
         "digester": (
             "If prior context is available, consider using "
@@ -298,7 +303,8 @@ def create_node_config(
     message_policy = replace(
         config.message_policy,
         include_chat_history=False,
-        include_session_context=normalized != "task_executor",
+        include_session_context=normalized
+        not in {"task_executor", "result_reviewer"},
         include_input_context=normalized == "query_analyst",
     )
     return replace(

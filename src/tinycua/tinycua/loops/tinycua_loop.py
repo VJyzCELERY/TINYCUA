@@ -475,6 +475,7 @@ class TinyCUALoop(BaseLoop):
                     {"name": name, "allowed": True, "error": "arguments_not_object"}
                 )
                 continue
+            arguments = self._normalize_tool_call_arguments(allowed_tools[name], arguments)
             try:
                 output = allowed_tools[name](**arguments)  # type: ignore[misc,operator]
             except Exception as exc:  # noqa: BLE001 - recorded for trace/debugging.
@@ -486,6 +487,21 @@ class TinyCUALoop(BaseLoop):
             results.append(tool_result)
         return results
 
+    def _normalize_tool_call_arguments(
+        self,
+        tool: Tool,
+        arguments: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Normalize provider-emitted argument wrappers without hiding schema data."""
+        nested = arguments.get("arguments")
+        if set(arguments) != {"arguments"} or not isinstance(nested, dict):
+            return arguments
+        parameters = getattr(tool, "parameters", {})
+        properties = parameters.get("properties", {}) if isinstance(parameters, dict) else {}
+        if isinstance(properties, dict) and "arguments" in properties:
+            return arguments
+        return nested
+
     def _enrich_task_results_from_tool_batch(
         self,
         node: Node,
@@ -494,8 +510,6 @@ class TinyCUALoop(BaseLoop):
         """Attach observed artifacts/tool evidence to recorded task results."""
         if node.node_id != "task_executor":
             return
-        artifacts = self._artifacts_from_tool_results(tool_results)
-        evidence = self._json_safe(tool_results)
         for item in tool_results:
             if item.get("name") != "task_result_update":
                 continue
@@ -509,6 +523,12 @@ class TinyCUALoop(BaseLoop):
                 task = self.root_session.task_store.get_task(task_id)
             except ValueError:
                 continue
+            partial_results = list(
+                task.metadata.get("executor_partial_tool_results", [])
+            )
+            merged_tool_results = [*partial_results, *tool_results]
+            artifacts = self._artifacts_from_tool_results(merged_tool_results)
+            evidence = self._json_safe(merged_tool_results)
             if task.result is not None:
                 task.result.metadata["tool_results"] = evidence
                 existing_result_paths = {
@@ -518,6 +538,7 @@ class TinyCUALoop(BaseLoop):
                     if artifact.get("path") not in existing_result_paths:
                         task.result.artifacts.append(artifact)
                         existing_result_paths.add(artifact.get("path"))
+                task.metadata.pop("executor_partial_tool_results", None)
             existing_task_paths = {artifact.get("path") for artifact in task.artifacts}
             for artifact in artifacts:
                 if artifact.get("path") not in existing_task_paths:
@@ -831,7 +852,23 @@ class TinyCUALoop(BaseLoop):
         validation: ValidationResult,
         llm_result: LLMResult,
     ) -> bool:
-        """Route TaskExecutor failures through ResultReviewer with evidence."""
+        """TaskExecutor validation failures are not reviewer-owned results."""
+        del node, validation, llm_result
+        return False
+
+    def _recover_task_executor_validation_failure(
+        self,
+        node: Node,
+        validation: ValidationResult,
+        llm_result: LLMResult,
+    ) -> bool:
+        """Recover exhausted TaskExecutor validation via local replan.
+
+        Runtime validation failures are not task results. In one-shot worker
+        mode, the active task remains unfinished and the runtime gives the
+        planner a chance to revise/decompose the local task region before
+        execution continues.
+        """
         if node.node_id != "task_executor" or node.is_terminal:
             return False
         if self.queue.current is not node:
@@ -839,39 +876,98 @@ class TinyCUALoop(BaseLoop):
         active = self.root_session.task_store.get_active_task()
         if active is None:
             return False
-
-        from tinycua.config.node_config import create_node_config
-        from tinycua.loops.task_nodes import TinyCUAResultReviewerNode
-        from tinycua.models.task import TaskResult
-
-        failure_content = self._validation_failure_content(node, validation)
         tool_results = list(llm_result.metadata.get("tool_results", []))
-        self.root_session.task_store.record_result(
-            active.task_id,
-            TaskResult(
-                content=failure_content,
-                execution_status="failed",
-                success=False,
-                metadata={
-                    "source_node_id": node.node_id,
-                    "runtime_validation_errors": list(validation.errors),
-                    "tool_results": self._json_safe(tool_results),
-                },
-            ),
-        )
+        action_results = self._successful_executor_action_results(tool_results)
+        if action_results:
+            existing = active.metadata.setdefault("executor_partial_tool_results", [])
+            existing.extend(self._json_safe(action_results))
+            self._record_node_content_transcript(
+                node,
+                "TaskExecutor performed workspace/research actions but did not "
+                "record task_result_update; continuing the same active task with "
+                "partial evidence instead of replanning or marking failure.",
+            )
+            terminal_nodes = [queued for queued in self.queue.items[1:] if queued.is_terminal]
+            self.queue.clear_after_current()
+            from tinycua.config.node_config import create_node_config
+            from tinycua.loops.task_nodes import TinyCUAResultReviewerNode
+            from tinycua.loops.task_nodes import TinyCUATaskExecutorNode
+
+            self.queue.items.extend(
+                [
+                    TinyCUATaskExecutorNode(
+                        node_id="task_executor",
+                        config=create_node_config("task_executor"),
+                    ),
+                    TinyCUAResultReviewerNode(
+                        node_id="result_reviewer",
+                        config=create_node_config("result_reviewer"),
+                    ),
+                ]
+            )
+            existing_terminal_ids = {
+                queued.node_id for queued in self.queue.items if queued.is_terminal
+            }
+            for terminal in terminal_nodes:
+                if terminal.node_id not in existing_terminal_ids:
+                    self.queue.items.append(terminal)
+                    existing_terminal_ids.add(terminal.node_id)
+            return True
         active.metadata["runtime_validation_failure"] = {
             "source_node_id": node.node_id,
             "errors": list(validation.errors),
+            "recovery": "local_replan",
+            "tool_results": self._json_safe(tool_results),
+            "guidance": (
+                "Previous executor attempt did not record task_result_update. "
+                "If prior tools only inspected state, refine/decompose the local "
+                "task or require the next executor to perform a concrete action "
+                "or record a blocked result instead of repeating inspection."
+            ),
         }
-
-        self.queue.clear_after_current()
-        self.queue.items.append(
-            TinyCUAResultReviewerNode(
-                node_id="result_reviewer",
-                config=create_node_config("result_reviewer"),
-            )
+        self._record_node_content_transcript(
+            node,
+            "TaskExecutor validation failed after retries; scheduling local "
+            "replan for the active task instead of marking it failed.",
         )
+        from tinycua.loops.worker_runtime import WorkerRuntimeController
+
+        terminal_nodes = [queued for queued in self.queue.items[1:] if queued.is_terminal]
+        self.queue.clear_after_current()
+        WorkerRuntimeController(self.root_session.task_store).schedule_replan(self.queue)
+        existing_terminal_ids = {
+            queued.node_id for queued in self.queue.items if queued.is_terminal
+        }
+        for terminal in terminal_nodes:
+            if terminal.node_id not in existing_terminal_ids:
+                self.queue.items.append(terminal)
+                existing_terminal_ids.add(terminal.node_id)
         return True
+
+    def _successful_executor_action_results(
+        self,
+        tool_results: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Return successful non-state tool results that can guide continuation."""
+        action_or_research_tools = {
+            "write_file",
+            "edit_file",
+            "run_shell",
+            "run_python",
+            "fetch_url",
+            "web_search",
+        }
+        useful = []
+        for item in tool_results:
+            if not isinstance(item, dict) or item.get("name") not in action_or_research_tools:
+                continue
+            output = item.get("output")
+            if isinstance(output, dict) and output.get("success") is False:
+                continue
+            if isinstance(output, dict) and output.get("error"):
+                continue
+            useful.append(item)
+        return useful
 
     def _validation_failure_content(
         self,
@@ -915,7 +1011,12 @@ class TinyCUALoop(BaseLoop):
             resolved_tools,
             force_required_tool=tool_choice is not None,
         )
+        config = getattr(agent, "config", None)
+        model = getattr(config, "llm_model", None)
         model_overrides: dict[str, Any] = {}
+        max_tokens = self._node_max_tokens_override(node, model)
+        if max_tokens is not None:
+            model_overrides["max_tokens"] = max_tokens
         if tool_choice is not None:
             model_overrides["tool_choice"] = tool_choice
         elif self._should_request_structured_tool_protocol(agent, node, resolved_tools):
@@ -932,8 +1033,6 @@ class TinyCUALoop(BaseLoop):
                 stream=stream,
             )
 
-        config = getattr(agent, "config", None)
-        model = getattr(config, "llm_model", None)
         if model is None or not hasattr(model, "model_copy"):
             return await self._invoke_agent_llm(
                 agent,
@@ -959,6 +1058,26 @@ class TinyCUALoop(BaseLoop):
             config.llm_model = previous_model
             if had_client_attr:
                 agent._llm_client = previous_client  # type: ignore[attr-defined]
+
+    def _node_max_tokens_override(self, node: Node, model: Any) -> int | None:
+        """Bound compact tool-decision nodes without constraining executors."""
+        budget_by_node = {
+            "query_analyst": 512,
+            "digester": 768,
+            "worker": 512,
+            "task_create": 768,
+            "task_analyzer": 1024,
+            "task_assessor": 768,
+            "result_reviewer": 768,
+            "result_aggregation": 1536,
+        }
+        budget = budget_by_node.get(node.node_id)
+        if budget is None:
+            return None
+        current = getattr(model, "max_tokens", None)
+        if isinstance(current, int) and current <= budget:
+            return None
+        return budget
 
     def _should_request_structured_tool_protocol(
         self,
@@ -1038,7 +1157,7 @@ class TinyCUALoop(BaseLoop):
         resolved_tools: list[Tool],
     ) -> list[Tool]:
         """Return tools eligible for provider-side JSON protocol selection."""
-        required_route = self._required_route_tool_name(node)
+        required_route = self._required_single_tool_choice_name(node)
         preferred_names: set[str] | None = None
         if required_route is not None:
             preferred_names = {required_route}
@@ -1136,16 +1255,18 @@ class TinyCUALoop(BaseLoop):
         node: Node,
         resolved_tools: list[Tool],
     ) -> str | dict[str, Any] | None:
-        """Return provider-compatible forced tool_choice for route nodes."""
-        required = self._required_route_tool_name(node)
+        """Return provider-compatible forced tool_choice for single-tool nodes."""
+        required = self._required_single_tool_choice_name(node)
         if required is None:
             return None
         if required not in {tool.name for tool in resolved_tools}:
             return None
         model = getattr(agent, "llm_model", None)
         provider = getattr(model, "provider", "")
-        if provider == "openai-chat-completions" and self._uses_local_openai_server(
-            model
+        if (
+            self._required_route_tool_name(node) is not None
+            and provider == "openai-chat-completions"
+            and self._uses_local_openai_server(model)
         ):
             return None
         if provider == "openai-chat-completions" and not self._uses_local_openai_server(
@@ -1161,8 +1282,8 @@ class TinyCUALoop(BaseLoop):
         *,
         force_required_tool: bool,
     ) -> list[Tool]:
-        """Restrict required route calls to the route tool only."""
-        required = self._required_route_tool_name(node)
+        """Restrict required singleton calls to the selected tool only."""
+        required = self._required_single_tool_choice_name(node)
         if not force_required_tool:
             return resolved_tools
         if required is None:
@@ -1216,8 +1337,8 @@ class TinyCUALoop(BaseLoop):
             validation.is_valid = False
             validation.errors.append(
                 "Final response cannot synthesize success before every task in "
-                "the worker task tree is completed or failed by reviewer-owned "
-                "state."
+                "the worker task tree is actually completed. Failed tasks must "
+                "be retried or locally replanned before terminal response."
             )
         return validation
 
@@ -1346,6 +1467,17 @@ class TinyCUALoop(BaseLoop):
                 return tool_name
         return None
 
+    def _required_single_tool_choice_name(self, node: Node) -> str | None:
+        """Return a singleton state/route tool that should be forced."""
+        route_tool = self._required_route_tool_name(node)
+        if route_tool is not None:
+            return route_tool
+        return {
+            "task_create": "task_init",
+            "task_assessor": "task_update",
+            "result_reviewer": "task_review_decision",
+        }.get(node.node_id)
+
     def _record_retry_continuation(
         self,
         node: Node,
@@ -1401,9 +1533,8 @@ class TinyCUALoop(BaseLoop):
         if llm_result.tool_calls or not llm_result.content.strip():
             return
         allowed = {tool.name for tool in resolved_tools}
-        try:
-            parsed = json.loads(llm_result.content)
-        except json.JSONDecodeError:
+        parsed = self._parse_structured_tool_payload(llm_result.content, allowed)
+        if parsed is None:
             return
         if not isinstance(parsed, dict) or not isinstance(parsed.get("tool_calls"), list):
             return
@@ -1437,6 +1568,73 @@ class TinyCUALoop(BaseLoop):
             llm_result.tool_calls = tool_calls
             llm_result.metadata = dict(llm_result.metadata)
             llm_result.metadata["structured_tool_protocol"] = True
+
+    def _parse_structured_tool_payload(
+        self,
+        content: str,
+        allowed: set[str],
+    ) -> dict[str, Any] | None:
+        """Parse explicit tool JSON payloads without inferring from prose."""
+        stripped = content.strip()
+        candidates = [stripped, *self._json_object_candidates(stripped)]
+        for candidate in candidates:
+            try:
+                parsed = json.loads(candidate)
+            except json.JSONDecodeError:
+                continue
+            normalized = self._normalize_structured_tool_payload(parsed, allowed)
+            if normalized is not None:
+                return normalized
+        return None
+
+    def _json_object_candidates(self, content: str) -> list[str]:
+        """Return balanced JSON-object substrings from provider wrapper text."""
+        candidates: list[str] = []
+        start: int | None = None
+        depth = 0
+        in_string = False
+        escape = False
+        for index, char in enumerate(content):
+            if in_string:
+                if escape:
+                    escape = False
+                elif char == "\\":
+                    escape = True
+                elif char == '"':
+                    in_string = False
+                continue
+            if char == '"':
+                in_string = True
+                continue
+            if char == "{":
+                if depth == 0:
+                    start = index
+                depth += 1
+            elif char == "}" and depth:
+                depth -= 1
+                if depth == 0 and start is not None:
+                    candidates.append(content[start : index + 1])
+                    start = None
+        return candidates
+
+    def _normalize_structured_tool_payload(
+        self,
+        parsed: Any,
+        allowed: set[str],
+    ) -> dict[str, Any] | None:
+        """Convert accepted explicit tool payload shapes to tool_calls shape."""
+        if not isinstance(parsed, dict):
+            return None
+        if isinstance(parsed.get("tool_calls"), list):
+            return parsed
+        allowed_keys = [key for key in parsed if key in allowed]
+        if len(allowed_keys) != 1:
+            return None
+        name = allowed_keys[0]
+        arguments = parsed[name]
+        if not isinstance(arguments, dict):
+            return None
+        return {"tool_calls": [{"name": name, "arguments": arguments}]}
 
     def _route_from_tool_calls(
         self,
@@ -2099,16 +2297,11 @@ class TinyCUALoop(BaseLoop):
                 self._append_tool_feedback_messages(messages, llm_result)
                 messages.append({"role": "system", "content": retry_message})
 
-        node._handle_exhaustion(last_validation, max_attempts)
-        if not self._route_task_executor_failure_to_reviewer(
-            node,
-            last_validation,
-            last_result,
-        ):
-            raise NodeExecutionError(self._validation_failure_content(node, last_validation))
-        async for event in self._stream_node_completed(
+        async for event in self._stream_exhausted_node_events(
             node,
             last_combined,
+            last_validation,
+            last_result,
             emit_lifecycle,
             include_meta,
             final_only,
@@ -2116,6 +2309,107 @@ class TinyCUALoop(BaseLoop):
             max_attempts,
         ):
             yield event
+
+    async def _stream_exhausted_node_events(
+        self,
+        node: Node,
+        combined: str,
+        validation: ValidationResult,
+        llm_result: LLMResult,
+        emit_lifecycle: bool,
+        include_meta: bool,
+        final_only: bool,
+        node_type: str,
+        max_attempts: int,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Handle streamed retry exhaustion without terminal synthesis."""
+        node._handle_exhaustion(validation, max_attempts)
+        if self._recover_task_assessor_validation_failure(node, validation):
+            completed = self._emit_lifecycle_event(
+                "node.completed",
+                node.node_id,
+                node_type,
+                max_attempts,
+                emit_lifecycle,
+                final_only,
+                node.is_terminal,
+                content=combined,
+                finish_reason="completed",
+            )
+            if completed is not None:
+                yield self._enrich_and_yield(
+                    completed,
+                    include_meta,
+                    node.node_id,
+                    node_type,
+                    max_attempts,
+                )
+            return
+        if self._recover_task_executor_validation_failure(node, validation, llm_result):
+            completed = self._emit_lifecycle_event(
+                "node.completed",
+                node.node_id,
+                node_type,
+                max_attempts,
+                emit_lifecycle,
+                final_only,
+                node.is_terminal,
+                content=combined,
+                finish_reason="completed",
+            )
+            if completed is not None:
+                yield self._enrich_and_yield(
+                    completed,
+                    include_meta,
+                    node.node_id,
+                    node_type,
+                    max_attempts,
+                )
+            return
+        if not self._route_task_executor_failure_to_reviewer(
+            node,
+            validation,
+            llm_result,
+        ):
+            raise NodeExecutionError(self._validation_failure_content(node, validation))
+        async for event in self._stream_node_completed(
+            node,
+            combined,
+            emit_lifecycle,
+            include_meta,
+            final_only,
+            node_type,
+            max_attempts,
+        ):
+            yield event
+
+    def _recover_task_assessor_validation_failure(
+        self,
+        node: Node,
+        validation: ValidationResult,
+    ) -> bool:
+        """Skip analyzer when assessor cannot select decomposition targets."""
+        if node.node_id != "task_assessor" or self.queue.current is not node:
+            return False
+        if len(self.queue.items) > 1 and self.queue.items[1].node_id == "task_analyzer":
+            del self.queue.items[1]
+        root_id = self.root_session.task_store.root_task_id
+        if root_id and root_id in self.root_session.task_store.tasks:
+            self.root_session.task_store.tasks[root_id].metadata["assessor_recovery"] = {
+                "source_node_id": node.node_id,
+                "errors": list(validation.errors),
+                "recovery": "skip_analyzer",
+                "reason": (
+                    "Assessor did not record selected decomposition targets; "
+                    "continuing without analyzer for this assessment pass."
+                ),
+            }
+        self._record_node_content_transcript(
+            node,
+            "TaskAssessor did not record decomposition targets; skipping the "
+            "paired analyzer for this pass and continuing execution lifecycle.",
+        )
+        return True
 
     def _stream_retry_message(
         self,
@@ -2411,6 +2705,22 @@ class TinyCUALoop(BaseLoop):
         content = llm_result.content
         result_metadata = dict(llm_result.metadata)
         if not validation.is_valid:
+            if self._recover_task_executor_validation_failure(
+                node,
+                validation,
+                llm_result,
+            ):
+                on_complete_response = self._build_on_complete_response(node, llm_result)
+                trace_entry = self._trace_entry(
+                    node,
+                    attempt,
+                    resolved_tools,
+                    on_complete_response,
+                    llm_result,
+                )
+                trace_entry["validation_errors"] = list(validation.errors)
+                self._execution_trace.append(trace_entry)
+                return content, llm_result.tool_calls
             if not self._route_task_executor_failure_to_reviewer(
                 node,
                 validation,
@@ -2502,11 +2812,6 @@ class TinyCUALoop(BaseLoop):
                             "active_task_id": active.task_id,
                             "active_task": self._json_safe(active.__dict__),
                             "task_tree": self._task_state_snapshot(),
-                            "reviewed_task_context": [
-                                self._json_safe(task.metadata["latest_review_context"])
-                                for task in self.root_session.task_store.tasks.values()
-                                if "latest_review_context" in task.metadata
-                            ],
                             "read_only": True,
                         },
                         default=str,

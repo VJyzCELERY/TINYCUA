@@ -27,6 +27,80 @@ def test_task_store_advances_after_reviewer_approval() -> None:
     assert store.get_active_task() is second
 
 
+def test_approved_result_context_updates_only_unfinished_leaf_tasks() -> None:
+    """Reviewer-approved context is global to future work but never rewrites done tasks."""
+    store = TaskStateStore()
+    root = store.create_task("Build app")
+    scaffold = store.create_task("Create project scaffold", parent_id=root.task_id)
+    module = store.create_task("Create module x", parent_id=root.task_id)
+    docs = store.create_task("Write docs", parent_id=root.task_id)
+
+    store.record_result(
+        scaffold.task_id,
+        TaskResult(content="Created backend/app.py and frontend/index.html."),
+    )
+    store.record_reviewer_decision(scaffold.task_id, ReviewerDecision.APPROVED)
+
+    assert scaffold.status == TaskStatus.COMPLETED
+    assert "context" not in scaffold.metadata
+    assert "Create project scaffold" in module.metadata["context"]
+    assert "backend/app.py" in module.metadata["context"]
+
+    store.record_result(module.task_id, TaskResult(content="Created backend/module_x.py."))
+    store.record_reviewer_decision(module.task_id, ReviewerDecision.APPROVED)
+
+    assert module.status == TaskStatus.COMPLETED
+    assert "Created backend/module_x.py" not in scaffold.metadata.get("context", "")
+    assert "Created backend/module_x.py" not in module.metadata.get("context", "")
+    assert "Created backend/module_x.py" in docs.metadata["context"]
+
+
+def test_failed_leaf_remains_active_and_not_done() -> None:
+    """Failed reviewed leaves are retry targets, not completed work."""
+    store = TaskStateStore()
+    root = store.create_task("Root")
+    first = store.create_task("First", parent_id=root.task_id)
+    second = store.create_task("Second", parent_id=root.task_id)
+
+    store.record_result(first.task_id, TaskResult(content="failed", success=False))
+    store.record_reviewer_decision(first.task_id, ReviewerDecision.APPROVED)
+
+    assert first.status == TaskStatus.FAILED
+    assert second.status == TaskStatus.PENDING
+    assert store.active_task_id == first.task_id
+    assert store.get_active_task() is first
+    assert store.all_done() is False
+
+
+def test_failed_leaf_can_be_retried_and_completed() -> None:
+    """A failed leaf reopens when new executor evidence is recorded."""
+    store = TaskStateStore()
+    task = store.create_task("Retry me")
+
+    store.record_result(task.task_id, TaskResult(content="failed", success=False))
+    store.record_reviewer_decision(task.task_id, ReviewerDecision.APPROVED)
+    assert task.status == TaskStatus.FAILED
+
+    store.record_result(task.task_id, TaskResult(content="fixed", success=True))
+    store.record_reviewer_decision(task.task_id, ReviewerDecision.APPROVED)
+
+    assert task.status == TaskStatus.COMPLETED
+    assert store.active_task_id is None
+    assert store.all_done() is True
+
+
+def test_decompose_existing_parent_is_idempotent() -> None:
+    """Repeated decomposition should not append duplicate child trees."""
+    store = TaskStateStore()
+    root = store.create_task("Root")
+    first = store.create_task("First", parent_id=root.task_id)
+
+    child_ids = store.decompose_task(root.task_id, ["First", "Second"])
+
+    assert child_ids == [first.task_id]
+    assert store.tasks[root.task_id].children == [first.task_id]
+
+
 def test_task_store_validates_status_transitions_and_records_reviewer_decisions() -> None:
     """Invalid lifecycle transitions fail instead of silently mutating state."""
     store = TaskStateStore()

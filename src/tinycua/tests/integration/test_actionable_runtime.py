@@ -5,8 +5,11 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
+
 from tinycua.config.session_config import SessionConfig
 from tinycua.factory import create_tinycua_agent
+from tinycua.loops.node import NodeExecutionError
 
 
 class AppCreationScript:
@@ -332,13 +335,13 @@ async def test_planner_only_worker_run_fails_without_workspace_artifacts(
     agent = create_tinycua_agent(session_config=SessionConfig(workspace_dir=tmp_path))
     agent._call_llm = PlannerOnlyScript()  # type: ignore[method-assign]
 
-    await agent.run(
-        "Please create a small note taking app with a scheduler in the workspace."
-    )
+    with pytest.raises(NodeExecutionError, match="task_create failed runtime validation"):
+        await agent.run(
+            "Please create a small note taking app with a scheduler in the workspace."
+        )
 
     snapshot = agent.loop.get_state_snapshot()
     task_tree_text = snapshot["task_tree_text"]
-    transcript = agent.loop.get_transcript_text()
     trace = agent.loop.get_execution_trace()
 
     assert not (tmp_path / "backend.py").exists()
@@ -346,8 +349,11 @@ async def test_planner_only_worker_run_fails_without_workspace_artifacts(
     assert not (tmp_path / "webapp" / "index.html").exists()
     assert "note_scheduler_app/" not in task_tree_text
     assert "├── app.py" not in task_tree_text
-    assert "failed runtime validation" in transcript
-    failed_node = next(entry for entry in trace if entry.get("retry_exhausted"))
+    failed_node = next(
+        entry
+        for entry in trace
+        if entry.get("node_id") == "task_create" and entry.get("validation_errors")
+    )
     assert failed_node["node_id"] == "task_create"
     assert "task_init" in failed_node["resolved_tool_names"]
 
@@ -359,11 +365,12 @@ async def test_prompt_echo_worker_run_keeps_clean_trace_without_artifacts(
     agent = create_tinycua_agent(session_config=SessionConfig(workspace_dir=tmp_path))
     agent._call_llm = PromptEchoScript()  # type: ignore[method-assign]
 
-    await agent.run(
-        "Please create a small note taking app with a scheduler. Use Python for "
-        "the backend and make the frontend a webapp. Create the project files in "
-        "the workspace and run a simple verification command if possible."
-    )
+    with pytest.raises(NodeExecutionError, match="task_create failed runtime validation"):
+        await agent.run(
+            "Please create a small note taking app with a scheduler. Use Python for "
+            "the backend and make the frontend a webapp. Create the project files in "
+            "the workspace and run a simple verification command if possible."
+        )
 
     snapshot = agent.loop.get_state_snapshot()
     task_tree_text = snapshot["task_tree_text"]
@@ -376,7 +383,11 @@ async def test_prompt_echo_worker_run_keeps_clean_trace_without_artifacts(
     assert "Based on the external user request above" not in transcript
     assert "Based on the external user request above" not in task_tree_text
     assert "Context Enhanced Query:" not in task_tree_text
-    failed_node = next(entry for entry in trace if entry.get("retry_exhausted"))
+    failed_node = next(
+        entry
+        for entry in trace
+        if entry.get("node_id") == "task_create" and entry.get("validation_errors")
+    )
     assert failed_node["node_id"] == "task_create"
     assert "task_init" in failed_node["resolved_tool_names"]
 
@@ -394,8 +405,9 @@ async def test_streaming_prompt_echo_worker_run_keeps_notebook_state_clean(
         "the workspace and run a simple verification command if possible.",
         stream=True,
     )
-    async for _ in stream:
-        pass
+    with pytest.raises(NodeExecutionError, match="task_create failed runtime validation"):
+        async for _ in stream:
+            pass
 
     snapshot = agent.loop.get_state_snapshot()
     task_tree_text = snapshot["task_tree_text"]
@@ -408,6 +420,10 @@ async def test_streaming_prompt_echo_worker_run_keeps_notebook_state_clean(
     assert "Based on the external user request above" not in transcript
     assert "Based on the external user request above" not in task_tree_text
     assert "Context Enhanced Query:" not in task_tree_text
-    failed_node = next(entry for entry in trace if entry.get("retry_exhausted"))
+    failed_node = next(
+        entry
+        for entry in trace
+        if entry.get("node_id") == "task_create" and entry.get("validation_errors")
+    )
     assert failed_node["node_id"] == "task_create"
     assert "task_init" in failed_node["resolved_tool_names"]
