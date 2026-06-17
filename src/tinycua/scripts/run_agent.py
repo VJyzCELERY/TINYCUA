@@ -80,8 +80,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--worker-effort",
         choices=["none", "low", "medium", "high"],
-        default=os.environ.get("TINYCUA_WORKER_EFFORT", "medium"),
-        help="Analysis effort pass count; default: env TINYCUA_WORKER_EFFORT or medium.",
+        default=os.environ.get("TINYCUA_WORKER_EFFORT", "none"),
+        help="Analysis effort pass count; default: env TINYCUA_WORKER_EFFORT or none.",
     )
     return parser.parse_args(argv)
 

@@ -20,8 +20,7 @@ def test_node_handoff_renders_as_one_assistant_message() -> None:
 
     assert len(messages) == 1
     assert messages[0]["role"] == "assistant"
-    assert "## Node Handoff" in messages[0]["content"]
-    assert "task_assessor" in messages[0]["content"]
-    assert "task_analyzer" in messages[0]["content"]
+    assert "## Relevant context" in messages[0]["content"]
+    assert "Node Handoff" not in messages[0]["content"]
     assert "Analyze selected unfinished work." in messages[0]["content"]
     assert "Do not execute tasks." in messages[0]["content"]

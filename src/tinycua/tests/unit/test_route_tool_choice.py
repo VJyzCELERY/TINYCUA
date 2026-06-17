@@ -245,7 +245,8 @@ def test_task_executor_requires_a_tool_without_narrowing_tools() -> None:
     )
 
     assert tool_choice == "required"
-    assert {tool.name for tool in llm_tools} >= {"task_execute", "task_result_update"}
+    assert "task_result_update" in {tool.name for tool in llm_tools}
+    assert "task_execute" not in {tool.name for tool in llm_tools}
 
 
 async def test_route_tool_failure_retries_then_fails_closed() -> None:
@@ -296,4 +297,4 @@ async def test_route_tool_failure_retries_then_fails_closed() -> None:
     ]
     assert retry_counts == [0, 1, 1]
     assert captured_messages[-1][-1]["role"] == "assistant"
-    assert captured_messages[-1][-1]["content"].startswith("Runtime validation:")
+    assert not captured_messages[-1][-1]["content"].startswith("Runtime validation:")

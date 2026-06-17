@@ -14,7 +14,7 @@ from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
 from tinycua.loops.node import NodeExecutionError
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
-from tinycua.loops.task_nodes import TinyCUATaskExecutorNode
+from tinycua.loops.task_nodes import TinyCUATaskAssessorNode, TinyCUATaskExecutorNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.session import Session
 from tinycua_sdk import Agent, LanguageModel
@@ -70,8 +70,8 @@ def test_tinycua_loop_has_no_iteration_limit():
     assert not hasattr(loop, "max_iterations")
 
 
-def test_compact_planning_nodes_have_output_budget() -> None:
-    """Planner/reviewer nodes are bounded; executor file-writing is not."""
+def test_compact_runtime_nodes_have_output_budget() -> None:
+    """Planner/reviewer/executor nodes are bounded to avoid runaway streams."""
     loop = TinyCUALoop()
     assessor = TinyCUATaskExecutorNode(
         node_id="task_executor",
@@ -83,7 +83,7 @@ def test_compact_planning_nodes_have_output_budget() -> None:
     )
 
     assert loop._node_max_tokens_override(planner, model=None) == 768
-    assert loop._node_max_tokens_override(assessor, model=None) is None
+    assert loop._node_max_tokens_override(assessor, model=None) == 1536
 
 
 def test_worker_state_nodes_have_long_retry_budget() -> None:
@@ -117,7 +117,7 @@ def test_retry_message_is_assistant_self_correction() -> None:
 
 
 def test_executor_retry_keeps_action_tools_before_action_evidence() -> None:
-    """Executor retries should not force result update before useful tool evidence."""
+    """Executor retries keep action tools available before result update."""
     loop = TinyCUALoop()
     executor = TinyCUATaskExecutorNode(
         node_id="task_executor",
@@ -169,6 +169,61 @@ def test_executor_retry_keeps_action_tools_after_action_evidence() -> None:
     retry_tools = loop._tools_for_retry_attempt(executor, tools, message)
 
     assert {tool.name for tool in retry_tools} == {"write_file", "task_result_update"}
+
+
+def test_executor_continuation_drops_read_only_tools_after_inspection() -> None:
+    """Executor should not loop on list_files after inspection succeeds."""
+    loop = TinyCUALoop()
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    tools = [
+        Tool(name="list_files"),
+        Tool(name="read_file"),
+        Tool(name="write_file"),
+        Tool(name="task_result_update"),
+    ]
+
+    narrowed = loop._tools_after_executor_inspection(
+        executor,
+        tools,
+        [{"name": "list_files", "allowed": True, "output": []}],
+    )
+
+    assert {tool.name for tool in narrowed} == {"write_file"}
+
+
+def test_response_validation_rejects_internal_transcript_replay() -> None:
+    """Final response must not replay node prompts or aggregation JSON."""
+    loop = TinyCUALoop()
+    response = ResponseNode()
+
+    validation = loop._validate_final_response_content(
+        response,
+        LLMResult(content="Task under review: abc\n## Current State\n..."),
+    )
+
+    assert validation.is_valid is False
+    assert "not replay internal" in validation.errors[0]
+
+
+def test_task_assessor_retry_narrows_to_required_handoff_tool() -> None:
+    """Assessor retries isolate node_handoff instead of repeating inspection."""
+    loop = TinyCUALoop()
+    assessor = TinyCUATaskAssessorNode(
+        node_id="task_assessor",
+        config=create_node_config("task_assessor"),
+    )
+    tools = assessor.config.tool_policy.resolve_tools([])
+
+    retry_tools = loop._tools_for_retry_attempt(
+        assessor,
+        tools,
+        "task_assessor must call at least one successful task-state tool from ['node_handoff']",
+    )
+
+    assert [tool.name for tool in retry_tools] == ["node_handoff"]
 
 
 # --- _execute_node tests ---

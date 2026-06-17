@@ -20,7 +20,6 @@ from tinycua.tools.task_tools import (
     FinalResponseSynthesisTool,
     TaskCreateTool,
     TaskDecomposeTool,
-    TaskExecuteTool,
     TaskInitTool,
     TaskInspectTool,
     TaskResultUpdateTool,
@@ -143,7 +142,6 @@ def task_executor_tool_scope() -> NodeToolPolicy:
     """
     return NodeToolPolicy(
         node_tools=[
-            TaskExecuteTool(),
             TaskResultUpdateTool(),
             EnhancedContextRetrievalTool(),
             TodoReadTool(),

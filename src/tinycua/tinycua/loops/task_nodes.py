@@ -23,16 +23,23 @@ if TYPE_CHECKING:
 _TASK_ANALYZER_INSTRUCTION = (
     "You are the TaskAnalyzer. Convert the request into concrete, actionable "
     "tasks. Prefer tasks that can be verified by files, commands, tests, or "
-    "search results. Inspect the task tree, then use task_decompose or "
+    "search results. For one-shot prototype app requests, prefer one vertical "
+    "slice task that can create a runnable minimal app; do not split backend, "
+    "frontend, and API unless the user explicitly asks for separate projects. "
+    "Prefer plain HTML/CSS/JS served by the Python backend over React/Vue unless "
+    "the user explicitly requests a frontend framework. Inspect the task tree, "
+    "then use task_decompose or "
     "task_update to mutate task structure/metadata when analysis changes the "
     "tree. Do not repeat upstream context verbatim and do not return opaque "
     "mutation instructions as prose."
 )
 _TASK_ANALYZER_CONTINUATION = (
-    "Based on the current digested information or focused task context above, "
+    "Based on the current request context or focused task context above, "
     "call task_inspect first. If the active/root task needs decomposition, "
-    "call task_decompose with concrete sequential subtasks chosen from the "
-    "request. Do not repeatedly decompose a task that already has children; "
+    "call task_decompose with the fewest concrete sequential subtasks chosen from "
+    "the request. For one-shot app builds, prefer one runnable vertical-slice "
+    "subtask over separate backend/frontend/API tasks. Do not repeatedly decompose "
+    "a task that already has children; "
     "for local replan, refine only the active task or its local children. If no "
     "further decomposition is useful, call task_update to record that assessment "
     "on the relevant task."
@@ -75,24 +82,26 @@ _TASK_ASSESSOR_LOCAL_REPLAN_CONTINUATION = (
 )
 
 _TASK_EXECUTOR_INSTRUCTION = (
-    "You are the TaskExecutor. You MUST use tools when the active task requires "
-    "workspace action, research, file creation, command execution, or testing. "
-    "Use write_file/read_file/list_files/run_shell/run_python/web_search as "
-    "needed. Start by marking execution with task_execute when an active task "
-    "exists. After observing action/research/tool evidence, you MUST call "
-    "task_result_update to record the actual result. Do not only provide a "
-    "plan for actionable tasks."
+    "You are the TaskExecutor: a general action agent. Your job is to complete "
+    "the active task, not describe how someone else could do it. You MUST use "
+    "tools when the active task requires action or evidence. Use whichever "
+    "available tools fit the work: create or edit files, inspect the workspace, "
+    "run commands or Python, research, fetch URLs, and verify results. After "
+    "real action/research/tool evidence exists, call task_result_update to "
+    "record the actual result. Do not only provide a plan for actionable tasks."
 )
 _TASK_EXECUTOR_CONTINUATION = (
     "Based on the active task above, perform the required workspace or research "
     "actions with tools. Do not only provide a plan; create, inspect, run, or "
-    "verify artifacts when the task requires action. For actionable success, "
-    "task_result_update must be backed by a created/edited file or a successful "
-    "action/research tool result. Then call "
-    "task_result_update with a concise result. If inspection "
-    "shows the task cannot be completed as written, call task_result_update "
-    "with success=false and the concrete blocker/evidence so ResultReviewer can "
-    "retry or replan; do not keep repeating read/list inspection."
+    "verify artifacts when the task requires action. If the task asks for code "
+    "or an app, write the smallest useful runnable vertical slice, prefer stdlib "
+    "or already-available dependencies, and run a simple check. For "
+    "actionable success, task_result_update must be backed by a created/edited "
+    "file or a successful action/research tool result. Then call "
+    "task_result_update with a concise result. If inspection shows the task "
+    "cannot be completed as written, call task_result_update with success=false "
+    "and the concrete blocker/evidence so ResultReviewer can retry or replan; "
+    "do not keep repeating read/list inspection."
 )
 
 _RESULT_REVIEWER_INSTRUCTION = (
@@ -290,6 +299,61 @@ def _render_local_region_markdown(region: dict) -> str:
     return "\n".join(lines) if lines else str(region)
 
 
+def _render_active_task_work_order(session: Session) -> str:
+    """Render the active task as a clear executor work order."""
+    store = session.task_store
+    active = store.get_active_task()
+    if active is None:
+        return "## Current State\nNo active task."
+    parent_title = ""
+    if active.parent_id and active.parent_id in store.tasks:
+        parent_title = store.tasks[active.parent_id].title
+    lines = [
+        "## Current State",
+        f"- Active task id: `{active.task_id}`",
+        f"- Status: `{active.status.value}`",
+        f"- Task: {active.title}",
+    ]
+    if parent_title:
+        lines.append(f"- Parent task: {parent_title}")
+    if active.description.strip():
+        lines.append(f"- Description: {active.description.strip()}")
+    if active.result is not None:
+        lines.extend(
+            [
+                "",
+                "## Existing Result",
+                active.result.summary.strip() or active.result.content.strip(),
+            ]
+        )
+    if active.reviewer_decisions:
+        lines.append("")
+        lines.append("## Past Review Feedback")
+        for decision in active.reviewer_decisions[-3:]:
+            lines.append(
+                f"- {decision.get('decision', 'unknown')}: "
+                f"{decision.get('rationale', '')}"
+            )
+    context = str(active.metadata.get("context", "")).strip()
+    if context:
+        lines.extend(["", "## Useful Prior Context", context])
+    lines.extend(
+        [
+            "",
+            "## What Needs To Be Done",
+            "Complete this active task only. Use workspace, shell, Python, or "
+            "research tools when they provide evidence. Do not just plan.",
+            "",
+            "## Success Criteria",
+            "- At least one action/research/file/shell tool result supports success.",
+            "- Call `task_result_update` after the evidence exists.",
+            "- If blocked, call `task_result_update` with `success=false` and the "
+            "specific blocker/evidence.",
+        ]
+    )
+    return "\n".join(lines)
+
+
 class TinyCUATaskAssessorNode(ProcessNode):
     """Assess the task tree for decomposition readiness."""
 
@@ -371,8 +435,7 @@ class TinyCUATaskExecutorNode(ProcessNode):
         if session.session_config is not None and session.session_config.workspace_dir:
             workspace_dir = str(session.session_config.workspace_dir)
         return (
-            f"Active task: {active.task_id} — {active.title}\n"
-            f"Task description: {active.description}\n"
+            f"{_render_active_task_work_order(session)}\n"
             f"Workspace root: {workspace_dir or 'not configured'}\n"
             "Path discipline: use paths inside the workspace root. Prefer "
             "relative paths such as 'templates/index.html' or "
@@ -381,7 +444,7 @@ class TinyCUATaskExecutorNode(ProcessNode):
             "/bin/sh; do not rely on shell-specific brace expansion such as "
             "'mkdir -p {a,b}', because it may create a literal brace-named "
             "directory. Use explicit POSIX-safe paths/commands instead.\n"
-            f"Unified task context:\n{_render_task_tree_markdown(_task_context_snapshot(session))}\n\n{base}"
+            f"\n## Task Tree Orientation\n{_render_task_tree_markdown(_task_context_snapshot(session))}\n\n{base}"
         )
 
     def _artifacts_from_tool_results(self, tool_results: list[dict]) -> list[dict]:

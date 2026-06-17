@@ -72,3 +72,35 @@ def test_task_update_cannot_complete_without_execution_result() -> None:
     assert result["success"] is False
     assert "not supported" in result["error"]
     assert store.get_task(root["task_id"]).status == "pending"
+
+
+def test_task_decompose_caps_one_shot_subtasks() -> None:
+    """Decomposition is capped so prototype runs can finish."""
+    store = TaskStateStore()
+    init = TaskInitTool()
+    decompose = TaskDecomposeTool()
+    for tool in (init, decompose):
+        tool.bind_task_store(store)
+
+    root = init("Build app")
+    result = decompose(root["task_id"], ["one", "two", "three", "four"])
+
+    assert result["success"] is True
+    assert len(result["child_task_ids"]) == 3
+
+
+def test_task_decompose_collapses_app_web_ui_to_vertical_slice() -> None:
+    """One-shot app builds should not split backend/frontend/API tracks."""
+    store = TaskStateStore()
+    init = TaskInitTool()
+    decompose = TaskDecomposeTool()
+    for tool in (init, decompose):
+        tool.bind_task_store(store)
+
+    root = init("Build note taking app with web UI")
+    result = decompose(root["task_id"], ["backend", "frontend", "api"])
+
+    assert result["success"] is True
+    assert len(result["child_task_ids"]) == 1
+    child = store.get_task(result["child_task_ids"][0])
+    assert "vertical-slice" in child.title

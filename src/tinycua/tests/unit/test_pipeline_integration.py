@@ -195,7 +195,7 @@ class TestFullPipelineIntegration:
         assert digest_ctx is not None
         assert "migration plan" in digest_ctx.lower()
         assert "Key Points" in digest_ctx
-        assert "Original Query" in digest_ctx
+        assert "User request" in digest_ctx
 
     def test_full_pipeline_end_to_end(
         self,

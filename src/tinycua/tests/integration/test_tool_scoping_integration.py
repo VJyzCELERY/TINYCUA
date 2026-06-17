@@ -45,7 +45,7 @@ class TestTaskExecutorReceivesCorrectTools:
 
         # Assert
         tool_names = [t.name for t in resolved]
-        assert "task_execute" in tool_names
+        assert "task_execute" not in tool_names
         assert "task_result_update" in tool_names
         assert "enhanced_context_retrieval" in tool_names
         assert "web_search" in tool_names

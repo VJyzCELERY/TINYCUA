@@ -249,11 +249,11 @@ class TestTaskExecutorToolScope:
         policy = task_executor_tool_scope()
         assert isinstance(policy, NodeToolPolicy)
 
-    def test_includes_task_execute(self) -> None:
-        """Includes TaskExecuteTool."""
+    def test_excludes_task_execute(self) -> None:
+        """Executor works on active task without a separate execute marker."""
         policy = task_executor_tool_scope()
         tool_names = [t.name for t in policy.node_tools]
-        assert "task_execute" in tool_names
+        assert "task_execute" not in tool_names
 
     def test_includes_task_result_update(self) -> None:
         """Includes TaskResultUpdateTool."""

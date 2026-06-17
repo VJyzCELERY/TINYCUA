@@ -43,31 +43,54 @@ class NodeHandoff:
 
 
 def render_handoff_markdown(handoff: NodeHandoff) -> str:
-    """Render a generic handoff as compact markdown."""
-    payload = json.dumps(
-        _json_safe(handoff.payload),
-        ensure_ascii=False,
-        separators=(",", ":"),
-        default=str,
-    )
-    if len(payload) > _MAX_PAYLOAD_CHARS:
-        payload = f"{payload[:_MAX_PAYLOAD_CHARS]}…[truncated]"
+    """Render a generic handoff as natural working context."""
+    payload = _render_payload(handoff.payload)
     lines = [
-        "## Node Handoff",
-        "",
-        f"From: {handoff.source_node}",
-        f"Target: {handoff.target_node or 'next'}",
-        "",
-        "Instruction:",
+        "## Relevant context",
         handoff.instruction,
-        "",
-        "Payload:",
-        payload,
     ]
+    if payload:
+        lines.extend(["", payload])
     if handoff.constraints:
         lines.extend(["", "Constraints:"])
         lines.extend(f"- {item}" for item in handoff.constraints)
     return "\n".join(lines)
+
+
+def _render_payload(payload: dict[str, Any]) -> str:
+    digest = payload.get("digested_information")
+    if digest is not None:
+        return _render_digest(digest)
+    if not payload:
+        return ""
+    rendered = json.dumps(
+        _json_safe(payload),
+        ensure_ascii=False,
+        separators=(",", ":"),
+        default=str,
+    )
+    return rendered if len(rendered) <= _MAX_PAYLOAD_CHARS else f"{rendered[:_MAX_PAYLOAD_CHARS]}…[truncated]"
+
+
+def _render_digest(digest: Any) -> str:
+    original = str(getattr(digest, "original_query", "") or "").strip()
+    summary = str(getattr(digest, "context_summary", "") or "").strip()
+    lines = ["Request brief:"]
+    if original:
+        lines.append(f"- User request: {original}")
+    if summary and summary != original:
+        lines.append(f"- Summary: {summary}")
+    for label, attr in (
+        ("Important details", "key_points"),
+        ("Guidance", "advisory_instructions"),
+        ("Constraints", "constraints"),
+        ("Open questions", "known_gaps"),
+    ):
+        values = getattr(digest, attr, None) or []
+        if values:
+            lines.append(f"- {label}:")
+            lines.extend(f"  - {item}" for item in values)
+    return "\n".join(lines) if len(lines) > 1 else ""
 
 
 def _json_safe(value: Any) -> Any:

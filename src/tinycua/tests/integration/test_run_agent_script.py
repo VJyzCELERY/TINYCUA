@@ -40,6 +40,7 @@ def test_run_agent_script_accepts_requested_invocation_shape(tmp_path: Path) -> 
     assert args.stream is True
     assert args.dir == tmp_path
     assert args.prompt == "Say hello"
+    assert args.worker_effort == "none"
 
 
 def test_build_language_model_from_loaded_config() -> None:
@@ -255,7 +256,7 @@ def test_env_example_contains_script_required_values() -> None:
     assert "TINYCUA_BASE_URL=" in content
     assert "TINYCUA_API_KEY=" in content
     assert "TINYCUA_MODEL=" in content
-    assert "TINYCUA_WORKER_EFFORT=medium" in content
+    assert "TINYCUA_WORKER_EFFORT=none" in content
 
 
 def test_run_agent_loads_project_env_by_default(monkeypatch) -> None:

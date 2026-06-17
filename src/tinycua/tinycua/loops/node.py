@@ -261,8 +261,77 @@ class Node(ABC):
             parts.append(self.config.custom_continuation_append)
         return "\n".join(parts)
 
+    def build_tool_system_prompt(self, resolved_tools: list[Any] | None = None) -> str:
+        """Build node-level tool instructions for the single system prompt."""
+        if not resolved_tools:
+            return ""
+
+        lines = [
+            "## Available actions",
+            "You can use these tools to do real work. Pick the tool that matches "
+            "the current task; do not claim work is done until a tool result "
+            "supports it.",
+        ]
+        for tool in resolved_tools:
+            name = str(getattr(tool, "name", "")).strip()
+            if not name:
+                continue
+            description = str(getattr(tool, "description", "")).strip() or name
+            lines.append(f"- `{name}`: {description}")
+            args = self._render_tool_args(getattr(tool, "parameters", {}))
+            if args:
+                lines.append(f"  Args: {args}")
+        lines.extend(
+            [
+                "",
+                "## Tool use",
+                "Use native tool calling when available. If native tool calling "
+                "is unavailable, respond only with strict JSON in this shape: "
+                '{"tool_calls":[{"name":"tool_name","arguments":{}}]}.'
+            ]
+        )
+        return "\n".join(lines)
+
+    @staticmethod
+    def _render_tool_args(parameters: Any) -> str:
+        """Render a compact human-readable argument list from a tool schema."""
+        if not isinstance(parameters, dict):
+            return ""
+        properties = parameters.get("properties")
+        if not isinstance(properties, dict) or not properties:
+            return ""
+        required = set(parameters.get("required", []))
+        rendered: list[str] = []
+        for name, schema in properties.items():
+            if not isinstance(schema, dict):
+                rendered.append(f"`{name}`")
+                continue
+            kind = str(schema.get("type", "value"))
+            marker = ", required" if name in required else ""
+            description = str(schema.get("description", "")).strip()
+            suffix = f": {description}" if description else ""
+            rendered.append(f"`{name}` ({kind}{marker}){suffix}")
+        return "; ".join(rendered)
+
+    def build_system_message(
+        self,
+        resolved_tools: list[Any] | None = None,
+    ) -> dict[str, str]:
+        """Build one system message from node sections and tool guidance."""
+        builder = SystemPromptBuilder()
+        instruction = self.build_instruction()
+        if instruction:
+            builder.add_static(instruction)
+        tool_prompt = self.build_tool_system_prompt(resolved_tools)
+        if tool_prompt:
+            builder.add_dynamic_context(tool_prompt)
+        return builder.build()
+
     def build_messages(
-        self, session: Session, input: NodeInputLike
+        self,
+        session: Session,
+        input: NodeInputLike,
+        resolved_tools: list[Any] | None = None,
     ) -> list[dict[str, str]]:
         """Build the complete message list for an LLM call.
 
@@ -271,19 +340,14 @@ class Node(ABC):
         Args:
             session: The session containing context and history.
             input: The node input to convert to continuation messages.
+            resolved_tools: Tools available to this node for prompt exposure.
 
         Returns:
             List of message dictionaries for the LLM call.
         """
         messages: list[dict[str, str]] = []
 
-        # Build system message via SystemPromptBuilder
-        builder = SystemPromptBuilder()
-        instruction = self.build_instruction()
-        if instruction:
-            builder.add_static(instruction)
-
-        system_msg = builder.build()
+        system_msg = self.build_system_message(resolved_tools)
         if system_msg["content"]:
             messages.append(system_msg)
 

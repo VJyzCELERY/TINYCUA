@@ -23,6 +23,7 @@ from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.loops.worker import TinyCUAWorkerNode
 from tinycua.models.chat_record import ChatRecord
 from tinycua.models.digested_information import DigestedInformation
+from tinycua.models.node_handoff import NodeHandoff
 from tinycua.models.node_input import NodeInput
 from tinycua.models.session import Session
 from tinycua.models.session_context_entry import SessionContextEntry
@@ -370,6 +371,46 @@ def test_task_executor_prompt_is_limited_to_active_task_context() -> None:
     assert "CHAT HISTORY SHOULD NOT REACH EXECUTOR" not in rendered
     assert "Create requirements.txt" in rendered
     assert "Build application" in rendered
+    assert '"active_task_id"' not in rendered
+    assert '"task_tree"' not in rendered
+
+
+def test_worker_forwards_digested_handoff_to_task_create() -> None:
+    """Worker route handoff preserves the user request for task creation."""
+    loop = TinyCUALoop()
+    digest = DigestedInformation(
+        context_summary="Build a note taking app with Python backend and web UI",
+        original_query="Can you build me a note taking app?",
+    )
+    worker = TinyCUAWorkerNode(
+        node_id="worker",
+        config=create_node_config("worker"),
+    )
+    worker.session = loop.root_session
+    loop.queue = NodeQueue(items=[worker])
+    worker.build_messages(
+        loop.root_session,
+        NodeHandoff(
+            source_node="digester",
+            target_node="worker",
+            instruction="Use this request context.",
+            payload={"digested_information": digest},
+        ),
+    )
+
+    worker.on_complete(
+        loop.queue,
+        DecisionResult(
+            route_label="task_creation",
+            analysis_response=LLMResult(),
+            classification_response=LLMResult(),
+        ),
+    )
+    task_create = loop.queue.items[1]
+    handoff = loop.queue._inputs[task_create.node_id]  # noqa: SLF001 - verifies queue wiring.
+
+    assert isinstance(handoff, NodeHandoff)
+    assert handoff.payload["digested_information"] is digest
 
 
 def test_task_executor_prompt_includes_workspace_path_discipline(tmp_path) -> None:
@@ -670,7 +711,9 @@ def test_prepare_node_merges_tool_contract_into_single_system_message() -> None:
     assert len(system_msgs) == 1
     assert messages[0]["role"] == "system"
     assert "You are the TaskExecutor" in messages[0]["content"]
-    assert "Tool-use contract" in messages[0]["content"]
+    assert "## Available actions" in messages[0]["content"]
+    assert "`write_file`" in messages[0]["content"]
+    assert "## Tool use" in messages[0]["content"]
 
 
 def test_normalize_system_messages_merges_late_system_messages() -> None:

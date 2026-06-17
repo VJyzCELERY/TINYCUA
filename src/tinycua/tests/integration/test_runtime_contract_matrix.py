@@ -341,9 +341,9 @@ async def test_runtime_retries_each_contract_node_then_completes_when_llm_correc
         )
         second_attempt = script.captured_messages_by_node[node][1]
         assert any(
-            "Runtime validation:" in str(message.get("content", ""))
+            "I need to" in str(message.get("content", ""))
             for message in second_attempt
-        ), f"{node} retry did not include runtime validation"
+        ), f"{node} retry did not include natural self-correction"
 
     # Task tree completed
     snapshot = agent.loop.get_state_snapshot()

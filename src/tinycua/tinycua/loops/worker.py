@@ -14,6 +14,7 @@ from tinycua.loops.task_nodes import (
     TinyCUATaskExecutorNode,
 )
 from tinycua.models.digested_information import DigestedInformation
+from tinycua.models.node_handoff import NodeHandoff
 from tinycua.tools.routing import WorkerRouteSelectionTool
 
 if TYPE_CHECKING:
@@ -25,7 +26,7 @@ if TYPE_CHECKING:
 
 _WORKER_INSTRUCTION = (
     "You are a worker node responsible for task planning and execution "
-    "orchestration. Analyze the digested information and determine the "
+    "orchestration. Analyze the request context and determine the "
     "appropriate next step: create tasks, recreate tasks, reanalyze, "
     "pass through, or proceed with execution. You MUST call "
     "select_worker_route with exactly one route. Do not produce a text-only route answer; "
@@ -36,7 +37,7 @@ _WORKER_INSTRUCTION = (
 )
 
 _WORKER_CONTINUATION = (
-    "Based on the digested information and current task state above, call "
+    "Based on the request context and current task state above, call "
     "select_worker_route with the next Worker route. Do not answer the user "
     "directly from this node."
 )
@@ -116,10 +117,15 @@ class TinyCUAWorkerNode(DecisionNode):
         self,
         session: Session,
         input: NodeInputLike,
+        resolved_tools: list[object] | None = None,
     ) -> list[dict[str, str]]:
         """Refresh dynamic route choices before each worker LLM request."""
         self.refresh_route_options()
-        return super().build_messages(session, input)
+        if isinstance(input, NodeHandoff):
+            digest = input.payload.get("digested_information")
+            if isinstance(digest, DigestedInformation):
+                self._current_digest = digest
+        return super().build_messages(session, input, resolved_tools)
 
     def _get_digested_input(self) -> DigestedInformation | None:
         """Retrieve DigestedInformation from session_context.
@@ -183,7 +189,7 @@ class TinyCUAWorkerNode(DecisionNode):
             queue: The node queue that can be mutated.
             response: The final LLM response (DecisionResult).
         """
-        digest = self._get_digested_input()
+        digest = self._current_digest or self._get_digested_input()
         if digest is not None:
             self._current_digest = digest
 
@@ -191,34 +197,45 @@ class TinyCUAWorkerNode(DecisionNode):
             response.route_label if isinstance(response, DecisionResult) else ""
         )
         if route_label == "task_creation":
+            spawned = [
+                TinyCUATaskCreateNode(
+                    node_id="task_create",
+                    config=create_node_config("task_create", self.config),
+                ),
+                TinyCUATaskAnalyzerNode(
+                    node_id="task_analyzer",
+                    config=create_node_config(
+                        "task_analyzer",
+                        self.config,
+                        mode="initial_analysis",
+                    ),
+                ),
+                TinyCUAAnalysisEffortNode(
+                    node_id="analysis_effort",
+                    config=create_node_config("analysis_effort", self.config),
+                ),
+                TinyCUATaskExecutorNode(
+                    node_id="task_executor",
+                    config=create_node_config("task_executor", self.config),
+                ),
+                TinyCUAResultReviewerNode(
+                    node_id="result_reviewer",
+                    config=create_node_config("result_reviewer", self.config),
+                ),
+            ]
             queue.spawn_after_current(
-                [
-                    TinyCUATaskCreateNode(
-                        node_id="task_create",
-                        config=create_node_config("task_create", self.config),
-                    ),
-                    TinyCUATaskAnalyzerNode(
-                        node_id="task_analyzer",
-                        config=create_node_config(
-                            "task_analyzer",
-                            self.config,
-                            mode="initial_analysis",
-                        ),
-                    ),
-                    TinyCUAAnalysisEffortNode(
-                        node_id="analysis_effort",
-                        config=create_node_config("analysis_effort", self.config),
-                    ),
-                    TinyCUATaskExecutorNode(
-                        node_id="task_executor",
-                        config=create_node_config("task_executor", self.config),
-                    ),
-                    TinyCUAResultReviewerNode(
-                        node_id="result_reviewer",
-                        config=create_node_config("result_reviewer", self.config),
-                    ),
-                ]
+                spawned
             )
+            if digest is not None:
+                queue.set_input(
+                    spawned[0],
+                    NodeHandoff(
+                        source_node=self.node_id,
+                        target_node=spawned[0].node_id,
+                        instruction="Use the digested request to create the task tree.",
+                        payload={"digested_information": digest},
+                    ),
+                )
         elif route_label in {"task_recreation", "task_reanalysis"}:
             queue.spawn_after_current(
                 [

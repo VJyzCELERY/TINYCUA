@@ -32,7 +32,7 @@ _DIGESTER_INSTRUCTION = (
 
 _DIGESTER_CONTINUATION = (
     "Based on the context-enhanced query above, produce focused "
-    "DigestedInformation for downstream Worker nodes. Preserve task-critical "
+    "request context for downstream work. Preserve task-critical "
     "details and omit irrelevant context. When prior context is available, "
     "consider using enhanced_context_retrieval before digest_information to "
     "ground task creation in existing information."

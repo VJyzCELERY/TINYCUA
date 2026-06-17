@@ -99,6 +99,7 @@ class TinyCUALoop(BaseLoop):
         self.session_dir = getattr(session_config, "session_dir", None)
         self._tool_artifact_seq = 0
         self._pending_handoffs: list[NodeHandoff] = []
+        self._resolved_tools_for_prompt: list[Tool] | None = None
 
     def get_working_messages(self) -> list[dict[str, Any]]:
         """Return the working messages captured during the last run.
@@ -411,37 +412,14 @@ class TinyCUALoop(BaseLoop):
         route_refresher = getattr(node, "refresh_route_options", None)
         if callable(route_refresher):
             route_refresher()
-        messages = self._build_node_messages(node, override_instructions)
         resolved_tools = node.config.tool_policy.resolve_tools(tools)
         self._bind_session_tools(resolved_tools, node)
-        if resolved_tools:
-            messages = self._merge_tool_protocol_into_system(messages, resolved_tools)
+        self._resolved_tools_for_prompt = resolved_tools
+        try:
+            messages = self._build_node_messages(node, override_instructions)
+        finally:
+            self._resolved_tools_for_prompt = None
         return messages, resolved_tools
-
-    def _tool_call_protocol_message(self, resolved_tools: list[Tool]) -> str:
-        """Return provider-agnostic tool-call instructions for local LLMs."""
-        tool_names = ", ".join(tool.name for tool in resolved_tools)
-        return (
-            "Tool-use contract: call available tools through native tool calling "
-            "whenever the provider supports it. If native tool calls are not "
-            "available, respond with ONLY strict JSON in this shape: "
-            '{"tool_calls":[{"name":"tool_name","arguments":{}}]}. '
-            f"Available tool names: {tool_names}. Do not wrap this JSON in "
-            "Markdown and do not include prose when making tool calls."
-        )
-
-    def _merge_tool_protocol_into_system(
-        self,
-        messages: list[dict[str, Any]],
-        resolved_tools: list[Tool],
-    ) -> list[dict[str, Any]]:
-        """Merge tool-use contract into the first system message."""
-        protocol = self._tool_call_protocol_message(resolved_tools)
-        return self._normalize_system_messages([
-            *messages[:1],
-            {"role": "system", "content": protocol},
-            *messages[1:],
-        ])
 
     def _normalize_system_messages(
         self, messages: list[dict[str, Any]],
@@ -862,12 +840,28 @@ class TinyCUALoop(BaseLoop):
                 continuation_rounds += 1
                 if continuation_rounds >= _MAX_TOOL_CONTINUATIONS:
                     break
+                attempt_tools = self._tools_after_executor_inspection(
+                    node,
+                    resolved_tools,
+                    all_tool_results,
+                )
+                if attempt_tools is not resolved_tools:
+                    attempt_messages.append(
+                        {
+                            "role": "assistant",
+                            "content": (
+                                "Inspection is complete. Next use an action tool "
+                                "such as write_file, edit_file, run_shell, "
+                                "run_python, web_search, or fetch_url; do not "
+                                "repeat read-only inspection."
+                            ),
+                        }
+                    )
                 raw_response = await self._call_agent_llm(
                     agent,
                     node,
                     attempt_messages,
                     attempt_tools,
-                    force_required_tool=False,
                 )
                 last_result = LLMResult(
                     content=sanitize_internal_reprs(raw_response.get("content") or ""),
@@ -919,8 +913,8 @@ class TinyCUALoop(BaseLoop):
                     "results for the active task."
                 )
             return (
-                "I need to continue the active task with available execution "
-                "tools, then record the result."
+                "I need to use an appropriate action or research tool for the "
+                "active task, then call task_result_update with that evidence."
             )
         return self._natural_retry_message(error, node, resolved_tools)
 
@@ -937,7 +931,7 @@ class TinyCUALoop(BaseLoop):
             messages.append(
                 {
                     "role": "assistant",
-                    "content": f"Runtime validation: {retry_message}",
+                    "content": retry_message,
                 }
             )
         return messages
@@ -955,6 +949,25 @@ class TinyCUALoop(BaseLoop):
         narrowed = [tool for tool in resolved_tools if tool.name == required]
         return narrowed or resolved_tools
 
+    def _tools_after_executor_inspection(
+        self,
+        node: Node,
+        resolved_tools: list[Tool],
+        tool_results: list[dict[str, Any]],
+    ) -> list[Tool]:
+        """Drop read-only executor tools after inspection has already succeeded."""
+        if node.node_id != "task_executor":
+            return resolved_tools
+        if self._successful_executor_action_results(tool_results):
+            return resolved_tools
+        if not self._successful_executor_inspection_results(tool_results):
+            return resolved_tools
+        read_only = {"read_file", "list_files", "task_inspect", "task_result_update"}
+        if all(tool.name not in read_only for tool in resolved_tools):
+            return resolved_tools
+        narrowed = [tool for tool in resolved_tools if tool.name not in read_only]
+        return narrowed or resolved_tools
+
     def _retry_required_tool_name(
         self,
         node: Node,
@@ -965,6 +978,7 @@ class TinyCUALoop(BaseLoop):
             return None
         retry_required_by_node = {
             "result_reviewer": "task_review_decision",
+            "task_assessor": "node_handoff",
         }
         required = retry_required_by_node.get(node.node_id)
         if required and required in retry_message:
@@ -1272,6 +1286,7 @@ class TinyCUALoop(BaseLoop):
             "task_create": 768,
             "task_analyzer": 1024,
             "task_assessor": 768,
+            "task_executor": 1536,
             "result_reviewer": 768,
             "result_aggregation": 1536,
         }
@@ -1348,7 +1363,8 @@ class TinyCUALoop(BaseLoop):
         """Build a JSON-protocol retry instruction without prose framing."""
         protocol_tools = self._structured_tool_protocol_tools(node, resolved_tools)
         return (
-            f"Retry attempt after validation failed: {error!s}. Your next "
+            f"I need to use the available tool correctly before continuing: {error!s}. "
+            "My next "
             "response must be ONLY strict JSON matching the tool-call protocol: "
             '{"tool_calls":[{"name":"tool_name","arguments":{}}]}. '
             "Choose one or more valid tools and arguments from these available "
@@ -1376,12 +1392,10 @@ class TinyCUALoop(BaseLoop):
         required = self._missing_or_required_tool_name(node, error_text)
         if required:
             return (
-                f"I need to call {required} with the current evidence to finalize "
-                f"the {node.node_id} step before proceeding."
+                f"I need to call {required} with the current evidence before continuing."
             )
         return (
-            f"I need to correct the {node.node_id} response based on the runtime "
-            f"validation error before proceeding: {error!s}"
+            f"I need to correct this response before continuing: {error!s}"
         )
 
     def _missing_or_required_tool_name(self, node: Node, error_text: str) -> str | None:
@@ -1416,7 +1430,7 @@ class TinyCUALoop(BaseLoop):
             preferred_names = {
                 "task_create": {"task_init"},
                 "task_analyzer": {"task_decompose", "task_update"},
-                "task_assessor": {"task_update"},
+                "task_assessor": {"node_handoff"},
             }.get(node.node_id)
         if preferred_names is None:
             return resolved_tools
@@ -1510,6 +1524,12 @@ class TinyCUALoop(BaseLoop):
         required = self._required_single_tool_choice_name(node)
         if required is None and self._requires_any_tool_choice(node):
             return "required" if resolved_tools else None
+        if (
+            required is None
+            and node.node_id == "task_assessor"
+            and {tool.name for tool in resolved_tools} == {"node_handoff"}
+        ):
+            return "required"
         if required is None:
             return None
         if required not in {tool.name for tool in resolved_tools}:
@@ -1672,6 +1692,19 @@ class TinyCUALoop(BaseLoop):
             validation.errors.append(
                 "Final response must be natural user-facing text, not a tool-call "
                 "protocol payload."
+            )
+        internal_markers = (
+            "Based on the external user request above",
+            "Task under review:",
+            "## Current State",
+            "Completed task evidence:",
+            '{"aggregation":',
+        )
+        if any(marker in content for marker in internal_markers):
+            validation.is_valid = False
+            validation.errors.append(
+                "Final response must summarize the outcome, not replay internal "
+                "node prompts, task review text, or aggregation JSON."
             )
         store = self.root_session.task_store
         if (
@@ -2466,7 +2499,7 @@ class TinyCUALoop(BaseLoop):
 
         if node.session is None:
             return None
-        if node.node_id not in {"digester", "worker", "result_aggregation"}:
+        if node.node_id not in {"digester", "result_aggregation"}:
             return None
         for entry in reversed(node.session.session_context):
             content = getattr(entry, "content", None)
@@ -3365,29 +3398,8 @@ class TinyCUALoop(BaseLoop):
         return content, llm_result.tool_calls
 
     def _inject_active_task_input(self, node: Node) -> None:
-        """Inject read-only active task context for TaskExecutor nodes."""
-        if node.node_id != "task_executor" or self.queue.current is not node:
-            return
-        active = self.root_session.task_store.get_active_task()
-        if active is None or node.node_id in self.queue._inputs:  # noqa: SLF001 - loop owns queue internals.
-            return
-        self.queue.set_input(
-            node,
-            [
-                {
-                    "role": "assistant",
-                    "content": json.dumps(
-                        {
-                            "active_task_id": active.task_id,
-                            "active_task": self._json_safe(active.__dict__),
-                            "task_tree": self._task_state_snapshot(),
-                            "read_only": True,
-                        },
-                        default=str,
-                    ),
-                }
-            ],
-        )
+        """No-op: TaskExecutor renders markdown context in build_continuation."""
+        return
 
     def _record_node_content_transcript(self, node: Node, content: str) -> None:
         """Record a bounded, deduplicated node transcript content event."""
@@ -3476,7 +3488,11 @@ class TinyCUALoop(BaseLoop):
             original_instruction = node._instruction  # noqa: SLF001 - transport shim.
             node._instruction = override_instructions  # noqa: SLF001 - transport shim.
         try:
-            return node.build_messages(context_session, node_input or {})
+            return node.build_messages(
+                context_session,
+                node_input or {},
+                self._resolved_tools_for_prompt,
+            )
         finally:
             if original_instruction is not None:
                 node._instruction = original_instruction  # noqa: SLF001
