@@ -35,40 +35,59 @@ async def run_streaming(agent: Any, prompt: str) -> str:
 
 
 class LiveStreamPrinter:
-    """Render stream events as node reasoning/output text plus tool markers."""
+    """Render stream events as ``[node_id] {content}`` lines.
+
+    Each event is printed on its own line with the node id as a prefix beside
+    the content (not as a ``--- node_id section ---`` block header). Multi-line
+    output carries the ``[node_id]`` prefix only on the first line so the
+    stream stays readable. Deterministic orchestration nodes
+    (``node.started``/``node.completed``) are rendered too so effort passes
+    are visible. Tool results and usage are summarized human-readably; no raw
+    JSON event payloads are emitted.
+    """
 
     def __init__(self) -> None:
-        self._section: tuple[str, str] | None = None
         self._tool_json = ToolProtocolBuffer()
+        # Track the node id that currently owns the prefix so continuation
+        # lines of a multi-line delta don't repeat the prefix.
+        self._current_prefix_node: str | None = None
 
     def handle_event(self, event: dict[str, Any]) -> str:
         """Print one event and return final output text, if any."""
         event_type = str(event.get("type", ""))
         node_id = str(event.get("node_id") or event.get("node") or "unknown")
         if event_type == "response.reasoning.delta":
-            self._print_text(node_id, "reasoning", event_delta_text(event))
+            self._print_text(node_id, event_delta_text(event), kind="reasoning")
             return ""
         if event_type == "response.output_text.delta":
             return self._handle_output_delta(node_id, str(event.get("delta", "")))
         if event_type in {"response.tool_call", "tool_call.ready"}:
-            self._print_tool_call(node_id, tool_name_from_event(event))
+            self._print_marker(node_id, f"tool_call: {tool_name_from_event(event)}")
+            return ""
+        if event_type == "node.started":
+            self._print_marker(node_id, "start")
+            return ""
+        if event_type == "node.completed":
+            content = str(event.get("content") or "")
+            finish_reason = str(event.get("finish_reason") or "")
+            if content:
+                self._print_text(node_id, content, kind="output")
+            elif finish_reason:
+                self._print_marker(node_id, f"completed: {finish_reason}")
             return ""
         if event_type == "node.error":
-            self._print_marker(node_id, "errors", "[node-error]")
+            self._print_marker(node_id, "node-error")
             return ""
         if event_type == "response.usage":
-            self._print_marker(
-                node_id,
-                "usage",
-                f"[usage] {format_usage(event.get('usage') or {})}",
-            )
+            self._print_marker(node_id, f"usage: {format_usage(event.get('usage') or {})}")
+            return ""
         return ""
 
     def flush(self) -> str:
         """Flush pending output text that was not a JSON tool protocol payload."""
         text = self._tool_json.flush_text()
         if text:
-            self._print_text(self._tool_json.last_node_id or "unknown", "output", text)
+            self._print_text(self._tool_json.last_node_id or "unknown", text, kind="output")
         return text
 
     def _handle_output_delta(self, node_id: str, delta: str) -> str:
@@ -76,32 +95,40 @@ class LiveStreamPrinter:
             return ""
         result = self._tool_json.push(node_id, delta)
         if result.tool_name:
-            self._print_tool_call(node_id, result.tool_name)
+            self._print_marker(node_id, f"tool_call: {result.tool_name}")
             return ""
         if result.text:
-            self._print_text(node_id, "output", result.text)
+            self._print_text(node_id, result.text, kind="output")
             return result.text
         return ""
 
-    def _print_text(self, node_id: str, section: str, text: str) -> None:
+    def _print_text(self, node_id: str, text: str, *, kind: str = "output") -> None:
+        """Print text with a ``[node_id] `` prefix on the first line only.
+
+        Continuation lines print without the prefix so multi-line reasoning or
+        output stays readable. A blank line separates different nodes.
+        """
         if not text:
             return
-        self._print_header(node_id, section)
+        if self._current_prefix_node != node_id:
+            # New node — emit a blank separator and start with the prefix.
+            if self._current_prefix_node is not None:
+                print(flush=True)
+            self._current_prefix_node = node_id
+            first, _, rest = text.partition("\n")
+            print(f"[{node_id}] {first}", flush=True)
+            if rest:
+                print(rest, end="", flush=True)
+            return
+        # Continuation of the same node's output — no prefix.
         print(text, end="", flush=True)
 
-    def _print_tool_call(self, node_id: str, tool_name: str) -> None:
-        self._print_marker(node_id, "tools", f"[tool-call] {tool_name}")
-
-    def _print_marker(self, node_id: str, section: str, marker: str) -> None:
-        self._print_header(node_id, section)
-        print(marker, flush=True)
-
-    def _print_header(self, node_id: str, section: str) -> None:
-        key = (node_id, section)
-        if self._section == key:
-            return
-        self._section = key
-        print(f"\n\n--- {node_id} {section} ---", flush=True)
+    def _print_marker(self, node_id: str, marker: str) -> None:
+        """Print a single-line marker with the ``[node_id]`` prefix."""
+        if self._current_prefix_node is not None and self._current_prefix_node != node_id:
+            print(flush=True)
+        self._current_prefix_node = node_id
+        print(f"[{node_id}] {marker}", flush=True)
 
 
 class ToolProtocolResult:

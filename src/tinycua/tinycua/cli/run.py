@@ -6,13 +6,14 @@ import argparse
 import asyncio
 import json
 import logging
+import os
 import time
 import threading
 from collections.abc import Coroutine
 from pathlib import Path
 from typing import Any
 
-from tinycua_sdk.agent import Agent
+from dotenv import load_dotenv
 
 from tinycua.cli.config import build_language_model
 from tinycua.cli.config import load_config
@@ -66,6 +67,12 @@ def _run_async_safely(coro: Coroutine[Any, Any, str]) -> str:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse CLI arguments for the ``tinycua run`` subcommand.
 
+    Streaming is always on (no ``--stream`` flag). The default workdir is the
+    current working directory. Env-derived defaults (``--worker-effort``,
+    ``--provider-type``, ``--model``, ``--provider-url``, ``--api-key``) are
+    resolved after ``_load_default_env`` runs in ``main()``, so values set in
+    ``src/tinycua/.env`` are honored.
+
     Args:
         argv: Command-line arguments. Uses sys.argv[1:] when None.
 
@@ -74,7 +81,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """
     parser = argparse.ArgumentParser(
         prog="tinycua run",
-        description="Run a TinyCUA agent task with a local model endpoint.",
+        description="Run a TinyCUA agent task. Streams node/tool activity live.",
     )
     parser.add_argument(
         "prompt",
@@ -88,34 +95,38 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Task prompt for one-shot invocation. Overrides positional prompt.",
     )
     parser.add_argument(
-        "--timeout",
-        type=int,
-        default=600,
-        help="Maximum execution time in seconds (default: 600).",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=Path("/tmp_workspace/results"),
-        help="Output directory for transcript and log files (default: /tmp_workspace/results).",
-    )
-    parser.add_argument(
-        "--workspace",
-        type=Path,
-        default=Path("/tmp_workspace"),
-        help="Working directory for the agent session (default: /tmp_workspace).",
-    )
-    parser.add_argument(
         "--dir",
-        dest="workspace",
         type=Path,
-        help="Alias for --workspace; directory where generated files are written.",
+        default=Path.cwd(),
+        help="Workspace directory where generated files are written (default: cwd).",
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=None,
+        help="Override TINYCUA_MODEL env var.",
+    )
+    parser.add_argument(
+        "--provider-url",
+        dest="provider_url",
+        type=str,
+        default=None,
+        help="Override TINYCUA_BASE_URL env var (provider base URL).",
     )
     parser.add_argument(
         "--base-url",
+        dest="provider_url",
         type=str,
         default=None,
-        help="Override TINYCUA_BASE_URL env var.",
+        help=argparse.SUPPRESS,  # hidden alias for --provider-url
+    )
+    parser.add_argument(
+        "--provider-type",
+        dest="provider_type",
+        type=str,
+        default=os.environ.get("TINYCUA_PROVIDER_TYPE", "openai-chat-completions"),
+        help="Provider API type: openai-chat-completions or openai-responses "
+        "(default: env TINYCUA_PROVIDER_TYPE or openai-chat-completions).",
     )
     parser.add_argument(
         "--api-key",
@@ -124,10 +135,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Override TINYCUA_API_KEY env var.",
     )
     parser.add_argument(
-        "--model",
-        type=str,
-        default="llama3",
-        help="Override TINYCUA_MODEL env var (default: llama3).",
+        "--worker-effort",
+        choices=["none", "low", "medium", "high"],
+        default=os.environ.get("TINYCUA_WORKER_EFFORT", "medium"),
+        help="Analysis effort pass count (default: env TINYCUA_WORKER_EFFORT or medium).",
+    )
+    parser.add_argument(
+        "--env",
+        dest="env_file",
+        type=Path,
+        default=None,
+        help="Path to an .env file to load before resolving config (default: src/tinycua/.env).",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=600,
+        help="Maximum execution time in seconds (default: 600).",
     )
     parser.add_argument(
         "--verbose",
@@ -135,83 +159,81 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=False,
         help="Enable debug logging output.",
     )
-    parser.add_argument(
-        "--stream",
-        action="store_true",
-        default=False,
-        help="Show live node reasoning, tool calls, tool results, and final output.",
-    )
-    parser.add_argument(
-        "--worker-effort",
-        choices=["none", "low", "medium", "high"],
-        default="medium",
-        help="Analysis effort pass count for worker mode (default: medium).",
-    )
     args = parser.parse_args(argv)
     if args.prompt_option:
         args.prompt = args.prompt_option
     delattr(args, "prompt_option")
+    # `--base-url` and `--provider-url` share dest=provider_url; the first wins.
+    # argparse already merged them into args.provider_url. Expose base_url as
+    # a compatibility alias for callers/tests that still read args.base_url.
+    args.base_url = args.provider_url
     return args
 
 
 def run_command(
     prompt: str,
-    timeout: int,
-    output_dir: Path,
-    workspace: Path,
-    base_url: str | None,
+    dir: Path,
+    provider_url: str | None,
     api_key: str | None,
     model: str | None,
+    provider_type: str | None,
+    worker_effort: str,
+    timeout: int,
     verbose: bool,
-    stream: bool = False,
-    worker_effort: str = "medium",
+    env_file: Path | None,
 ) -> int:
-    """Execute the tinycua run command.
+    """Execute the tinycua run command (always streaming).
 
-    Orchestrates config loading, agent creation, execution with timeout
-    watchdog, and transcript/log writing.
+    The workspace is ``dir``; run artifacts (trace JSON, transcript, logs) are
+    written under ``<dir>/.tinycua-artifacts`` so they stay grouped with the
+    generated workspace files.
 
     Args:
         prompt: Task prompt for the agent.
-        timeout: Maximum execution time in seconds.
-        output_dir: Directory for transcript and log output.
-        workspace: Working directory for the agent session.
-        base_url: CLI override for base URL.
+        dir: Workspace directory where generated files are written.
+        provider_url: CLI override for provider base URL.
         api_key: CLI override for API key.
         model: CLI override for model name.
-        verbose: Whether to enable debug logging.
-        stream: Whether to render live node/tool progress while running.
+        provider_type: CLI override for provider type (chat-completions/responses).
         worker_effort: Analysis effort setting passed to worker runtime.
+        timeout: Maximum execution time in seconds.
+        verbose: Whether to enable debug logging.
+        env_file: Optional .env file to load before resolving config.
 
     Returns:
         Exit code: 0 success, 1 error, 124 timeout.
     """
+    # Load an explicit --env file if provided (the project .env was already
+    # loaded by _load_default_env in main() before argparse ran).
+    if env_file is not None and env_file.exists():
+        load_dotenv(env_file, override=False)
+
     if verbose:
         logging.basicConfig(level=logging.DEBUG)
     else:
         logging.basicConfig(level=logging.INFO)
 
-    # Ensure output directory exists and is writable
-    output_dir.mkdir(parents=True, exist_ok=True)
-    _test_file = output_dir / ".write_test"
+    workspace = dir
+    workspace.mkdir(parents=True, exist_ok=True)
+    artifact_dir = workspace / ".tinycua-artifacts"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+
+    # Ensure artifact directory is writable
+    _test_file = artifact_dir / ".write_test"
     try:
         _test_file.touch()
         _test_file.unlink()
     except OSError:
-        print(f"Output directory not writable: {output_dir}", flush=True)
+        print(f"Artifact directory not writable: {artifact_dir}", flush=True)
         return 1
 
-    # Ensure workspace directory exists and pass it through the public session
-    # filesystem contract instead of mutating process-global CWD.
-    workspace.mkdir(parents=True, exist_ok=True)
-
-    log_path = output_dir / "agent.log"
-    transcript_path = output_dir / "transcript.jsonl"
+    log_path = artifact_dir / "agent.log"
+    transcript_path = artifact_dir / "transcript.jsonl"
 
     write_log_entry(log_path, "start", "info", {"prompt": prompt, "timeout": timeout})
 
     try:
-        config = load_config(base_url, api_key, model)
+        config = load_config(provider_url, api_key, model, provider_type)
     except ValueError as e:
         write_log_entry(log_path, "config", "error", {"error": str(e)})
         print(f"Configuration error: {e}", flush=True)
@@ -220,13 +242,14 @@ def run_command(
     write_log_entry(log_path, "config", "info", {
         "base_url": config["base_url"],
         "model": config["model"],
+        "provider_type": config["provider_type"],
     })
 
     try:
         agent = create_tinycua_agent(
             session_config=SessionConfig(
                 workspace_dir=workspace,
-                artifact_dir=output_dir,
+                artifact_dir=artifact_dir,
                 worker_effort=worker_effort,
             ),
             llm_model=build_language_model(config),
@@ -250,10 +273,9 @@ def run_command(
     write_log_entry(log_path, "agent_run", "info", {"prompt": prompt})
 
     try:
-        if stream:
-            result = _run_async_safely(run_streaming(agent, prompt))
-        else:
-            result = _run_async_safely(_run_agent_with_timeout(agent, prompt, timeout_event))
+        # Streaming is always on: run_streaming renders node/tool activity live
+        # and returns the final response text.
+        result = _run_async_safely(run_streaming(agent, prompt))
         elapsed = time.monotonic() - start_time
 
         if timeout_event.is_set():
@@ -278,22 +300,19 @@ def run_command(
         write_openclaw_jsonl(openclaw_records, transcript_path)
 
         # Backward-compatible raw transcript
-        raw_transcript_path = output_dir / "transcript.raw.jsonl"
+        raw_transcript_path = artifact_dir / "transcript.raw.jsonl"
         write_transcript(working_messages, raw_transcript_path)
 
         # Usage summary
-        usage_path = output_dir / "usage.json"
+        usage_path = artifact_dir / "usage.json"
         write_usage_summary(usage_path, usage_events, elapsed)
 
-        _write_runtime_exports(loop, output_dir)
+        _write_runtime_exports(loop, artifact_dir)
 
         print(f"Agent completed in {elapsed:.1f}s", flush=True)
         if result:
             print(result, flush=True)
-        if stream:
-            print_live_summary(loop, workspace, output_dir, result)
-        else:
-            _print_runtime_summary(loop, workspace, output_dir)
+        print_live_summary(loop, workspace, artifact_dir, result)
 
         return 0
     except asyncio.CancelledError:
@@ -307,37 +326,6 @@ def run_command(
         return 1
     finally:
         timer.cancel()
-
-
-async def _run_agent_with_timeout(
-    agent: Agent,
-    prompt: str,
-    timeout_event: threading.Event,
-) -> str:
-    """Run the agent with cooperative timeout checking.
-
-    Uses streaming mode to enable usage event capture. Events are
-    consumed but not yielded — the final response string is returned.
-
-    Args:
-        agent: The TinyCUA agent instance.
-        prompt: Task prompt string.
-        timeout_event: Threading event set when timeout expires.
-
-    Returns:
-        The agent response string.
-    """
-    stream_iter = await agent.run(prompt, stream=True)
-    result = ""
-    try:
-        async for event in stream_iter:
-            if timeout_event.is_set():
-                raise asyncio.CancelledError
-            if event.get("type") == "response.output_text.delta":
-                result += event.get("delta", "")
-    except asyncio.CancelledError:
-        raise
-    return result
 
 
 def _write_runtime_exports(loop: Any, output_dir: Path) -> None:
@@ -377,67 +365,6 @@ def _write_runtime_exports(loop: Any, output_dir: Path) -> None:
             )
         )
         (output_dir / "transcript.txt").write_text(transcript_text, encoding="utf-8")
-
-
-def _print_runtime_summary(loop: Any, workspace: Path, output_dir: Path) -> None:
-    """Print notebook-like one-shot diagnostics for CLI runs."""
-    state_snapshot = _safe_loop_call(loop, "get_state_snapshot", default={})
-    trace = _safe_loop_call(loop, "get_execution_trace", default=[])
-    print("\n=== SESSION DIRECTORIES ===", flush=True)
-    print(f"workspace_dir={workspace.resolve()}", flush=True)
-    print(f"artifact_dir={output_dir.resolve()}", flush=True)
-    print("\n=== TRACE ===", flush=True)
-    for index, step in enumerate(trace, start=1):
-        print(f"[{index}] {step.get('node_id')} ({step.get('node_type')})", flush=True)
-        print(f"    route: {step.get('route_label')}", flush=True)
-        print(f"    terminal: {step.get('is_terminal')}", flush=True)
-        print(f"    tools: {step.get('resolved_tool_names', [])}", flush=True)
-        if step.get("task_tree"):
-            print(
-                f"    task_tree_root: {step['task_tree'].get('root_task_id')}",
-                flush=True,
-            )
-        if step.get("llm_content"):
-            print(f"    llm_content: {step['llm_content']}", flush=True)
-        if step.get("tool_calls"):
-            print(f"    tool_calls: {step['tool_calls']}", flush=True)
-        if step.get("validation_errors"):
-            print(f"    validation_errors: {step['validation_errors']}", flush=True)
-        if step.get("tool_results"):
-            print(f"    tool_results: {step['tool_results']}", flush=True)
-        print(flush=True)
-    print("=== TASK TREE ===", flush=True)
-    if isinstance(state_snapshot, dict):
-        print(state_snapshot.get("task_tree_text", "No tasks."), flush=True)
-    print("\n=== WORKSPACE FILES ===", flush=True)
-    files = sorted(
-        path.relative_to(workspace)
-        for path in workspace.rglob("*")
-        if path.is_file() and _is_visible_workspace_file(path, workspace)
-    )
-    if not files:
-        print("No workspace files created yet.", flush=True)
-    for path in files:
-        print(f"- {path}", flush=True)
-    print("\n=== TRANSCRIPT EVENTS ===", flush=True)
-    print(
-        _safe_loop_call(
-            loop,
-            "get_transcript_text",
-            default=state_snapshot.get("transcript_text", "")
-            if isinstance(state_snapshot, dict)
-            else "",
-            include_node_calls=True,
-        ),
-        flush=True,
-    )
-
-
-def _is_visible_workspace_file(path: Path, workspace: Path) -> bool:
-    """Return whether a generated file should be shown in summaries."""
-    ignored_parts = {".venv", "venv", "__pycache__"}
-    relative_parts = path.relative_to(workspace).parts
-    return not ignored_parts.intersection(relative_parts)
 
 
 def _safe_loop_call(loop: Any, method_name: str, *, default: Any, **kwargs: Any) -> Any:
