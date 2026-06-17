@@ -14,7 +14,7 @@ opaque mutation instructions for TinyCUALoop to apply later.
 | TinyCUATaskAnalyzerNode | structural task tools; TaskInit/TaskCreate only when recreation is requested |
 | TinyCUATaskAssessorNode | task assessment/read/update tools as needed |
 | TinyCUATaskExecutorNode | active task execution and task result update tools |
-| TinyCUAResultReviewerNode | review decision and read-only inspection tools; task state transitions owned by TaskStateStore |
+| TinyCUAResultReviewerNode | review decision and task result/context update tools |
 
 ## Path-Specific Tool Semantics
 

@@ -195,8 +195,8 @@ def test_result_reviewer_retry_narrows_to_review_decision_tool() -> None:
     assert [tool.name for tool in retry_tools] == ["task_review_decision"]
 
 
-def test_task_analyzer_retry_prefers_decompose_tool() -> None:
-    """Analyzer retry narrows to task_decompose for local model reliability."""
+def test_task_analyzer_retry_keeps_update_and_decompose_tools() -> None:
+    """Analyzer retry keeps both valid task-state choices available."""
     loop = TinyCUALoop()
     analyzer = TinyCUATaskAnalyzerNode(
         node_id="task_analyzer",
@@ -216,7 +216,8 @@ def test_task_analyzer_retry_prefers_decompose_tool() -> None:
     retry_tools = loop._tools_for_retry_attempt(analyzer, tools, retry_message)
 
     assert "task_decompose" in retry_message
-    assert [tool.name for tool in retry_tools] == ["task_decompose"]
+    retry_tool_names = {tool.name for tool in retry_tools}
+    assert {"task_update", "task_decompose"}.issubset(retry_tool_names)
 
 
 def test_task_executor_requires_a_tool_without_narrowing_tools() -> None:

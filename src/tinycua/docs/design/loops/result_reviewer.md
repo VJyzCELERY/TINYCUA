@@ -26,7 +26,7 @@ See the full handoff protocol in
 
 ## Outputs / State Produced
 
-- `ReviewerDecision` with one of: `approved`, `needs_revision`, `rejected`, `replan`, `open_question`.
+- `ReviewerDecision` with one of: `accept`, `retry`, `replan`, `open_question`.
 - Updated active `TaskResult` and task context.
 
 ## Tools
@@ -34,15 +34,14 @@ See the full handoff protocol in
 | Tool Scope | Description |
 |------------|-------------|
 | Review decision tools | Evaluate executor output and produce reviewer decision. |
-| Read-only inspection tools | Inspect workspace/artifact state (`read_file`, `list_files`) before approval. |
+| Task result / context update tools | Update active task result and context based on decision. |
 
 ## Reviewer Decisions
 
 | Decision | Behavior |
 |----------|----------|
-| `approved` | Semantic check passes; update active task status/result to accepted. |
-| `needs_revision` | Plan is solid but execution result does not satisfy success criteria. |
-| `rejected` | Hard failure; task or result is not recoverable. |
+| `accept` | Semantic check passes; update active task status/result to accepted. |
+| `retry` | Plan is solid but execution result does not satisfy success criteria. |
 | `replan` | Executor result indicates current plan/task decomposition should change. |
 | `open_question` | Reviewer remains active; installs mandatory passthrough for user input. |
 
@@ -58,14 +57,14 @@ See the full handoff protocol in
 
 ```text
 ResultReviewer completes:
-  approved:
+  accept:
     → Update active task status/result
     → If root task done:
         advance to ResultAggregationNode → ResponseNode
     → If root task not done:
         advance to TaskExecutor (next active task)
 
-  needs_revision:
+  retry:
     → Advance to TaskExecutor (retry same task)
 
   replan:
@@ -99,7 +98,7 @@ ResultReviewer replan:
 ## Failure / Retry Behavior
 
 - Failure count tracked at loop/root-session level.
-- Reset on success (`approved`).
+- Reset on success (`accept`).
 - Stop retrying when configurable threshold is reached (default: 5).
 
 ## Related Config

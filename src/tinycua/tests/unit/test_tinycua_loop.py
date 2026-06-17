@@ -750,14 +750,15 @@ async def test_stream_task_executor_receives_injected_active_task_context():
 
     agent._call_llm = mock_stream
 
-    async for _event in loop._stream_node_events(
-        executor,
-        agent,
-        [],
-        None,
-        loop.queue.input_for_current(),
-    ):
-        pass
+    with pytest.raises(NodeExecutionError):
+        async for _event in loop._stream_node_events(
+            executor,
+            agent,
+            [],
+            None,
+            loop.queue.input_for_current(),
+        ):
+            pass
 
     rendered = "\n".join(str(message.get("content", "")) for message in captured_messages)
     assert "Create requirements.txt" in rendered

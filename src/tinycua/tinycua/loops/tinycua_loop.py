@@ -953,7 +953,6 @@ class TinyCUALoop(BaseLoop):
         if not retry_message:
             return None
         retry_required_by_node = {
-            "task_analyzer": "task_decompose",
             "result_reviewer": "task_review_decision",
         }
         required = retry_required_by_node.get(node.node_id)
@@ -1073,6 +1072,9 @@ class TinyCUALoop(BaseLoop):
                     self.queue.items.append(terminal)
                     existing_terminal_ids.add(terminal.node_id)
             return True
+        if not self._successful_executor_inspection_results(tool_results):
+            # ponytail: no usable tool evidence means fail closed; don't respawn forever.
+            return False
         active.metadata["runtime_validation_failure"] = {
             "source_node_id": node.node_id,
             "errors": list(validation.errors),
@@ -1136,6 +1138,24 @@ class TinyCUALoop(BaseLoop):
             if isinstance(output, dict) and output.get("timed_out") is True:
                 continue
             if isinstance(output, dict) and output.get("exit_code") not in (None, 0):
+                continue
+            useful.append(item)
+        return useful
+
+    def _successful_executor_inspection_results(
+        self, tool_results: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Return successful read-only executor evidence usable for retry."""
+        useful = []
+        for item in tool_results:
+            if not isinstance(item, dict) or item.get("allowed") is False:
+                continue
+            if item.get("name") not in {"read_file", "list_files", "task_inspect"}:
+                continue
+            output = item.get("output")
+            if isinstance(output, dict) and (
+                output.get("success") is False or output.get("error")
+            ):
                 continue
             useful.append(item)
         return useful
@@ -1355,8 +1375,6 @@ class TinyCUALoop(BaseLoop):
 
     def _missing_or_required_tool_name(self, node: Node, error_text: str) -> str | None:
         """Return the most likely missing required tool for a retry message."""
-        if node.node_id == "task_analyzer" and "task_decompose" in error_text:
-            return "task_decompose"
         for tool_name in getattr(node.config.retry_policy, "required_tool_calls", []):
             if tool_name and tool_name in error_text:
                 return str(tool_name)
@@ -1714,23 +1732,31 @@ class TinyCUALoop(BaseLoop):
                 "result, or report a blocked state; do not return a plan-only answer."
             )
             return validation
-        # Success claims must be backed by at least one successful action/research tool
-        successful_updates = [
-            item for item in tool_results
-            if item.get("name") == "task_result_update"
-            and isinstance(item.get("output"), dict)
-            and item["output"].get("success") is True
-        ]
-        if successful_updates:
+        # Success claims must be backed by at least one successful action/research tool.
+        # ponytail: task_result_update output success means the tool worked; persisted
+        # TaskResult.success is the task success flag.
+        successful_task_ids = []
+        for item in tool_results:
+            if item.get("name") != "task_result_update":
+                continue
+            output = item.get("output")
+            if not isinstance(output, dict) or output.get("success") is not True:
+                continue
+            task_id = output.get("task_id")
+            if not isinstance(task_id, str) or task_id not in self.root_session.task_store.tasks:
+                continue
+            task = self.root_session.task_store.tasks[task_id]
+            if task.result is not None and task.result.success is True:
+                successful_task_ids.append(task_id)
+        if successful_task_ids:
             # Include evidence from task artifacts (enriched from partial results)
-            task_id = successful_updates[0].get("output", {}).get("task_id")
+            task_id = successful_task_ids[0]
             all_evidence = list(tool_results)
-            if isinstance(task_id, str) and task_id in self.root_session.task_store.tasks:
-                task = self.root_session.task_store.tasks[task_id]
-                result_artifacts = list(task.result.artifacts) if task.result else []
-                for artifact in [*task.artifacts, *result_artifacts]:
-                    if artifact.get("kind") == "file":
-                        all_evidence.append({"name": artifact.get("metadata", {}).get("tool_name", "write_file")})
+            task = self.root_session.task_store.tasks[task_id]
+            result_artifacts = list(task.result.artifacts) if task.result else []
+            for artifact in [*task.artifacts, *result_artifacts]:
+                if artifact.get("kind") == "file":
+                    all_evidence.append({"name": artifact.get("metadata", {}).get("tool_name", "write_file")})
             if not self._successful_executor_action_results(all_evidence):
                 validation.is_valid = False
                 validation.errors.append(

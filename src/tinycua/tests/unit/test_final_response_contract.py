@@ -282,8 +282,8 @@ async def test_response_node_rejects_success_before_all_tasks_complete() -> None
         )
 
 
-def test_task_executor_validation_failure_retries_executor_not_replan() -> None:
-    """Executor failures must not bypass ResultReviewer into assessor/analyzer."""
+def test_task_executor_validation_failure_without_tool_evidence_fails_closed() -> None:
+    """Executor prose-only failures do not respawn executor forever."""
     executor = TinyCUATaskExecutorNode(
         node_id="task_executor",
         config=create_node_config("task_executor"),
@@ -306,12 +306,11 @@ def test_task_executor_validation_failure_retries_executor_not_replan() -> None:
         LLMResult(content="I forgot task_result_update."),
     )
 
-    assert recovered is True
+    assert recovered is False
     assert task.result is None
     assert task.reviewer_decisions == []
     assert loop.root_session.task_store.active_task_id == task.task_id
     assert [node.node_id for node in loop.queue.items] == [
-        "task_executor",
         "task_executor",
         "result_reviewer",
         "response",

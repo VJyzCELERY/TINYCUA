@@ -84,6 +84,8 @@ class RuntimeContractScript:
             return "query_analyst"
         if "select_worker_route" in tool_names:
             return "worker"
+        if "digest_information" in tool_names:
+            return "digester"
         if "task_init" in tool_names:
             return "task_create"
         if "task_decompose" in tool_names:
@@ -94,6 +96,8 @@ class RuntimeContractScript:
             return "task_executor"
         if "task_review_decision" in tool_names:
             return "result_reviewer"
+        if tool_names == {"task_inspect"}:
+            return "result_aggregation"
         return "final"
 
     def _is_bad_call(self, node: str) -> bool:
@@ -117,6 +121,16 @@ class RuntimeContractScript:
             return {
                 "content": "",
                 "tool_calls": [{"function": {"name": "select_worker_route", "arguments": '{"route":"task_creation"}'}}],
+            }
+        if node == "digester":
+            if any(
+                m.get("role") == "tool" and "digest_information" in str(m.get("content", ""))
+                for m in messages
+            ):
+                return {"content": "Digest recorded.", "tool_calls": []}
+            return {
+                "content": "",
+                "tool_calls": [{"function": {"name": "digest_information", "arguments": '{"information":"Build a note-taking app."}'}}],
             }
         if node == "task_create":
             if any(
@@ -214,6 +228,8 @@ class RuntimeContractScript:
                 "content": "",
                 "tool_calls": [{"function": {"name": "task_review_decision", "arguments": f'{{"decision":"approved","rationale":"Verified","task_id":"{task_id}"}}'}}],
             }
+        if node == "result_aggregation":
+            return {"content": "All tasks completed successfully.", "tool_calls": []}
         # Final / aggregation / response
         return {"content": "All tasks completed successfully.", "tool_calls": []}
 
@@ -265,9 +281,9 @@ async def test_runtime_routes_full_worker_path_when_llm_calls_correct_tools(tmp_
 
     # All required nodes appear in trace
     for required_node in (
-        "query_analyst", "worker", "task_create",
+        "query_analyst", "digester", "worker", "task_create",
         "task_analyzer", "task_executor", "result_reviewer",
-        "result_aggregation", "response",
+        "analysis_effort", "result_aggregation", "response",
     ):
         assert required_node in node_ids, f"{required_node} not in trace"
 
@@ -322,6 +338,11 @@ async def test_runtime_retries_each_contract_node_then_completes_when_llm_correc
         assert script.calls_by_node.get(node, 0) >= 2, (
             f"{node} called {script.calls_by_node.get(node, 0)} times, expected ≥2"
         )
+        second_attempt = script.captured_messages_by_node[node][1]
+        assert any(
+            "Runtime validation:" in str(message.get("content", ""))
+            for message in second_attempt
+        ), f"{node} retry did not include runtime validation"
 
     # Task tree completed
     snapshot = agent.loop.get_state_snapshot()
@@ -358,7 +379,7 @@ async def test_runtime_fails_closed_when_route_node_never_calls_required_tool(tm
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("node_id", ["task_create", "task_analyzer", "result_reviewer"])
+@pytest.mark.parametrize("node_id", ["task_create", "task_analyzer", "task_executor", "result_reviewer"])
 async def test_runtime_fails_without_fabricating_task_state_when_task_node_never_calls_tool(tmp_path: Path, node_id: str) -> None:
     """Task-state node that never calls tool fails without producing fake completed state."""
     script = RuntimeContractScript(bad_forever_nodes=frozenset({node_id}))
