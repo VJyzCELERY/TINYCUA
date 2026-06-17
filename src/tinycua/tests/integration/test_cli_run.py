@@ -6,7 +6,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -30,6 +30,34 @@ class TestCLIRunArgumentParsing:
         args = parse_args(["hello world"])
         assert args.prompt == "hello world"
 
+    def test_run_accepts_prompt_option_and_dir_alias(self, tmp_path):
+        """Given --prompt and --dir, one-shot args are normalized."""
+        from tinycua.cli.run import parse_args
+
+        args = parse_args(["--dir", str(tmp_path), "--prompt", "hello world"])
+
+        assert args.prompt == "hello world"
+        assert args.workspace == tmp_path
+
+    def test_run_accepts_stream_and_worker_effort(self, tmp_path):
+        """Official run command exposes live one-shot worker options."""
+        from tinycua.cli.run import parse_args
+
+        args = parse_args(
+            [
+                "--stream",
+                "--worker-effort",
+                "high",
+                "--dir",
+                str(tmp_path),
+                "build app",
+            ]
+        )
+
+        assert args.stream is True
+        assert args.worker_effort == "high"
+        assert args.workspace == tmp_path
+
     def test_run_defaults(self):
         """Given minimal args, defaults are applied correctly."""
         from tinycua.cli.run import parse_args
@@ -39,6 +67,8 @@ class TestCLIRunArgumentParsing:
         assert args.output_dir == Path("/tmp_workspace/results")
         assert args.workspace == Path("/tmp_workspace")
         assert args.model == "llama3"
+        assert args.stream is False
+        assert args.worker_effort == "medium"
         assert args.verbose is False
 
     def test_run_accepts_all_flags(self):
@@ -112,7 +142,7 @@ class TestCLIRunConfigLoading:
 
         with patch.dict("os.environ", {
             "TINYCUA_BASE_URL": "http://localhost:8080/v1",
-        }, clear=False):
+        }, clear=True):
             with pytest.raises(ValueError, match="api_key"):
                 load_config(base_url=None, api_key=None, model=None)
 
@@ -127,11 +157,23 @@ class TestCLIRunExitCodes:
         mock_loop = MagicMock()
         mock_loop._working_messages = []
         mock_loop.get_usage_events = MagicMock(return_value=[])
+        mock_loop.get_execution_trace = MagicMock(return_value=[])
+        mock_loop.get_state_snapshot = MagicMock(
+            return_value={
+                "task_tree": {},
+                "task_tree_text": "No tasks.",
+                "transcript_text": "[USER] test task",
+            }
+        )
+        mock_loop.get_final_response_events = MagicMock(return_value=[])
+        mock_loop.get_transcript_events = MagicMock(return_value=[])
 
         mock_agent = MagicMock()
         mock_agent.loop = mock_loop
 
+        mock_timeout_runner = MagicMock(return_value="run-coro")
         with patch("tinycua.cli.run.create_tinycua_agent", return_value=mock_agent), \
+             patch("tinycua.cli.run._run_agent_with_timeout", new=mock_timeout_runner), \
              patch("tinycua.cli.run._run_async_safely", return_value="done"), \
              patch("tinycua.cli.run.load_config", return_value={
                  "base_url": "http://localhost:8080/v1",
@@ -147,6 +189,55 @@ class TestCLIRunExitCodes:
                     verbose=False,
                 )
                 assert exit_code == 0
+                output_dir = tmp_path / "test_out"
+                assert (output_dir / "execution_trace.json").exists()
+                assert (output_dir / "state_snapshot.json").exists()
+                assert (output_dir / "task_tree.json").exists()
+                assert (output_dir / "task_tree.txt").exists()
+                assert (output_dir / "transcript.txt").exists()
+                assert (output_dir / "transcript_events.json").exists()
+                assert (output_dir / "final_response_events.json").exists()
+
+    def test_stream_option_uses_live_runner(self, tmp_path):
+        """Given --stream, run command invokes the live stream renderer."""
+        from tinycua.cli.run import run_command
+
+        mock_loop = MagicMock()
+        mock_loop._working_messages = []
+        mock_loop.get_usage_events = MagicMock(return_value=[])
+        mock_loop.get_execution_trace = MagicMock(return_value=[])
+        mock_loop.get_state_snapshot = MagicMock(
+            return_value={"task_tree": {}, "task_tree_text": "No tasks."}
+        )
+        mock_loop.get_final_response_events = MagicMock(return_value=[])
+        mock_loop.get_transcript_events = MagicMock(return_value=[])
+        mock_agent = MagicMock()
+        mock_agent.loop = mock_loop
+
+        mock_run_streaming = MagicMock(return_value="stream-coro")
+        with patch("tinycua.cli.run.create_tinycua_agent", return_value=mock_agent), \
+             patch("tinycua.cli.run.run_streaming", new=mock_run_streaming), \
+             patch("tinycua.cli.run._run_async_safely", return_value="stream done"), \
+             patch("tinycua.cli.run.load_config", return_value={
+                 "base_url": "http://localhost:8080/v1",
+                 "api_key": "test",
+                 "model": "test-model",
+             }) as _config:
+                exit_code = run_command(
+                    prompt="test task",
+                    timeout=10,
+                    output_dir=tmp_path / "test_out",
+                    workspace=tmp_path / "test_ws",
+                    base_url=None,
+                    api_key=None,
+                    model=None,
+                    verbose=False,
+                    stream=True,
+                    worker_effort="high",
+                )
+
+        assert exit_code == 0
+        mock_run_streaming.assert_called_once_with(mock_agent, "test task")
 
     def test_exit_code_1_on_error(self, tmp_path):
         """Given an agent crash, exit code is 1."""
@@ -176,7 +267,7 @@ class TestCLIRunExitCodes:
         from tinycua.cli.run import run_command
 
         with patch("tinycua.cli.run.create_tinycua_agent") as mock_factory:
-            mock_agent = AsyncMock()
+            mock_agent = MagicMock()
             mock_factory.return_value = mock_agent
 
             with patch("tinycua.cli.run.load_config", return_value={
@@ -185,7 +276,9 @@ class TestCLIRunExitCodes:
                 "model": "test-model",
             }):
                 # Mock _run_async_safely to raise CancelledError (simulates timeout)
-                with patch("tinycua.cli.run._run_async_safely", side_effect=asyncio.CancelledError):
+                mock_timeout_runner = MagicMock(return_value="run-coro")
+                with patch("tinycua.cli.run._run_agent_with_timeout", new=mock_timeout_runner), \
+                     patch("tinycua.cli.run._run_async_safely", side_effect=asyncio.CancelledError):
                     exit_code = run_command(
                         prompt="test task",
                         timeout=1,  # 1 second timeout

@@ -142,7 +142,7 @@ class TestDecisionNodeRetry:
             node("input")
 
     def test_exhaustion_records_failure(self):
-        """Classification retry exhaustion records failure to session."""
+        """Classification retry exhaustion records diagnostics only."""
         node = _make_decision_node(
             classification_labels=["correct"],
             llm_client=MockLLM(
@@ -159,5 +159,8 @@ class TestDecisionNodeRetry:
             ),
         )
         node("input")
-        contents = [e.content for e in node.session.session_context]
-        assert any("RETRY_EXHAUSTED" in c for c in contents)
+        assert not any("RETRY_EXHAUSTED" in str(e.content) for e in node.session.session_context)
+        assert any(
+            "RETRY_EXHAUSTED" in item["message"]
+            for item in node.session.diagnostics
+        )

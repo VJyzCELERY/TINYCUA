@@ -12,9 +12,23 @@ from typing import Any
 
 from tinycua_sdk.tools.decorators import tool
 
+from tinycua.agent.tools.native.context import bind_workspace_to_tool, get_workspace_dir
+
+_DEFAULT_TIMEOUT_SECONDS = 30
+_MAX_TIMEOUT_SECONDS = 30
+
+
+def _bounded_timeout(timeout: int) -> int:
+    """Return a safe timeout for model-requested Python execution."""
+    try:
+        requested = int(timeout)
+    except (TypeError, ValueError):
+        return _DEFAULT_TIMEOUT_SECONDS
+    return min(max(requested, 1), _MAX_TIMEOUT_SECONDS)
+
 
 @tool
-def run_python(code: str, timeout: int = 30) -> dict[str, Any]:
+def run_python(code: str, timeout: int = _DEFAULT_TIMEOUT_SECONDS) -> dict[str, Any]:
     """Execute Python code and capture its output.
 
     Args:
@@ -31,13 +45,16 @@ def run_python(code: str, timeout: int = 30) -> dict[str, Any]:
         "timed_out": False,
         "error": None,
     }
+    effective_timeout = _bounded_timeout(timeout)
 
     try:
+        workspace = get_workspace_dir()
         completed = subprocess.run(
             [sys.executable, "-c", code],
             capture_output=True,
             text=True,
-            timeout=timeout,
+            timeout=effective_timeout,
+            cwd=str(workspace) if workspace is not None else None,
         )
         result["stdout"] = completed.stdout or ""
         result["stderr"] = completed.stderr or ""
@@ -46,7 +63,7 @@ def run_python(code: str, timeout: int = 30) -> dict[str, Any]:
     except subprocess.TimeoutExpired:
         result["exit_code"] = -1
         result["timed_out"] = True
-        result["error"] = f"Execution timed out after {timeout}s"
+        result["error"] = f"Execution timed out after {effective_timeout}s"
     except subprocess.SubprocessError as exc:
         result["exit_code"] = -1
         result["error"] = str(exc)
@@ -55,3 +72,6 @@ def run_python(code: str, timeout: int = 30) -> dict[str, Any]:
         result["error"] = str(exc)
 
     return result
+
+
+bind_workspace_to_tool(run_python)

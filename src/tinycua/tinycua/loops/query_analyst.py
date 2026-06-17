@@ -11,7 +11,6 @@ from tinycua.loops.node import DecisionNode, DecisionResult, Node
 from tinycua.loops.worker import TinyCUAWorkerNode
 from tinycua.models.digested_information import DigestedInformation
 from tinycua.models.node_input import NodeInput, convert_node_input_to_messages
-from tinycua.models.session import Session
 
 if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
@@ -26,12 +25,18 @@ _QUERY_ANALYST_INSTRUCTION = (
     "route it to the appropriate handler. "
     "Analyze the user's request and determine whether it requires "
     "task execution (worker), is uncertain, or should pass through directly. "
-    "Prefer calling select_query_route with exactly one route: worker, "
-    "uncertain, or passthrough. If tools are unavailable, respond with only "
-    "the route label and no extra text. Choose worker for requests that ask you to "
+    "You MUST call select_query_route with exactly one route: worker, "
+    "uncertain, or passthrough. Do not produce a text-only route answer; "
+    "the route decision must be expressed by the function call. Choose worker for requests that ask you to "
     "plan, create, execute, decompose, inspect, or update tasks. Choose "
     "passthrough for simple conversational or factual responses. Choose "
-    "uncertain only when the request cannot be classified safely."
+    "uncertain only when the request cannot be classified safely. Do not answer "
+    "the user directly from this node."
+)
+
+_QUERY_ANALYST_CONTINUATION = (
+    "Based on the external user request above, classify the route by calling "
+    "select_query_route. Do not answer the user from this node."
 )
 
 
@@ -71,6 +76,7 @@ class TinyCUAQueryAnalystNode(DecisionNode):
             node_id=node_id,
             config=config,
             instruction=instruction,
+            continuation=_QUERY_ANALYST_CONTINUATION,
             classification_labels=classification_labels or self.ROUTE_LABELS,
             is_terminal=is_terminal,
         )
@@ -99,10 +105,6 @@ class TinyCUAQueryAnalystNode(DecisionNode):
             config=create_node_config("worker", self.config),
         )
 
-        # Attach a session to the worker
-        worker_session = Session()
-        worker_node.session = worker_session
-
         # Check for existing digest
         if self._check_existing_digest(worker_node):
             # Already digested — just ensure worker is in queue
@@ -121,23 +123,55 @@ class TinyCUAQueryAnalystNode(DecisionNode):
             queue.set_input(digester, original_messages)
 
     def _original_query_input(self, input_data: NodeInputLike) -> NodeInputLike | None:
-        """Return the original user-message input for the worker digester."""
+        """Return assistant-role CEQ input for the worker digester."""
+        original_query = ""
         if self.session is not None and self.session.input_context:
-            return NodeInput(
-                input_type="original_user_query",
-                source_node=self.node_id,
-                target_node="digester",
-                messages=list(self.session.input_context),
-            )
-        original_query = self._extract_user_query(input_data)
+            original_query = self._extract_user_query(list(self.session.input_context))
+        if not original_query:
+            original_query = self._extract_user_query(input_data)
         if original_query:
             return NodeInput(
-                input_type="original_user_query",
+                input_type="context_enhanced_query",
                 source_node=self.node_id,
                 target_node="digester",
-                messages=[{"role": "user", "content": original_query}],
+                messages=[
+                    {
+                        "role": "assistant",
+                        "content": f"Context Enhanced Query:\n{original_query}",
+                    }
+                ],
+                metadata={"original_query": original_query},
             )
         return None
+
+    def _set_response_handoff(self, queue: NodeQueue, route_label: str) -> None:
+        """Forward direct-response context as assistant-role continuation."""
+        if len(queue.items) < 2:
+            return
+        next_node = queue.items[1]
+        original_query = ""
+        if self.session is not None and self.session.input_context:
+            original_query = self._extract_user_query(list(self.session.input_context))
+        if not original_query:
+            return
+        queue.set_input(
+            next_node,
+            NodeInput(
+                input_type=f"{route_label}_response_context",
+                source_node=self.node_id,
+                target_node=next_node.node_id,
+                messages=[
+                    {
+                        "role": "assistant",
+                        "content": (
+                            "Direct response context from the entry request:\n"
+                            f"{original_query}"
+                        ),
+                    }
+                ],
+                metadata={"original_query": original_query, "route": route_label},
+            ),
+        )
 
     def _check_existing_digest(self, worker: Node) -> bool:
         """Check if the worker's session already has DigestedInformation.
@@ -222,16 +256,20 @@ class TinyCUAQueryAnalystNode(DecisionNode):
                 "interaction_policy",
                 None,
             )
-            strategy = getattr(policy, "uncertain_strategy", "fallback_response")
+            strategy = getattr(policy, "uncertain_strategy", "passthrough")
             if strategy == "route_worker":
                 self._route_worker()
             elif strategy == "ask" and not getattr(policy, "hitl_enabled", False):
-                logger.info("QueryAnalyst uncertain with HITL disabled — fallback response")
+                logger.info(
+                    "QueryAnalyst uncertain with HITL disabled — passthrough response"
+                )
             elif strategy == "fail":
                 raise RuntimeError("QueryAnalyst uncertain route failed by policy")
             else:
-                logger.info("QueryAnalyst routed to 'uncertain' — fallback response")
+                self._set_response_handoff(queue, "uncertain")
+                logger.info("QueryAnalyst routed to 'uncertain' — passthrough response")
         elif route_label == "passthrough":
+            self._set_response_handoff(queue, "passthrough")
             logger.info("QueryAnalyst routed to 'passthrough' — no action taken")
         else:
             logger.warning("QueryAnalyst unknown route: %s", route_label)

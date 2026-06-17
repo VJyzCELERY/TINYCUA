@@ -19,10 +19,21 @@ class InteractionPolicy:
     """
 
     hitl_enabled: bool = False
-    uncertain_strategy: Literal["fallback_response", "route_worker", "ask", "fail"] = (
-        "fallback_response"
+    uncertain_strategy: Literal["passthrough", "route_worker", "ask", "fail"] = (
+        "passthrough"
     )
     allow_clarifying_questions: bool = False
+
+
+@dataclass(frozen=True)
+class NativeToolPolicy:
+    """Controls which optional native tools the public factory exposes."""
+
+    allowed_tool_names: frozenset[str] | None = None
+
+    def permits(self, tool_name: str) -> bool:
+        """Return whether a native tool name is allowed by this policy."""
+        return self.allowed_tool_names is None or tool_name in self.allowed_tool_names
 
 
 @dataclass
@@ -38,6 +49,8 @@ class SessionConfig:
         artifact_dir: Directory where run artifacts should be written.
         session_dir: Directory for session-scoped persisted state.
         metadata: Arbitrary metadata attached to the session.
+        worker_effort: Worker decomposition effort. ``medium`` defaults to two
+            task-analysis passes before execution.
     """
 
     compaction_strategy: CompactionStrategy | None = None
@@ -48,6 +61,7 @@ class SessionConfig:
     artifact_dir: Path | None = None
     session_dir: Path | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    worker_effort: Literal["none", "low", "medium", "high"] = "medium"
 
     def __post_init__(self) -> None:
         """Normalize filesystem paths supplied through the public API."""

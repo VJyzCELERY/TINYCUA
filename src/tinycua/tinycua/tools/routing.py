@@ -43,20 +43,20 @@ class QueryRouteSelectionTool(Tool):
 class WorkerRouteSelectionTool(Tool):
     """Tool schema for selecting the worker orchestration route."""
 
-    def __init__(self) -> None:
+    def __init__(self, labels: list[str] | None = None) -> None:
+        """Initialize worker route selector with state-valid labels."""
+        route_labels = labels or [
+            "task_creation",
+            "task_recreation",
+            "task_reanalysis",
+            "passthrough",
+            "proceed_execution",
+        ]
         super().__init__(
             name="select_worker_route",
             description=(
                 "Select exactly one worker orchestration route based on the "
                 "digested request and task state."
             ),
-            parameters=_route_parameters(
-                [
-                    "task_creation",
-                    "task_recreation",
-                    "task_reanalysis",
-                    "passthrough",
-                    "proceed_execution",
-                ]
-            ),
+            parameters=_route_parameters(route_labels),
         )

@@ -361,7 +361,7 @@ def test_node_message_policy_dedupe_by_origin():
     messages = build_messages_with_dedupe(session, dedupe_by_origin_record_id=True)
 
     # Only 2 unique entries (by origin_record_id)
-    context_msgs = [m for m in messages if m.get("role") == "user"]
+    context_msgs = [m for m in messages if m.get("role") == "assistant"]
     assert len(context_msgs) == 2
     contents = [m.get("content") for m in context_msgs]
     assert "ctx1" in contents

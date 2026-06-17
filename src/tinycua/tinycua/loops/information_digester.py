@@ -7,6 +7,7 @@ import logging
 import uuid
 from typing import TYPE_CHECKING
 
+from tinycua.loops.context_rendering import clean_context_enhanced_query
 from tinycua.loops.node import ProcessNode
 from tinycua.models.digested_information import DigestedInformation
 from tinycua.models.node_input import NodeInput, convert_node_input_to_messages
@@ -22,8 +23,19 @@ logger = logging.getLogger(__name__)
 _DIGESTER_INSTRUCTION = (
     "You are an information digester. Your task is to analyze the "
     "conversation context and produce a structured summary. "
+    "If prior context is available, prefer looking into it with available "
+    "context retrieval tools before digesting, but use judgment when the "
+    "provided context is already sufficient. "
     "Extract key points, advisory instructions, constraints, and "
     "known gaps from the available context."
+)
+
+_DIGESTER_CONTINUATION = (
+    "Based on the context-enhanced query above, produce focused "
+    "request context for downstream work. Preserve task-critical "
+    "details and omit irrelevant context. When prior context is available, "
+    "consider using enhanced_context_retrieval before digest_information to "
+    "ground task creation in existing information."
 )
 
 
@@ -63,6 +75,7 @@ class TinyCUAInformationDigesterNode(ProcessNode):
             node_id=node_id,
             config=config,
             instruction=instruction,
+            continuation=_DIGESTER_CONTINUATION,
             is_terminal=is_terminal,
         )
         self._current_digest: DigestedInformation | None = None
@@ -121,6 +134,9 @@ class TinyCUAInformationDigesterNode(ProcessNode):
         """
         if not content or not content.strip():
             return DigestedInformation.fallback(original_query)
+        cleaned_query = clean_context_enhanced_query(content)
+        if not original_query and cleaned_query:
+            original_query = cleaned_query
 
         try:
             data = json.loads(content)
@@ -136,12 +152,13 @@ class TinyCUAInformationDigesterNode(ProcessNode):
             logger.debug(
                 "Digester LLM response not JSON, using raw text as context_summary",
             )
+            context_summary = cleaned_query if cleaned_query else content
             return DigestedInformation(
-                context_summary=content,
+                context_summary=context_summary,
                 original_query=original_query,
             )
 
-    def ensure_session(self, _root_or_parent_session: Session) -> Session:
+    def ensure_session(self, root_or_parent_session: Session) -> Session:
         """Create a fresh node session (does not inherit parent).
 
         Overrides the base class to always create a fresh session,
@@ -160,7 +177,11 @@ class TinyCUAInformationDigesterNode(ProcessNode):
         # Always create a fresh session — do NOT inherit parent
         self.session = Session()
         self.session.session_id = uuid.uuid4().hex
-        self.session.parent_id = None
+        self.session.parent_id = root_or_parent_session.session_id
+        self.session.session_config = root_or_parent_session.session_config
+        self.session.input_context = list(root_or_parent_session.input_context)
+        self.session.task = root_or_parent_session.task
+        self.session.task_store = root_or_parent_session.task_store
         return self.session
 
     def _produce_fallback(self, original_query: str) -> DigestedInformation:
@@ -208,6 +229,10 @@ class TinyCUAInformationDigesterNode(ProcessNode):
         Returns:
             The original user query string, or empty string if not found.
         """
+        if isinstance(input_data, NodeInput):
+            original_query = input_data.metadata.get("original_query")
+            if isinstance(original_query, str) and original_query.strip():
+                return original_query.strip()
         if isinstance(input_data, NodeInput) and input_data.messages:
             # Try to find the last user message
             for msg in reversed(input_data.messages):

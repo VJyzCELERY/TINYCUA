@@ -94,10 +94,11 @@ class SimpleCompaction(CompactionStrategy):
             raise CompactionError(f"Compaction failed: {exc}") from exc
 
     def _run_compaction_agent(self, messages: list[dict]) -> str:
-        """Run the internal compaction Agent (stub).
+        """Create a deterministic tool-less summary of conversation messages.
 
-        In a full implementation this would create an SDK Agent with no
-        tools, pass the messages, and return the LLM response content.
+        This local compactor keeps tests and offline runs deterministic while
+        preserving the strategy contract: one concise assistant-role summary
+        with no tool use.
 
         Args:
             messages: The conversation messages to compact.
@@ -108,11 +109,12 @@ class SimpleCompaction(CompactionStrategy):
         Raises:
             CompactionError: If the Agent call fails.
         """
-        # Placeholder — real implementation would call the SDK Agent.
-        # For now, return a basic concatenation so tests can mock this.
         parts = []
         for msg in messages:
             role = msg.get("role", "unknown")
-            content = msg.get("content", "")
-            parts.append(f"{role}: {content}")
-        return "\n".join(parts) if parts else ""
+            content = str(msg.get("content", "")).strip().replace("\n", " ")
+            if content:
+                parts.append(f"{role}: {content[:500]}")
+        if not parts:
+            return ""
+        return "Compacted conversation summary:\n" + "\n".join(parts[-20:])

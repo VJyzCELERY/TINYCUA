@@ -235,7 +235,7 @@ class TestHandleExhaustion:
             node._handle_exhaustion(validation, 2)
 
     def test_record_failure_policy(self):
-        """record_failure policy writes to session."""
+        """record_failure policy writes diagnostics without downstream context."""
         node = _make_node(
             config_overrides={
                 "retry_policy": NodeRetryPolicy(
@@ -246,8 +246,11 @@ class TestHandleExhaustion:
         )
         validation = ValidationResult(is_valid=False, errors=["fail"])
         node._handle_exhaustion(validation, 2)
-        contents = [e.content for e in node.session.session_context]
-        assert any("RETRY_EXHAUSTED" in c for c in contents)
+        assert node.session.session_context == []
+        assert any(
+            "RETRY_EXHAUSTED" in item["message"]
+            for item in node.session.diagnostics
+        )
 
     def test_route_failure_fallback(self):
         """route_failure falls back to record_failure when no route defined."""
@@ -261,16 +264,19 @@ class TestHandleExhaustion:
         )
         validation = ValidationResult(is_valid=False, errors=["fail"])
         node._handle_exhaustion(validation, 2)
-        # Should have recorded failure as fallback
-        contents = [e.content for e in node.session.session_context]
-        assert any("RETRY_EXHAUSTED" in c for c in contents)
+        # Should have recorded diagnostic failure as fallback.
+        assert node.session.session_context == []
+        assert any(
+            "RETRY_EXHAUSTED" in item["message"]
+            for item in node.session.diagnostics
+        )
 
 
 class TestRecordFailure:
     """Tests for Node._record_failure()."""
 
     def test_records_failure_metadata(self):
-        """Failure entry contains node_id, attempts, and errors."""
+        """Failure diagnostic contains node_id, attempts, and errors."""
         node = _make_node(
             config_overrides={
                 "retry_policy": NodeRetryPolicy(max_attempts=3),
@@ -278,11 +284,12 @@ class TestRecordFailure:
         )
         validation = ValidationResult(is_valid=False, errors=["err1", "err2"])
         node._record_failure(validation, 3)
-        entry = node.session.session_context[-1]
-        assert "RETRY_EXHAUSTED" in entry.content
-        assert "test" in entry.content
-        assert "3" in entry.content
-        assert "err1" in entry.content
+        assert node.session.session_context == []
+        entry = node.session.diagnostics[-1]
+        assert "RETRY_EXHAUSTED" in entry["message"]
+        assert entry["node_id"] == "test"
+        assert entry["attempts"] == 3
+        assert "err1" in entry["errors"]
 
     def test_max_attempts_zero_single_attempt(self):
         """max_attempts=0 results in 1 attempt with immediate exhaustion."""

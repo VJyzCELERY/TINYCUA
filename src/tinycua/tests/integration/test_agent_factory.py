@@ -5,8 +5,14 @@ from unittest.mock import AsyncMock
 from tinycua_sdk.agent import Agent, BaseLoop
 from tinycua.config.session_config import SessionConfig
 from tinycua.factory import create_tinycua_agent
+from tinycua.loops.node import NodeExecutionError
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.session import Session
+
+ROUTE_PASSTHROUGH = (
+    '{"tool_calls":[{"name":"select_query_route",'
+    '"arguments":{"route":"passthrough"}}]}'
+)
 
 
 class TestCreateTinyCUAAgent:
@@ -60,13 +66,19 @@ class TestAgentRun:
         """agent.run() returns string when stream=False."""
         agent = create_tinycua_agent()
         agent._call_llm = AsyncMock(
-            return_value={
-                "content": "Hello",
-                "tool_calls": None,
-                "usage": None,
-                "finish_reason": "completed",
-                "model": None,
-            }
+            side_effect=[
+                {
+                    "content": ROUTE_PASSTHROUGH,
+                    "tool_calls": [],
+                },
+                {
+                    "content": "Hello",
+                    "tool_calls": None,
+                    "usage": None,
+                    "finish_reason": "completed",
+                    "model": None,
+                },
+            ]
         )
         result = await agent.run("hello")
         assert isinstance(result, str)
@@ -82,7 +94,22 @@ class TestAgentRun:
         # an AsyncGenerator (which is an AsyncIterator). This is structurally
         # different from the non-streaming mock which uses AsyncMock, because
         # the non-streaming path expects a dict return value.
+        call_count = 0
+
         async def mock_stream(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                yield {
+                    "type": "response.tool_call",
+                    "id": "call_route",
+                    "function": {
+                        "name": "select_query_route",
+                        "arguments": '{"route":"passthrough"}',
+                    },
+                }
+                yield {"type": "response.completed", "finish_reason": "completed"}
+                return
             yield {"type": "response.output_text.delta", "delta": "Hi"}
             yield {"type": "response.completed", "finish_reason": "completed"}
 
@@ -112,13 +139,16 @@ class TestAgentRun:
         """
         agent = create_tinycua_agent()
         agent._call_llm = AsyncMock(
-            return_value={
-                "content": "Hello",
-                "tool_calls": None,
-                "usage": None,
-                "finish_reason": "completed",
-                "model": None,
-            }
+            side_effect=[
+                {"content": ROUTE_PASSTHROUGH, "tool_calls": []},
+                {
+                    "content": "Hello",
+                    "tool_calls": None,
+                    "usage": None,
+                    "finish_reason": "completed",
+                    "model": None,
+                },
+            ]
         )
         await agent.run("hello")
         session = agent.loop.root_session
@@ -130,20 +160,27 @@ class TestAgentRun:
 
     @pytest.mark.asyncio
     async def test_run_does_not_record_empty_assistant_response(self):
-        """Empty assistant responses are not recorded in chat history."""
+        """Empty terminal responses fail validation instead of becoming final."""
         agent = create_tinycua_agent()
         agent._call_llm = AsyncMock(
-            return_value={
-                "content": "",
-                "tool_calls": None,
-                "usage": None,
-                "finish_reason": "completed",
-                "model": None,
-            }
+            side_effect=[
+                {"content": ROUTE_PASSTHROUGH, "tool_calls": []},
+                *[
+                    {
+                        "content": "",
+                        "tool_calls": None,
+                        "usage": None,
+                        "finish_reason": "completed",
+                        "model": None,
+                    }
+                    for _ in range(3)
+                ],
+            ]
         )
-        await agent.run("hello")
+        with pytest.raises(NodeExecutionError, match="Final response must be non-empty"):
+            await agent.run("hello")
         session = agent.loop.root_session
-        assert len(session.chat_history) == 0  # no assistant response recorded
+        assert all(record.record_type == "retry" for record in session.chat_history)
         assert session.input_context[0]["role"] == "user"
 
     @pytest.mark.asyncio
@@ -151,17 +188,28 @@ class TestAgentRun:
         """Empty streaming responses are not recorded in chat history."""
         agent = create_tinycua_agent()
 
+        call_count = 0
+
         async def empty_stream(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                yield {
+                    "type": "response.tool_call",
+                    "id": "call_route",
+                    "function": {
+                        "name": "select_query_route",
+                        "arguments": '{"route":"passthrough"}',
+                    },
+                }
+                yield {"type": "response.completed", "finish_reason": "completed"}
+                return
             yield {"type": "response.completed", "finish_reason": "completed"}
 
         agent._call_llm = empty_stream
         result = await agent.run("hello", stream=True)
-        events = [e async for e in result]
-        # Filter to only LLM content events (ignore lifecycle events)
-        delta_events = [
-            e for e in events if e.get("type") == "response.output_text.delta"
-        ]
-        assert len(delta_events) == 0  # no content deltas emitted
+        with pytest.raises(NodeExecutionError, match="Final response must be non-empty"):
+            _ = [e async for e in result]
         session = agent.loop.root_session
-        assert len(session.chat_history) == 0  # no assistant response recorded
+        assert all(record.record_type == "retry" for record in session.chat_history)
         assert session.input_context[0]["role"] == "user"

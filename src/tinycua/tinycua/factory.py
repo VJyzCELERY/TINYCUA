@@ -7,12 +7,14 @@ from typing import Any
 from tinycua_sdk.agent import Agent
 
 from tinycua.config.node_config import create_node_config
-from tinycua.config.session_config import SessionConfig
+from tinycua.config.session_config import NativeToolPolicy, SessionConfig
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.loops.response_node import ResponseNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.session import Session
+
+_TINYCUA_DEFAULT_TEMPERATURE = 0.6
 
 
 def create_default_queue(session_config: SessionConfig | None = None) -> NodeQueue:
@@ -31,6 +33,8 @@ def create_default_queue(session_config: SessionConfig | None = None) -> NodeQue
 def create_tinycua_agent(
     session: Session | None = None,
     session_config: SessionConfig | None = None,
+    enable_native_tools: bool = True,
+    native_tool_policy: NativeToolPolicy | None = None,
     **agent_kwargs: Any,
 ) -> Agent:
     """Create a TinyCUA agent backed by the SDK Agent and TinyCUALoop.
@@ -43,6 +47,10 @@ def create_tinycua_agent(
             is created automatically.
         session_config: Optional session configuration. Applied to the
             session and stored on the loop.
+        enable_native_tools: When True, attach native file, shell, Python,
+            fetch, and SearXNG web search tools to the SDK Agent. Defaults to
+            True because TinyCUA's prototype runtime is actionable by default.
+        native_tool_policy: Optional allowlist policy for native tools.
         **agent_kwargs: Additional keyword arguments passed through to the
             SDK Agent constructor (e.g., name, instructions, tools).
 
@@ -60,15 +68,65 @@ def create_tinycua_agent(
     """
     if session is None:
         session = Session()
-    if session_config is not None:
-        session.session_config = session_config
-    queue = create_default_queue(session_config)
+    effective_session_config = session_config or session.session_config
+    if effective_session_config is not None:
+        session.session_config = effective_session_config
+    if enable_native_tools:
+        existing_tools = list(agent_kwargs.pop("tools", []) or [])
+        native_tools = _native_tools(native_tool_policy)
+        existing_names = {tool.name for tool in existing_tools}
+        existing_tools.extend(tool for tool in native_tools if tool.name not in existing_names)
+        agent_kwargs["tools"] = existing_tools
+    _apply_tinycua_model_defaults(agent_kwargs)
+    queue = create_default_queue(effective_session_config)
     terminal_node = queue.items[-1]
     loop = TinyCUALoop(
         root_session=session,
         queue=queue,
-        session_config=session_config,
+        session_config=effective_session_config,
         default_terminal_node=terminal_node,
-        queue_factory=lambda: create_default_queue(session_config),
+        queue_factory=lambda: create_default_queue(effective_session_config),
     )
     return Agent(loop=loop, **agent_kwargs)
+
+
+def _apply_tinycua_model_defaults(agent_kwargs: dict[str, Any]) -> None:
+    """Apply TinyCUA runtime defaults without changing SDK global defaults."""
+    model = agent_kwargs.get("llm_model")
+    if model is None:
+        return
+    fields_set = getattr(model, "model_fields_set", set())
+    if "temperature" in fields_set:
+        return
+    copier = getattr(model, "model_copy", None)
+    if callable(copier):
+        agent_kwargs["llm_model"] = copier(
+            update={"temperature": _TINYCUA_DEFAULT_TEMPERATURE}
+        )
+
+
+def _native_tools(policy: NativeToolPolicy | None = None) -> list[Any]:
+    """Return optional native tools filtered by policy."""
+    from tinycua.agent.tools.native import (
+        edit_file,
+        fetch_url,
+        list_files,
+        read_file,
+        run_python,
+        run_shell,
+        web_search,
+        write_file,
+    )
+
+    tool_policy = policy or NativeToolPolicy()
+    tools = [
+        read_file,
+        write_file,
+        edit_file,
+        list_files,
+        run_shell,
+        run_python,
+        fetch_url,
+        web_search,
+    ]
+    return [tool for tool in tools if tool_policy.permits(tool.name)]

@@ -16,7 +16,6 @@ class RouteClassifier:
     """Classify raw LLM text into one exact allowed route label."""
 
     allowed_labels: list[str]
-    fallback_label: str | None = None
 
     def classify(self, raw_response: str) -> str:
         """Return an allowed route label from raw LLM output.
@@ -37,8 +36,6 @@ class RouteClassifier:
         if len(token_matches) == 1:
             return token_matches[0]
 
-        if self.fallback_label is not None:
-            return self.fallback_label
         msg = f"Unable to classify route {raw_response!r} into {self.allowed_labels}"
         raise RouteClassificationError(msg)
 

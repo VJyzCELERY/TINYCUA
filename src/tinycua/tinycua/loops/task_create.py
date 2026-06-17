@@ -19,11 +19,18 @@ _TASK_CREATE_INSTRUCTION = (
     "well-defined, actionable tasks."
 )
 
+_TASK_CREATE_CONTINUATION = (
+    "Based on the request context above, initialize the root task tree "
+    "using task tools. Create actionable tasks and avoid repeating upstream "
+    "context verbatim. Keep the tree small for one-shot execution: one root "
+    "task and at most three concrete leaf subtasks."
+)
+
 
 class TinyCUATaskCreateNode(ProcessNode):
     """First-time deterministic root task creation node.
 
-    Input includes DigestedInformation from WorkerNode, providing
+    Input includes request context from WorkerNode, providing
     context for root task creation alongside the original query.
     """
 
@@ -47,6 +54,7 @@ class TinyCUATaskCreateNode(ProcessNode):
             node_id=node_id,
             config=config,
             instruction=instruction,
+            continuation=_TASK_CREATE_CONTINUATION,
             is_terminal=is_terminal,
         )
 
@@ -54,22 +62,24 @@ class TinyCUATaskCreateNode(ProcessNode):
         self,
         session: Session,
         input_data: NodeInputLike,
+        resolved_tools: list[object] | None = None,
     ) -> list[dict[str, str]]:
-        """Build messages including DigestedInformation from Worker.
+        """Build messages including request context from Worker.
 
-        Extends the base message building to include enhanced context
-        from any DigestedInformation present in the session_context.
+        Extends the base message building to include request context
+        from any structured digest present in the session_context.
 
         Args:
             session: The session containing context and history.
             input_data: The node input to convert to continuation messages.
+            resolved_tools: Tools available to this node for prompt exposure.
 
         Returns:
             List of message dictionaries for the LLM call.
         """
-        messages = super().build_messages(session, input_data)
+        messages = super().build_messages(session, input_data, resolved_tools)
 
-        # Scan session_context for DigestedInformation and add enhanced context
+        # Scan session_context for request context and add it naturally.
         digest_context = self._extract_digest_context(session)
         if digest_context:
             messages.append(
@@ -97,7 +107,9 @@ class TinyCUATaskCreateNode(ProcessNode):
             else:
                 content = entry.content
             if isinstance(content, DigestedInformation):
-                parts = [f"Context Summary: {content.context_summary}"]
+                parts = [f"Request summary: {content.context_summary}"]
+                if content.original_query:
+                    parts.append(f"User request: {content.original_query}")
 
                 if content.key_points:
                     parts.append("Key Points:")
@@ -119,7 +131,6 @@ class TinyCUATaskCreateNode(ProcessNode):
                     parts.append("Known Gaps:")
                     parts.extend(f"  - {gap}" for gap in content.known_gaps)
 
-                parts.append(f"Original Query: {content.original_query}")
                 return "\n".join(parts)
 
         return None

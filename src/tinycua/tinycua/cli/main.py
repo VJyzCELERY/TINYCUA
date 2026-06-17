@@ -68,6 +68,8 @@ def main() -> None:
             api_key=run_args.api_key,
             model=run_args.model,
             verbose=run_args.verbose,
+            stream=run_args.stream,
+            worker_effort=run_args.worker_effort,
         )
         raise SystemExit(exit_code)
 

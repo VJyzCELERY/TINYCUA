@@ -14,15 +14,16 @@ from __future__ import annotations
 from tinycua.config.node_config import NodeToolPolicy
 from tinycua.tools.digest_information import DigestInformationTool
 from tinycua.tools.enhanced_context_retrieval import EnhancedContextRetrievalTool
+from tinycua.tools.handoff_tools import NodeHandoffTool
 from tinycua.tools.routing import QueryRouteSelectionTool, WorkerRouteSelectionTool
 from tinycua.tools.task_tools import (
     FinalResponseSynthesisTool,
     TaskCreateTool,
     TaskDecomposeTool,
-    TaskExecuteTool,
     TaskInitTool,
     TaskInspectTool,
     TaskResultUpdateTool,
+    TaskReviewDecisionTool,
     TaskUpdateTool,
 )
 from tinycua.tools.todo_tools import TodoReadTool, TodoWriteTool
@@ -77,16 +78,16 @@ def worker_tool_scope() -> NodeToolPolicy:
 
 
 def task_create_tool_scope() -> NodeToolPolicy:
-    """Deterministic root task creation tools (TaskInit/TaskCreate).
+    """Deterministic root task creation tools.
 
-    TaskCreateNode receives only TaskInit and TaskCreate for
-    initializing new task trees.
+    TaskCreateNode receives only TaskInit for initializing exactly one new
+    task tree root. Subtask creation is delegated to TaskAnalyzer.
 
     Returns:
         NodeToolPolicy for TaskCreateNode.
     """
     return NodeToolPolicy(
-        node_tools=[TaskInitTool(), TaskCreateTool()],
+        node_tools=[TaskInitTool()],
         include_agent_tools="none",
     )
 
@@ -125,7 +126,7 @@ def task_assessor_tool_scope() -> NodeToolPolicy:
         NodeToolPolicy for TaskAssessorNode.
     """
     return NodeToolPolicy(
-        node_tools=[TaskInspectTool(), TaskUpdateTool()],
+        node_tools=[TaskInspectTool(), NodeHandoffTool()],
         include_agent_tools="none",
     )
 
@@ -141,14 +142,23 @@ def task_executor_tool_scope() -> NodeToolPolicy:
     """
     return NodeToolPolicy(
         node_tools=[
-            TaskExecuteTool(),
             TaskResultUpdateTool(),
             EnhancedContextRetrievalTool(),
             TodoReadTool(),
             TodoWriteTool(),
         ],
         include_agent_tools="selected",
-        allowed_agent_tool_names=["web_search", "file_read", "calculator"],
+        allowed_agent_tool_names=[
+            "web_search",
+            "fetch_url",
+            "read_file",
+            "write_file",
+            "edit_file",
+            "list_files",
+            "run_shell",
+            "run_python",
+            "calculator",
+        ],
     )
 
 
@@ -162,8 +172,9 @@ def result_reviewer_tool_scope() -> NodeToolPolicy:
         NodeToolPolicy for ResultReviewerNode.
     """
     return NodeToolPolicy(
-        node_tools=[TaskResultUpdateTool()],
-        include_agent_tools="none",
+        node_tools=[TaskReviewDecisionTool(), TaskInspectTool()],
+        include_agent_tools="selected",
+        allowed_agent_tool_names=["read_file", "list_files"],
     )
 
 
@@ -176,11 +187,15 @@ def result_aggregation_tool_scope() -> NodeToolPolicy:
     Returns:
         NodeToolPolicy for ResultAggregationNode.
     """
-    # Aggregation tools — stub for now
     return NodeToolPolicy(
         node_tools=[TaskInspectTool()],
         include_agent_tools="none",
     )
+
+
+def deterministic_controller_tool_scope() -> NodeToolPolicy:
+    """No-tool policy for deterministic orchestration controller nodes."""
+    return NodeToolPolicy(node_tools=[], include_agent_tools="none")
 
 
 def response_tool_scope(allow_digest: bool = True) -> NodeToolPolicy:
@@ -208,5 +223,15 @@ def response_tool_scope(allow_digest: bool = True) -> NodeToolPolicy:
     return NodeToolPolicy(
         node_tools=node_tools,
         include_agent_tools="selected",
-        allowed_agent_tool_names=["web_search", "file_read", "calculator"],
+        allowed_agent_tool_names=[
+            "web_search",
+            "fetch_url",
+            "read_file",
+            "write_file",
+            "edit_file",
+            "list_files",
+            "run_shell",
+            "run_python",
+            "calculator",
+        ],
     )

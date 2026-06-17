@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from tinycua.config.system_prompt import SystemPromptBuilder
 from tinycua.config.types import LLMResult, ValidationError, ValidationResult
+from tinycua.loops.context_rendering import looks_like_planner_prose, render_llm_content
 from tinycua.loops.route_classifier import RouteClassifier
 from tinycua.models.node_input import (
     NodeInputLike,
@@ -21,11 +23,43 @@ if TYPE_CHECKING:
     from tinycua.loops.node_queue import NodeQueue
 
 logger = logging.getLogger(__name__)
+_UNBOUNDED_RETRY_ATTEMPTS = 1_000_000_000
+
+
+# Internal bookkeeping messages that should never reach the LLM.
+_SKIP_CONTENT_PREFIXES = (
+    "Scheduled analysis effort",
+    "Analysis effort complete",
+)
+
+
+def _deduplicate_context_messages(
+    messages: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Remove duplicate assistant messages and internal bookkeeping noise."""
+    seen: set[str] = set()
+    result: list[dict[str, Any]] = []
+    for msg in messages:
+        content = msg.get("content", "")
+        if not isinstance(content, str):
+            result.append(msg)
+            continue
+        stripped = content.strip()
+        # Skip deterministic controller noise
+        if stripped.startswith(_SKIP_CONTENT_PREFIXES):
+            continue
+        # Skip exact duplicates
+        if stripped in seen:
+            continue
+        seen.add(stripped)
+        result.append(msg)
+    return result
 
 
 def build_messages_with_dedupe(
     session: Session,
     dedupe_by_origin_record_id: bool = False,
+    skip_record_ids: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Build messages for LLM call with optional deduplication.
 
@@ -36,11 +70,13 @@ def build_messages_with_dedupe(
     Args:
         session: The session containing context and history.
         dedupe_by_origin_record_id: Whether to deduplicate by origin_record_id.
+        skip_record_ids: Record IDs already represented by direct node input.
 
     Returns:
         List of message dictionaries for the LLM call.
     """
     messages: list[dict[str, Any]] = []
+    skip_record_ids = skip_record_ids or set()
 
     # Get session context entries
     context_entries = session.session_context
@@ -60,16 +96,18 @@ def build_messages_with_dedupe(
 
         context_entries = deduped_entries
 
-    # Convert entries to message dicts
+    # Convert entries to message dicts, dropping blank content at the API boundary.
     for entry in context_entries:
-        messages.append(
-            {
-                "role": "user",  # Default role for context entries
-                "content": str(entry.content),
-            }
-        )
+        if entry.record_id in skip_record_ids or (
+            entry.origin_record_id is not None
+            and entry.origin_record_id in skip_record_ids
+        ):
+            continue
+        content = render_llm_content(entry.content)
+        if content.strip():
+            messages.append({"role": "assistant", "content": content})
 
-    return messages
+    return _deduplicate_context_messages(messages)
 
 
 class NodeExecutionError(Exception):
@@ -92,6 +130,18 @@ class DecisionResult:
     route_label: str
     analysis_response: LLMResult
     classification_response: LLMResult
+
+
+@dataclass(frozen=True)
+class NodeRunContext:
+    """Runtime services a node uses to execute inside an orchestrator.
+
+    The loop owns queue orchestration. Nodes own the execution entrypoint and
+    call these injected services to perform provider/tool/runtime-specific work.
+    """
+
+    sync_executor: Callable[[Any, NodeInputLike], Awaitable[tuple[str, list[dict[str, Any]]]]]
+    stream_executor: Callable[[Any, NodeInputLike], AsyncIterator[dict[str, Any]]]
 
 
 class Node(ABC):
@@ -120,6 +170,7 @@ class Node(ABC):
         config: NodeConfigBase,
         *,
         instruction: str = "",
+        continuation: str = "",
         is_terminal: bool = False,
     ) -> None:
         """Initialize the node.
@@ -128,6 +179,7 @@ class Node(ABC):
             node_id: Unique identifier for this node.
             config: Node configuration.
             instruction: Hardcoded instruction string for this node type.
+            continuation: Hardcoded continuation string for this node type.
             is_terminal: Whether this node is terminal in the execution graph.
         """
         self.node_id = node_id
@@ -136,13 +188,14 @@ class Node(ABC):
         self.parent = None
         self.is_terminal = is_terminal
         self._instruction = instruction
+        self._continuation = continuation
+        self._last_retry_exhaustion: dict[str, Any] | None = None
 
     def ensure_session(self, root_or_parent_session: Session) -> Session:
-        """Create or adopt a session.
+        """Create or return an isolated node session.
 
         If ``self.session`` is already set, return it.
-        Otherwise, adopt the parent node's session if a parent exists,
-        or create a new session from ``root_or_parent_session``.
+        Otherwise, create a fresh scoped session from ``root_or_parent_session``.
 
         Args:
             root_or_parent_session: The root session or a parent's session.
@@ -156,17 +209,15 @@ class Node(ABC):
         if self.session is not None:
             return self.session
 
-        if self.parent is not None and hasattr(self.parent, "session"):
-            parent_node = self.parent
-            if parent_node.session is not None:  # type: ignore[union-attr]
-                self.session = parent_node.session  # type: ignore[union-attr]
-                return self.session  # type: ignore[return-value]
-
         if root_or_parent_session is None:
             msg = "No session available: root_or_parent_session is None and no parent"
             raise ValueError(msg)
 
-        self.session = root_or_parent_session
+        self.session = Session(parent_id=root_or_parent_session.session_id)
+        self.session.session_config = root_or_parent_session.session_config
+        self.session.input_context = list(root_or_parent_session.input_context)
+        self.session.task = root_or_parent_session.task
+        self.session.task_store = root_or_parent_session.task_store
         return self.session
 
     def build_instruction(self, override_instructions: str | None = None) -> str:
@@ -193,8 +244,94 @@ class Node(ABC):
 
         return "\n".join(parts) if parts else ""
 
+    def build_continuation(self, session: Session | None = None) -> str:
+        """Build the assistant-role continuation prompt for this node.
+
+        Args:
+            session: Optional node/root session for dynamic continuation context.
+
+        Returns:
+            The complete continuation prompt, or an empty string.
+        """
+        del session
+        parts: list[str] = []
+        if self._continuation:
+            parts.append(self._continuation)
+        if self.config.custom_continuation_append:
+            parts.append(self.config.custom_continuation_append)
+        return "\n".join(parts)
+
+    def build_tool_system_prompt(self, resolved_tools: list[Any] | None = None) -> str:
+        """Build node-level tool instructions for the single system prompt."""
+        if not resolved_tools:
+            return ""
+
+        lines = [
+            "## Available actions",
+            "You can use these tools to do real work. Pick the tool that matches "
+            "the current task; do not claim work is done until a tool result "
+            "supports it.",
+        ]
+        for tool in resolved_tools:
+            name = str(getattr(tool, "name", "")).strip()
+            if not name:
+                continue
+            description = str(getattr(tool, "description", "")).strip() or name
+            lines.append(f"- `{name}`: {description}")
+            args = self._render_tool_args(getattr(tool, "parameters", {}))
+            if args:
+                lines.append(f"  Args: {args}")
+        lines.extend(
+            [
+                "",
+                "## Tool use",
+                "Use native tool calling when available. If native tool calling "
+                "is unavailable, respond only with strict JSON in this shape: "
+                '{"tool_calls":[{"name":"tool_name","arguments":{}}]}.'
+            ]
+        )
+        return "\n".join(lines)
+
+    @staticmethod
+    def _render_tool_args(parameters: Any) -> str:
+        """Render a compact human-readable argument list from a tool schema."""
+        if not isinstance(parameters, dict):
+            return ""
+        properties = parameters.get("properties")
+        if not isinstance(properties, dict) or not properties:
+            return ""
+        required = set(parameters.get("required", []))
+        rendered: list[str] = []
+        for name, schema in properties.items():
+            if not isinstance(schema, dict):
+                rendered.append(f"`{name}`")
+                continue
+            kind = str(schema.get("type", "value"))
+            marker = ", required" if name in required else ""
+            description = str(schema.get("description", "")).strip()
+            suffix = f": {description}" if description else ""
+            rendered.append(f"`{name}` ({kind}{marker}){suffix}")
+        return "; ".join(rendered)
+
+    def build_system_message(
+        self,
+        resolved_tools: list[Any] | None = None,
+    ) -> dict[str, str]:
+        """Build one system message from node sections and tool guidance."""
+        builder = SystemPromptBuilder()
+        instruction = self.build_instruction()
+        if instruction:
+            builder.add_static(instruction)
+        tool_prompt = self.build_tool_system_prompt(resolved_tools)
+        if tool_prompt:
+            builder.add_dynamic_context(tool_prompt)
+        return builder.build()
+
     def build_messages(
-        self, session: Session, input: NodeInputLike
+        self,
+        session: Session,
+        input: NodeInputLike,
+        resolved_tools: list[Any] | None = None,
     ) -> list[dict[str, str]]:
         """Build the complete message list for an LLM call.
 
@@ -203,56 +340,31 @@ class Node(ABC):
         Args:
             session: The session containing context and history.
             input: The node input to convert to continuation messages.
+            resolved_tools: Tools available to this node for prompt exposure.
 
         Returns:
             List of message dictionaries for the LLM call.
         """
         messages: list[dict[str, str]] = []
 
-        # Build system message via SystemPromptBuilder
-        builder = SystemPromptBuilder()
-        instruction = self.build_instruction()
-        if instruction:
-            builder.add_static(instruction)
-
-        system_msg = builder.build()
+        system_msg = self.build_system_message(resolved_tools)
         if system_msg["content"]:
             messages.append(system_msg)
 
-        # Add session context if policy says so
-        if (
-            self.config.message_policy.include_session_context
-            and session.session_context
-        ):
-            for m in session.session_context:
-                if isinstance(m, dict):
-                    messages.append(
-                        {
-                            "role": m.get("role", "user"),
-                            "content": str(m.get("content", "")),
-                        }
-                    )
-                else:
-                    messages.append(
-                        {
-                            "role": "user",
-                            "content": str(m.content),
-                        }
-                    )
-
-        # Add chat history if policy says so
-        if self.config.message_policy.include_chat_history and session.chat_history:
-            messages.extend(
-                {
-                    "role": m.role,
-                    "content": str(m.content),
-                }
-                for m in session.chat_history
-            )
-
         # Add continuation messages from input
         continuation = convert_node_input_to_messages(input, source="internal")
-        messages.extend(continuation)  # type: ignore[arg-type]
+        for message in continuation:
+            content = str(message.get("content", ""))
+            if not content.strip():
+                continue
+            role = message.get("role", "assistant")
+            if role == "user" and not self.config.message_policy.include_input_context:
+                role = "assistant"
+            messages.append({"role": role, "content": content})
+
+        node_continuation = self.build_continuation(session)
+        if node_continuation.strip():
+            messages.append({"role": "assistant", "content": node_continuation})
 
         return messages
 
@@ -438,31 +550,43 @@ class Node(ABC):
             self._record_failure(validation, max_attempts)
 
     def _record_failure(self, validation: ValidationResult, max_attempts: int) -> None:
-        """Record failure state to session context.
+        """Record retry exhaustion as internal diagnostics.
 
-        Creates a ``SessionContextEntry`` with ``segment="output"``
-        containing failure metadata and calls ``propagate()`` if a
-        propagation rule exists.
+        Stores failure metadata on session diagnostics, not on
+        ``session_context``. Retry exhaustion is debug/trace state and must
+        not become reusable downstream LLM context.
 
         Args:
             validation: The validation result with error details.
             max_attempts: The maximum attempts that were allowed.
         """
-        from tinycua.models.session_context_entry import SessionContextEntry
-
         error_msg = "; ".join(validation.errors)
-        content = (
-            f"RETRY_EXHAUSTED node={self.node_id} "
-            f"attempts={max_attempts} errors={error_msg}"
-        )
+        diagnostic = {
+            "type": "retry_exhausted",
+            "node_id": self.node_id,
+            "attempts": max_attempts,
+            "errors": list(validation.errors),
+            "message": (
+                f"RETRY_EXHAUSTED node={self.node_id} "
+                f"attempts={max_attempts} errors={error_msg}"
+            ),
+        }
+        self._last_retry_exhaustion = diagnostic
 
         if self.session is not None:
-            self.session.session_context.append(
-                SessionContextEntry(
-                    content=content,
-                    segment="output",
+            self.session.diagnostics.append(diagnostic)
+            from tinycua.models.chat_record import ChatRecord
+
+            self.session.chat_history.append(
+                ChatRecord(
+                    role="assistant",
+                    record_type="retry",
+                    content=diagnostic["message"],
+                    visibility="internal",
                     source_node_id=self.node_id,
                     source_session_id=self.session.session_id,
+                    created_seq=len(self.session.chat_history),
+                    metadata=diagnostic,
                 )
             )
 
@@ -496,7 +620,9 @@ class Node(ABC):
         Args:
             response: The LLM response to record.
         """
-        if self.session is not None:
+        if self.session is not None and (
+            self.is_terminal or not looks_like_planner_prose(response.content)
+        ):
             from tinycua.models.session_context_entry import SessionContextEntry
 
             self.session.session_context.append(
@@ -545,6 +671,23 @@ class Node(ABC):
     @abstractmethod
     def __call__(self, input: NodeInputLike) -> Any:
         """Execute the node with the given input."""
+
+    async def run(
+        self,
+        context: NodeRunContext,
+        input: NodeInputLike,
+    ) -> tuple[str, list[dict[str, Any]]]:
+        """Run this node through an injected runtime context."""
+        return await context.sync_executor(self, input)
+
+    async def stream(
+        self,
+        context: NodeRunContext,
+        input: NodeInputLike,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Stream this node through an injected runtime context."""
+        async for event in context.stream_executor(self, input):
+            yield event
 
 
 class ProcessNode(Node):
@@ -603,7 +746,11 @@ class ProcessNode(Node):
 
         messages = self.build_messages(self.session, input)
         retry_policy = self.config.retry_policy
-        max_attempts = max(retry_policy.max_attempts, 1)
+        max_attempts = (
+            _UNBOUNDED_RETRY_ATTEMPTS
+            if retry_policy.max_attempts is None
+            else max(retry_policy.max_attempts, 1)
+        )
 
         last_response: LLMResult | None = None
         for attempt in range(1, max_attempts + 1):
@@ -672,6 +819,7 @@ class DecisionNode(ProcessNode):
         config: NodeConfigBase,
         *,
         instruction: str = "",
+        continuation: str = "",
         classification_labels: list[str] | None = None,
         is_terminal: bool = False,
     ) -> None:
@@ -681,6 +829,7 @@ class DecisionNode(ProcessNode):
             node_id: Unique identifier for this node.
             config: Node configuration.
             instruction: Hardcoded instruction for this node.
+            continuation: Hardcoded continuation for this node.
             classification_labels: Allowed classification labels.
             is_terminal: Whether this node is terminal.
         """
@@ -688,6 +837,7 @@ class DecisionNode(ProcessNode):
             node_id=node_id,
             config=config,
             instruction=instruction,
+            continuation=continuation,
             is_terminal=is_terminal,
         )
         self.classification_labels = classification_labels or []
@@ -729,10 +879,11 @@ class DecisionNode(ProcessNode):
         labels_str = ", ".join(self.classification_labels)
         classification_messages.append(
             {
-                "role": "user",
+                "role": "assistant",
                 "content": (
-                    f"Classify your analysis into one of these categories: "
-                    f"{labels_str}. Respond with only the category label."
+                    "Internal continuation: classify the prior analysis into "
+                    f"one of these categories: {labels_str}. Respond with "
+                    "only the category label."
                 ),
             }
         )
@@ -740,16 +891,15 @@ class DecisionNode(ProcessNode):
         return self._call_llm(classification_messages)
 
     def _dispatch_route(self, classification_response: LLMResult) -> str:
-        """Map classification label to route.
+        """Map classification label to a validated route.
 
         Args:
             classification_response: The classification LLM response.
 
         Returns:
-            The matched route label, or the first allowed label as fallback.
+            The matched route label.
         """
-        fallback = self.classification_labels[0] if self.classification_labels else "default"
-        classifier = RouteClassifier(self.classification_labels, fallback_label=fallback)
+        classifier = RouteClassifier(self.classification_labels)
         return classifier.classify(classification_response.content)
 
     def _validate_classification(
@@ -795,11 +945,15 @@ class DecisionNode(ProcessNode):
 
         messages = self.build_messages(self.session, input)
         retry_policy = self.config.retry_policy
-        max_attempts = max(retry_policy.max_attempts, 1)
+        max_attempts = (
+            _UNBOUNDED_RETRY_ATTEMPTS
+            if retry_policy.max_attempts is None
+            else max(retry_policy.max_attempts, 1)
+        )
 
         last_analysis: LLMResult | None = None
         last_classification: LLMResult | None = None
-        route_label = "default"
+        route_label = ""
 
         for attempt in range(1, max_attempts + 1):
             # Fire monitor before-hook
@@ -846,8 +1000,7 @@ class DecisionNode(ProcessNode):
             else:
                 # Exhausted
                 self._handle_exhaustion(validation, max_attempts)
-                # If not raised, use fallback dispatch
-                route_label = self._dispatch_route(last_classification)
+                route_label = ""
 
         assert last_analysis is not None  # noqa: S101
         assert last_classification is not None  # noqa: S101

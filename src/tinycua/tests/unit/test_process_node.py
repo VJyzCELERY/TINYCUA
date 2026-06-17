@@ -209,8 +209,8 @@ class TestProcessNodeBuildMessages:
         assert len(system_msgs) == 1
         assert "You are helpful." in system_msgs[0]["content"]
 
-    def test_includes_session_context(self) -> None:
-        """build_messages includes session context when enabled."""
+    def test_excludes_session_context(self) -> None:
+        """build_messages excludes implicit session context."""
         mock_llm = MockLLM()
         config = NodeConfigBase(llm_client=mock_llm)
         node = ProcessNode(node_id="test", config=config, instruction="Inst")
@@ -220,7 +220,7 @@ class TestProcessNodeBuildMessages:
         messages = node.build_messages(session, "Hello")
 
         context_msgs = [m for m in messages if m.get("content") == "Context"]
-        assert len(context_msgs) == 1
+        assert len(context_msgs) == 0
 
     def test_excludes_session_context_when_disabled(self) -> None:
         """build_messages excludes session context when disabled."""

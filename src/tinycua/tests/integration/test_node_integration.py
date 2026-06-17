@@ -222,7 +222,7 @@ def test_process_node_with_string_input() -> None:
 
 def test_decision_node_with_node_input() -> None:
     """DecisionNode subclass can classify input and return a route label."""
-    mock_llm = MockLLM(response="analysis result")
+    mock_llm = MockLLM(response="passthrough")
     config = NodeConfigBase(llm_client=mock_llm)
     node = MinimalDecisionNode(node_id="test-decision", config=config)
     session = Session()
@@ -269,7 +269,7 @@ def test_session_attachment_with_root_session() -> None:
 
 
 def test_session_attachment_with_parent_node() -> None:
-    """ensure_session adopts session from parent node."""
+    """ensure_session creates isolated child session instead of adopting parent."""
     mock_llm = MockLLM()
     config = NodeConfigBase(llm_client=mock_llm)
     parent = MinimalProcessNode(node_id="parent", config=config)
@@ -280,11 +280,12 @@ def test_session_attachment_with_parent_node() -> None:
 
     session = child.ensure_session(root_session)
 
-    assert session is parent.session
+    assert session is not parent.session
+    assert session.parent_id == root_session.session_id
 
 
-def test_message_building_with_session_context() -> None:
-    """build_messages includes session context when enabled."""
+def test_message_building_excludes_implicit_session_context() -> None:
+    """build_messages excludes implicit session context."""
     mock_llm = MockLLM()
     config = NodeConfigBase(
         llm_client=mock_llm,
@@ -298,9 +299,8 @@ def test_message_building_with_session_context() -> None:
     messages = node.build_messages(session, "New input")
 
     assert len(messages) > 0
-    # Session context appears in continuation messages (assistant-role)
     continuation_msgs = [m for m in messages if m["role"] == "assistant"]
-    assert any("Previous context" in m["content"] for m in continuation_msgs)
+    assert not any("Previous context" in m["content"] for m in continuation_msgs)
 
 
 def test_retry_on_validation_failure() -> None:

@@ -7,10 +7,17 @@ import collections.abc
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from tinycua.config.node_config import NodeConfigBase, NodeToolPolicy
+from tinycua.config.node_config import NodeConfigBase, NodeToolPolicy, create_node_config
+from tinycua.config.types import LLMResult, Tool
+from tinycua.config.types import ValidationError
+from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
+from tinycua.loops.node import NodeExecutionError
 from tinycua.loops.node_queue import NodeQueue
+from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
+from tinycua.loops.task_nodes import TinyCUATaskAssessorNode, TinyCUATaskExecutorNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.session import Session
+from tinycua_sdk import Agent, LanguageModel
 from tinycua_sdk.agent import BaseLoop
 
 from tests.unit.helpers.tinycua_loop_helpers import StubNode, ResponseNode
@@ -57,16 +64,171 @@ def test_tinycua_loop_stores_session_config():
     assert loop.root_session.session_config is None
 
 
-def test_tinycua_loop_default_max_iterations():
-    """TinyCUALoop defaults to 50 max iterations."""
+def test_tinycua_loop_has_no_iteration_limit():
+    """TinyCUALoop does not impose an iteration limit."""
     loop = TinyCUALoop()
-    assert loop.max_iterations == 50
+    assert not hasattr(loop, "max_iterations")
 
 
-def test_tinycua_loop_custom_max_iterations():
-    """TinyCUALoop accepts custom max_iterations."""
-    loop = TinyCUALoop(max_iterations=10)
-    assert loop.max_iterations == 10
+def test_compact_runtime_nodes_have_output_budget() -> None:
+    """Planner/reviewer/executor nodes are bounded to avoid runaway streams."""
+    loop = TinyCUALoop()
+    assessor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    planner = TinyCUAInformationDigesterNode(
+        node_id="digester",
+        config=create_node_config("digester"),
+    )
+
+    assert loop._node_max_tokens_override(planner, model=None) == 768
+    assert loop._node_max_tokens_override(assessor, model=None) == 1536
+
+
+def test_worker_state_nodes_have_long_retry_budget() -> None:
+    """One-shot worker nodes should not exhaust after only a few attempts."""
+    executor = create_node_config("task_executor")
+    reviewer = create_node_config("result_reviewer")
+
+    assert executor.retry_policy.max_attempts >= 25
+    assert reviewer.retry_policy.max_attempts >= 25
+
+
+def test_retry_message_is_assistant_self_correction() -> None:
+    """Retry continuations should be natural assistant messages, not system force."""
+    loop = TinyCUALoop()
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+
+    message = loop._stream_retry_message(
+        agent=object(),
+        node=executor,
+        resolved_tools=[Tool(name="task_result_update")],
+        error=ValidationError("missing task_result_update"),
+        attempt=1,
+        llm_result=LLMResult(),
+    )
+
+    assert message.startswith("I need to")
+    assert "ONLY strict JSON" not in message
+
+
+def test_executor_retry_keeps_action_tools_before_action_evidence() -> None:
+    """Executor retries keep action tools available before result update."""
+    loop = TinyCUALoop()
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    tools = [Tool(name="write_file"), Tool(name="task_result_update")]
+    message = loop._retry_message_for_validation(
+        ValidationError("missing task_result_update"),
+        executor,
+        tools,
+        LLMResult(
+            metadata={
+                "tool_results": [
+                    {"name": "task_execute", "output": {"success": True}},
+                ]
+            }
+        ),
+    )
+
+    retry_tools = loop._tools_for_retry_attempt(executor, tools, message)
+
+    assert {tool.name for tool in retry_tools} == {"write_file", "task_result_update"}
+
+
+def test_executor_retry_keeps_action_tools_after_action_evidence() -> None:
+    """Executor retries stay natural and only validate result update on exit."""
+    loop = TinyCUALoop()
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    tools = [Tool(name="write_file"), Tool(name="task_result_update")]
+    message = loop._retry_message_for_validation(
+        ValidationError("missing task_result_update"),
+        executor,
+        tools,
+        LLMResult(
+            metadata={
+                "tool_results": [
+                    {
+                        "name": "write_file",
+                        "output": {"success": True, "path": "models/note.py"},
+                    },
+                ]
+            }
+        ),
+    )
+
+    retry_tools = loop._tools_for_retry_attempt(executor, tools, message)
+
+    assert {tool.name for tool in retry_tools} == {"write_file", "task_result_update"}
+
+
+def test_executor_retry_keeps_all_tools_after_inspection() -> None:
+    """Executor keeps normal ReAct freedom after inspection."""
+    loop = TinyCUALoop()
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    tools = [
+        Tool(name="list_files"),
+        Tool(name="read_file"),
+        Tool(name="write_file"),
+        Tool(name="task_result_update"),
+    ]
+
+    retry_tools = loop._tools_for_retry_attempt(
+        executor,
+        tools,
+        "I need to use an appropriate action or research tool.",
+    )
+
+    assert {tool.name for tool in retry_tools} == {
+        "list_files",
+        "read_file",
+        "write_file",
+        "task_result_update",
+    }
+
+
+def test_response_validation_rejects_internal_transcript_replay() -> None:
+    """Final response must not replay node prompts or aggregation JSON."""
+    loop = TinyCUALoop()
+    response = ResponseNode()
+
+    validation = loop._validate_final_response_content(
+        response,
+        LLMResult(content="Task under review: abc\n## Current State\n..."),
+    )
+
+    assert validation.is_valid is False
+    assert "not replay internal" in validation.errors[0]
+
+
+def test_task_assessor_retry_narrows_to_required_handoff_tool() -> None:
+    """Assessor retries isolate node_handoff instead of repeating inspection."""
+    loop = TinyCUALoop()
+    assessor = TinyCUATaskAssessorNode(
+        node_id="task_assessor",
+        config=create_node_config("task_assessor"),
+    )
+    tools = assessor.config.tool_policy.resolve_tools([])
+
+    retry_tools = loop._tools_for_retry_attempt(
+        assessor,
+        tools,
+        "task_assessor must call at least one successful task-state tool from ['node_handoff']",
+    )
+
+    assert [tool.name for tool in retry_tools] == ["node_handoff"]
 
 
 # --- _execute_node tests ---
@@ -93,6 +255,29 @@ async def test_execute_node_calls_agent_with_node_messages():
         stream=False,
     )
     agent._call_llm.assert_called()
+
+
+async def test_run_sync_continues_until_terminal():
+    """Loop continues through nonterminal nodes until ResponseNode."""
+    stub = StubNode("node output")
+    terminal = ResponseNode()
+    queue = NodeQueue(items=[stub, terminal])
+
+    loop = TinyCUALoop(queue=queue)
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+    agent._call_llm = AsyncMock(return_value={"content": "ok", "tool_calls": None})
+
+    await loop.run(
+        agent=agent,
+        messages=[],
+        tools=[],
+        override_instructions=None,
+        stream=False,
+    )
+
+    assert agent._call_llm.call_count == 2
 
 
 async def test_execute_node_records_chat_history():
@@ -255,6 +440,214 @@ async def test_tool_scoping_all_tools():
     assert len(resolved) == 2
 
 
+@pytest.mark.asyncio
+async def test_execute_tool_calls_unwraps_provider_nested_arguments() -> None:
+    """Provider adapters unwrap {arguments:{...}} only for real tool kwargs."""
+    loop = TinyCUALoop()
+    calls = []
+
+    class WriteLikeTool(Tool):
+        def __init__(self) -> None:
+            super().__init__(
+                name="write_file",
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string"},
+                        "content": {"type": "string"},
+                    },
+                    "required": ["path", "content"],
+                    "additionalProperties": False,
+                },
+            )
+
+        def __call__(self, path: str, content: str) -> dict[str, object]:
+            calls.append((path, content))
+            return {"success": True, "path": path}
+
+    agent = Agent(llm_model=LanguageModel())
+    results = await loop._execute_tool_calls(
+        agent,
+        [
+            {
+                "type": "function",
+                "function": {
+                    "name": "write_file",
+                    "arguments": '{"arguments":{"path":"app.py","content":"print(1)"}}',
+                },
+            }
+        ],
+        [WriteLikeTool()],
+    )
+
+    assert calls == [("app.py", "print(1)")]
+    assert results[0]["output"] == {"success": True, "path": "app.py"}
+
+
+@pytest.mark.asyncio
+async def test_execute_tool_calls_preserves_real_arguments_parameter() -> None:
+    """Nested unwrapping must not break tools with a genuine arguments kwarg."""
+    loop = TinyCUALoop()
+    calls = []
+
+    class ArgumentsTool(Tool):
+        def __init__(self) -> None:
+            super().__init__(
+                name="argument_sink",
+                parameters={
+                    "type": "object",
+                    "properties": {"arguments": {"type": "object"}},
+                    "required": ["arguments"],
+                    "additionalProperties": False,
+                },
+            )
+
+        def __call__(self, arguments: dict[str, object]) -> dict[str, object]:
+            calls.append(arguments)
+            return {"success": True}
+
+    agent = Agent(llm_model=LanguageModel())
+    results = await loop._execute_tool_calls(
+        agent,
+        [
+            {
+                "type": "function",
+                "function": {
+                    "name": "argument_sink",
+                    "arguments": '{"arguments":{"value":1}}',
+                },
+            }
+        ],
+        [ArgumentsTool()],
+    )
+
+    assert calls == [{"value": 1}]
+    assert results[0]["output"] == {"success": True}
+
+
+def test_coerce_structured_tool_calls_accepts_allowed_tool_key_payload() -> None:
+    """Local tool-call shims may emit {tool_name:{...}} instead of tool_calls."""
+    loop = TinyCUALoop()
+    tool = Tool(
+        name="task_review_decision",
+        parameters={
+            "type": "object",
+            "properties": {
+                "decision": {"type": "string"},
+                "rationale": {"type": "string"},
+            },
+            "required": ["decision"],
+            "additionalProperties": False,
+        },
+    )
+    result = LLMResult(
+        content=(
+            '<tool_call>{"task_review_decision":{"decision":"needs_revision",'
+            '"rationale":"inspect requirements"}}</tool_call>'
+        ),
+    )
+
+    loop._coerce_structured_tool_calls(result, [tool])
+
+    assert result.tool_calls == [
+        {
+            "id": "call_json_0_task_review_decision",
+            "type": "function",
+            "function": {
+                "name": "task_review_decision",
+                "arguments": '{"decision": "needs_revision", "rationale": "inspect requirements"}',
+            },
+        }
+    ]
+
+
+def test_coerce_structured_tool_calls_accepts_multiline_allowed_tool_payload() -> None:
+    """Local models may emit explicit tool JSON with literal newlines."""
+    loop = TinyCUALoop()
+    tool = Tool(
+        name="task_result_update",
+        parameters={
+            "type": "object",
+            "properties": {
+                "content": {"type": "string"},
+                "task_id": {"type": "string"},
+                "success": {"type": "boolean"},
+            },
+            "required": ["content"],
+            "additionalProperties": False,
+        },
+    )
+    result = LLMResult(
+        content=(
+            '{"task_result_update":{"content":"Successfully initialized\n'
+            '**Status:**\nAll required infrastructure is in place.",'
+            '"task_id":"task-1","success":true}}</tool_call>'
+        ),
+    )
+
+    loop._coerce_structured_tool_calls(result, [tool])
+
+    assert result.tool_calls
+    assert result.tool_calls[0]["function"]["name"] == "task_result_update"
+    arguments = result.tool_calls[0]["function"]["arguments"]
+    assert "All required infrastructure" in arguments
+
+
+def test_coerce_structured_tool_calls_accepts_name_arguments_payload() -> None:
+    """Local models may emit explicit {name, arguments} tool-call JSON."""
+    loop = TinyCUALoop()
+    tool = Tool(
+        name="task_execute",
+        parameters={
+            "type": "object",
+            "properties": {"task_id": {"type": "string"}},
+            "additionalProperties": False,
+        },
+    )
+    result = LLMResult(
+        content=(
+            '{"name":"task_execute",'
+            '"arguments":{"task_id":"task-1"}}</tool_call>'
+        ),
+    )
+
+    loop._coerce_structured_tool_calls(result, [tool])
+
+    assert result.tool_calls
+    assert result.tool_calls[0]["function"]["name"] == "task_execute"
+    assert result.tool_calls[0]["function"]["arguments"] == '{"task_id": "task-1"}'
+
+
+def test_coerce_structured_tool_calls_accepts_multiple_name_arguments_payloads() -> None:
+    """Multiple explicit local-model tool payloads become one tool batch."""
+    loop = TinyCUALoop()
+    tools = [Tool(name="task_execute"), Tool(name="list_files")]
+    result = LLMResult(
+        content=(
+            '{"name":"task_execute","arguments":{"task_id":"task-1"}}'
+            "</tool_call>\n"
+            '{"name":"list_files","arguments":{"path":"."}}</tool_call>'
+        ),
+    )
+
+    loop._coerce_structured_tool_calls(result, tools)
+
+    assert [item["function"]["name"] for item in result.tool_calls] == [
+        "task_execute",
+        "list_files",
+    ]
+
+
+def test_coerce_structured_tool_calls_ignores_prose_without_allowed_tool_key() -> None:
+    """Compatibility coercion still ignores arbitrary prose JSON."""
+    loop = TinyCUALoop()
+    result = LLMResult(content='I think {"decision":"approved"} is fine.')
+
+    loop._coerce_structured_tool_calls(result, [Tool(name="task_review_decision")])
+
+    assert result.tool_calls == []
+
+
 # --- override_instructions tests ---
 
 
@@ -337,6 +730,201 @@ async def test_stream_true_returns_async_iterator():
     events = [e async for e in result]
     assert len(events) > 0
     assert any(e["type"] == "response.output_text.delta" for e in events)
+
+
+async def test_run_sync_consumes_canonical_stream_runtime():
+    """Non-stream run drains _run_stream instead of executing a second loop."""
+    loop = TinyCUALoop()
+    calls = 0
+
+    async def fake_stream(agent, tools, override_instructions=None):
+        nonlocal calls
+        del agent, tools, override_instructions
+        calls += 1
+        yield {
+            "type": "response.output_text.delta",
+            "node_id": "response",
+            "delta": "final",
+        }
+
+    loop._run_stream = fake_stream  # type: ignore[method-assign]
+
+    result = await loop._run_sync(MagicMock(), [], None)
+
+    assert result == "final"
+    assert calls == 1
+
+
+async def test_stream_true_emits_nonterminal_token_deltas():
+    """Streaming mode emits token deltas for nonterminal LLM nodes too."""
+    stub = StubNode("streaming nonterminal", node_id="planner")
+    terminal = ResponseNode()
+    queue = NodeQueue(items=[stub, terminal])
+
+    loop = TinyCUALoop(queue=queue)
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+    call_count = 0
+
+    async def mock_stream(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            yield {"type": "response.output_text.delta", "delta": "plan"}
+            yield {"type": "response.output_text.delta", "delta": " tokens"}
+        else:
+            yield {"type": "response.output_text.delta", "delta": " final"}
+
+    agent._call_llm = mock_stream
+
+    result = await loop.run(agent, messages=[], tools=[], stream=True)
+    events = [event async for event in result]
+
+    planner_deltas = [
+        event
+        for event in events
+        if event.get("type") == "response.output_text.delta"
+        and event.get("node_id") == "planner"
+    ]
+    assert [event["delta"] for event in planner_deltas] == ["plan", " tokens"]
+
+
+async def test_stream_task_executor_receives_injected_active_task_context():
+    """Streaming executor path injects the same active-task context as sync path."""
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    queue = NodeQueue(items=[executor])
+    loop = TinyCUALoop(queue=queue)
+    root = loop.root_session.task_store.create_task("Build application")
+    active = loop.root_session.task_store.create_task(
+        "Create requirements.txt",
+        parent_id=root.task_id,
+    )
+    loop.root_session.task_store.active_task_id = active.task_id
+    captured_messages = []
+
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+
+    async def mock_stream(messages, tools, *, stream=False):
+        del tools, stream
+        captured_messages.extend(messages)
+        yield {"type": "response.output_text.delta", "delta": "working"}
+
+    agent._call_llm = mock_stream
+
+    with pytest.raises(NodeExecutionError):
+        async for _event in loop._stream_node_events(
+            executor,
+            agent,
+            [],
+            None,
+            loop.queue.input_for_current(),
+        ):
+            pass
+
+    rendered = "\n".join(str(message.get("content", "")) for message in captured_messages)
+    assert "Create requirements.txt" in rendered
+    assert "Build application" in rendered
+
+
+async def test_stream_retry_prompt_replaces_prior_retry_prompt() -> None:
+    """Streaming retries use base context plus one current retry prompt."""
+    query = TinyCUAQueryAnalystNode(
+        node_id="query_analyst",
+        config=create_node_config("query_analyst"),
+    )
+    loop = TinyCUALoop(queue=NodeQueue(items=[query]))
+    loop.root_session.input_context = [{"role": "user", "content": "hello"}]
+    query.ensure_session(loop.root_session)
+    captured_messages: list[list[dict]] = []
+
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+
+    async def mock_stream(messages, tools, *, stream=False):
+        del tools, stream
+        captured_messages.append(list(messages))
+        yield {"type": "response.output_text.delta", "delta": "passthrough"}
+        yield {"type": "response.completed", "finish_reason": "completed"}
+
+    agent._call_llm = mock_stream
+
+    with pytest.raises(NodeExecutionError):
+        async for _event in loop._stream_node_events(
+            query,
+            agent,
+            [],
+            None,
+            loop.queue.input_for_current(),
+        ):
+            pass
+
+    retry_counts = [
+        sum(
+            "You need to call select_query_route" in str(message.get("content", ""))
+            for message in call_messages
+        )
+        for call_messages in captured_messages
+    ]
+    assert retry_counts == [0, 1, 1]
+
+
+async def test_stream_digester_digest_only_does_not_route_to_response():
+    """Digester may choose digest-only without terminal failure routing."""
+    digester = TinyCUAInformationDigesterNode(
+        node_id="digester",
+        config=create_node_config("digester"),
+    )
+    response = ResponseNode()
+    queue = NodeQueue(items=[digester, response])
+    loop = TinyCUALoop(queue=queue)
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+
+    async def mock_stream(messages, tools, *, stream=False):
+        del messages, tools, stream
+        return {
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_digest",
+                    "type": "function",
+                    "function": {
+                        "name": "digest_information",
+                        "arguments": '{"information":"notes app"}',
+                    },
+                },
+            ],
+        }
+
+    agent._call_llm = mock_stream
+
+    events = [
+        event
+        async for event in loop._stream_node_events(
+            digester,
+            agent,
+            [],
+            None,
+            loop.queue.input_for_current(),
+        )
+    ]
+
+    assert any(
+        event.get("type") == "node.completed" and event.get("node_id") == "digester"
+        for event in events
+    )
+    assert loop.queue.current is digester
+    assert not any(
+        entry.get("node_id") == "response" for entry in loop.get_execution_trace()
+    )
 
 
 # --- Existing passthrough tests (backward compat) ---
@@ -495,7 +1083,7 @@ async def test_run_stream_records_chat_history():
     # Events now include lifecycle events (node.started, node.llm_call, node.completed)
     # in addition to LLM delta events
     delta_events = [e for e in events if e.get("type") == "response.output_text.delta"]
-    assert len(delta_events) == 2  # original delta events still present
+    assert [event["delta"] for event in delta_events] == ["Hello world"]
     assistant_msgs = [
         m for m in loop.root_session.chat_history if m.role == "assistant"
     ]

@@ -2,14 +2,23 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from tinycua.loops.node import ProcessNode
+from tinycua.models.node_input import NodeInput
 
 if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
-    from tinycua.models.node_input import NodeInputLike
     from tinycua.config.types import LLMResult
+    from tinycua.loops.node_queue import NodeQueue
+    from tinycua.models.node_input import NodeInputLike
+
+_RESPONSE_CONTINUATION = (
+    "Based on the accepted Worker result or direct-response context above, "
+    "synthesize the final user-facing answer. Be concise and mention concrete "
+    "artifacts or verification evidence when available. Do not emit JSON, "
+    "tool-call protocol payloads, or internal routing details."
+)
 
 
 class ResponseNode(ProcessNode):
@@ -45,8 +54,10 @@ class ResponseNode(ProcessNode):
             instruction=(
                 "Generate the final user-facing response. Use the available "
                 "conversation and node outputs as context, and always return "
-                "a concise non-empty answer."
+                "a concise non-empty answer in natural language. Do not emit "
+                "JSON or tool-call protocol payloads."
             ),
+            continuation=_RESPONSE_CONTINUATION,
             is_terminal=True,
         )
         self.captured_content: str = ""
@@ -67,3 +78,49 @@ class ResponseNode(ProcessNode):
         result = super().__call__(input)
         self.captured_content = result.content
         return result
+
+    def build_messages(
+        self,
+        session: Any,
+        input: NodeInputLike,
+        resolved_tools: list[Any] | None = None,
+    ) -> list[dict[str, str]]:
+        """Build clean final-response messages without internal handoff prose."""
+        if isinstance(input, NodeInput) and input.metadata.get("original_query"):
+            system = self.build_system_message(resolved_tools)
+            messages = [system] if system.get("content") else []
+            messages.append({"role": "user", "content": str(input.metadata["original_query"])})
+            return messages
+        return super().build_messages(session, input, resolved_tools)
+
+    def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
+        """Optionally suspend for information digestion before final response."""
+        del response
+        if not self._should_request_digest():
+            return
+
+        from tinycua.config.node_config import create_node_config
+        from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
+
+        digester = TinyCUAInformationDigesterNode(
+            node_id="digester",
+            config=create_node_config("digester"),
+        )
+        digester.parent = self
+        self.config.metadata["digest_requested"] = True
+        queue.suspend_current_and_prepend([digester])
+
+    def _should_request_digest(self) -> bool:
+        """Return whether response synthesis should first gather context."""
+        if not self.config.metadata.get("require_digest"):
+            return False
+        if self.config.metadata.get("digest_requested"):
+            return False
+        if self.session is None:
+            return True
+        from tinycua.models.digested_information import DigestedInformation
+
+        return not any(
+            isinstance(entry.content, DigestedInformation)
+            for entry in self.session.session_context
+        )

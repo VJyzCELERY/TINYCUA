@@ -13,9 +13,32 @@ from typing import Any
 
 from tinycua_sdk.tools.decorators import tool
 
+from tinycua.agent.tools.native.context import bind_workspace_to_tool, get_workspace_dir
+
+_DEFAULT_TIMEOUT_SECONDS = 30
+_MAX_TIMEOUT_SECONDS = 30
+
+
+def _bounded_timeout(timeout: int) -> int:
+    """Return a safe timeout for model-requested shell execution."""
+    try:
+        requested = int(timeout)
+    except (TypeError, ValueError):
+        return _DEFAULT_TIMEOUT_SECONDS
+    return min(max(requested, 1), _MAX_TIMEOUT_SECONDS)
+
+
+def _uses_unsafe_mkdir_braces(command: str) -> bool:
+    """Detect mkdir with brace expansion that POSIX /bin/sh won't expand."""
+    if "mkdir" not in command or "{" not in command or "}" not in command:
+        return False
+    start = command.find("{")
+    end = command.find("}", start)
+    return start < end and "," in command[start:end]
+
 
 @tool
-def run_shell(command: str, timeout: int = 30) -> dict[str, Any]:
+def run_shell(command: str, timeout: int = _DEFAULT_TIMEOUT_SECONDS) -> dict[str, Any]:
     """Execute a shell command and capture its output.
 
     Args:
@@ -25,18 +48,26 @@ def run_shell(command: str, timeout: int = 30) -> dict[str, Any]:
     Returns:
         A dict with keys: stdout, stderr, exit_code, timed_out, error.
     """
-    process = subprocess.Popen(
-        command,
-        shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        encoding="utf-8",
-        preexec_fn=os.setsid,
-    )
-
+    effective_timeout = _bounded_timeout(timeout)
+    if _uses_unsafe_mkdir_braces(command):
+        return {
+            "stdout": "", "stderr": "",
+            "exit_code": -1, "timed_out": False,
+            "error": "POSIX /bin/sh does not expand mkdir braces; use explicit paths instead.",
+        }
     try:
-        stdout, stderr = process.communicate(timeout=timeout)
+        workspace = get_workspace_dir()
+        process = subprocess.Popen(
+            command,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            preexec_fn=os.setsid,
+            cwd=str(workspace) if workspace is not None else None,
+        )
+        stdout, stderr = process.communicate(timeout=effective_timeout)
         return {
             "stdout": stdout or "",
             "stderr": stderr or "",
@@ -52,7 +83,7 @@ def run_shell(command: str, timeout: int = 30) -> dict[str, Any]:
             "stderr": stderr or "",
             "exit_code": -1,
             "timed_out": True,
-            "error": f"Command timed out after {timeout}s",
+            "error": f"Command timed out after {effective_timeout}s",
         }
     except subprocess.SubprocessError as exc:
         return {
@@ -70,3 +101,6 @@ def run_shell(command: str, timeout: int = 30) -> dict[str, Any]:
             "timed_out": False,
             "error": str(exc),
         }
+
+
+bind_workspace_to_tool(run_shell)

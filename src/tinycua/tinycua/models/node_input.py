@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal, TypeAlias
 
+from tinycua.models.node_handoff import NodeHandoff
 from tinycua.models.node_payload import NodePayload
 from tinycua.models.state_object import StateObject
 
@@ -51,7 +52,7 @@ class NodeInput(StateObject):
 
 
 # Type alias for flexible node input
-NodeInputLike: TypeAlias = str | NodeInput | NodePayload | list[dict]
+NodeInputLike: TypeAlias = str | NodeInput | NodePayload | NodeHandoff | list[dict] | dict
 
 
 def convert_node_input_to_messages(
@@ -86,7 +87,11 @@ def convert_node_input_to_messages(
         return node_input.to_messages()
     if isinstance(node_input, NodePayload):
         return node_input.to_messages()
+    if isinstance(node_input, NodeHandoff):
+        return [node_input.to_message()]
     if isinstance(node_input, list):
         return node_input
+    if isinstance(node_input, dict) and not node_input:
+        return []
     msg = f"Unsupported NodeInputLike type: {type(node_input)}"
     raise TypeError(msg)

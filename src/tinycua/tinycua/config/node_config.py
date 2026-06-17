@@ -19,6 +19,7 @@ class NodeMessagePolicy:
     Attributes:
         include_chat_history: Whether to include chat history in messages.
         include_session_context: Whether to include session context.
+        include_input_context: Whether to include SDK/root input context.
         max_context_messages: Maximum number of context messages (None = unlimited).
         dedupe_by_origin_record_id: Deduplicate messages by origin record ID.
         continuation_role: Role for internal node handoff messages.
@@ -26,6 +27,7 @@ class NodeMessagePolicy:
 
     include_chat_history: bool = False
     include_session_context: bool = True
+    include_input_context: bool = False
     max_context_messages: int | None = None
     dedupe_by_origin_record_id: bool = True
     continuation_role: str = "assistant"
@@ -128,7 +130,7 @@ class NodeRetryPolicy:
     """Controls retry behavior, validation, and exhaustion handling.
 
     Attributes:
-        max_attempts: Maximum number of attempts (0 = no retries).
+        max_attempts: Maximum number of attempts (0 = no retries, None = unbounded).
         required_tool_calls: Tool calls required for validation.
         required_output_schema: Schema or type for output validation.
         validation_fn: Custom validation function.
@@ -136,7 +138,7 @@ class NodeRetryPolicy:
         on_retry_exhausted: Behavior when retries exhausted.
     """
 
-    max_attempts: int = 3
+    max_attempts: int | None = 3
     required_tool_calls: list[str] = field(default_factory=list)
     required_output_schema: dict | type[StateObject] | None = None
     validation_fn: Any | None = None  # Callable[[LLMResult], ValidationResult]
@@ -149,7 +151,7 @@ class NodeRetryPolicy:
 
     def __post_init__(self) -> None:
         """Validate max_attempts is non-negative."""
-        if self.max_attempts < 0:
+        if self.max_attempts is not None and self.max_attempts < 0:
             raise ValueError("max_attempts must be >= 0")
 
 
@@ -163,7 +165,7 @@ class NodeConfigBase:
         custom_instruction_append: Custom text appended to system instruction.
         custom_continuation_append: Custom text appended to continuation.
         custom_retry_append: Custom text appended to retry messages.
-        propagation: Propagation rule (placeholder for future implementation).
+        propagation: Propagation rule for session/root context transfer.
         tool_policy: Tool scope resolution policy.
         stream_policy: Streaming behavior policy.
         retry_policy: Retry behavior policy.
@@ -216,7 +218,7 @@ def create_node_config(
         "task_executor": tool_scopes.task_executor_tool_scope,
         "result_reviewer": tool_scopes.result_reviewer_tool_scope,
         "result_aggregation": tool_scopes.result_aggregation_tool_scope,
-        "analysis_effort": tool_scopes.task_analyzer_tool_scope,
+        "analysis_effort": tool_scopes.deterministic_controller_tool_scope,
         "response": tool_scopes.response_tool_scope,
     }
 
@@ -226,6 +228,92 @@ def create_node_config(
     else:
         factory = policy_factories.get(normalized)
         tool_policy = factory() if factory is not None else config.tool_policy
+    retry_policy = config.retry_policy
+    if normalized == "query_analyst":
+        retry_policy = replace(
+            retry_policy,
+            required_tool_calls=["select_query_route"],
+        )
+    elif normalized == "worker":
+        retry_policy = replace(
+            retry_policy,
+            required_tool_calls=["select_worker_route"],
+        )
+    else:
+        retry_policy = replace(retry_policy, required_tool_calls=[])
     metadata = dict(config.metadata)
     metadata["node_kind"] = normalized
-    return replace(config, tool_policy=tool_policy, metadata=metadata)
+    if normalized == "task_assessor":
+        metadata["task_assessor_mode"] = mode or metadata.get(
+            "task_assessor_mode",
+            "upfront_decomposition",
+        )
+    if normalized == "task_analyzer":
+        metadata["task_analyzer_mode"] = mode or metadata.get(
+            "task_analyzer_mode",
+            "task_creation",
+        )
+    if normalized in {"task_executor", "result_reviewer"}:
+        retry_policy = replace(retry_policy, max_attempts=25)
+    retry_guidance = {
+        "digester": (
+            "If prior context is available, consider using "
+            "enhanced_context_retrieval to inspect it before calling "
+            "digest_information. Do not force retrieval when the provided "
+            "context is already sufficient."
+        ),
+        "information_digester": (
+            "If prior context is available, consider using "
+            "enhanced_context_retrieval to inspect it before calling "
+            "digest_information. Do not force retrieval when the provided "
+            "context is already sufficient."
+        ),
+        "query_analyst": (
+            "Use select_query_route with exactly one route. Do not answer with "
+            "the route in text only."
+        ),
+        "worker": (
+            "Use select_worker_route with exactly one currently allowed route. "
+            "Do not answer with the route in text only."
+        ),
+        "task_create": (
+            "Call task_init with a root title derived from the actual request. "
+            "Do not describe task creation only in prose."
+        ),
+        "task_analyzer": (
+            "Use task_inspect plus task_decompose or task_update when task "
+            "analysis changes or confirms the task tree."
+        ),
+        "task_assessor": (
+            "Use task_inspect for read-only assessment and node_handoff to "
+            "instruct TaskAnalyzer instead of mutating task state."
+        ),
+        "task_executor": (
+            "Use action/research tools as needed and then call "
+            "task_result_update with the observed result."
+        ),
+        "result_reviewer": (
+            "Call task_review_decision with approved, needs_revision, "
+            "rejected, replan, or open_question."
+        ),
+    }.get(normalized)
+    custom_retry_append = config.custom_retry_append
+    if retry_guidance:
+        custom_retry_append = " ".join(
+            part for part in (custom_retry_append, retry_guidance) if part
+        )
+    message_policy = replace(
+        config.message_policy,
+        include_chat_history=False,
+        include_session_context=normalized
+        not in {"task_executor", "result_reviewer"},
+        include_input_context=normalized == "query_analyst",
+    )
+    return replace(
+        config,
+        tool_policy=tool_policy,
+        retry_policy=retry_policy,
+        message_policy=message_policy,
+        metadata=metadata,
+        custom_retry_append=custom_retry_append,
+    )
