@@ -144,24 +144,52 @@ cd WildClawBench
 
 ---
 
-## 6. Download the Hermes Agent Docker Image (skip if `docker images | grep hermes-agent` shows v0.5)
+## 6. Download Docker Images (skip if already loaded)
+
+WildClawBench ships **four** Docker images — one per harness. Download the one(s) you need:
+
+| Harness | Image tarball | Loaded tag |
+|---------|---------------|------------|
+| OpenClaw | `wildclawbench-ubuntu_v1.3.tar` | `wildclawbench-ubuntu:v1.3` |
+| Claude Code | `wildclawbench-claudecode-ubuntu_v0.2-patched.tar` | `wildclawbench-claudecode-ubuntu:v0.2` |
+| Codex CLI | `wildclawbench-codex-ubuntu_v0.0.tar` | `wildclawbench-codex-ubuntu:v0.0` |
+| **Hermes Agent** | `wildclawbench-hermes-agent-v0.5.tar.gz` | `wildclawbench-hermes-agent:v0.5` |
 
 ```bash
 pip install -U "huggingface_hub[cli]"
 
-# Download the Hermes Agent image
-hf download internlm/WildClawBench Images/wildclawbench-hermes-agent-v0.5.tar.gz \
-    --repo-type dataset --local-dir .
+# Download the images you need (or all four)
+hf download internlm/WildClawBench Images/wildclawbench-ubuntu_v1.3.tar                    --repo-type dataset --local-dir .
+hf download internlm/WildClawBench Images/wildclawbench-claudecode-ubuntu_v0.2-patched.tar --repo-type dataset --local-dir .
+hf download internlm/WildClawBench Images/wildclawbench-codex-ubuntu_v0.0.tar              --repo-type dataset --local-dir .
+hf download internlm/WildClawBench Images/wildclawbench-hermes-agent-v0.5.tar.gz           --repo-type dataset --local-dir .
 
-# Load into Docker
+# Load each image into Docker
+docker load -i Images/wildclawbench-ubuntu_v1.3.tar
+docker load -i Images/wildclawbench-claudecode-ubuntu_v0.2-patched.tar
+docker load -i Images/wildclawbench-codex-ubuntu_v0.0.tar
 docker load -i Images/wildclawbench-hermes-agent-v0.5.tar.gz
 ```
 
 Verify:
 ```bash
-docker images | grep hermes-agent
-# Expected: wildclawbench-hermes-agent:v0.5
+docker images | grep wildclawbench
+# Expected: 4 images (ubuntu, claudecode, codex, hermes-agent)
 ```
+
+> **Tip:** For our benchmark we only need Hermes Agent. To save disk, download just that one:
+> ```bash
+> hf download internlm/WildClawBench Images/wildclawbench-hermes-agent-v0.5.tar.gz --repo-type dataset --local-dir .
+> docker load -i Images/wildclawbench-hermes-agent-v0.5.tar.gz
+> ```
+>
+> Or use the helper script from `src/hermes-benchmark/`:
+> ```bash
+> bash scripts/download_images.sh                # Hermes only (default)
+> bash scripts/download_images.sh --all          # All four harnesses
+> bash scripts/download_images.sh --list         # Show available images
+> bash scripts/download_images.sh --harness openclaw  # Specific harness
+> ```
 
 ---
 
