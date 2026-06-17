@@ -840,23 +840,6 @@ class TinyCUALoop(BaseLoop):
                 continuation_rounds += 1
                 if continuation_rounds >= _MAX_TOOL_CONTINUATIONS:
                     break
-                attempt_tools = self._tools_after_executor_inspection(
-                    node,
-                    resolved_tools,
-                    all_tool_results,
-                )
-                if attempt_tools is not resolved_tools:
-                    attempt_messages.append(
-                        {
-                            "role": "assistant",
-                            "content": (
-                                "Inspection is complete. Next use an action tool "
-                                "such as write_file, edit_file, run_shell, "
-                                "run_python, web_search, or fetch_url; do not "
-                                "repeat read-only inspection."
-                            ),
-                        }
-                    )
                 raw_response = await self._call_agent_llm(
                     agent,
                     node,
@@ -930,11 +913,17 @@ class TinyCUALoop(BaseLoop):
         if retry_message:
             messages.append(
                 {
-                    "role": "assistant",
-                    "content": retry_message,
+                    "role": "user",
+                    "content": self._retry_prompt_for_llm(retry_message),
                 }
             )
         return messages
+
+    @staticmethod
+    def _retry_prompt_for_llm(retry_message: str) -> str:
+        """Convert internal retry note into an ephemeral user correction."""
+        text = retry_message.replace("I need to", "You need to")
+        return f"Correction for the previous response: {text}"
 
     def _tools_for_retry_attempt(
         self,
@@ -949,25 +938,6 @@ class TinyCUALoop(BaseLoop):
         narrowed = [tool for tool in resolved_tools if tool.name == required]
         return narrowed or resolved_tools
 
-    def _tools_after_executor_inspection(
-        self,
-        node: Node,
-        resolved_tools: list[Tool],
-        tool_results: list[dict[str, Any]],
-    ) -> list[Tool]:
-        """Drop read-only executor tools after inspection has already succeeded."""
-        if node.node_id != "task_executor":
-            return resolved_tools
-        if self._successful_executor_action_results(tool_results):
-            return resolved_tools
-        if not self._successful_executor_inspection_results(tool_results):
-            return resolved_tools
-        read_only = {"read_file", "list_files", "task_inspect", "task_result_update"}
-        if all(tool.name not in read_only for tool in resolved_tools):
-            return resolved_tools
-        narrowed = [tool for tool in resolved_tools if tool.name not in read_only]
-        return narrowed or resolved_tools
-
     def _retry_required_tool_name(
         self,
         node: Node,
@@ -976,10 +946,7 @@ class TinyCUALoop(BaseLoop):
         """Return a required tool that should be isolated for this retry."""
         if not retry_message:
             return None
-        retry_required_by_node = {
-            "result_reviewer": "task_review_decision",
-            "task_assessor": "node_handoff",
-        }
+        retry_required_by_node = {"task_assessor": "node_handoff"}
         required = retry_required_by_node.get(node.node_id)
         if required and required in retry_message:
             return required
@@ -1522,14 +1489,6 @@ class TinyCUALoop(BaseLoop):
     ) -> str | dict[str, Any] | None:
         """Return provider-compatible forced tool_choice for tool-required nodes."""
         required = self._required_single_tool_choice_name(node)
-        if required is None and self._requires_any_tool_choice(node):
-            return "required" if resolved_tools else None
-        if (
-            required is None
-            and node.node_id == "task_assessor"
-            and {tool.name for tool in resolved_tools} == {"node_handoff"}
-        ):
-            return "required"
         if required is None:
             return None
         if required not in {tool.name for tool in resolved_tools}:
@@ -1550,7 +1509,8 @@ class TinyCUALoop(BaseLoop):
 
     def _requires_any_tool_choice(self, node: Node) -> bool:
         """Return whether a node must call some tool but not one fixed tool."""
-        return node.node_id in {"task_executor", "result_reviewer", "task_analyzer"}
+        del node
+        return False
 
     def _llm_tools_for_required_choice(
         self,
@@ -1615,6 +1575,7 @@ class TinyCUALoop(BaseLoop):
                 return validation
             if task.result is None or task.result.success is not False:
                 return validation
+            self._rollback_invalid_reviewer_approval(task_id)
             validation.is_valid = False
             validation.errors.append(
                 "ResultReviewer cannot approve a failed task result. Choose "
@@ -1666,12 +1627,41 @@ class TinyCUALoop(BaseLoop):
         )
         if inspected:
             return validation
+        self._rollback_invalid_reviewer_approval(task_id)
         validation.is_valid = False
         validation.errors.append(
             "ResultReviewer must inspect workspace/artifact files with successful "
             "list_files or read_file before approving tasks that produced artifacts."
         )
         return validation
+
+    def _rollback_invalid_reviewer_approval(self, task_id: str) -> None:
+        """Undo reviewer approval side effects when runtime validation rejects it."""
+        task = self.root_session.task_store.tasks.get(task_id)
+        if task is None:
+            return
+        from tinycua.models.task import TaskStatus
+
+        if task.reviewer_decisions and task.reviewer_decisions[-1].get("decision") == "approved":
+            task.reviewer_decisions.pop()
+        if task.status.value == "completed":
+            task.status = TaskStatus.IN_PROGRESS
+        parent_id = task.parent_id
+        while parent_id is not None:
+            parent = self.root_session.task_store.tasks.get(parent_id)
+            if parent is None:
+                break
+            has_unfinished_child = any(
+                self.root_session.task_store.tasks[child_id].status != TaskStatus.COMPLETED
+                for child_id in parent.children
+                if child_id in self.root_session.task_store.tasks
+            )
+            if has_unfinished_child and parent.status == TaskStatus.COMPLETED:
+                parent.status = TaskStatus.IN_PROGRESS
+                if parent.result and parent.result.metadata.get("aggregated") is True:
+                    parent.result = None
+            parent_id = parent.parent_id
+        self.root_session.task_store.active_task_id = task.task_id
 
     def _validate_final_response_content(
         self,
@@ -1695,6 +1685,10 @@ class TinyCUALoop(BaseLoop):
             )
         internal_markers = (
             "Based on the external user request above",
+            "Based on the accepted Worker result",
+            "Based on the context above",
+            "Direct response context",
+            "Reply naturally and directly to the user",
             "Task under review:",
             "## Current State",
             "Completed task evidence:",
@@ -1707,6 +1701,19 @@ class TinyCUALoop(BaseLoop):
                 "node prompts, task review text, or aggregation JSON."
             )
         store = self.root_session.task_store
+        if store.root_task_id is not None and store.all_done():
+            clarification_markers = (
+                "I need clarification",
+                "What specific task remains?",
+                "Current working directory?",
+                "rather than guessing",
+            )
+            if any(marker in content for marker in clarification_markers):
+                validation.is_valid = False
+                validation.errors.append(
+                    "Final response must summarize completed task outcome, not ask "
+                    "for clarification after all tasks are complete."
+                )
         if (
             store.root_task_id is not None
             and not store.all_done()
@@ -1777,37 +1784,6 @@ class TinyCUALoop(BaseLoop):
                 "result, or report a blocked state; do not return a plan-only answer."
             )
             return validation
-        # Success claims must be backed by at least one successful action/research tool.
-        # ponytail: task_result_update output success means the tool worked; persisted
-        # TaskResult.success is the task success flag.
-        successful_task_ids = []
-        for item in tool_results:
-            if item.get("name") != "task_result_update":
-                continue
-            output = item.get("output")
-            if not isinstance(output, dict) or output.get("success") is not True:
-                continue
-            task_id = output.get("task_id")
-            if not isinstance(task_id, str) or task_id not in self.root_session.task_store.tasks:
-                continue
-            task = self.root_session.task_store.tasks[task_id]
-            if task.result is not None and task.result.success is True:
-                successful_task_ids.append(task_id)
-        if successful_task_ids:
-            # Include evidence from task artifacts (enriched from partial results)
-            task_id = successful_task_ids[0]
-            all_evidence = list(tool_results)
-            task = self.root_session.task_store.tasks[task_id]
-            result_artifacts = list(task.result.artifacts) if task.result else []
-            for artifact in [*task.artifacts, *result_artifacts]:
-                if artifact.get("kind") == "file":
-                    all_evidence.append({"name": artifact.get("metadata", {}).get("tool_name", "write_file")})
-            if not self._successful_executor_action_results(all_evidence):
-                validation.is_valid = False
-                validation.errors.append(
-                    "TaskExecutor success=True task_result_update requires at least one successful "
-                    "workspace/research action tool result; task_execute alone is dispatch, not evidence."
-                )
         return validation
 
     def _validate_tool_owned_task_state(
@@ -2799,6 +2775,16 @@ class TinyCUALoop(BaseLoop):
             if validation.is_valid:
                 if combined and not node.is_terminal:
                     self._record_node_content_transcript(node, combined)
+                if combined and node.is_terminal:
+                    async for event in self._stream_terminal_text(
+                        combined,
+                        include_meta,
+                        node.node_id,
+                        node_type,
+                        attempt_number,
+                        final_only,
+                    ):
+                        yield event
                 if stream_messages is not None:
                     if combined:
                         stream_messages.append({"role": "assistant", "content": combined})
@@ -2857,6 +2843,28 @@ class TinyCUALoop(BaseLoop):
         max_attempts: int,
     ) -> AsyncIterator[dict[str, Any]]:
         """Handle streamed retry exhaustion without terminal synthesis."""
+        if self._should_fallback_terminal_response(node, validation):
+            fallback = self._response_fallback_content()
+            async for event in self._stream_terminal_text(
+                fallback,
+                include_meta,
+                node.node_id,
+                node_type,
+                max_attempts,
+                final_only,
+            ):
+                yield event
+            async for event in self._stream_node_completed(
+                node,
+                fallback,
+                emit_lifecycle,
+                include_meta,
+                final_only,
+                node_type,
+                max_attempts,
+            ):
+                yield event
+            return
         node._handle_exhaustion(validation, max_attempts)
         if self._recover_task_assessor_validation_failure(node, validation):
             completed = self._emit_lifecycle_event(
@@ -2938,6 +2946,26 @@ class TinyCUALoop(BaseLoop):
         ):
             yield event
 
+    def _should_fallback_terminal_response(
+        self,
+        node: Node,
+        validation: ValidationResult,
+    ) -> bool:
+        """Return whether response exhaustion can use deterministic fallback text."""
+        if node.node_id != "response":
+            return False
+        if any("not replay internal" in error for error in validation.errors):
+            return True
+        store = self.root_session.task_store
+        if store.root_task_id is None:
+            return False
+        if not any(task.status.value == "completed" for task in store.tasks.values()):
+            return False
+        return any(
+            "non-empty" in error or "summarize completed task outcome" in error
+            for error in validation.errors
+        )
+
     def _recover_task_assessor_validation_failure(
         self,
         node: Node,
@@ -2979,7 +3007,27 @@ class TinyCUALoop(BaseLoop):
             return False
         root = self.root_session.task_store.tasks[root_id]
         if not root.children:
-            return False
+            title = root.title.lower()
+            if "app" not in title or not ({"web", "ui"} & set(title.split())):
+                return False
+            self.root_session.task_store.decompose_task(
+                root_id,
+                [
+                    "Build a minimal runnable vertical-slice app with Python backend and web UI"
+                ],
+            )
+            root.metadata["analyzer_recovery"] = {
+                "source_node_id": node.node_id,
+                "errors": list(validation.errors),
+                "recovery": "create_vertical_slice",
+                "reason": "Analyzer missed task-state tooling for a one-shot app task.",
+            }
+            self._record_node_content_transcript(
+                node,
+                "TaskAnalyzer missed task-state tooling; created one vertical-slice "
+                "app task and continued execution.",
+            )
+            return True
         root.metadata["analyzer_recovery"] = {
             "source_node_id": node.node_id,
             "errors": list(validation.errors),
@@ -3073,6 +3121,9 @@ class TinyCUALoop(BaseLoop):
             stream=True,
         )
         async for event in self._iter_stream_result_events(stream_result):
+            if node.is_terminal and event.get("type") == "response.output_text.delta":
+                content_parts.append(str(event.get("delta", "")))
+                continue
             transcript = self._handle_stream_event(
                 node,
                 event,
@@ -3122,6 +3173,57 @@ class TinyCUALoop(BaseLoop):
         if isinstance(stream_result, str):
             yield {"type": "response.output_text.delta", "delta": stream_result}
         yield {"type": "response.completed", "finish_reason": "completed"}
+
+    async def _stream_terminal_text(
+        self,
+        content: str,
+        include_meta: bool,
+        node_id: str,
+        node_type: str,
+        attempt: int,
+        final_only: bool,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Emit validated terminal text once."""
+        del final_only
+        event = {"type": "response.output_text.delta", "delta": content}
+        self._final_response_events.append(dict(event))
+        transcript = self._record_transcript_event(
+            "transcript.delta",
+            "Response",
+            content,
+            node_id=node_id,
+        )
+        yield self._enrich_and_yield(event, include_meta, node_id, node_type, attempt)
+        yield transcript
+
+    def _response_fallback_content(self) -> str:
+        """Return deterministic user-facing text when response synthesis fails."""
+        store = self.root_session.task_store
+        if store.root_task_id is not None and store.root_task_id in store.tasks:
+            completed = [
+                task for task in store.tasks.values()
+                if task.result is not None and task.status.value == "completed"
+            ]
+            if completed:
+                task = completed[-1]
+                artifacts = [artifact.get("path") for artifact in task.artifacts if artifact.get("path")]
+                suffix = f" Artifact: {artifacts[-1]}" if artifacts else ""
+                return f"Done: {task.result.summary}{suffix}"
+            return "I couldn't complete the request cleanly."
+        user_text = self._latest_user_text().strip()
+        if user_text.lower() in {"hi", "hello", "hey"}:
+            return f"{user_text.capitalize()}!"
+        return user_text or "Hello!"
+
+    def _latest_user_text(self) -> str:
+        """Return the latest external user input text."""
+        for message in reversed(self.root_session.input_context):
+            if isinstance(message, dict) and message.get("role") == "user":
+                return str(message.get("content", ""))
+            content = getattr(message, "content", None)
+            if content is not None:
+                return str(content)
+        return ""
 
     def _handle_stream_event(
         self,

@@ -151,7 +151,7 @@ async def _run_streaming(agent: Any, prompt: str) -> str:
     print("=== LIVE STREAM ===", flush=True)
     async for event in stream:
         final_delta = printer.handle_event(event)
-        if final_delta:
+        if final_delta and event.get("node_id") == "response":
             final_chunks.append(final_delta)
         seen_transcript_events = _print_new_transcript_events(
             agent.loop,

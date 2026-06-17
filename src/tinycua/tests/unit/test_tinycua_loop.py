@@ -171,8 +171,8 @@ def test_executor_retry_keeps_action_tools_after_action_evidence() -> None:
     assert {tool.name for tool in retry_tools} == {"write_file", "task_result_update"}
 
 
-def test_executor_continuation_drops_read_only_tools_after_inspection() -> None:
-    """Executor should not loop on list_files after inspection succeeds."""
+def test_executor_retry_keeps_all_tools_after_inspection() -> None:
+    """Executor keeps normal ReAct freedom after inspection."""
     loop = TinyCUALoop()
     executor = TinyCUATaskExecutorNode(
         node_id="task_executor",
@@ -185,13 +185,18 @@ def test_executor_continuation_drops_read_only_tools_after_inspection() -> None:
         Tool(name="task_result_update"),
     ]
 
-    narrowed = loop._tools_after_executor_inspection(
+    retry_tools = loop._tools_for_retry_attempt(
         executor,
         tools,
-        [{"name": "list_files", "allowed": True, "output": []}],
+        "I need to use an appropriate action or research tool.",
     )
 
-    assert {tool.name for tool in narrowed} == {"write_file"}
+    assert {tool.name for tool in retry_tools} == {
+        "list_files",
+        "read_file",
+        "write_file",
+        "task_result_update",
+    }
 
 
 def test_response_validation_rejects_internal_transcript_replay() -> None:
@@ -862,7 +867,7 @@ async def test_stream_retry_prompt_replaces_prior_retry_prompt() -> None:
 
     retry_counts = [
         sum(
-            "I need to call select_query_route" in str(message.get("content", ""))
+            "You need to call select_query_route" in str(message.get("content", ""))
             for message in call_messages
         )
         for call_messages in captured_messages
@@ -1078,7 +1083,7 @@ async def test_run_stream_records_chat_history():
     # Events now include lifecycle events (node.started, node.llm_call, node.completed)
     # in addition to LLM delta events
     delta_events = [e for e in events if e.get("type") == "response.output_text.delta"]
-    assert len(delta_events) == 2  # original delta events still present
+    assert [event["delta"] for event in delta_events] == ["Hello world"]
     assistant_msgs = [
         m for m in loop.root_session.chat_history if m.role == "assistant"
     ]

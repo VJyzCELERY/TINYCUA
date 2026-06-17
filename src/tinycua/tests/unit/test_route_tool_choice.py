@@ -148,8 +148,8 @@ def test_task_assessor_uses_read_only_handoff_tools_without_task_update() -> Non
     assert [tool.name for tool in narrowed_tools] == ["task_inspect", "node_handoff"]
 
 
-def test_result_reviewer_requires_a_tool_without_narrowing_tools() -> None:
-    """Reviewer must call a tool but can inspect before deciding."""
+def test_result_reviewer_is_not_provider_forced() -> None:
+    """Reviewer can inspect/decide naturally; runtime validates the result."""
     model = LanguageModel(
         provider="openai-chat-completions",
         model_name="local-model",
@@ -172,19 +172,48 @@ def test_result_reviewer_requires_a_tool_without_narrowing_tools() -> None:
         force_required_tool=True,
     )
 
-    assert tool_choice == "required"
+    assert tool_choice is None
     assert {tool.name for tool in llm_tools} >= {"task_inspect", "task_review_decision"}
 
 
-def test_result_reviewer_retry_narrows_to_review_decision_tool() -> None:
-    """Reviewer retry can force the missing decision after inspection."""
+def test_task_executor_does_not_force_provider_tool_choice() -> None:
+    """Executor runs as a normal ReAct agent, not a forced-tool node."""
+    model = LanguageModel(
+        provider="openai-chat-completions",
+        model_name="local-model",
+        base_url="http://localhost:1234/v1",
+        api_key="test",
+    )
+    agent = create_tinycua_agent(llm_model=model)
+    loop = TinyCUALoop()
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    executor.ensure_session(loop.root_session)
+    _, tools = loop._prepare_node(executor, agent.tools, None)
+
+    tool_choice = loop._forced_tool_choice_for_node(agent, executor, tools)
+
+    assert tool_choice is None
+
+
+def test_result_reviewer_retry_keeps_inspection_tools() -> None:
+    """Reviewer retry keeps read-only evidence tools available."""
+    model = LanguageModel(
+        provider="openai-chat-completions",
+        model_name="local-model",
+        base_url="http://localhost:1234/v1",
+        api_key="test",
+    )
+    agent = create_tinycua_agent(llm_model=model)
     loop = TinyCUALoop()
     reviewer = TinyCUAResultReviewerNode(
         node_id="result_reviewer",
         config=create_node_config("result_reviewer"),
     )
     reviewer.ensure_session(loop.root_session)
-    _, tools = loop._prepare_node(reviewer, [], None)
+    _, tools = loop._prepare_node(reviewer, agent.tools, None)
 
     retry_tools = loop._tools_for_retry_attempt(
         reviewer,
@@ -192,7 +221,7 @@ def test_result_reviewer_retry_narrows_to_review_decision_tool() -> None:
         "I need to call task_review_decision with the current evidence.",
     )
 
-    assert [tool.name for tool in retry_tools] == ["task_review_decision"]
+    assert {tool.name for tool in retry_tools} >= {"read_file", "list_files", "task_review_decision"}
 
 
 def test_task_analyzer_retry_keeps_update_and_decompose_tools() -> None:
@@ -220,8 +249,8 @@ def test_task_analyzer_retry_keeps_update_and_decompose_tools() -> None:
     assert {"task_update", "task_decompose"}.issubset(retry_tool_names)
 
 
-def test_task_executor_requires_a_tool_without_narrowing_tools() -> None:
-    """Executor must call tools while retaining action tools before result update."""
+def test_task_executor_keeps_react_tools_without_provider_force() -> None:
+    """Executor keeps tools available without provider-level forced choice."""
     model = LanguageModel(
         provider="openai-chat-completions",
         model_name="local-model",
@@ -244,7 +273,7 @@ def test_task_executor_requires_a_tool_without_narrowing_tools() -> None:
         force_required_tool=True,
     )
 
-    assert tool_choice == "required"
+    assert tool_choice is None
     assert "task_result_update" in {tool.name for tool in llm_tools}
     assert "task_execute" not in {tool.name for tool in llm_tools}
 
@@ -285,16 +314,16 @@ async def test_route_tool_failure_retries_then_fails_closed() -> None:
     assert not validation.is_valid
     assert result.content == "passthrough"
     assert len(captured_messages) == 3
-    assert "I need to call select_query_route" in "\n".join(
+    assert "You need to call select_query_route" in "\n".join(
         message.get("content", "") for message in captured_messages[-1]
     )
     retry_counts = [
         sum(
-            "I need to call select_query_route" in str(message.get("content", ""))
+            "You need to call select_query_route" in str(message.get("content", ""))
             for message in call_messages
         )
         for call_messages in captured_messages
     ]
     assert retry_counts == [0, 1, 1]
-    assert captured_messages[-1][-1]["role"] == "assistant"
+    assert captured_messages[-1][-1]["role"] == "user"
     assert not captured_messages[-1][-1]["content"].startswith("Runtime validation:")

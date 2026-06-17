@@ -247,7 +247,7 @@ async def test_task_executor_validates_tool_owned_result_update(tmp_path: Path) 
     assert validation.is_valid
     assert result.content == "Created app.py"
     assert (tmp_path / "app.py").read_text() == 'print("ok")'
-    assert captured_tool_choices == ["required", "required"]
+    assert captured_tool_choices == [None, None]
     assert "write_file" in captured_tool_names[0]
     assert "run_shell" in captured_tool_names[0]
     assert "task_execute" not in captured_tool_names[0]
@@ -332,6 +332,74 @@ async def test_task_executor_executes_continued_tool_calls(tmp_path: Path) -> No
         "write_file",
         "task_result_update",
     ]
+
+
+async def test_executor_env_check_success_is_left_for_reviewer(tmp_path: Path) -> None:
+    """Executor may record weak success; reviewer owns the quality gate."""
+    model = LanguageModel(
+        provider="openai-chat-completions",
+        model_name="local-model",
+        base_url="http://localhost:1234/v1",
+        api_key="test",
+    )
+    agent = create_tinycua_agent(
+        llm_model=model,
+        session_config=SessionConfig(workspace_dir=tmp_path),
+    )
+    task = agent.loop.root_session.task_store.create_task("Build app")
+    node = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    node.ensure_session(agent.loop.root_session)
+    messages, tools = agent.loop._prepare_node(node, agent.tools, None)
+    responses = [
+        {
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_env",
+                    "type": "function",
+                    "function": {
+                        "name": "run_python",
+                        "arguments": '{"code":"import sys; print(sys.version)"}',
+                    },
+                }
+            ],
+        },
+        {
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_update",
+                    "type": "function",
+                    "function": {
+                        "name": "task_result_update",
+                        "arguments": '{"content":"Python works","success":true}',
+                    },
+                }
+            ],
+        },
+        {"content": "Python works", "tool_calls": []},
+    ]
+
+    async def call_llm(messages, tools, stream: bool = False):  # noqa: ANN001, ARG001
+        return responses.pop(0)
+
+    agent._call_llm = call_llm  # type: ignore[method-assign]
+
+    result, _, validation = await agent.loop._call_node_with_retry(
+        node,
+        agent,
+        messages,
+        tools,
+    )
+
+    assert validation.is_valid
+    assert result.content == "Python works"
+    assert task.result is not None
+    assert task.result.success is True
+    assert not list(tmp_path.glob("*.py"))
 
 
 async def test_task_executor_rejects_planner_only_without_scaffold_fallback(

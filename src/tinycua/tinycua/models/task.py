@@ -213,6 +213,7 @@ class TaskStateStore:
         if reviewer_decision in {
             ReviewerDecision.NEEDS_REVISION,
             ReviewerDecision.REJECTED,
+            ReviewerDecision.REPLAN,
         }:
             if task.status != TaskStatus.IN_PROGRESS:
                 task.status = TaskStatus.IN_PROGRESS

@@ -18,7 +18,7 @@ from tinycua.loops.task_nodes import TinyCUATaskAssessorNode
 from tinycua.loops.task_nodes import TinyCUATaskExecutorNode
 from tinycua.loops.task_create import TinyCUATaskCreateNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
-from tinycua.models.task import TaskResult
+from tinycua.models.task import ReviewerDecision, TaskResult, TaskStatus
 
 
 class EmptyResponseAgent:
@@ -58,6 +58,19 @@ class TextResponseAgent:
 
     async def _call_llm(self, messages, tools, stream: bool = False):  # noqa: ANN001, ARG002
         return {"role": "assistant", "content": self.content}
+
+
+class ReplayingResponseAgent:
+    """Agent double that keeps replaying internal response context."""
+
+    async def _call_llm(self, messages, tools, stream: bool = False):  # noqa: ANN001, ARG002
+        return {
+            "role": "assistant",
+            "content": (
+                "Direct response context from the entry request:\nHello\n"
+                "Based on the accepted Worker result or direct-response context above."
+            ),
+        }
 
 
 class NonterminalFailureThenResponseAgent:
@@ -165,6 +178,13 @@ class ExecutorResultThenReviewerAgent:
                     {
                         "type": "function",
                         "function": {
+                            "name": "list_files",
+                            "arguments": "{}",
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
                             "name": "task_review_decision",
                             "arguments": '{"decision":"approved","rationale":"evidence accepted"}',
                         },
@@ -189,6 +209,36 @@ async def test_empty_terminal_response_is_not_synthetic_success() -> None:
         )
 
     assert "Processed request" not in loop.get_transcript_text()
+
+
+@pytest.mark.asyncio
+async def test_empty_worker_response_falls_back_to_completed_task_summary() -> None:
+    """Completed worker evidence gets a deterministic final fallback."""
+    loop = TinyCUALoop()
+    task = loop.root_session.task_store.create_task("Build app")
+    loop.root_session.task_store.record_result(task.task_id, TaskResult(content="Built app"))
+    loop.root_session.task_store.record_reviewer_decision(
+        task.task_id,
+        ReviewerDecision.APPROVED,
+    )
+
+    events = [
+        event
+        async for event in loop._stream_exhausted_node_events(
+            ResponseNode(),
+            "",
+            ValidationResult(is_valid=False, errors=["Final response must be non-empty."]),
+            LLMResult(),
+            False,
+            False,
+            False,
+            "ResponseNode",
+            3,
+        )
+    ]
+
+    assert events[0]["type"] == "response.output_text.delta"
+    assert events[0]["delta"] == "Done: Built app"
 
 
 @pytest.mark.asyncio
@@ -347,13 +397,154 @@ def test_task_executor_partial_action_evidence_continues_same_task() -> None:
 
     assert recovered is True
     assert task.result is None
-    assert task.metadata["executor_partial_tool_results"]
-    assert [node.node_id for node in loop.queue.items] == [
-        "task_executor",
-        "task_executor",
-        "result_reviewer",
-        "response",
-    ]
+
+
+def test_invalid_reviewer_approval_rolls_back_task_completion() -> None:
+    """Runtime-rejected approvals must not leave tasks completed."""
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="result_reviewer",
+        config=create_node_config("result_reviewer"),
+    )
+    loop = TinyCUALoop(queue=NodeQueue(items=[reviewer, ResponseNode()]))
+    task = loop.root_session.task_store.create_task("Build app")
+    loop.root_session.task_store.record_result(
+        task.task_id,
+        TaskResult(content="Built app", artifacts=[{"kind": "file", "path": "app.py"}]),
+    )
+    loop.root_session.task_store.record_reviewer_decision(
+        task.task_id,
+        ReviewerDecision.APPROVED,
+        rationale="looks fine",
+    )
+
+    validation = loop._validate_node_result(
+        reviewer,
+        LLMResult(
+            metadata={
+                "tool_results": [
+                    {
+                        "name": "task_review_decision",
+                        "output": {
+                            "success": True,
+                            "task_id": task.task_id,
+                            "decision": "approved",
+                        },
+                    }
+                ]
+            }
+        ),
+    )
+
+    assert validation.is_valid is False
+    assert task.status == TaskStatus.IN_PROGRESS
+    assert task.reviewer_decisions == []
+
+
+def test_invalid_reviewer_approval_rolls_back_completed_parent() -> None:
+    """Rollback keeps ancestors unfinished when a child approval is invalid."""
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="result_reviewer",
+        config=create_node_config("result_reviewer"),
+    )
+    loop = TinyCUALoop()
+    store = loop.root_session.task_store
+    root = store.create_task("Build app")
+    child = store.create_task("Build vertical slice", parent_id=root.task_id)
+    store.record_result(
+        child.task_id,
+        TaskResult(content="Built app", artifacts=[{"kind": "file", "path": "app.py"}]),
+    )
+    store.record_reviewer_decision(child.task_id, ReviewerDecision.APPROVED)
+
+    validation = loop._validate_node_result(
+        reviewer,
+        LLMResult(
+            metadata={
+                "tool_results": [
+                    {
+                        "name": "task_review_decision",
+                        "output": {
+                            "success": True,
+                            "task_id": child.task_id,
+                            "decision": "approved",
+                        },
+                    }
+                ]
+            }
+        ),
+    )
+
+    assert validation.is_valid is False
+    assert child.status == TaskStatus.IN_PROGRESS
+    assert root.status == TaskStatus.IN_PROGRESS
+    assert store.active_task_id == child.task_id
+    assert store.all_done() is False
+
+
+def test_completed_worker_final_response_must_not_ask_clarification() -> None:
+    """Completed task trees need an outcome summary, not more questions."""
+    loop = TinyCUALoop()
+    task = loop.root_session.task_store.create_task("Build app")
+    loop.root_session.task_store.record_result(task.task_id, TaskResult(content="Built app"))
+    loop.root_session.task_store.record_reviewer_decision(
+        task.task_id,
+        ReviewerDecision.APPROVED,
+    )
+
+    validation = loop._validate_node_result(
+        ResponseNode(),
+        LLMResult(content="I need clarification on the current state before answering."),
+    )
+
+    assert validation.is_valid is False
+    assert any("summarize completed task outcome" in error for error in validation.errors)
+
+
+def test_reviewer_replan_keeps_task_tree_unfinished() -> None:
+    """Replan is routing, not accepted completion."""
+    store = TinyCUALoop().root_session.task_store
+    root = store.create_task("Build app")
+    child = store.create_task("Build vertical slice", parent_id=root.task_id)
+    store.record_result(child.task_id, TaskResult(content="env only"))
+    store.record_reviewer_decision(child.task_id, ReviewerDecision.REPLAN)
+
+    assert child.status == TaskStatus.IN_PROGRESS
+    assert store.active_task_id == child.task_id
+    assert store.all_done() is False
+
+
+def test_analyzer_failure_creates_one_app_vertical_slice() -> None:
+    """Analyzer recovery creates a minimal child for one-shot app tasks."""
+    analyzer = TinyCUATaskAnalyzerNode(
+        node_id="task_analyzer",
+        config=create_node_config("task_analyzer"),
+    )
+    loop = TinyCUALoop(queue=NodeQueue(items=[analyzer, ResponseNode()]))
+    root = loop.root_session.task_store.create_task("Build note app with web UI")
+
+    recovered = loop._recover_task_analyzer_validation_failure(
+        analyzer,
+        ValidationResult(is_valid=False, errors=["missing task_decompose"]),
+    )
+
+    assert recovered is True
+    assert len(root.children) == 1
+    child = loop.root_session.task_store.get_task(root.children[0])
+    assert "vertical-slice" in child.title
+
+
+@pytest.mark.asyncio
+async def test_response_exhaustion_falls_back_to_clean_direct_answer() -> None:
+    """Bad response synthesis should not crash or replay internals."""
+    loop = TinyCUALoop(queue=NodeQueue(items=[ResponseNode()]))
+
+    result = await loop.run(
+        ReplayingResponseAgent(),
+        messages=[{"role": "user", "content": "Hello"}],
+        tools=[],
+    )
+
+    assert result == "Hello!"
 
 
 def test_task_result_update_merges_prior_partial_artifacts() -> None:
@@ -493,8 +684,8 @@ def test_task_executor_read_only_evidence_retries_executor_not_replan() -> None:
     ]
 
 
-def test_task_executor_success_without_action_evidence_is_invalid() -> None:
-    """Executor success claims without successful action/research tools are structurally invalid."""
+def test_task_executor_success_without_action_evidence_is_structurally_valid() -> None:
+    """Executor can report weak success; reviewer owns quality rejection."""
     loop = TinyCUALoop()
     task = loop.root_session.task_store.create_task("initialize backend")
     loop.root_session.task_store.record_result(
@@ -524,8 +715,7 @@ def test_task_executor_success_without_action_evidence_is_invalid() -> None:
         ),
     )
 
-    assert validation.is_valid is False
-    assert any("action" in e.lower() for e in validation.errors)
+    assert validation.is_valid is True
 
 
 def test_task_executor_failure_without_action_evidence_is_valid() -> None:
@@ -558,8 +748,8 @@ def test_task_executor_failure_without_action_evidence_is_valid() -> None:
     assert validation.is_valid is True
 
 
-def test_task_executor_success_without_action_evidence_fails_validation() -> None:
-    """Runtime validates structural evidence; result is preserved for reviewer to inspect."""
+def test_task_executor_success_without_action_evidence_reaches_reviewer() -> None:
+    """Weak executor success is preserved for reviewer judgment."""
     loop = TinyCUALoop()
     task = loop.root_session.task_store.create_task("initialize backend")
     loop.root_session.task_store.record_result(
@@ -591,14 +781,13 @@ def test_task_executor_success_without_action_evidence_fails_validation() -> Non
     )
     validation = loop._validate_node_result(executor, result)
 
-    assert validation.is_valid is False
-    # Result is preserved for reviewer despite structural validation failure
+    assert validation.is_valid is True
     assert task.result is not None
     assert task.result.success is True
 
 
-def test_task_executor_repeated_success_without_evidence_fails_validation() -> None:
-    """Repeated success claims without action evidence still fail structural validation."""
+def test_task_executor_repeated_success_without_evidence_stays_structural() -> None:
+    """Repeated weak success remains executor-valid; reviewer decides quality."""
     loop = TinyCUALoop()
     task = loop.root_session.task_store.create_task("create requirements file")
     executor = TinyCUATaskExecutorNode(
@@ -636,11 +825,11 @@ def test_task_executor_repeated_success_without_evidence_fails_validation() -> N
     loop._enrich_task_results_from_tool_batch(executor, unsupported_results)
     validation = loop._validate_node_result(executor, result)
 
-    assert validation.is_valid is False
+    assert validation.is_valid is True
 
 
-def test_task_executor_read_only_evidence_fails_action_gate() -> None:
-    """Read/list evidence is not action evidence; success claim fails structural validation."""
+def test_task_executor_read_only_evidence_is_left_to_reviewer() -> None:
+    """Read/list evidence is not executor-invalid; reviewer decides sufficiency."""
     loop = TinyCUALoop()
     task = loop.root_session.task_store.create_task("create models")
     loop.root_session.task_store.record_result(
@@ -668,8 +857,7 @@ def test_task_executor_read_only_evidence_fails_action_gate() -> None:
         ),
     )
 
-    assert validation.is_valid is False
-    # Artifacts are still preserved for reviewer inspection
+    assert validation.is_valid is True
     assert task.result is not None
 
 
@@ -973,14 +1161,7 @@ async def test_task_executor_stops_after_successful_result_update() -> None:
     )
     response = ResponseNode()
     loop = TinyCUALoop(queue=NodeQueue(items=[executor, reviewer, response]))
-    task = loop.root_session.task_store.create_task("write dependency file")
-    task.metadata["executor_partial_tool_results"] = [
-        {
-            "name": "write_file",
-            "allowed": True,
-            "output": {"success": True, "path": "requirements.txt"},
-        }
-    ]
+    loop.root_session.task_store.create_task("write dependency file")
     agent = ExecutorResultThenReviewerAgent()
 
     result = await loop.run(

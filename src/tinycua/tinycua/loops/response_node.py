@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from tinycua.loops.node import ProcessNode
+from tinycua.models.node_input import NodeInput
 
 if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
@@ -77,6 +78,20 @@ class ResponseNode(ProcessNode):
         result = super().__call__(input)
         self.captured_content = result.content
         return result
+
+    def build_messages(
+        self,
+        session: Any,
+        input: NodeInputLike,
+        resolved_tools: list[Any] | None = None,
+    ) -> list[dict[str, str]]:
+        """Build clean final-response messages without internal handoff prose."""
+        if isinstance(input, NodeInput) and input.metadata.get("original_query"):
+            system = self.build_system_message(resolved_tools)
+            messages = [system] if system.get("content") else []
+            messages.append({"role": "user", "content": str(input.metadata["original_query"])})
+            return messages
+        return super().build_messages(session, input, resolved_tools)
 
     def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
         """Optionally suspend for information digestion before final response."""
