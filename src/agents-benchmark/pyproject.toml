@@ -1,0 +1,60 @@
+[project]
+name = "agents-benchmark"
+version = "0.1.0"
+description = "Unified WildClawBench benchmark harness for all supported agent types"
+requires-python = ">=3.11"
+dependencies = [
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+agents-benchmark = "agents_benchmark.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "D", "C901", "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107", "I", "N", "UP", "B", "SIM", "ARG", "LOG", "PT", "S", "PTH", "RUF"]
+ignore = [
+    "D105",
+    "D107",
+    "E501",
+    "D401",
+]
+fixable = ["ALL"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["D", "S101", "S108", "ARG001", "ARG002", "E731", "PTH"]
+"agents_benchmark/agents/hermes.py" = ["S607"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.3.0",
+    "mypy>=1.8.0",
+    "pyyaml>=6.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "--strict-markers --disable-warnings --maxfail=2"
+markers = [
+    "integration: marks tests as requiring Docker or live services",
+    "slow: marks tests as slow (e.g., Docker build)",
+]
