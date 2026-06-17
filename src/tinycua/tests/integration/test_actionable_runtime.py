@@ -18,12 +18,23 @@ class AppCreationScript:
     def _task_id(self, messages, key: str = "active_task_id") -> str:
         """Extract a task id from task snapshots in prompt/tool messages."""
         text = "\n".join(str(message.get("content", "")) for message in messages)
+        # Try raw dict format
         match = re.search(rf"'{key}': '([^']+)'", text) or re.search(
             rf'"{key}": "([^"]+)"',
             text,
         )
         if match:
             return match.group(1)
+        # Try markdown format: Active: title (id=abc123)
+        if key == "active_task_id":
+            match = re.search(r'Active: .+ \(id=([^\)]+)\)', text)
+            if match:
+                return match.group(1)
+        if key == "root_task_id":
+            match = re.search(r'Root: .+ \(id=([^\)]+)\)', text)
+            if match:
+                return match.group(1)
+        # Fallback
         match = re.search(r"'root_task_id': '([^']+)'", text) or re.search(
             r'"root_task_id": "([^"]+)"',
             text,
@@ -181,8 +192,7 @@ class AppCreationScript:
             if not any(
                 message.get("role") == "tool"
                 and (
-                    "task_inspect" in str(message.get("content", ""))
-                    or "read_file" in str(message.get("content", ""))
+                    "read_file" in str(message.get("content", ""))
                     or "list_files" in str(message.get("content", ""))
                 )
                 for message in messages
@@ -192,7 +202,7 @@ class AppCreationScript:
                     "tool_calls": [
                         {
                             "function": {
-                                "name": "task_inspect",
+                                "name": "list_files",
                                 "arguments": "{}",
                             }
                         }
@@ -363,6 +373,7 @@ async def test_worker_action_request_writes_file_and_runs_verification(
     app_file = tmp_path / "app.py"
     trace = agent.loop.get_execution_trace()
     task_snapshot = agent.loop.get_state_snapshot()["task_tree"]
+    tasks = task_snapshot["tasks"]
     assert app_file.read_text() == 'print("hello app")\n'
     assert result.strip()
     assert any(
@@ -374,6 +385,9 @@ async def test_worker_action_request_writes_file_and_runs_verification(
     assert "task_tree_text" in agent.loop.get_state_snapshot()
     assert "Task [" in agent.loop.get_state_snapshot()["task_tree_text"]
     assert task_snapshot["root_task_id"] is not None
+    assert task_snapshot["active_task_id"] is None
+    assert tasks
+    assert all(task["status"] == "completed" for task in tasks.values())
     _assert_worker_trace_uses_allowed_edges(trace)
 
 

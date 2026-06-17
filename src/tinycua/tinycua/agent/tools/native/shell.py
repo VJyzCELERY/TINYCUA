@@ -28,6 +28,15 @@ def _bounded_timeout(timeout: int) -> int:
     return min(max(requested, 1), _MAX_TIMEOUT_SECONDS)
 
 
+def _uses_unsafe_mkdir_braces(command: str) -> bool:
+    """Detect mkdir with brace expansion that POSIX /bin/sh won't expand."""
+    if "mkdir" not in command or "{" not in command or "}" not in command:
+        return False
+    start = command.find("{")
+    end = command.find("}", start)
+    return start < end and "," in command[start:end]
+
+
 @tool
 def run_shell(command: str, timeout: int = _DEFAULT_TIMEOUT_SECONDS) -> dict[str, Any]:
     """Execute a shell command and capture its output.
@@ -40,6 +49,12 @@ def run_shell(command: str, timeout: int = _DEFAULT_TIMEOUT_SECONDS) -> dict[str
         A dict with keys: stdout, stderr, exit_code, timed_out, error.
     """
     effective_timeout = _bounded_timeout(timeout)
+    if _uses_unsafe_mkdir_braces(command):
+        return {
+            "stdout": "", "stderr": "",
+            "exit_code": -1, "timed_out": False,
+            "error": "POSIX /bin/sh does not expand mkdir braces; use explicit paths instead.",
+        }
     try:
         workspace = get_workspace_dir()
         process = subprocess.Popen(

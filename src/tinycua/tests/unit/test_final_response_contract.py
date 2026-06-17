@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import pytest
 
 from tinycua.config.node_config import create_node_config
+from tinycua.config.session_config import SessionConfig
 from tinycua.config.types import LLMResult, ValidationResult
 from tinycua.config.node_config import NodeConfigBase
 from tinycua.loops.node_queue import NodeQueue
@@ -391,6 +393,61 @@ def test_task_result_update_merges_prior_partial_artifacts() -> None:
     assert "executor_partial_tool_results" not in task.metadata
 
 
+def test_shell_action_records_tool_audit_artifact(tmp_path) -> None:
+    """Action tool results produce durable audit artifacts under .tinycua-artifacts."""
+    artifact_dir = tmp_path / ".tinycua-artifacts"
+    loop = TinyCUALoop(
+        session_config=SessionConfig(workspace_dir=tmp_path, artifact_dir=artifact_dir)
+    )
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    executor.ensure_session(loop.root_session)
+
+    # Simulate a tool result from run_shell
+    tool_result = {
+        "name": "run_shell",
+        "allowed": True,
+        "output": {"stdout": "hello\n", "stderr": "", "exit_code": 0, "timed_out": False, "error": None},
+    }
+    audit_path = loop._write_tool_audit_artifact(
+        "run_shell",
+        {"command": "echo hello"},
+        tool_result["output"],
+    )
+
+    assert audit_path is not None
+    assert "run_shell" in audit_path
+    audit_file = tmp_path / audit_path
+    assert audit_file.exists()
+    audit = json.loads(audit_file.read_text())
+    assert audit["name"] == "run_shell"
+    assert audit["arguments"]["command"] == "echo hello"
+    assert audit["output"]["stdout"].strip() == "hello"
+
+    # Verify _artifacts_from_tool_results includes audit artifacts
+    tool_result["artifact_path"] = audit_path
+    artifacts = loop._artifacts_from_tool_results([tool_result])
+    audit_artifacts = [a for a in artifacts if a["kind"] == "tool_audit"]
+    assert len(audit_artifacts) == 1
+    assert audit_artifacts[0]["metadata"]["tool_name"] == "run_shell"
+
+
+def test_non_action_tool_does_not_create_audit_artifact(tmp_path) -> None:
+    """Read/list/task tools should not produce audit artifact files."""
+    artifact_dir = tmp_path / ".tinycua-artifacts"
+    loop = TinyCUALoop(
+        session_config=SessionConfig(workspace_dir=tmp_path, artifact_dir=artifact_dir)
+    )
+    result = loop._write_tool_audit_artifact(
+        "read_file",
+        {"path": "app.py"},
+        {"content": "file contents"},
+    )
+    assert result is None
+
+
 def test_task_executor_read_only_evidence_retries_executor_not_replan() -> None:
     """Read/list-only executor evidence still goes back through executor/reviewer."""
     executor = TinyCUATaskExecutorNode(
@@ -435,8 +492,8 @@ def test_task_executor_read_only_evidence_retries_executor_not_replan() -> None:
     ]
 
 
-def test_task_executor_success_claim_proceeds_to_reviewer_without_artifact_gate() -> None:
-    """Executor success claims are reviewer-owned, not runtime artifact-gated."""
+def test_task_executor_success_without_action_evidence_is_invalid() -> None:
+    """Executor success claims without successful action/research tools are structurally invalid."""
     loop = TinyCUALoop()
     task = loop.root_session.task_store.create_task("initialize backend")
     loop.root_session.task_store.record_result(
@@ -466,11 +523,42 @@ def test_task_executor_success_claim_proceeds_to_reviewer_without_artifact_gate(
         ),
     )
 
+    assert validation.is_valid is False
+    assert any("action" in e.lower() for e in validation.errors)
+
+
+def test_task_executor_failure_without_action_evidence_is_valid() -> None:
+    """Executor failure claims are valid structurally so blockers reach reviewer/replan."""
+    loop = TinyCUALoop()
+    task = loop.root_session.task_store.create_task("initialize backend")
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+
+    validation = loop._validate_node_result(
+        executor,
+        LLMResult(
+            metadata={
+                "tool_results": [
+                    {
+                        "name": "task_execute",
+                        "output": {"success": True, "task_id": task.task_id},
+                    },
+                    {
+                        "name": "task_result_update",
+                        "output": {"success": False, "task_id": task.task_id},
+                    },
+                ]
+            },
+        ),
+    )
+
     assert validation.is_valid is True
 
 
-def test_task_executor_success_claim_is_not_downgraded_before_review() -> None:
-    """Runtime preserves executor result so reviewer can inspect and decide."""
+def test_task_executor_success_without_action_evidence_fails_validation() -> None:
+    """Runtime validates structural evidence; result is preserved for reviewer to inspect."""
     loop = TinyCUALoop()
     task = loop.root_session.task_store.create_task("initialize backend")
     loop.root_session.task_store.record_result(
@@ -502,15 +590,14 @@ def test_task_executor_success_claim_is_not_downgraded_before_review() -> None:
     )
     validation = loop._validate_node_result(executor, result)
 
-    assert validation.is_valid is True
+    assert validation.is_valid is False
+    # Result is preserved for reviewer despite structural validation failure
     assert task.result is not None
     assert task.result.success is True
-    assert task.result.execution_status == "succeeded"
-    assert "runtime_success_rejected" not in task.result.metadata
 
 
-def test_task_executor_prior_missing_evidence_review_still_reaches_reviewer() -> None:
-    """Reviewer remains responsible for repeated missing-evidence claims."""
+def test_task_executor_repeated_success_without_evidence_fails_validation() -> None:
+    """Repeated success claims without action evidence still fail structural validation."""
     loop = TinyCUALoop()
     task = loop.root_session.task_store.create_task("create requirements file")
     executor = TinyCUATaskExecutorNode(
@@ -548,11 +635,11 @@ def test_task_executor_prior_missing_evidence_review_still_reaches_reviewer() ->
     loop._enrich_task_results_from_tool_batch(executor, unsupported_results)
     validation = loop._validate_node_result(executor, result)
 
-    assert validation.is_valid is True
+    assert validation.is_valid is False
 
 
-def test_task_executor_read_only_evidence_proceeds_to_reviewer() -> None:
-    """Read/list evidence is preserved for reviewer-owned verification."""
+def test_task_executor_read_only_evidence_fails_action_gate() -> None:
+    """Read/list evidence is not action evidence; success claim fails structural validation."""
     loop = TinyCUALoop()
     task = loop.root_session.task_store.create_task("create models")
     loop.root_session.task_store.record_result(
@@ -580,7 +667,9 @@ def test_task_executor_read_only_evidence_proceeds_to_reviewer() -> None:
         ),
     )
 
-    assert validation.is_valid is True
+    assert validation.is_valid is False
+    # Artifacts are still preserved for reviewer inspection
+    assert task.result is not None
 
 
 def test_task_executor_success_result_accepts_concrete_action_evidence() -> None:
@@ -659,6 +748,118 @@ def test_result_reviewer_approval_with_artifacts_requires_inspection() -> None:
 
     assert validation.is_valid is False
     assert any("inspect" in error.lower() for error in validation.errors)
+
+
+def test_result_reviewer_cannot_approve_after_failed_list_files() -> None:
+    """Reviewer approval after failed list_files (output error) is invalid."""
+    loop = TinyCUALoop()
+    task = loop.root_session.task_store.create_task("create models")
+    loop.root_session.task_store.record_result(
+        task.task_id,
+        TaskResult(content="created backend/models.py", success=True),
+    )
+    task.artifacts.append({"path": "backend/models.py", "kind": "file", "metadata": {}})
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="result_reviewer",
+        config=create_node_config("result_reviewer"),
+    )
+
+    validation = loop._validate_node_result(
+        reviewer,
+        LLMResult(
+            metadata={
+                "tool_results": [
+                    {
+                        "name": "list_files",
+                        "output": {"error": "Path outside workspace: /"},
+                    },
+                    {
+                        "name": "task_review_decision",
+                        "output": {
+                            "success": True,
+                            "task_id": task.task_id,
+                            "decision": "approved",
+                        },
+                    }
+                ]
+            },
+        ),
+    )
+
+    assert validation.is_valid is False
+    assert any("inspect" in error.lower() for error in validation.errors)
+
+
+def test_result_reviewer_task_inspect_only_does_not_satisfy_artifact_inspection() -> None:
+    """task_inspect alone does not verify workspace/file state for artifact approval."""
+    loop = TinyCUALoop()
+    task = loop.root_session.task_store.create_task("create models")
+    loop.root_session.task_store.record_result(
+        task.task_id,
+        TaskResult(content="created backend/models.py", success=True),
+    )
+    task.artifacts.append({"path": "backend/models.py", "kind": "file", "metadata": {}})
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="result_reviewer",
+        config=create_node_config("result_reviewer"),
+    )
+
+    validation = loop._validate_node_result(
+        reviewer,
+        LLMResult(
+            metadata={
+                "tool_results": [
+                    {"name": "task_inspect", "output": {"status": "inspected"}},
+                    {
+                        "name": "task_review_decision",
+                        "output": {
+                            "success": True,
+                            "task_id": task.task_id,
+                            "decision": "approved",
+                        },
+                    }
+                ]
+            },
+        ),
+    )
+
+    assert validation.is_valid is False
+
+
+def test_result_reviewer_successful_list_files_satisfies_inspection() -> None:
+    """Successful list_files satisfies artifact inspection for approval."""
+    loop = TinyCUALoop()
+    task = loop.root_session.task_store.create_task("create models")
+    loop.root_session.task_store.record_result(
+        task.task_id,
+        TaskResult(content="created backend/models.py", success=True),
+    )
+    task.artifacts.append({"path": "backend/models.py", "kind": "file", "metadata": {}})
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="result_reviewer",
+        config=create_node_config("result_reviewer"),
+    )
+
+    validation = loop._validate_node_result(
+        reviewer,
+        LLMResult(
+            metadata={
+                "tool_results": [
+                    {"name": "list_files", "output": ["backend/models.py"]},
+                    {
+                        "name": "task_review_decision",
+                        "output": {
+                            "success": True,
+                            "task_id": task.task_id,
+                            "decision": "approved",
+                        },
+                    }
+                ]
+            },
+        ),
+    )
+
+    assert validation.is_valid is True
 
 
 def test_result_reviewer_cannot_approve_failed_task_result() -> None:

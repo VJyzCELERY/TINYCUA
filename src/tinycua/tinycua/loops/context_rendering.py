@@ -119,8 +119,63 @@ def clean_context_enhanced_query(content: str) -> str:
 def _context_payload(value: Any) -> Any:
     type_name = _known_context_type(value)
     if type_name is not None:
+        # Render known types as markdown for LLM readability
+        md = _render_known_type_markdown(type_name, value)
+        if md is not None:
+            return md
         return {"type": type_name, "data": _json_safe(_object_data(value))}
     return _json_safe(_object_data(value))
+
+
+def _render_known_type_markdown(type_name: str, value: Any) -> str | None:
+    """Render known model types as readable markdown. Returns None to fall back to JSON."""
+    if type_name == "DigestedInformation":
+        return _render_digested_information(value)
+    if type_name == "AggregatedResult":
+        return _render_aggregated_result(value)
+    return None
+
+
+def _render_digested_information(value: Any) -> str:
+    """Render DigestedInformation as concise markdown."""
+    data = _json_safe(_object_data(value))
+    lines = ["## Digested Information"]
+    if data.get("context_summary"):
+        lines.append(f"**Summary:** {data['context_summary']}")
+    if data.get("key_points"):
+        lines.append("**Key points:**")
+        for point in data["key_points"]:
+            lines.append(f"- {point}")
+    if data.get("original_query"):
+        lines.append(f"**Original query:** {data['original_query']}")
+    if data.get("constraints"):
+        lines.append("**Constraints:**")
+        for c in data["constraints"]:
+            lines.append(f"- {c}")
+    if data.get("known_gaps"):
+        lines.append("**Known gaps:**")
+        for g in data["known_gaps"]:
+            lines.append(f"- {g}")
+    if data.get("advisory_instructions"):
+        lines.append("**Advisory:**")
+        for a in data["advisory_instructions"]:
+            lines.append(f"- {a}")
+    return "\n".join(lines)
+
+
+def _render_aggregated_result(value: Any) -> str:
+    """Render AggregatedResult as concise markdown."""
+    data = _json_safe(_object_data(value))
+    lines = ["## Aggregated Result"]
+    if data.get("final_context"):
+        lines.append(f"**Context:** {data['final_context']}")
+    results = data.get("accepted_results", [])
+    if results:
+        lines.append("**Accepted results:**")
+        for r in results:
+            if isinstance(r, dict):
+                lines.append(f"- {r.get('task_id', '?')}: {r.get('content', r.get('summary', ''))[:100]}")
+    return "\n".join(lines)
 
 
 def _known_context_type(value: Any) -> str | None:

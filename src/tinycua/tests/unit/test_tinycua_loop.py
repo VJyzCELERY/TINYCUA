@@ -108,11 +108,66 @@ def test_retry_message_is_assistant_self_correction() -> None:
         resolved_tools=[Tool(name="task_result_update")],
         error=ValidationError("missing task_result_update"),
         attempt=1,
+        llm_result=LLMResult(),
     )
 
     assert message.startswith("I need to")
-    assert "task_result_update" in message
     assert "ONLY strict JSON" not in message
+
+
+def test_executor_retry_keeps_action_tools_before_action_evidence() -> None:
+    """Executor retries should not force result update before useful tool evidence."""
+    loop = TinyCUALoop()
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    tools = [Tool(name="write_file"), Tool(name="task_result_update")]
+    message = loop._retry_message_for_validation(
+        ValidationError("missing task_result_update"),
+        executor,
+        tools,
+        LLMResult(
+            metadata={
+                "tool_results": [
+                    {"name": "task_execute", "output": {"success": True}},
+                ]
+            }
+        ),
+    )
+
+    retry_tools = loop._tools_for_retry_attempt(executor, tools, message)
+
+    assert {tool.name for tool in retry_tools} == {"write_file", "task_result_update"}
+
+
+def test_executor_retry_keeps_action_tools_after_action_evidence() -> None:
+    """Executor retries stay natural and only validate result update on exit."""
+    loop = TinyCUALoop()
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    tools = [Tool(name="write_file"), Tool(name="task_result_update")]
+    message = loop._retry_message_for_validation(
+        ValidationError("missing task_result_update"),
+        executor,
+        tools,
+        LLMResult(
+            metadata={
+                "tool_results": [
+                    {
+                        "name": "write_file",
+                        "output": {"success": True, "path": "models/note.py"},
+                    },
+                ]
+            }
+        ),
+    )
+
+    retry_tools = loop._tools_for_retry_attempt(executor, tools, message)
+
+    assert {tool.name for tool in retry_tools} == {"write_file", "task_result_update"}
 
 
 # --- _execute_node tests ---

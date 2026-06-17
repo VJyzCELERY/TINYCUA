@@ -32,12 +32,23 @@ class ScriptedAgentResponses:
     def _task_id(self, messages, key: str = "active_task_id") -> str:
         """Extract a task id from serialized task snapshots."""
         text = "\n".join(str(message.get("content", "")) for message in messages)
+        # Try raw dict format
         match = re.search(rf"'{key}': '([^']+)'", text) or re.search(
             rf'"{key}": "([^"]+)"',
             text,
         )
         if match:
             return match.group(1)
+        # Try markdown format: Active: title (id=abc123)
+        if key == "active_task_id":
+            match = re.search(r'Active: .+ \(id=([^\)]+)\)', text)
+            if match:
+                return match.group(1)
+        if key == "root_task_id":
+            match = re.search(r'Root: .+ \(id=([^\)]+)\)', text)
+            if match:
+                return match.group(1)
+        # Fallback
         match = re.search(r"'root_task_id': '([^']+)'", text) or re.search(
             r'"root_task_id": "([^"]+)"',
             text,
@@ -159,9 +170,9 @@ class ScriptedAgentResponses:
                 ],
             }
         if "task_review_decision" in tool_names:
-            if "task_inspect" in tool_names and not any(
+            if "list_files" in tool_names and not any(
                 message.get("role") == "tool"
-                and "task_inspect" in str(message.get("content", ""))
+                and "list_files" in str(message.get("content", ""))
                 for message in messages
             ):
                 return {
@@ -169,7 +180,7 @@ class ScriptedAgentResponses:
                     "tool_calls": [
                         {
                             "function": {
-                                "name": "task_inspect",
+                                "name": "list_files",
                                 "arguments": "{}",
                             }
                         }
@@ -201,7 +212,7 @@ async def test_worker_prompt_creates_executes_reviews_and_aggregates_task_tree(
     """Complex prompts produce task state and final response, not a linear shell."""
     agent = create_tinycua_agent(
         session_config=SessionConfig(workspace_dir=tmp_path),
-        enable_native_tools=False,
+        enable_native_tools=True,
         tools=[fake_write_file],
     )
     script = ScriptedAgentResponses()
@@ -212,8 +223,24 @@ async def test_worker_prompt_creates_executes_reviews_and_aggregates_task_tree(
     trace = agent.loop.get_execution_trace()
     node_ids = [entry["node_id"] for entry in trace]
     snapshot = agent.loop.get_state_snapshot()
+    tasks = snapshot["task_tree"]["tasks"]
     assert result.strip()
-    assert "worker" in node_ids
-    assert "result_aggregation" in node_ids
+    for required_node in (
+        "query_analyst",
+        "digester",
+        "worker",
+        "task_create",
+        "task_analyzer",
+        "analysis_effort",
+        "task_executor",
+        "result_reviewer",
+        "result_aggregation",
+        "response",
+    ):
+        assert required_node in node_ids
     assert snapshot["task_tree"]["root_task_id"] is not None
+    assert snapshot["task_tree"]["active_task_id"] is None
+    assert tasks
+    assert all(task["status"] == "completed" for task in tasks.values())
+    assert node_ids.index("result_aggregation") < node_ids.index("response")
     assert any(entry.get("task_tree") for entry in trace)

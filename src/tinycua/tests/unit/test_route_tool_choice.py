@@ -196,7 +196,7 @@ def test_result_reviewer_retry_narrows_to_review_decision_tool() -> None:
 
 
 def test_task_analyzer_retry_prefers_decompose_tool() -> None:
-    """Analyzer retry should mutate decomposition instead of prose looping."""
+    """Analyzer retry narrows to task_decompose for local model reliability."""
     loop = TinyCUALoop()
     analyzer = TinyCUATaskAnalyzerNode(
         node_id="task_analyzer",
@@ -294,5 +294,5 @@ async def test_route_tool_failure_retries_then_fails_closed() -> None:
         for call_messages in captured_messages
     ]
     assert retry_counts == [0, 1, 1]
-    assert captured_messages[-1][-1]["role"] == "user"
-    assert "do not repeat this text" in captured_messages[-1][-1]["content"]
+    assert captured_messages[-1][-1]["role"] == "assistant"
+    assert captured_messages[-1][-1]["content"].startswith("Runtime validation:")

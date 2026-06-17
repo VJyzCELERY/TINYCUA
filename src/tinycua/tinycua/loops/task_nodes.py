@@ -81,18 +81,15 @@ _TASK_EXECUTOR_INSTRUCTION = (
     "needed. Start by marking execution with task_execute when an active task "
     "exists. After observing action/research/tool evidence, you MUST call "
     "task_result_update to record the actual result. Do not only provide a "
-    "plan for actionable tasks. task_execute only marks dispatch; it is not "
-    "implementation evidence. For file/code/setup tasks, call write_file, "
-    "edit_file, run_shell, or run_python before recording success."
+    "plan for actionable tasks."
 )
 _TASK_EXECUTOR_CONTINUATION = (
     "Based on the active task above, perform the required workspace or research "
     "actions with tools. Do not only provide a plan; create, inspect, run, or "
-    "verify artifacts when the task requires action. If a previous review says "
-    "the result lacked concrete evidence, first use write_file, edit_file, "
-    "run_shell, or run_python to create or verify the required artifact; do not "
-    "repeat task_execute followed by a success claim. Then call "
-    "task_result_update with a concise evidence-backed result. If inspection "
+    "verify artifacts when the task requires action. For actionable success, "
+    "task_result_update must be backed by a created/edited file or a successful "
+    "action/research tool result. Then call "
+    "task_result_update with a concise result. If inspection "
     "shows the task cannot be completed as written, call task_result_update "
     "with success=false and the concrete blocker/evidence so ResultReviewer can "
     "retry or replan; do not keep repeating read/list inspection."
@@ -103,8 +100,10 @@ _RESULT_REVIEWER_INSTRUCTION = (
     "requested outcome, tool evidence, and unified task-tree context. Read the "
     "whole task context before deciding so useful completed-work information can "
     "inform unfinished future tasks. When artifacts or paths are involved, use "
-    "read-only inspection tools such as task_inspect, list_files, or read_file "
-    "before approving. Treat duplicate scripts, misplaced files, nested accidental "
+    "read-only inspection tools such as list_files or read_file "
+    "before approving. If file or shell evidence is claimed, inspect the "
+    "workspace/artifact file before approving; failed inspection is not evidence. "
+    "Treat duplicate scripts, misplaced files, nested accidental "
     "workspace paths, unsupported claims, or incomplete implementation as quality "
     "gate failures that require needs_revision, rejected, or replan. You MUST call "
     "task_review_decision with approved, needs_revision, rejected, replan, or "
@@ -167,8 +166,8 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
         mode = str(self.config.metadata.get("task_analyzer_mode", "task_creation"))
         if mode == "local_replan":
             region = _local_task_region(session)
-            return f"Local task region for replan: {region}\n\n{base}"
-        return f"Task snapshot: {_task_context_snapshot(session)}\n\n{base}"
+            return f"Local task region for replan:\n{_render_local_region_markdown(region)}\n\n{base}"
+        return f"Task tree:\n{_render_task_tree_markdown(_task_context_snapshot(session))}\n\n{base}"
 
 
 def _local_task_region(session: Session) -> dict:
@@ -229,6 +228,68 @@ def _task_context_snapshot(session: Session) -> dict:
     return snapshot
 
 
+def _render_task_tree_markdown(snapshot: dict) -> str:
+    """Render task tree snapshot as readable markdown instead of raw dict.
+
+    Converts the dense nested dict into a structured markdown format that
+    saves tokens and is easier for the model to parse.
+    """
+    tasks = snapshot.get("tasks", {})
+    root_id = snapshot.get("root_task_id", "")
+    active_id = snapshot.get("active_task_id", "")
+
+    lines: list[str] = []
+    if root_id:
+        root = tasks.get(root_id, {})
+        lines.append(f"Root: {root.get('title', root_id)} (id={root_id})")
+    if active_id:
+        active = tasks.get(active_id, {})
+        lines.append(f"Active: {active.get('title', active_id)} (id={active_id})")
+    lines.append("")
+
+    def _render_task(task_id: str, depth: int = 0) -> None:
+        task = tasks.get(task_id, {})
+        if not task:
+            return
+        indent = "  " * depth
+        status = task.get("status", "pending")
+        title = task.get("title", task_id)
+        marker = " ✓" if status == "completed" else ""
+        active_marker = " ◀" if task_id == active_id else ""
+        lines.append(f"{indent}- [{status}] {title} (id={task_id}){marker}{active_marker}")
+        result = task.get("result")
+        if isinstance(result, dict) and result.get("summary"):
+            summary = str(result["summary"])[:120]
+            lines.append(f"{indent}  Result: {summary}")
+        for child_id in task.get("children", []):
+            _render_task(child_id, depth + 1)
+
+    # Render from root
+    if root_id:
+        _render_task(root_id)
+
+    return "\n".join(lines)
+
+
+def _render_local_region_markdown(region: dict) -> str:
+    """Render local task region as concise markdown."""
+    lines: list[str] = []
+    active = region.get("active_task")
+    if active:
+        lines.append(f"Active: {active.get('title', 'unknown')} [{active.get('status', '?')}]")
+    children = region.get("children", [])
+    if children:
+        lines.append("Subtasks:")
+        for child in children:
+            lines.append(f"  - [{child.get('status', '?')}] {child.get('title', '?')}")
+    siblings = region.get("siblings", [])
+    if siblings:
+        lines.append("Sibling tasks:")
+        for sib in siblings:
+            lines.append(f"  - [{sib.get('status', '?')}] {sib.get('title', '?')}")
+    return "\n".join(lines) if lines else str(region)
+
+
 class TinyCUATaskAssessorNode(ProcessNode):
     """Assess the task tree for decomposition readiness."""
 
@@ -271,10 +332,10 @@ class TinyCUATaskAssessorNode(ProcessNode):
         if mode == "local_replan":
             return (
                 "Local task-tree region for reviewer-requested replan:\n"
-                f"{_local_task_region(session)}\n\n{base}"
+                f"{_render_local_region_markdown(_local_task_region(session))}\n\n{base}"
             )
         return (
-            f"Whole task tree snapshot for decomposition assessment: {snapshot}\n\n"
+            f"Task tree:\n{_render_task_tree_markdown(snapshot)}\n\n"
             f"{base}"
         )
 
@@ -320,7 +381,7 @@ class TinyCUATaskExecutorNode(ProcessNode):
             "/bin/sh; do not rely on shell-specific brace expansion such as "
             "'mkdir -p {a,b}', because it may create a literal brace-named "
             "directory. Use explicit POSIX-safe paths/commands instead.\n"
-            f"Unified task context: {_task_context_snapshot(session)}\n\n{base}"
+            f"Unified task context:\n{_render_task_tree_markdown(_task_context_snapshot(session))}\n\n{base}"
         )
 
     def _artifacts_from_tool_results(self, tool_results: list[dict]) -> list[dict]:
@@ -375,7 +436,7 @@ class TinyCUAResultReviewerNode(ProcessNode):
             f"Task status: {task.status.value}\n"
             f"Task result: {result}\n"
             f"Artifacts: {task.artifacts}\n"
-            f"Unified task context: {_task_context_snapshot(session)}\n\n{base}"
+            f"Unified task context:\n{_render_task_tree_markdown(_task_context_snapshot(session))}\n\n{base}"
         )
 
     def _task_to_review(self):

@@ -13,7 +13,8 @@ and produce execution results.
 
 - Must not select the active task (active task selection belongs to TinyCUALoop / task
   helpers).
-- Must not edit the active task or mutate the task tree.
+- Must not mutate task structure or the task tree; may update execution/result status
+  only through `task_execute` and `task_result_update` tools.
 - Does not review execution results (that belongs to ResultReviewer).
 - Does not synthesize final user responses.
 

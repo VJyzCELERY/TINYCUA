@@ -67,3 +67,32 @@ def test_run_shell_exit_code_propagation():
     result = run_shell("exit 42")
     assert result["exit_code"] == 42
     assert result["error"] is None
+
+
+def test_run_shell_rejects_mkdir_brace_expansion(tmp_path):
+    """POSIX /bin/sh does not expand braces; reject mkdir with brace syntax."""
+    from tinycua.agent.tools.native.shell import run_shell
+    from tinycua.agent.tools.native.context import bind_workspace
+
+    bind_workspace(tmp_path)
+
+    result = run_shell("mkdir -p {requirements,static,templates}")
+
+    assert result["exit_code"] == -1
+    assert "brace" in result["error"].lower()
+    assert not (tmp_path / "{requirements,static,templates}").exists()
+
+
+def test_run_shell_allows_explicit_mkdir_paths(tmp_path):
+    """Explicit mkdir paths without braces work normally."""
+    from tinycua.agent.tools.native.shell import run_shell
+    from tinycua.agent.tools.native.context import bind_workspace
+
+    bind_workspace(tmp_path)
+
+    result = run_shell("mkdir -p requirements static templates")
+
+    assert result["exit_code"] == 0
+    assert (tmp_path / "requirements").is_dir()
+    assert (tmp_path / "static").is_dir()
+    assert (tmp_path / "templates").is_dir()

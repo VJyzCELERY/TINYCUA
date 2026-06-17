@@ -26,6 +26,36 @@ logger = logging.getLogger(__name__)
 _UNBOUNDED_RETRY_ATTEMPTS = 1_000_000_000
 
 
+# Internal bookkeeping messages that should never reach the LLM.
+_SKIP_CONTENT_PREFIXES = (
+    "Scheduled analysis effort",
+    "Analysis effort complete",
+)
+
+
+def _deduplicate_context_messages(
+    messages: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Remove duplicate assistant messages and internal bookkeeping noise."""
+    seen: set[str] = set()
+    result: list[dict[str, Any]] = []
+    for msg in messages:
+        content = msg.get("content", "")
+        if not isinstance(content, str):
+            result.append(msg)
+            continue
+        stripped = content.strip()
+        # Skip deterministic controller noise
+        if stripped.startswith(_SKIP_CONTENT_PREFIXES):
+            continue
+        # Skip exact duplicates
+        if stripped in seen:
+            continue
+        seen.add(stripped)
+        result.append(msg)
+    return result
+
+
 def build_messages_with_dedupe(
     session: Session,
     dedupe_by_origin_record_id: bool = False,
@@ -77,7 +107,7 @@ def build_messages_with_dedupe(
         if content.strip():
             messages.append({"role": "assistant", "content": content})
 
-    return messages
+    return _deduplicate_context_messages(messages)
 
 
 class NodeExecutionError(Exception):

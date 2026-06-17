@@ -95,6 +95,7 @@ class TinyCUALoop(BaseLoop):
         self.workspace_dir = getattr(session_config, "workspace_dir", None)
         self.artifact_dir = getattr(session_config, "artifact_dir", None)
         self.session_dir = getattr(session_config, "session_dir", None)
+        self._tool_artifact_seq = 0
 
     def get_working_messages(self) -> list[dict[str, Any]]:
         """Return the working messages captured during the last run.
@@ -411,12 +412,7 @@ class TinyCUALoop(BaseLoop):
         resolved_tools = node.config.tool_policy.resolve_tools(tools)
         self._bind_session_tools(resolved_tools)
         if resolved_tools:
-            messages.append(
-                {
-                    "role": "system",
-                    "content": self._tool_call_protocol_message(resolved_tools),
-                }
-            )
+            messages = self._merge_tool_protocol_into_system(messages, resolved_tools)
         return messages, resolved_tools
 
     def _tool_call_protocol_message(self, resolved_tools: list[Tool]) -> str:
@@ -430,6 +426,33 @@ class TinyCUALoop(BaseLoop):
             f"Available tool names: {tool_names}. Do not wrap this JSON in "
             "Markdown and do not include prose when making tool calls."
         )
+
+    def _merge_tool_protocol_into_system(
+        self,
+        messages: list[dict[str, Any]],
+        resolved_tools: list[Tool],
+    ) -> list[dict[str, Any]]:
+        """Merge tool-use contract into the first system message."""
+        protocol = self._tool_call_protocol_message(resolved_tools)
+        return self._normalize_system_messages([
+            *messages[:1],
+            {"role": "system", "content": protocol},
+            *messages[1:],
+        ])
+
+    def _normalize_system_messages(
+        self, messages: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Collapse all system messages into a single leading system message."""
+        system_parts = [
+            str(m.get("content", ""))
+            for m in messages
+            if m.get("role") == "system" and str(m.get("content", "")).strip()
+        ]
+        non_system = [m for m in messages if m.get("role") != "system"]
+        if not system_parts:
+            return non_system
+        return [{"role": "system", "content": "\n\n".join(system_parts)}, *non_system]
 
     def _bind_session_tools(self, tools: list[Tool]) -> None:
         """Bind session-aware tools to this loop's root session state."""
@@ -484,6 +507,9 @@ class TinyCUALoop(BaseLoop):
                 continue
             self._sync_root_task()
             tool_result = {"name": name, "allowed": True, "output": output}
+            artifact_path = self._write_tool_audit_artifact(name, arguments, output)
+            if artifact_path:
+                tool_result["artifact_path"] = artifact_path
             self._record_tool_chat_result(tool_result)
             results.append(tool_result)
         return results
@@ -502,6 +528,27 @@ class TinyCUALoop(BaseLoop):
         if isinstance(properties, dict) and "arguments" in properties:
             return arguments
         return nested
+
+    def _write_tool_audit_artifact(
+        self,
+        name: str,
+        arguments: dict[str, Any],
+        output: Any,
+    ) -> str | None:
+        """Write a durable audit JSON for action/research tool calls."""
+        if self.artifact_dir is None:
+            return None
+        if name not in {"run_shell", "run_python", "web_search", "fetch_url"}:
+            return None
+        self._tool_artifact_seq += 1
+        audit_dir = self.artifact_dir / "tool-calls"
+        audit_dir.mkdir(parents=True, exist_ok=True)
+        path = audit_dir / f"{self._tool_artifact_seq:04d}-{name}.json"
+        path.write_text(
+            json.dumps({"name": name, "arguments": arguments, "output": output}, indent=2, default=str),
+            encoding="utf-8",
+        )
+        return str(path)
 
     def _enrich_task_results_from_tool_batch(
         self,
@@ -546,33 +593,6 @@ class TinyCUALoop(BaseLoop):
                     task.artifacts.append(artifact)
                     existing_task_paths.add(artifact.get("path"))
 
-    def _downgrade_unsupported_executor_success(
-        self,
-        task: Any,
-        tool_results: list[dict[str, Any]],
-    ) -> None:
-        """Turn unsupported executor success into a non-successful result."""
-        if task.result is None or task.result.success is not True:
-            return
-        if self._has_concrete_executor_action_evidence(tool_results):
-            return
-        original_content = task.result.content
-        task.result.success = False
-        task.result.execution_status = "failed"
-        task.result.metadata["runtime_success_rejected"] = {
-            "reason": (
-                "TaskExecutor recorded success=True without concrete action "
-                "evidence from write_file, edit_file, run_shell, or run_python."
-            ),
-            "tool_results": self._json_safe(tool_results),
-        }
-        task.result.content = (
-            "Runtime rejected the successful task_result_update because no "
-            "concrete implementation evidence was observed. Original claimed "
-            f"result: {original_content}"
-        )
-        task.result.summary = task.result.content
-
     def _artifacts_from_tool_results(
         self,
         tool_results: list[dict[str, Any]],
@@ -580,17 +600,26 @@ class TinyCUALoop(BaseLoop):
         """Extract durable artifact references from tool execution results."""
         artifacts: list[dict[str, Any]] = []
         for item in tool_results:
-            if item.get("name") != "write_file":
-                continue
-            output = item.get("output")
-            if not isinstance(output, dict):
-                continue
-            if output.get("success") is True and output.get("path"):
+            name = item.get("name")
+            # File path artifacts from write_file / edit_file
+            if name in {"write_file", "edit_file"}:
+                output = item.get("output")
+                if isinstance(output, dict) and output.get("success") is True and output.get("path"):
+                    artifacts.append(
+                        {
+                            "path": str(output["path"]),
+                            "kind": "file",
+                            "metadata": {"tool_name": name},
+                        }
+                    )
+            # Audit artifact from action/research tools
+            artifact_path = item.get("artifact_path")
+            if artifact_path:
                 artifacts.append(
                     {
-                        "path": str(output["path"]),
-                        "kind": "file",
-                        "metadata": {"tool_name": "write_file"},
+                        "path": str(artifact_path),
+                        "kind": "tool_audit",
+                        "metadata": {"tool_name": name},
                     }
                 )
         return artifacts
@@ -693,6 +722,10 @@ class TinyCUALoop(BaseLoop):
         """Synchronize public task pointer after tool-owned state changes."""
         del node, content
         self._sync_root_task()
+
+    # Deterministic controller messages that are internal bookkeeping,
+    # not useful context for downstream LLM nodes.
+    _SKIP_SESSION_CONTEXT_PREFIXES = ("Scheduled analysis effort", "Analysis effort complete")
 
     def _record_node_output(
         self,
@@ -846,10 +879,11 @@ class TinyCUALoop(BaseLoop):
                 return last_result, attempt, last_validation
             if attempt < max_attempts:
                 error = ValidationError("; ".join(last_validation.errors))
-                retry_message = self._natural_retry_message(
+                retry_message = self._retry_message_for_validation(
                     error,
                     node,
                     resolved_tools,
+                    last_result,
                 )
                 retry_feedback = self._tool_feedback_messages(last_result)
                 retry_tool_results = self._tool_results_from_llm_result(last_result)
@@ -857,6 +891,27 @@ class TinyCUALoop(BaseLoop):
 
         node._handle_exhaustion(last_validation, max_attempts)
         return last_result, max_attempts, last_validation
+
+    def _retry_message_for_validation(
+        self,
+        error: ValidationError,
+        node: Node,
+        resolved_tools: list[Tool],
+        llm_result: LLMResult,
+    ) -> str:
+        """Build retry guidance without pretending to be a new user turn."""
+        if node.node_id == "task_executor" and "task_result_update" in str(error):
+            tool_results = self._tool_results_from_llm_result(llm_result)
+            if self._successful_executor_action_results(tool_results):
+                return (
+                    "I need to call task_result_update with the observed tool "
+                    "results for the active task."
+                )
+            return (
+                "I need to continue the active task with available execution "
+                "tools, then record the result."
+            )
+        return self._natural_retry_message(error, node, resolved_tools)
 
     def _messages_with_retry_prompt(
         self,
@@ -870,11 +925,8 @@ class TinyCUALoop(BaseLoop):
         if retry_message:
             messages.append(
                 {
-                    "role": "user",
-                    "content": (
-                        f"Retry prompt: {retry_message} Make the required tool "
-                        "call now; do not repeat this text."
-                    ),
+                    "role": "assistant",
+                    "content": f"Runtime validation: {retry_message}",
                 }
             )
         return messages
@@ -1065,17 +1117,12 @@ class TinyCUALoop(BaseLoop):
         return True
 
     def _successful_executor_action_results(
-        self,
-        tool_results: list[dict[str, Any]],
+        self, tool_results: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
         """Return successful non-state tool results that can guide continuation."""
         action_or_research_tools = {
-            "write_file",
-            "edit_file",
-            "run_shell",
-            "run_python",
-            "fetch_url",
-            "web_search",
+            "write_file", "edit_file", "run_shell", "run_python",
+            "fetch_url", "web_search",
         }
         useful = []
         for item in tool_results:
@@ -1085,6 +1132,10 @@ class TinyCUALoop(BaseLoop):
             if isinstance(output, dict) and output.get("success") is False:
                 continue
             if isinstance(output, dict) and output.get("error"):
+                continue
+            if isinstance(output, dict) and output.get("timed_out") is True:
+                continue
+            if isinstance(output, dict) and output.get("exit_code") not in (None, 0):
                 continue
             useful.append(item)
         return useful
@@ -1207,7 +1258,13 @@ class TinyCUALoop(BaseLoop):
         node: Node,
         resolved_tools: list[Tool],
     ) -> bool:
-        """Return whether to force provider-side JSON tool-call grammar."""
+        """Return whether to force provider-side JSON tool-call grammar.
+
+        Currently disabled: the local llama.cpp server's grammar-constrained
+        decoding conflicts with the JSON schema, producing grammar stack errors.
+        Re-enable when the server supports ``response_format: json_schema``
+        without grammar conflicts.
+        """
         del agent, node, resolved_tools
         return False
 
@@ -1275,7 +1332,17 @@ class TinyCUALoop(BaseLoop):
     ) -> str:
         """Build an assistant self-correction retry continuation."""
         del resolved_tools
-        required = self._missing_or_required_tool_name(node, str(error))
+        error_text = str(error)
+        if (
+            node.node_id == "task_analyzer"
+            and "task_decompose" in error_text
+            and "task_update" in error_text
+        ):
+            return (
+                "I need to call task_decompose if the task tree needs structural "
+                "changes, or task_update if no further decomposition is useful."
+            )
+        required = self._missing_or_required_tool_name(node, error_text)
         if required:
             return (
                 f"I need to call {required} with the current evidence to finalize "
@@ -1365,6 +1432,7 @@ class TinyCUALoop(BaseLoop):
         stream: bool = False,
     ) -> Any:
         """Invoke agent._call_llm while supporting async iterators in tests."""
+        messages = self._normalize_system_messages(messages)
         result = agent._call_llm(messages, resolved_tools, stream=stream)  # type: ignore[arg-type]
         if inspect.isawaitable(result):
             result = await result
@@ -1433,7 +1501,7 @@ class TinyCUALoop(BaseLoop):
 
     def _requires_any_tool_choice(self, node: Node) -> bool:
         """Return whether a node must call some tool but not one fixed tool."""
-        return node.node_id in {"task_executor", "result_reviewer"}
+        return node.node_id in {"task_executor", "result_reviewer", "task_analyzer"}
 
     def _llm_tools_for_required_choice(
         self,
@@ -1469,73 +1537,6 @@ class TinyCUALoop(BaseLoop):
                 validation.is_valid = False
                 validation.errors.extend(extra_validation.errors)
         return validation
-
-    def _validate_task_executor_repeated_missing_evidence(
-        self,
-        node: Node,
-        llm_result: LLMResult,
-    ) -> ValidationResult:
-        """Retry executor locally after repeated missing-evidence revisions."""
-        validation = ValidationResult(is_valid=True, errors=[])
-        if node.node_id != "task_executor":
-            return validation
-        tool_results = [
-            item for item in llm_result.metadata.get("tool_results", [])
-            if isinstance(item, dict)
-        ]
-        for task_id in self._task_result_update_ids(tool_results):
-            try:
-                task = self.root_session.task_store.get_task(task_id)
-            except ValueError:
-                continue
-            if task.result is None:
-                continue
-            if "runtime_success_rejected" not in task.result.metadata:
-                continue
-            if not self._task_has_prior_missing_evidence_review(task):
-                continue
-            validation.is_valid = False
-            validation.errors.append(
-                "Repeated missing-evidence result after reviewer revision. First use "
-                "write_file, edit_file, run_shell, or run_python to create or verify "
-                "the required artifact before finalizing a successful result."
-            )
-            return validation
-        return validation
-
-    def _task_result_update_ids(
-        self,
-        tool_results: list[dict[str, Any]],
-    ) -> list[str]:
-        """Return task IDs mentioned by task_result_update tool outputs."""
-        task_ids: list[str] = []
-        for item in tool_results:
-            if item.get("name") != "task_result_update":
-                continue
-            output = item.get("output")
-            if not isinstance(output, dict) or output.get("success") is not True:
-                continue
-            task_id = output.get("task_id")
-            if isinstance(task_id, str):
-                task_ids.append(task_id)
-        return task_ids
-
-    def _task_has_prior_missing_evidence_review(self, task: Any) -> bool:
-        """Return whether reviewer already rejected missing implementation evidence."""
-        for decision in task.reviewer_decisions:
-            if not isinstance(decision, dict):
-                continue
-            if decision.get("decision") not in {"needs_revision", "rejected"}:
-                continue
-            rationale = str(decision.get("rationale", "")).lower()
-            if (
-                "evidence" in rationale
-                or "artifact" in rationale
-                or "write_file" in rationale
-                or "implementation" in rationale
-            ):
-                return True
-        return False
 
     def _validate_result_reviewer_failed_approval(
         self,
@@ -1606,17 +1607,20 @@ class TinyCUALoop(BaseLoop):
         if not artifacts:
             return validation
         inspected = any(
-            item.get("name") in {"task_inspect", "list_files", "read_file"}
+            item.get("name") in {"list_files", "read_file"}
             and item.get("error") is None
+            and not (
+                isinstance(item.get("output"), dict)
+                and item["output"].get("error")
+            )
             for item in tool_results
         )
         if inspected:
             return validation
         validation.is_valid = False
         validation.errors.append(
-            "ResultReviewer must inspect relevant task context or artifact files "
-            "with task_inspect, list_files, or read_file before approving tasks "
-            "that produced artifacts."
+            "ResultReviewer must inspect workspace/artifact files with successful "
+            "list_files or read_file before approving tasks that produced artifacts."
         )
         return validation
 
@@ -1702,113 +1706,38 @@ class TinyCUALoop(BaseLoop):
         validation = ValidationResult(is_valid=True, errors=[])
         if node.node_id != "task_executor":
             return validation
-        if llm_result.metadata.get("tool_results"):
-            return validation
-        validation.is_valid = False
-        validation.errors.append(
-            "TaskExecutor must use tools to execute, inspect, verify, record a "
-            "result, or report a blocked state; do not return a plan-only answer."
-        )
-        return validation
-
-    def _validate_task_executor_success_evidence(
-        self,
-        node: Node,
-        llm_result: LLMResult,
-    ) -> ValidationResult:
-        """Require concrete action evidence for successful executor results."""
-        validation = ValidationResult(is_valid=True, errors=[])
-        if node.node_id != "task_executor":
-            return validation
-        tool_results = [
-            item for item in llm_result.metadata.get("tool_results", [])
-            if isinstance(item, dict)
-        ]
-        successful_task_ids = self._successful_task_result_update_ids(tool_results)
-        if not successful_task_ids:
-            return validation
-        evidence = [*tool_results, *self._stored_executor_partial_results(successful_task_ids)]
-        if self._has_concrete_executor_action_evidence(evidence):
-            return validation
-        validation.is_valid = False
-        validation.errors.append(
-            "TaskExecutor success=True task_result_update requires concrete action "
-            "evidence from write_file, edit_file, run_shell, or run_python. "
-            "task_execute, prose/planning, and read/list-only evidence cannot prove "
-            "successful implementation."
-        )
-        return validation
-
-    def _successful_task_result_update_ids(
-        self,
-        tool_results: list[dict[str, Any]],
-    ) -> list[str]:
-        """Return task IDs whose persisted result is semantic success."""
-        task_ids: list[str] = []
-        for item in tool_results:
-            if item.get("name") != "task_result_update":
-                continue
-            output = item.get("output")
-            if not isinstance(output, dict) or output.get("success") is not True:
-                continue
-            task_id = output.get("task_id")
-            if not isinstance(task_id, str):
-                continue
-            try:
-                task = self.root_session.task_store.get_task(task_id)
-            except ValueError:
-                continue
-            if task.result is not None and task.result.success is True:
-                task_ids.append(task_id)
-        return task_ids
-
-    def _stored_executor_partial_results(self, task_ids: list[str]) -> list[dict[str, Any]]:
-        """Return previously observed executor evidence for task IDs."""
-        stored: list[dict[str, Any]] = []
-        for task_id in task_ids:
-            try:
-                task = self.root_session.task_store.get_task(task_id)
-            except ValueError:
-                continue
-            stored.extend(
-                item for item in task.metadata.get("executor_partial_tool_results", [])
-                if isinstance(item, dict)
+        tool_results = [item for item in llm_result.metadata.get("tool_results", []) if isinstance(item, dict)]
+        if not tool_results:
+            validation.is_valid = False
+            validation.errors.append(
+                "TaskExecutor must use tools to execute, inspect, verify, record a "
+                "result, or report a blocked state; do not return a plan-only answer."
             )
-            if task.result is not None:
-                stored.extend(
-                    item for item in task.result.metadata.get("tool_results", [])
-                    if isinstance(item, dict)
+            return validation
+        # Success claims must be backed by at least one successful action/research tool
+        successful_updates = [
+            item for item in tool_results
+            if item.get("name") == "task_result_update"
+            and isinstance(item.get("output"), dict)
+            and item["output"].get("success") is True
+        ]
+        if successful_updates:
+            # Include evidence from task artifacts (enriched from partial results)
+            task_id = successful_updates[0].get("output", {}).get("task_id")
+            all_evidence = list(tool_results)
+            if isinstance(task_id, str) and task_id in self.root_session.task_store.tasks:
+                task = self.root_session.task_store.tasks[task_id]
+                result_artifacts = list(task.result.artifacts) if task.result else []
+                for artifact in [*task.artifacts, *result_artifacts]:
+                    if artifact.get("kind") == "file":
+                        all_evidence.append({"name": artifact.get("metadata", {}).get("tool_name", "write_file")})
+            if not self._successful_executor_action_results(all_evidence):
+                validation.is_valid = False
+                validation.errors.append(
+                    "TaskExecutor success=True task_result_update requires at least one successful "
+                    "workspace/research action tool result; task_execute alone is dispatch, not evidence."
                 )
-        return stored
-
-    def _has_concrete_executor_action_evidence(
-        self,
-        tool_results: list[dict[str, Any]],
-    ) -> bool:
-        """Return whether executor evidence includes successful implementation work."""
-        concrete_action_tools = {"write_file", "edit_file", "run_shell", "run_python"}
-        return any(
-            item.get("name") in concrete_action_tools
-            and self._tool_result_succeeded(item)
-            for item in tool_results
-        )
-
-    def _tool_result_succeeded(self, item: dict[str, Any]) -> bool:
-        """Return whether a tool result represents a successful operation."""
-        if item.get("error"):
-            return False
-        output = item.get("output")
-        if isinstance(output, dict):
-            if output.get("success") is False:
-                return False
-            if output.get("error"):
-                return False
-            if output.get("timed_out") is True:
-                return False
-            exit_code = output.get("exit_code")
-            if exit_code is not None and exit_code != 0:
-                return False
-        return True
+        return validation
 
     def _validate_tool_owned_task_state(
         self,
@@ -1825,6 +1754,14 @@ class TinyCUALoop(BaseLoop):
             and isinstance(item.get("output"), dict)
             and item["output"].get("success") is True
         }
+        # Executor failure reports (success=False) are valid blocker signals for reviewer/replan
+        has_executor_failure_report = any(
+            isinstance(item, dict)
+            and item.get("name") == "task_result_update"
+            and isinstance(item.get("output"), dict)
+            and item["output"].get("success") is False
+            for item in tool_results
+        )
         required_by_node = {
             "task_create": {"task_init"},
             "task_executor": {"task_result_update"},
@@ -1857,6 +1794,9 @@ class TinyCUALoop(BaseLoop):
             )
             return validation
         if required is None or required.issubset(successful_tool_names):
+            return validation
+        # Executor failure reports (success=False) satisfy the structural requirement
+        if node.node_id == "task_executor" and has_executor_failure_report:
             return validation
         validation.is_valid = False
         validation.errors.append(
@@ -2350,10 +2290,6 @@ class TinyCUALoop(BaseLoop):
         elif retry_tool_results:
             self._prepend_retry_tool_results(llm_result, retry_tool_results)
         combined = llm_result.content
-        result_metadata = dict(llm_result.metadata)
-        llm_result = self._record_node_output(node, combined, llm_result.tool_calls)
-        llm_result.metadata.update(result_metadata)
-
         validation = self._validate_node_result(node, llm_result)
         if not validation.is_valid:
             on_complete_response = self._build_on_complete_response(node, llm_result)
@@ -2367,6 +2303,11 @@ class TinyCUALoop(BaseLoop):
             trace_entry["validation_errors"] = list(validation.errors)
             self._execution_trace.append(trace_entry)
             return combined, validation, llm_result
+
+        # Record valid output as reusable node context only after validation passes
+        result_metadata = dict(llm_result.metadata)
+        llm_result = self._record_node_output(node, combined, llm_result.tool_calls)
+        llm_result.metadata.update(result_metadata)
 
         self._apply_loop_result_hook(node, llm_result, node_input)
         self._publish_structured_outputs_to_root(node)
@@ -2767,6 +2708,7 @@ class TinyCUALoop(BaseLoop):
                     resolved_tools,
                     error,
                     attempt_number,
+                    llm_result,
                 )
                 retry_feedback = self._tool_feedback_messages(llm_result)
                 retry_tool_results = self._tool_results_from_llm_result(llm_result)
@@ -2944,10 +2886,11 @@ class TinyCUALoop(BaseLoop):
         resolved_tools: list[Tool],
         error: ValidationError,
         attempt: int,
+        llm_result: LLMResult,
     ) -> str:
         """Build retry guidance for the canonical streaming path."""
         del agent, attempt
-        return self._natural_retry_message(error, node, resolved_tools)
+        return self._retry_message_for_validation(error, node, resolved_tools, llm_result)
 
     def _append_tool_feedback_messages(
         self,
@@ -3486,16 +3429,31 @@ class TinyCUALoop(BaseLoop):
         policy = node.config.message_policy
         if not policy.include_session_context or not context_session.session_context:
             return
+        # Filter out deterministic controller noise before any path
+        filtered_context = [
+            entry for entry in context_session.session_context
+            if not (
+                isinstance(
+                    entry.get("content", "") if isinstance(entry, dict) else entry.content,
+                    str,
+                )
+                and (
+                    entry.get("content", "") if isinstance(entry, dict) else entry.content
+                ).startswith(self._SKIP_SESSION_CONTEXT_PREFIXES)
+            )
+        ]
+        if not filtered_context:
+            return
         if policy.dedupe_by_origin_record_id:
             messages.extend(
                 build_messages_with_dedupe(
-                    context_session,
+                    Session(session_context=filtered_context),
                     dedupe_by_origin_record_id=True,
                     skip_record_ids=skip_record_ids,
                 )
             )
             return
-        for entry in context_session.session_context:
+        for entry in filtered_context:
             if self._session_entry_is_skipped(entry, skip_record_ids):
                 continue
             content = (
@@ -3524,9 +3482,12 @@ class TinyCUALoop(BaseLoop):
         if not node.config.message_policy.include_input_context:
             return
         for message in self.root_session.input_context:
+            role = message["role"]
+            if role == "user" and node.node_id != "query_analyst":
+                role = "assistant"
             self._append_nonblank_message(
                 messages,
-                message["role"],
+                role,
                 message["content"],
             )
 

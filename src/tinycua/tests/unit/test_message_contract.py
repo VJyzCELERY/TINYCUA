@@ -260,8 +260,8 @@ def test_decision_node_classification_continuation_uses_assistant_role() -> None
     assert "Internal continuation" in captured_messages[-1]["content"]
 
 
-def test_structured_internal_context_is_rendered_as_json_not_python_repr() -> None:
-    """Known internal payloads are compact JSON before reaching the LLM."""
+def test_structured_internal_context_is_rendered_as_markdown_not_python_repr() -> None:
+    """Known internal payloads are rendered as readable markdown before reaching the LLM."""
     loop = TinyCUALoop()
     node = ResponseNode(config=create_node_config("response"))
     node.ensure_session(loop.root_session)
@@ -293,8 +293,11 @@ def test_structured_internal_context_is_rendered_as_json_not_python_repr() -> No
 
     assert "DigestedInformation(" not in rendered_context
     assert "AggregatedResult(" not in rendered_context
-    assert '"type":"DigestedInformation"' in rendered_context
-    assert '"type":"AggregatedResult"' in rendered_context
+    # Now rendered as markdown, not raw JSON
+    assert "## Digested Information" in rendered_context
+    assert "Need runtime hardening" in rendered_context
+    assert "force route tools" in rendered_context
+    assert "## Aggregated Result" in rendered_context
 
 
 def test_internal_retry_and_tool_only_chat_records_are_not_llm_bound() -> None:
@@ -649,3 +652,74 @@ def test_digester_may_digest_without_forced_context_retrieval() -> None:
 
     assert digest_only.is_valid is True
     assert retrieved_and_digested.is_valid is True
+
+
+def test_prepare_node_merges_tool_contract_into_single_system_message() -> None:
+    """_prepare_node produces exactly one system message containing the tool contract."""
+    loop = TinyCUALoop()
+    node = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    node.ensure_session(loop.root_session)
+
+    messages, _ = loop._prepare_node(node, [Tool(name="write_file")])
+
+    system_msgs = [m for m in messages if m.get("role") == "system"]
+    assert len(system_msgs) == 1
+    assert messages[0]["role"] == "system"
+    assert "You are the TaskExecutor" in messages[0]["content"]
+    assert "Tool-use contract" in messages[0]["content"]
+
+
+def test_normalize_system_messages_merges_late_system_messages() -> None:
+    """Defensive normalizer collapses scattered system messages into one."""
+    loop = TinyCUALoop()
+    messages = [
+        {"role": "system", "content": "A"},
+        {"role": "assistant", "content": "B"},
+        {"role": "system", "content": "C"},
+    ]
+
+    normalized = loop._normalize_system_messages(messages)
+
+    system_msgs = [m for m in normalized if m.get("role") == "system"]
+    assert len(system_msgs) == 1
+    assert normalized[0]["role"] == "system"
+    assert "A" in normalized[0]["content"]
+    assert "C" in normalized[0]["content"]
+    assert normalized[1] == {"role": "assistant", "content": "B"}
+
+
+def test_stream_invalid_attempt_is_not_recorded_as_node_output() -> None:
+    """Invalid streamed node output does not become reusable session context."""
+    loop = TinyCUALoop()
+    node = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    node.ensure_session(loop.root_session)
+    # Record a valid baseline output first
+    node.session.session_context.append(
+        SessionContextEntry(
+            content="prior valid output",
+            segment="output",
+            source_node_id="task_executor",
+        )
+    )
+    context_before = len(node.session.session_context)
+
+    # Stream an invalid attempt (no tool calls, no task_result_update)
+    combined, validation, _ = loop._finalize_streamed_node(
+        node,
+        ["plan only answer"],
+        [],
+        node.config.tool_policy.resolve_tools([Tool(name="write_file")]),
+    )
+
+    assert not validation.is_valid
+    # No new session context entry should have been added for the invalid content
+    assert len(node.session.session_context) == context_before
+    # Trace should still record the validation error for observability
+    trace = loop.get_execution_trace()
+    assert any(entry.get("validation_errors") for entry in trace)
