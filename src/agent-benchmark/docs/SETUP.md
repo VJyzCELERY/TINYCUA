@@ -183,7 +183,7 @@ docker images | grep wildclawbench
 > docker load -i Images/wildclawbench-hermes-agent-v0.5.tar.gz
 > ```
 >
-> Or use the helper script from `src/hermes-benchmark/`:
+> Or use the helper script from `src/agent-benchmark/`:
 > ```bash
 > bash scripts/download_images.sh                # Hermes only (default)
 > bash scripts/download_images.sh --all          # All four harnesses
@@ -262,7 +262,7 @@ grep -c "API_KEY" .env
 # Dry-run: run a single fast task to confirm connectivity
 bash script/run.sh hermesagent \
     --task tasks/01_Productivity_Flow/01_Productivity_Flow_task_1_arxiv_digest.md \
-    --model openrouter/qwen/qwen3.5-9b
+    --model qwen/qwen3.5-9b
 ```
 
 If the single task completes with a score, you're good to go.
@@ -271,10 +271,12 @@ If the single task completes with a score, you're good to go.
 
 ## 11. Run Qwen 3.5 9B
 
+> **Model naming convention:** Hermes Agent expects `<provider>/<model>` (the `openrouter/` prefix is added internally). Do NOT include `openrouter/` in the model name for Hermes.
+
 ### Option A: Via OpenRouter (cloud, simplest)
 
 ```bash
-bash script/run.sh hermesagent --category all --parallel 4 --model openrouter/qwen/qwen3.5-9b
+bash script/run.sh hermesagent --category all --parallel 4 --model qwen/qwen3.5-9b
 ```
 
 ### Option B: Local vLLM (GPU, self-hosted)
@@ -351,21 +353,30 @@ python3 eval/run_batch.py \
 
 ## 12. Run Commands Reference
 
+> **Model naming differs per harness** (per upstream WildClawBench):
+>
+> | Harness | Format | Example |
+> |---------|--------|---------|
+> | OpenClaw | `openrouter/<provider>/<model>` | `openrouter/qwen/qwen3.5-9b` |
+> | Codex CLI | `openrouter/<provider>/<model>` | `openrouter/qwen/qwen3.5-9b` |
+> | Claude Code | `<provider>/<model>` | `qwen/qwen3.5-9b` |
+> | Hermes Agent | `<provider>/<model>` | `qwen/qwen3.5-9b` |
+
 ### Full suite (all 60 tasks, 4 parallel):
 ```bash
-bash script/run.sh hermesagent --category all --parallel 4 --model openrouter/qwen/qwen3.5-9b
+bash script/run.sh hermesagent --category all --parallel 4 --model qwen/qwen3.5-9b
 ```
 
 ### Single category:
 ```bash
-bash script/run.sh hermesagent --category 01_Productivity_Flow --parallel 4 --model openrouter/qwen/qwen3.5-9b
+bash script/run.sh hermesagent --category 01_Productivity_Flow --parallel 4 --model qwen/qwen3.5-9b
 ```
 
 ### Single task:
 ```bash
 bash script/run.sh hermesagent \
     --task tasks/06_Safety_Alignment/06_Safety_Alignment_task_1_file_overwrite.md \
-    --model openrouter/qwen/qwen3.5-9b
+    --model qwen/qwen3.5-9b
 ```
 
 ### Available categories:
@@ -406,14 +417,23 @@ output/hermesagent/
 
 ## 14. Cleanup
 
-If a run is interrupted, remove leftover containers:
+If a run is interrupted, remove leftover containers for all harnesses:
 ```bash
-docker ps -a --filter "ancestor=wildclawbench-hermes-agent:v0.5" -q | xargs -r docker rm -f
+for img in \
+    wildclawbench-ubuntu:v1.3 \
+    wildclawbench-claudecode-ubuntu:v0.2 \
+    wildclawbench-codex-ubuntu:v0.0 \
+    wildclawbench-hermes-agent:v0.5; do
+  docker ps -a --filter "ancestor=$img" -q | xargs -r docker rm -f
+done
 ```
 
 To remove all WildClawBench images:
 ```bash
-docker rmi wildclawbench-hermes-agent:v0.5
+docker rmi wildclawbench-ubuntu:v1.3 \
+    wildclawbench-claudecode-ubuntu:v0.2 \
+    wildclawbench-codex-ubuntu:v0.0 \
+    wildclawbench-hermes-agent:v0.5
 ```
 
 ---
