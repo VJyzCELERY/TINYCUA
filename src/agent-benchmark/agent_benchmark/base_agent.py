@@ -1,8 +1,8 @@
-"""Local copies of WildClawBench BaseAgent ABC and dataclasses.
+"""BaseAgent ABC and dataclasses for WildClawBench-compatible agents.
 
-Avoids hard dependency on the WildClawBench package. These types mirror the
-upstream interface so TinyCUAAgent can be used as a drop-in BaseAgent
-implementation.
+Single canonical copy — avoids hard dependency on the WildClawBench package.
+These types mirror the upstream interface so any agent can be used as a
+drop-in BaseAgent implementation.
 """
 
 from __future__ import annotations

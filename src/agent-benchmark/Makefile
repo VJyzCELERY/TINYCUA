@@ -1,8 +1,8 @@
-# Makefile for hermes-benchmark
+# Makefile for agent-benchmark
 
-SRC ?= hermes_benchmark
+SRC ?= agent_benchmark
 
-.PHONY: install lint lint-fix test clean
+.PHONY: install lint lint-fix test test-unit test-integration clean
 
 install:
 	uv pip install -e ".[dev]"

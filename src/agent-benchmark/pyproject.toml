@@ -1,7 +1,7 @@
 [project]
-name = "hermes-benchmark"
+name = "agent-benchmark"
 version = "0.1.0"
-description = "Hermes agent WildClawBench benchmark adapter"
+description = "WildClawBench multi-harness benchmark adapter (OpenClaw, Claude Code, Codex, Hermes)"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -9,7 +9,7 @@ dependencies = [
 ]
 
 [project.scripts]
-compare-results = "hermes_benchmark.compare_results:main"
+compare-results = "agent_benchmark.compare_results:main"
 
 [build-system]
 requires = ["hatchling"]
