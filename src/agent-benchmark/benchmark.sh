@@ -35,14 +35,13 @@ log_error()   { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step()    { echo -e "${CYAN}[STEP]${NC} $1"; }
 
 # All harnesses
-HARNESS_LIST="openclaw claudecode codex hermesagent"
+HARNESS_LIST="openclaw opencode hermesagent"
 
 # Get image tarball for harness
 get_tarball() {
   case "$1" in
     openclaw)    echo "wildclawbench-ubuntu_v1.3.tar" ;;
-    claudecode)  echo "wildclawbench-claudecode-ubuntu_v0.2-patched.tar" ;;
-    codex)       echo "wildclawbench-codex-ubuntu_v0.0.tar" ;;
+    opencode)    echo "wildclawbench-ubuntu_v1.3.tar" ;;
     hermesagent) echo "wildclawbench-hermes-agent-v0.5.tar.gz" ;;
   esac
 }
@@ -51,8 +50,7 @@ get_tarball() {
 get_tag() {
   case "$1" in
     openclaw)    echo "wildclawbench-ubuntu:v1.3" ;;
-    claudecode)  echo "wildclawbench-claudecode-ubuntu:v0.2" ;;
-    codex)       echo "wildclawbench-codex-ubuntu:v0.0" ;;
+    opencode)    echo "wildclawbench-ubuntu:v1.3" ;;
     hermesagent) echo "wildclawbench-hermes-agent:v0.5" ;;
   esac
 }
@@ -478,20 +476,20 @@ Run Options:
                                     03_Search_Retrieval, 04_Data_Processing,
                                     05_Safety_Alignment
   --model MODEL         Model to evaluate (default: from .env)
-  --agent AGENT         Run specific agent only (openclaw|claudecode|codex|hermesagent)
+  --agent AGENT         Run specific agent only (openclaw|opencode|hermesagent)
   --parallel N          Parallel tasks per agent (default: 1)
 
 Examples:
   bash benchmark.sh check
   bash benchmark.sh setup
   bash benchmark.sh run
-  bash benchmark.sh run --model openrouter/openai/gpt-5.5
+  bash benchmark.sh run --model qwen3.5-9b
   bash benchmark.sh run --category 01_Productivity_Flow
-  bash benchmark.sh run --agent hermesagent
+  bash benchmark.sh run --agent opencode
   bash benchmark.sh status
 
 Execution Flow:
-  1. Setup installs all prerequisites and downloads all 4 Docker images
+  1. Setup installs all prerequisites and downloads Docker images
   2. Run executes agents ONE AT A TIME (sequential) to conserve resources
   3. Each agent's results are saved to output/<agent>/
   4. After all agents finish, a summary is printed and saved

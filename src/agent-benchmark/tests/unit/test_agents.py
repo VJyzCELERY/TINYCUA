@@ -95,8 +95,7 @@ class TestAgentRegistry:
     def test_list_agents(self):
         agents = list_agents()
         assert "openclaw" in agents
-        assert "claudecode" in agents
-        assert "codex" in agents
+        assert "opencode" in agents
         assert "hermesagent" in agents
 
     def test_get_agent_openclaw(self):
@@ -104,15 +103,19 @@ class TestAgentRegistry:
         assert agent.image_name == "wildclawbench-ubuntu:v1.3"
         assert agent.api_key_env == "OPENROUTER_API_KEY"
 
-    def test_get_agent_claudecode(self):
-        agent = get_agent("claudecode")
-        assert agent.image_name == "wildclawbench-claudecode-ubuntu:v0.2"
-        assert agent.api_key_env == "ANTHROPIC_API_KEY"
+    def test_get_agent_opencode(self, tmp_path):
+        import yaml
+        config = {
+            "model": "qwen3.5-9b",
+            "api_base": "http://localhost:8000/v1",
+            "api_key_env": "OPENCODE_API_KEY",
+        }
+        config_path = tmp_path / "config.yaml"
+        with open(config_path, "w") as f:
+            yaml.dump(config, f)
 
-    def test_get_agent_codex(self):
-        agent = get_agent("codex")
-        assert agent.image_name == "wildclawbench-codex-ubuntu:v0.0"
-        assert agent.api_key_env == "OPENAI_API_KEY"
+        agent = get_agent("opencode", config_path=str(config_path))
+        assert agent.image_name == "wildclawbench-ubuntu:v1.3"
 
     def test_get_agent_hermesagent(self, tmp_path):
         import yaml

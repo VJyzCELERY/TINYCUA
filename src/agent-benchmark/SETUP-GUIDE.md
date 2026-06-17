@@ -65,10 +65,8 @@ bash benchmark.sh setup
 This will:
 - Check prerequisites (docker, uv, huggingface-hub)
 - Install Python dependencies
-- Download 4 Docker images (~5GB each):
-  - `wildclawbench-ubuntu:v1.3` (OpenClaw)
-  - `wildclawbench-claudecode-ubuntu:v0.2` (Claude Code)
-  - `wildclawbench-codex-ubuntu:v0.0` (Codex)
+- Download Docker images:
+  - `wildclawbench-ubuntu:v1.3` (OpenClaw + OpenCode)
   - `wildclawbench-hermes-agent:v0.5` (Hermes)
 - Create `.env` file from template
 
@@ -104,8 +102,6 @@ docker images | grep wildclawbench
 
 # Should show:
 # wildclawbench-ubuntu              v1.3
-# wildclawbench-claudecode-ubuntu   v0.2
-# wildclawbench-codex-ubuntu        v0.0
 # wildclawbench-hermes-agent        v0.5
 
 # Check .env exists
@@ -124,15 +120,14 @@ bash benchmark.sh run
 
 Executes agents one at a time:
 1. openclaw → results in `output/openclaw/`
-2. claudecode → results in `output/claudecode/`
-3. codex → results in `output/codex/`
-4. hermesagent → results in `output/hermesagent/`
+2. opencode → results in `output/opencode/`
+3. hermesagent → results in `output/hermesagent/`
 
 ### Run Specific Agent
 
 ```bash
-# Only Hermes Agent
-bash benchmark.sh run --agent hermesagent
+# Only OpenCode
+bash benchmark.sh run --agent opencode
 
 # Only OpenClaw
 bash benchmark.sh run --agent openclaw
@@ -141,11 +136,11 @@ bash benchmark.sh run --agent openclaw
 ### Run With Specific Model
 
 ```bash
-# Use GPT-5.5
-bash benchmark.sh run --model openrouter/openai/gpt-5.5
+# Use Qwen 3.5 9B
+bash benchmark.sh run --model qwen3.5-9b
 
-# Use Claude Sonnet
-bash benchmark.sh run --model openrouter/anthropic/claude-sonnet-4.6
+# Use GPT-5.5 via OpenRouter
+bash benchmark.sh run --model openrouter/openai/gpt-5.5
 ```
 
 ### Run Specific Category
@@ -161,8 +156,8 @@ bash benchmark.sh run --category 02_Code_Intelligence
 ### Combined Options
 
 ```bash
-# Hermes Agent + GPT-5.5 + Code Intelligence only
-bash benchmark.sh run --agent hermesagent --model openai/gpt-5.5 --category 02_Code_Intelligence
+# OpenCode + Qwen 3.5 9B + Code Intelligence only
+bash benchmark.sh run --agent opencode --model qwen3.5-9b --category 02_Code_Intelligence
 ```
 
 ---
@@ -197,8 +192,7 @@ output/
 │       ├── score.json          # Scores
 │       ├── usage.json          # Token usage
 │       └── agent.log           # Execution log
-├── claudecode/
-├── codex/
+├── opencode/
 ├── hermesagent/
 └── run_summary.json            # Latest run summary
 ```
@@ -222,11 +216,7 @@ Different harnesses use different model name formats:
 | Harness | Format | Example |
 |---------|--------|---------|
 | OpenClaw | `openrouter/<provider>/<model>` | `openrouter/openai/gpt-5.5` |
-| Codex | `openrouter/<provider>/<model>` | `openrouter/openai/gpt-5.5` |
-| Claude Code | `<provider>/<model>` | `openai/gpt-5.5` |
-| Hermes | `<provider>/<model>` | `openai/gpt-5.5` |
-
-**Note:** Claude Code and Hermes add `openrouter/` prefix automatically.
+| OpenCode / Hermes | `<provider>/<model>` | `qwen3.5-9b` |
 
 ---
 

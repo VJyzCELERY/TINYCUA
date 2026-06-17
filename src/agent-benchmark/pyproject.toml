@@ -1,7 +1,7 @@
 [project]
 name = "agent-benchmark"
 version = "0.1.0"
-description = "WildClawBench multi-harness benchmark adapter (OpenClaw, Claude Code, Codex, Hermes)"
+description = "WildClawBench multi-harness benchmark adapter (OpenClaw, OpenCode, Hermes)"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

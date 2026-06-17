@@ -9,8 +9,7 @@ if TYPE_CHECKING:
 
 _REGISTRY: dict[str, str] = {
     "openclaw": "agent_benchmark.agents.openclaw:OpenClawAgent",
-    "claudecode": "agent_benchmark.agents.claude_code:ClaudeCodeAgent",
-    "codex": "agent_benchmark.agents.codex:CodexAgent",
+    "opencode": "agent_benchmark.agents.opencode:OpenCodeAgent",
     "hermesagent": "agent_benchmark.agents.hermes_agent:HermesAgent",
 }
 
@@ -19,7 +18,7 @@ def get_agent(name: str, **kwargs: object) -> BaseAgent:
     """Instantiate an agent adapter by name.
 
     Args:
-        name: Harness name — "openclaw", "claudecode", "codex", or "hermesagent".
+        name: Harness name — "openclaw", "opencode", or "hermesagent".
         **kwargs: Passed to the agent constructor (e.g., config_path for Hermes).
 
     Returns:

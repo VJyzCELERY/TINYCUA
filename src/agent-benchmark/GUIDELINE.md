@@ -19,11 +19,10 @@ This document provides comprehensive instructions for setting up and running the
 
 ## Overview
 
-WildClawBench is a benchmark suite for evaluating AI coding agents across four harnesses:
+WildClawBench is a benchmark suite for evaluating AI coding agents across three harnesses:
 
 - **OpenClaw** - Open-source coding agent
-- **Claude Code** - Anthropic's Claude Code
-- **Codex CLI** - OpenAI's Codex CLI
+- **OpenCode** - OpenCode harness with Qwen 3.5 9B
 - **Hermes Agent** - Hermes coding agent
 
 Each harness is containerized with Docker for reproducible evaluation.
@@ -142,8 +141,7 @@ bash setup.sh --step 2
 | Harness | Image Tarball | Loaded Tag |
 |---------|---------------|------------|
 | OpenClaw | `wildclawbench-ubuntu_v1.3.tar` | `wildclawbench-ubuntu:v1.3` |
-| Claude Code | `wildclawbench-claudecode-ubuntu_v0.2-patched.tar` | `wildclawbench-claudecode-ubuntu:v0.2` |
-| Codex CLI | `wildclawbench-codex-ubuntu_v0.0.tar` | `wildclawbench-codex-ubuntu:v0.0` |
+| OpenCode | `wildclawbench-ubuntu_v1.3.tar` | `wildclawbench-ubuntu:v1.3` |
 | Hermes Agent | `wildclawbench-hermes-agent-v0.5.tar.gz` | `wildclawbench-hermes-agent:v0.5` |
 
 ### Step 3: Prepare Task Data
@@ -232,9 +230,8 @@ bash benchmark.sh run --agent hermesagent --model openai/gpt-5.5 --category 02_C
 Due to limited resources, agents run **one at a time**:
 
 1. openclaw → results saved
-2. claudecode → results saved
-3. codex → results saved
-4. hermesagent → results saved
+2. opencode → results saved
+3. hermesagent → results saved
 
 After all complete, a summary is printed and saved to `output/run_summary.json`.
 
@@ -243,11 +240,7 @@ After all complete, a summary is printed and saved to `output/run_summary.json`.
 | Harness | Format | Example |
 |---------|--------|---------|
 | OpenClaw | `openrouter/<provider>/<model>` | `openrouter/openai/gpt-5.5` |
-| Codex | `openrouter/<provider>/<model>` | `openrouter/openai/gpt-5.5` |
-| Claude Code | `<provider>/<model>` | `openai/gpt-5.5` |
-| Hermes Agent | `<provider>/<model>` | `openai/gpt-5.5` |
-
-**Note:** Claude Code and Hermes Agent add the `openrouter/` prefix internally.
+| OpenCode / Hermes | `<provider>/<model>` | `qwen3.5-9b` |
 
 ---
 

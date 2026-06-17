@@ -66,6 +66,6 @@ help:
 	@echo "Examples:"
 	@echo "  make setup"
 	@echo "  make run"
-	@echo "  make run-model MODEL=openrouter/openai/gpt-5.5"
-	@echo "  make run-agent AGENT=hermesagent"
+	@echo "  make run-model MODEL=qwen3.5-9b"
+	@echo "  make run-agent AGENT=opencode"
 	@echo "  make run-category CATEGORY=01_Productivity_Flow"

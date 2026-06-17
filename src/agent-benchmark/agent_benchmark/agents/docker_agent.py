@@ -3,7 +3,7 @@
 Encapsulates: image check, docker run with volumes/env/network, timeout
 handling, exit code mapping, transcript parsing, and cost estimation.
 
-OpenClaw, Claude Code, Codex, and Hermes all subclass this.
+OpenClaw, OpenCode, and Hermes all subclass this.
 """
 
 from __future__ import annotations
