@@ -64,6 +64,7 @@ These rules are mandatory acceptance gates. Any spec, design, implementation, te
    - Any TinyCUA source file over 1000 lines MUST be treated as architectural debt and refactored into smaller, cohesive modules before acceptance unless the user explicitly approves the exception.
    - `TinyCUALoop` and any other orchestration file exceeding 1000 lines MUST be decomposed so loop code remains transport/orchestration, not a dumping ground for node-specific behavior, prompt-specific guards, or hidden policy logic.
    - The refactor must delete dead code and simplify control flow; it must not move complexity into ignored helper files, broad lint suppressions, or unused compatibility branches.
+   - **User-approved exception (granted 2026-06-17)**: the hard acceptance gate is relaxed to **1500 lines** for TinyCUA source files. Files in the 1000–1500 line range are accepted as long as they contain clean code with no dead or unused functions and remain cohesive. Files over 1500 lines are an acceptance failure regardless. This exception is recorded here per Zero-Tolerance item 7 (policy modification requires explicit user approval). The `test_tinycua_source_files_do_not_exceed_loc_gate` unit test enforces the 1500-line hard gate.
    - Source: user-mandated quality invariant; supports source-of-truth separation of loop, node, queue, propagation, route, and task responsibilities in `src/tinycua/docs/design/loops/tinycua_loop.md:21-40`, `src/tinycua/docs/design/loops/node.md:25-27`, `src/tinycua/docs/design/loops/node_queue.md:25-47`, and `src/tinycua/docs/design/loops/propagation.md:30-70`.
 
 ---
@@ -266,7 +267,7 @@ The following patterns are explicitly forbidden:
 - [ ] **Context propagation matches design**: Internal handoffs and retries persist as assistant/internal context, with no accidental external user history pollution.
 - [ ] **SDK used where possible**: TinyCUA uses SDK loop/tool-execution capabilities, with only minimal wrappers for missing SDK behavior.
 - [ ] **Clean final code**: No dead code, no broad `ruff noqa`, no intentionally ignored dirty branches, and no large cognitively complex functions introduced.
-- [ ] **No 1000+ LOC source dumping grounds**: Every TinyCUA source file over 1000 lines is split, simplified, deleted, or explicitly approved by the user as an exception.
+- [ ] **No oversized source dumping grounds**: Every TinyCUA source file over 1500 lines (the user-approved hard gate) is split, simplified, or deleted. Files in the 1000–1500 range are accepted when they contain no dead/unused functions and remain cohesive.
 - [ ] **Traceable one-shot script**: A simple script or equivalent entry point runs TinyCUA from one prompt and emits traceable node order, tool calls, final response, task tree, workspace files, and artifact locations.
 - [ ] **E2E route proof under LLM failure**: Tests prove every `Agent.run` path ends at ResponseNode/terminal node and follows legal source-of-truth routes regardless of weak/malformed/missing LLM output.
 - [ ] **No impossible route acceptance**: Tests reject TaskAnalyzer/TaskAnalysis to ResponseNode, TaskExecutor to ResponseNode before ResultReviewer, and any other source-of-truth-impossible skip.
@@ -285,7 +286,7 @@ The following patterns are explicitly forbidden:
 - Add route-invariant tests for illegal node transitions, including TaskAnalyzer to ResponseNode.
 - Add tool-scope tests proving only TaskExecutor and ResponseNode receive arbitrary action tools.
 - Add context-propagation tests proving internal retry/correction records are persisted as assistant/internal, not external user turns.
-- Add a source-size audit test/check that fails for TinyCUA source files over 1000 lines unless explicitly user-approved.
+- Add a source-size audit test/check that fails for TinyCUA source files over the 1500-line user-approved hard gate; files in the 1000–1500 range must contain no dead/unused functions.
 - Add E2E route-matrix tests for passthrough and worker paths, including malformed/missing LLM outputs at each node.
 - Add self-recovery tests proving nodes retry and then call required scoped tools rather than skipping routes.
 - Add negative tests proving impossible routes never pass validation or queue advancement.

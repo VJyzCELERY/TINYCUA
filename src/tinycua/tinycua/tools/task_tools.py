@@ -13,20 +13,6 @@ from tinycua.models.task import ReviewerDecision, TaskResult, TaskStateStore, Ta
 
 
 _DEFAULT_STORE = TaskStateStore()
-_MAX_DECOMPOSE_SUBTASKS = 3
-_ONE_SHOT_VERTICAL_SLICE_TITLE = (
-    "Build a minimal runnable vertical-slice app with Python backend and web UI"
-)
-
-
-def _one_shot_app_subtasks(parent_title: str, subtasks: list[str]) -> list[str]:
-    """Collapse app/web-ui splits into one runnable prototype task."""
-    title = parent_title.lower()
-    if len(subtasks) <= 1:
-        return subtasks
-    if "app" not in title or not ({"web", "ui"} & set(title.split())):
-        return subtasks
-    return [_ONE_SHOT_VERTICAL_SLICE_TITLE]
 
 
 class SessionTaskToolMixin:
@@ -215,8 +201,7 @@ class TaskDecomposeTool(SessionTaskToolMixin, Tool):
             description=(
                 "Decompose an existing task into concrete sequential subtasks. "
                 "Choose subtasks from the request and current task state; do not "
-                "use a fixed template. For one-shot app builds, prefer one "
-                "runnable vertical-slice subtask over separate backend/frontend/API tasks."
+                "use a fixed template."
             ),
             parameters={
                 "type": "object",
@@ -225,7 +210,6 @@ class TaskDecomposeTool(SessionTaskToolMixin, Tool):
                     "subtasks": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "maxItems": _MAX_DECOMPOSE_SUBTASKS,
                     },
                 },
                 "required": ["task_id", "subtasks"],
@@ -234,15 +218,14 @@ class TaskDecomposeTool(SessionTaskToolMixin, Tool):
         )
 
     def __call__(self, task_id: str, subtasks: list[str]) -> dict[str, Any]:
-        """Create child tasks below an existing task."""
+        """Create child tasks below an existing task.
+
+        Preserves every analyzer-provided subtask in order. TaskAnalyzer owns
+        roadmap size; the runtime must not truncate, collapse, or rewrite it.
+        """
         try:
-            # ponytail: prototype one-shot cap; add scheduler batching if larger trees matter.
-            task = self._store.get_task(task_id)
-            selected_subtasks = _one_shot_app_subtasks(task.title, subtasks)
-            child_ids = self._store.decompose_task(
-                task_id,
-                selected_subtasks[:_MAX_DECOMPOSE_SUBTASKS],
-            )
+            self._store.get_task(task_id)
+            child_ids = self._store.decompose_task(task_id, subtasks)
         except ValueError as exc:
             return {"success": False, "error": str(exc)}
         return {"success": True, "task_id": task_id, "child_task_ids": child_ids}
