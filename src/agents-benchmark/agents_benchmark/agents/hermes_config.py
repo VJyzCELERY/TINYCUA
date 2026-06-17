@@ -20,6 +20,7 @@ class HermesConfig:
         max_tokens: Max tokens per response (default: 4096).
         timeout: Request timeout in seconds (default: 120).
         cost_per_token: Cost per token in USD for estimating API costs (default: 0.0000025).
+        network_host: Whether to use Docker host networking (default: True).
     """
 
     model: str
@@ -29,6 +30,7 @@ class HermesConfig:
     max_tokens: int = 4096
     timeout: int = 120
     cost_per_token: float = 0.0000025
+    network_host: bool = True
 
 
 _REQUIRED_FIELDS = {"model", "api_base", "api_key_env"}
@@ -71,4 +73,5 @@ def load_hermes_config(path: str) -> HermesConfig:
         max_tokens=int(data.get("max_tokens", 4096)),
         timeout=int(data.get("timeout", 120)),
         cost_per_token=float(data.get("cost_per_token", 0.0000025)),
+        network_host=bool(data.get("network_host", True)),
     )

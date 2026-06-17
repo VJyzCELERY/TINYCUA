@@ -133,7 +133,7 @@ class HermesAgentAdapter(BaseAgent):
         Returns:
             Dict with keys: requests, total_tokens, cost.
         """
-        transcript_path = Path(output_dir) / "transcript.jsonl"
+        transcript_path = output_dir / "transcript.jsonl"
 
         if not transcript_path.exists():
             return {"requests": 0, "total_tokens": None, "cost": 0.0}
@@ -194,6 +194,8 @@ class HermesAgentAdapter(BaseAgent):
         """
         api_key_env = self._config.api_key_env if self._config else "HERMES_API_KEY"
         api_base = self._config.api_base if self._config else ""
+        use_host_network = self._config.network_host if self._config else True
+
         cmd = [
             "docker",
             "run",
@@ -208,16 +210,23 @@ class HermesAgentAdapter(BaseAgent):
             f"HERMES_MODEL={spec.model}",
             "-e",
             f"HERMES_API_BASE={api_base}",
-            "--network",
-            "host",
-            _HERMES_IMAGE_NAME,
-            "--model",
-            spec.model,
-            "--prompt",
-            spec.prompt,
-            "--timeout",
-            str(spec.timeout_seconds),
         ]
+
+        if use_host_network:
+            cmd.extend(["--network", "host"])
+
+        cmd.extend(
+            [
+                _HERMES_IMAGE_NAME,
+                "--model",
+                spec.model,
+                "--prompt",
+                spec.prompt,
+                "--timeout",
+                str(spec.timeout_seconds),
+            ]
+        )
+
         return cmd
 
     def _ensure_image(self) -> None:

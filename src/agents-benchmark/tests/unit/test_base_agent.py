@@ -72,8 +72,8 @@ class TestClaudeCodeAdapter:
         agent = ClaudeCodeAdapter()
         assert agent.name == "claudecode"
 
-    def test_run_task_raises_not_implemented(self):
-        """run_task must raise NotImplementedError for stub."""
+    def test_run_task_returns_error_execution(self):
+        """run_task must return AgentExecution with error for stub."""
         from agents_benchmark.agents.claudecode import ClaudeCodeAdapter
 
         agent = ClaudeCodeAdapter()
@@ -86,8 +86,9 @@ class TestClaudeCodeAdapter:
             output_dir="/tmp/output",
             model="test",
         )
-        with pytest.raises(NotImplementedError):
-            agent.run_task(spec)
+        result = agent.run_task(spec)
+        assert result.error is not None
+        assert "not yet implemented" in result.error
 
 
 class TestCodexAdapter:
@@ -106,8 +107,8 @@ class TestCodexAdapter:
         agent = CodexAdapter()
         assert agent.name == "codex"
 
-    def test_run_task_raises_not_implemented(self):
-        """run_task must raise NotImplementedError for stub."""
+    def test_run_task_returns_error_execution(self):
+        """run_task must return AgentExecution with error for stub."""
         from agents_benchmark.agents.codex import CodexAdapter
 
         agent = CodexAdapter()
@@ -120,8 +121,9 @@ class TestCodexAdapter:
             output_dir="/tmp/output",
             model="test",
         )
-        with pytest.raises(NotImplementedError):
-            agent.run_task(spec)
+        result = agent.run_task(spec)
+        assert result.error is not None
+        assert "not yet implemented" in result.error
 
 
 class TestOpenClawAdapter:
@@ -140,8 +142,8 @@ class TestOpenClawAdapter:
         agent = OpenClawAdapter()
         assert agent.name == "openclaw"
 
-    def test_run_task_raises_not_implemented(self):
-        """run_task must raise NotImplementedError for stub."""
+    def test_run_task_returns_error_execution(self):
+        """run_task must return AgentExecution with error for stub."""
         from agents_benchmark.agents.openclaw import OpenClawAdapter
 
         agent = OpenClawAdapter()
@@ -154,5 +156,6 @@ class TestOpenClawAdapter:
             output_dir="/tmp/output",
             model="test",
         )
-        with pytest.raises(NotImplementedError):
-            agent.run_task(spec)
+        result = agent.run_task(spec)
+        assert result.error is not None
+        assert "not yet implemented" in result.error

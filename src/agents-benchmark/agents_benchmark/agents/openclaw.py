@@ -11,7 +11,7 @@ from agents_benchmark.base_agent import AgentExecution, AgentTaskSpec, BaseAgent
 class OpenClawAdapter(BaseAgent):
     """Stub adapter for OpenClaw agent.
 
-    Implements the BaseAgent interface. Methods raise NotImplementedError
+    Implements the BaseAgent interface. Returns error executions
     until real Docker integration is implemented.
     """
 
@@ -30,34 +30,34 @@ class OpenClawAdapter(BaseAgent):
         """Return path to the transcript file inside the container."""
         return "/workspace/transcript.jsonl"
 
-    def run_task(self, spec: AgentTaskSpec) -> AgentExecution:
+    def run_task(self, _spec: AgentTaskSpec) -> AgentExecution:
         """Execute a single benchmark task.
 
         Args:
-            spec: The task specification.
+            _spec: The task specification (unused in stub).
 
         Returns:
-            Execution result.
-
-        Raises:
-            NotImplementedError: Stub — not yet implemented.
+            Execution result with error indicating stub is not implemented.
         """
-        raise NotImplementedError("TODO: implement OpenClaw adapter")
+        return AgentExecution(
+            elapsed_time=0.0,
+            error="OpenClaw adapter not yet implemented",
+        )
 
     def collect_usage(
-        self, task_id: str, output_dir: Path, elapsed_time: float
+        self,
+        _task_id: str,
+        _output_dir: Path,
+        _elapsed_time: float,
     ) -> dict[str, Any]:
         """Collect usage statistics from a completed task.
 
         Args:
-            task_id: The task identifier.
-            output_dir: Directory containing task output artifacts.
-            elapsed_time: Time taken for execution.
+            _task_id: The task identifier (unused in stub).
+            _output_dir: Directory containing task output artifacts (unused in stub).
+            _elapsed_time: Time taken for execution (unused in stub).
 
         Returns:
             Dict with keys: requests, total_tokens, cost.
-
-        Raises:
-            NotImplementedError: Stub — not yet implemented.
         """
-        raise NotImplementedError("TODO: implement OpenClaw adapter")
+        return {"requests": 0, "total_tokens": None, "cost": 0.0}
