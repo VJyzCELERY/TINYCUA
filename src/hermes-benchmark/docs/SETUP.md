@@ -8,6 +8,35 @@ This benchmark runs **Qwen 3.5 9B** via the **Hermes Agent** harness against the
 
 ---
 
+## Step 0: Check What You Already Have
+
+Run this first — it shows what's installed and what's missing:
+
+```bash
+echo "=== Preflight Check ==="
+for cmd in docker python3 uv git ffmpeg gdown yt-dlp; do
+  if command -v $cmd &>/dev/null; then
+    echo "  [OK] $cmd $(command $cmd --version 2>&1 | head -1)"
+  else
+    echo "  [--] $cmd NOT FOUND"
+  fi
+done
+if docker compose version &>/dev/null; then
+  echo "  [OK] docker compose $(docker compose version --short 2>/dev/null)"
+else
+  echo "  [--] docker compose NOT FOUND"
+fi
+if python3 -c "import sys; assert sys.version_info >= (3,11)" 2>/dev/null; then
+  echo "  [OK] python3 >= 3.11"
+else
+  echo "  [--] python3 >= 3.11 REQUIRED (current: $(python3 --version 2>&1))"
+fi
+echo ""
+echo "Skip any section below where you already have [OK]."
+```
+
+---
+
 ## Prerequisites
 
 | Requirement | Version | Notes |
@@ -23,7 +52,7 @@ This benchmark runs **Qwen 3.5 9B** via the **Hermes Agent** harness against the
 
 ---
 
-## 1. Install System Dependencies
+## 1. Install System Dependencies (skip if already installed)
 
 ```bash
 sudo apt-get update
@@ -36,7 +65,7 @@ sudo apt-get install -y \
 
 ---
 
-## 2. Install Docker CE
+## 2. Install Docker CE (skip if `docker --version` works)
 
 ```bash
 # Add Docker's official GPG key
@@ -67,27 +96,37 @@ docker compose version
 
 > **Important:** Log out and back in (or run `newgrp docker`) so the group change takes effect.
 
----
-
-## 3. (Optional) Install NVIDIA Container Toolkit
-
-Only needed if running Qwen 3.5 9B **locally on GPU** inside Docker.
+### Already have Docker? Just check these:
 
 ```bash
-curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
-    sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
-    sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
-
-sudo apt-get update
-sudo apt-get install -y nvidia-container-toolkit
-sudo nvidia-ctk runtime configure --runtime=docker
-sudo systemctl restart docker
+docker --version          # need >= 24.0
+docker compose version    # need v2 plugin
+docker ps                 # if "permission denied", run: sudo usermod -aG docker $USER && newgrp docker
 ```
 
 ---
 
-## 4. Install uv (Python Package Manager)
+## 3. (Optional) Install NVIDIA Container Toolkit
+
+Only needed if running Qwen 3.5 9B **locally on GPU** inside Docker. Skip if using OpenRouter or a remote API.
+
+```bash
+# Check if already installed
+nvidia-ctk --version 2>/dev/null && echo "Already installed — skip" || {
+  curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+  curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+      sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+      sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+  sudo apt-get update
+  sudo apt-get install -y nvidia-container-toolkit
+  sudo nvidia-ctk runtime configure --runtime=docker
+  sudo systemctl restart docker
+}
+```
+
+---
+
+## 4. Install uv (skip if `uv --version` works)
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -96,7 +135,7 @@ source ~/.bashrc  # or source ~/.zshrc
 
 ---
 
-## 5. Clone WildClawBench
+## 5. Clone WildClawBench (skip if already cloned)
 
 ```bash
 git clone https://github.com/internlm/WildClawBench.git
@@ -105,7 +144,7 @@ cd WildClawBench
 
 ---
 
-## 6. Download the Hermes Agent Docker Image
+## 6. Download the Hermes Agent Docker Image (skip if `docker images | grep hermes-agent` shows v0.5)
 
 ```bash
 pip install -U "huggingface_hub[cli]"
@@ -126,7 +165,7 @@ docker images | grep hermes-agent
 
 ---
 
-## 7. Download Task Data
+## 7. Download Task Data (skip if `workspace/` directory exists)
 
 ```bash
 hf download internlm/WildClawBench workspace --repo-type dataset --local-dir .
@@ -134,7 +173,7 @@ hf download internlm/WildClawBench workspace --repo-type dataset --local-dir .
 
 ---
 
-## 8. Prepare Data (Videos, Weights, Git Repos)
+## 8. Prepare Data (skip if `workspace/01_Productivity_Flow/` has content)
 
 ```bash
 pip install yt-dlp gdown
@@ -157,7 +196,7 @@ This script will:
 
 ---
 
-## 9. Configure Environment
+## 9. Configure Environment (skip if `.env` already has your keys)
 
 Create a `.env` file in the WildClawBench root:
 
@@ -176,7 +215,33 @@ EOF
 
 ---
 
-## 10. Run Qwen 3.5 9B
+## 10. Quick Verification
+
+Before running the full benchmark, verify everything is wired up:
+
+```bash
+cd WildClawBench
+
+# Check Docker image exists
+docker images | grep hermes-agent
+
+# Check workspace data exists
+ls workspace/ | head -5
+
+# Check .env has keys
+grep -c "API_KEY" .env
+
+# Dry-run: run a single fast task to confirm connectivity
+bash script/run.sh hermesagent \
+    --task tasks/01_Productivity_Flow/01_Productivity_Flow_task_1_arxiv_digest.md \
+    --model openrouter/qwen/qwen3.5-9b
+```
+
+If the single task completes with a score, you're good to go.
+
+---
+
+## 11. Run Qwen 3.5 9B
 
 ### Option A: Via OpenRouter (cloud, simplest)
 
@@ -256,7 +321,7 @@ python3 eval/run_batch.py \
 
 ---
 
-## 11. Run Commands Reference
+## 12. Run Commands Reference
 
 ### Full suite (all 60 tasks, 4 parallel):
 ```bash
@@ -287,7 +352,7 @@ bash script/run.sh hermesagent \
 
 ---
 
-## 12. Check Results
+## 13. Check Results
 
 Results are saved under `output/hermesagent/<category>/<task_id>/<model_timestamp_runid>/`:
 
@@ -311,7 +376,7 @@ output/hermesagent/
 
 ---
 
-## 13. Cleanup
+## 14. Cleanup
 
 If a run is interrupted, remove leftover containers:
 ```bash
