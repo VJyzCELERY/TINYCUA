@@ -57,6 +57,120 @@ get_tag() {
   esac
 }
 
+# ─── CHECK (pre-flight) ─────────────────────────────────────────────────────
+do_check() {
+  echo ""
+  echo "=========================================="
+  echo "  WildClawBench Pre-flight Check"
+  echo "=========================================="
+  echo ""
+
+  local all_ok=true
+
+  # 1. Prerequisites
+  log_step "Prerequisites"
+  if command -v docker &>/dev/null; then
+    if docker info &>/dev/null 2>&1; then
+      log_success "Docker installed & running"
+    else
+      log_error "Docker installed but NOT running — start Docker Desktop"
+      all_ok=false
+    fi
+  else
+    log_error "Docker not found — install: https://docs.docker.com/get-docker/"
+    all_ok=false
+  fi
+
+  if command -v uv &>/dev/null; then
+    log_success "uv installed"
+  else
+    log_error "uv not found — install: curl -LsSf https://astral.sh/uv/install.sh | sh"
+    all_ok=false
+  fi
+
+  if command -v hf &>/dev/null || command -v huggingface-cli &>/dev/null; then
+    log_success "huggingface-hub installed"
+  else
+    log_warn "huggingface-hub not found (needed to download images)"
+    echo "         Install: pip install -U 'huggingface_hub[cli]'"
+  fi
+
+  if command -v python3 &>/dev/null; then
+    log_success "Python $(python3 --version 2>&1 | awk '{print $2}')"
+  else
+    log_error "Python3 not found"
+    all_ok=false
+  fi
+
+  # 2. Python dependencies
+  echo ""
+  log_step "Python dependencies"
+  cd "${PROJECT_DIR}"
+  if python3 -c "import agent_benchmark" &>/dev/null 2>&1; then
+    log_success "agent_benchmark package installed"
+  else
+    log_warn "agent_benchmark not installed — run: bash benchmark.sh setup"
+    all_ok=false
+  fi
+
+  # 3. Docker images
+  echo ""
+  log_step "Docker images"
+  local images_missing=0
+  for harness in ${HARNESS_LIST}; do
+    local tag
+    tag=$(get_tag "${harness}")
+    if docker image inspect "${tag}" &>/dev/null 2>&1; then
+      log_success "${harness}: ${tag}"
+    else
+      log_warn "${harness}: ${tag} — not loaded (run: bash benchmark.sh setup)"
+      images_missing=$((images_missing + 1))
+    fi
+  done
+  if [[ ${images_missing} -gt 0 ]]; then
+    all_ok=false
+  fi
+
+  # 4. Environment
+  echo ""
+  log_step "Environment (.env)"
+  local env_file="${PROJECT_DIR}/.env"
+  if [[ -f "${env_file}" ]]; then
+    log_success ".env exists"
+    # Check if keys are set (not placeholder)
+    source "${env_file}"
+    if [[ "${OPENROUTER_API_KEY:-}" == "your_api_key_here" || -z "${OPENROUTER_API_KEY:-}" ]]; then
+      log_warn "OPENROUTER_API_KEY not set — edit .env"
+      all_ok=false
+    else
+      log_success "OPENROUTER_API_KEY set"
+    fi
+    if [[ "${BRAVE_API_KEY:-}" == "your_brave_key_here" || -z "${BRAVE_API_KEY:-}" ]]; then
+      log_warn "BRAVE_API_KEY not set (optional, needed for search tasks)"
+    else
+      log_success "BRAVE_API_KEY set"
+    fi
+  else
+    log_warn ".env not found — run: bash benchmark.sh setup"
+    all_ok=false
+  fi
+
+  # Summary
+  echo ""
+  echo "=========================================="
+  if [[ "${all_ok}" == "true" ]]; then
+    log_success "All checks passed — ready to run benchmarks!"
+    echo ""
+    echo "  Next: bash benchmark.sh run"
+  else
+    log_warn "Some issues found — fix them before running benchmarks"
+    echo ""
+    echo "  Quick fix: bash benchmark.sh setup"
+  fi
+  echo "=========================================="
+  echo ""
+}
+
 # ─── SETUP ──────────────────────────────────────────────────────────────────
 do_setup() {
   echo ""
@@ -352,6 +466,7 @@ Usage:
   bash benchmark.sh <command> [options]
 
 Commands:
+  check                 Pre-flight check (see what's installed)
   setup                 Full setup (deps, images, data, env)
   run                   Run all agents sequentially
   status                Show latest results
@@ -367,6 +482,7 @@ Run Options:
   --parallel N          Parallel tasks per agent (default: 1)
 
 Examples:
+  bash benchmark.sh check
   bash benchmark.sh setup
   bash benchmark.sh run
   bash benchmark.sh run --model openrouter/openai/gpt-5.5
@@ -401,6 +517,7 @@ main() {
   case "${command}" in
     setup)  do_setup ;;
     run)    do_run "$@" ;;
+    check)  do_check ;;
     status) do_status ;;
     help|-h|--help) do_help ;;
     *)
