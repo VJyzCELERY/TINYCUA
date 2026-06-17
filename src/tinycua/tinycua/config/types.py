@@ -44,6 +44,10 @@ class Tool:
             "parameters": self.parameters,
         }
 
+    def invoke(self, **kwargs: Any) -> Any:
+        """Invoke SDK-style tools through the callable interface."""
+        return self(**kwargs)  # type: ignore[misc,operator]
+
 
 @dataclass
 class LLMResult:

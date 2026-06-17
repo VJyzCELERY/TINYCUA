@@ -140,7 +140,7 @@ class TestSuspendInputPreservation:
 
         queue.advance()
 
-        node_b.propagate.assert_called_once()
+        node_b.propagate.assert_not_called()
 
         assert queue.current is node_a
         assert queue._inputs.get("a") == {"query": "original"}

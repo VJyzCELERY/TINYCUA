@@ -158,7 +158,7 @@ class TinyCUAInformationDigesterNode(ProcessNode):
                 original_query=original_query,
             )
 
-    def ensure_session(self, _root_or_parent_session: Session) -> Session:
+    def ensure_session(self, root_or_parent_session: Session) -> Session:
         """Create a fresh node session (does not inherit parent).
 
         Overrides the base class to always create a fresh session,
@@ -177,7 +177,11 @@ class TinyCUAInformationDigesterNode(ProcessNode):
         # Always create a fresh session — do NOT inherit parent
         self.session = Session()
         self.session.session_id = uuid.uuid4().hex
-        self.session.parent_id = None
+        self.session.parent_id = root_or_parent_session.session_id
+        self.session.session_config = root_or_parent_session.session_config
+        self.session.input_context = list(root_or_parent_session.input_context)
+        self.session.task = root_or_parent_session.task
+        self.session.task_store = root_or_parent_session.task_store
         return self.session
 
     def _produce_fallback(self, original_query: str) -> DigestedInformation:

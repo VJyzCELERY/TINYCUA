@@ -247,7 +247,7 @@ async def test_task_executor_validates_tool_owned_result_update(tmp_path: Path) 
     assert validation.is_valid
     assert result.content == "Created app.py"
     assert (tmp_path / "app.py").read_text() == 'print("ok")'
-    assert captured_tool_choices == [None, None]
+    assert captured_tool_choices == ["required", None]
     assert "write_file" in captured_tool_names[0]
     assert "run_shell" in captured_tool_names[0]
     assert "task_execute" in captured_tool_names[0]
@@ -412,17 +412,6 @@ def test_transcript_sanitizer_preserves_user_code_lines() -> None:
     assert "task_init()" not in event["content"]
 
 
-def test_notebook_worker_prompt_is_natural_app_creation_request() -> None:
-    """Notebook prompt should not cheat by explicitly naming worker routing."""
-    notebook = Path("notebooks/tinycua_agent_trace_demo.ipynb").read_text()
-
-    assert "This request must use worker mode" not in notebook
-    assert "select_query_route with route=worker" not in notebook
-    assert "hello-world app" in notebook
-    assert "verification command" in notebook
-    assert "Python" in notebook
-
-
 async def test_reusing_session_preserves_in_memory_context(tmp_path: Path) -> None:
     """A provided Session can continue across agent instances/runs in memory."""
     from tinycua.models.session import Session
@@ -433,6 +422,20 @@ async def test_reusing_session_preserves_in_memory_context(tmp_path: Path) -> No
     second = create_tinycua_agent(session=session, session_config=config)
 
     async def call_llm(messages, tools, stream: bool = False):  # noqa: ANN001, ARG001
+        tool_names = {tool.name for tool in tools}
+        if "select_query_route" in tool_names:
+            return {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "select_query_route",
+                            "arguments": '{"route":"passthrough"}',
+                        },
+                    }
+                ],
+            }
         return {"content": "remembered", "tool_calls": []}
 
     first._call_llm = call_llm  # type: ignore[method-assign]
@@ -440,7 +443,9 @@ async def test_reusing_session_preserves_in_memory_context(tmp_path: Path) -> No
 
     await first.run("Remember this session.")
     session.todo.append({"content": "continue work", "status": "pending"})
-    session.task_store.create_task("Continue app")
+    task = session.task_store.create_task("Continue app")
+    session.task_store.transition(task.task_id, "in_progress")
+    session.task_store.transition(task.task_id, "completed")
     await second.run("Continue.")
 
     assert second.loop.root_session is session

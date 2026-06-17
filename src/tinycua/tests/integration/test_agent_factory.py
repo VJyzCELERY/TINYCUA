@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock
 from tinycua_sdk.agent import Agent, BaseLoop
 from tinycua.config.session_config import SessionConfig
 from tinycua.factory import create_tinycua_agent
+from tinycua.loops.node import NodeExecutionError
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.session import Session
 
@@ -176,9 +177,9 @@ class TestAgentRun:
                 ],
             ]
         )
-        result = await agent.run("hello")
+        with pytest.raises(NodeExecutionError, match="Final response must be non-empty"):
+            await agent.run("hello")
         session = agent.loop.root_session
-        assert "failed runtime validation" in result
         assert all(record.record_type == "retry" for record in session.chat_history)
         assert session.input_context[0]["role"] == "user"
 
@@ -207,12 +208,8 @@ class TestAgentRun:
 
         agent._call_llm = empty_stream
         result = await agent.run("hello", stream=True)
-        events = [e async for e in result]
-        # Filter to only LLM content events (ignore lifecycle events)
-        delta_events = [
-            e for e in events if e.get("type") == "response.output_text.delta"
-        ]
-        assert len(delta_events) == 0  # no content deltas emitted
+        with pytest.raises(NodeExecutionError, match="Final response must be non-empty"):
+            _ = [e async for e in result]
         session = agent.loop.root_session
-        assert len(session.chat_history) == 0  # no assistant response recorded
+        assert all(record.record_type == "retry" for record in session.chat_history)
         assert session.input_context[0]["role"] == "user"

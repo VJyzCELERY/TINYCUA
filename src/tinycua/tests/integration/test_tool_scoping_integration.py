@@ -238,10 +238,10 @@ class TestTaskCreateReceivesRootCreationToolsOnly:
 
 
 class TestTaskAssessorReceivesAssessmentTools:
-    """TaskAssessorNode receives task assessment/read/update tools."""
+    """TaskAssessorNode receives read-only inspect and handoff tools."""
 
     def test_task_assessor_receives_assessment_tools(self) -> None:
-        """TaskAssessor receives task_inspect and task_update but not task_init."""
+        """TaskAssessor receives task_inspect and node_handoff but not task_init."""
         # Arrange
         policy = task_assessor_tool_scope()
 
@@ -251,7 +251,8 @@ class TestTaskAssessorReceivesAssessmentTools:
         # Assert
         tool_names = [t.name for t in resolved]
         assert "task_inspect" in tool_names
-        assert "task_update" in tool_names
+        assert "node_handoff" in tool_names
+        assert "task_update" not in tool_names
         assert "task_init" not in tool_names
 
 

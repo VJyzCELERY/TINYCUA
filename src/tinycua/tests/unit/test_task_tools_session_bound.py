@@ -70,5 +70,5 @@ def test_task_update_cannot_complete_without_execution_result() -> None:
     result = update(task_id=root["task_id"], status="completed")
 
     assert result["success"] is False
-    assert "task_result_update" in result["error"]
+    assert "not supported" in result["error"]
     assert store.get_task(root["task_id"]).status == "pending"

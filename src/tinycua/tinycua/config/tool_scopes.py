@@ -14,6 +14,7 @@ from __future__ import annotations
 from tinycua.config.node_config import NodeToolPolicy
 from tinycua.tools.digest_information import DigestInformationTool
 from tinycua.tools.enhanced_context_retrieval import EnhancedContextRetrievalTool
+from tinycua.tools.handoff_tools import NodeHandoffTool
 from tinycua.tools.routing import QueryRouteSelectionTool, WorkerRouteSelectionTool
 from tinycua.tools.task_tools import (
     FinalResponseSynthesisTool,
@@ -126,7 +127,7 @@ def task_assessor_tool_scope() -> NodeToolPolicy:
         NodeToolPolicy for TaskAssessorNode.
     """
     return NodeToolPolicy(
-        node_tools=[TaskInspectTool(), TaskUpdateTool()],
+        node_tools=[TaskInspectTool(), NodeHandoffTool()],
         include_agent_tools="none",
     )
 

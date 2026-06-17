@@ -215,11 +215,19 @@ class TestTaskAssessorToolScope:
         tool_names = [t.name for t in policy.node_tools]
         assert "task_inspect" in tool_names
 
-    def test_includes_task_update(self) -> None:
-        """Includes TaskUpdateTool."""
+    def test_includes_node_handoff(self) -> None:
+        """Includes generic handoff tool."""
         policy = task_assessor_tool_scope()
         tool_names = [t.name for t in policy.node_tools]
-        assert "task_update" in tool_names
+        assert "node_handoff" in tool_names
+
+    def test_no_mutation_tools(self) -> None:
+        """TaskAssessor inspects and hands off; it does not mutate tasks."""
+        policy = task_assessor_tool_scope()
+        tool_names = [t.name for t in policy.node_tools]
+        assert "task_update" not in tool_names
+        assert "task_decompose" not in tool_names
+        assert "task_result_update" not in tool_names
 
     def test_no_task_init(self) -> None:
         """Does not include TaskInitTool."""

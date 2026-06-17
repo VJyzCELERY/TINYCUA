@@ -11,7 +11,6 @@ from tinycua.loops.node import DecisionNode, DecisionResult, Node
 from tinycua.loops.worker import TinyCUAWorkerNode
 from tinycua.models.digested_information import DigestedInformation
 from tinycua.models.node_input import NodeInput, convert_node_input_to_messages
-from tinycua.models.session import Session
 
 if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
@@ -105,10 +104,6 @@ class TinyCUAQueryAnalystNode(DecisionNode):
             node_id="worker",
             config=create_node_config("worker", self.config),
         )
-
-        # Attach a session to the worker
-        worker_session = Session()
-        worker_node.session = worker_session
 
         # Check for existing digest
         if self._check_existing_digest(worker_node):

@@ -19,7 +19,7 @@ class TestInformationDigesterNode:
         assert digester.session is None
 
     def test_ensure_session_creates_fresh_session(self) -> None:
-        """ensure_session() creates a fresh session when no parent."""
+        """ensure_session() creates a fresh scoped child session."""
         digester = TinyCUAInformationDigesterNode(
             node_id="d",
             config=MagicMock(),
@@ -34,7 +34,7 @@ class TestInformationDigesterNode:
         # Should create a fresh session, not reuse root
         assert result is not None
         assert result.session_id != root_session.session_id
-        assert result.parent_id is None
+        assert result.parent_id == root_session.session_id
 
     def test_ensure_session_with_parent_creates_fresh(self) -> None:
         """ensure_session() creates fresh session even when parent exists."""

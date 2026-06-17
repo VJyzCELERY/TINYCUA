@@ -13,11 +13,9 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, cast
 
-from tinycua.loops.context_rendering import render_llm_content
-from tinycua.models.node_input import NodeInput
-
 if TYPE_CHECKING:
     from tinycua.loops.node import Node
+    from tinycua.models.node_handoff import NodeHandoff
     from tinycua.models.node_input import NodeInputLike
 
 logger = logging.getLogger(__name__)
@@ -77,7 +75,7 @@ class NodeQueue:
         """
         self._inputs[node.node_id] = input_data
 
-    def advance(self) -> Node | None:
+    def advance(self, handoff: NodeHandoff | None = None) -> Node | None:
         """Advance to the next node.
 
         Calls propagate() on the current node, forwards output entries
@@ -96,49 +94,19 @@ class NodeQueue:
 
         current_node = self.items[0]
 
-        # Propagate context (prior + input segments) upward
-        current_node.propagate()
-
-        # Forward output entries to next node's input
-        if current_node.session is not None and len(self.items) > 1:
-            from tinycua.loops.propagation import forward_output_to_next
-
-            next_node = self.items[1]
-            output_entries = forward_output_to_next(
-                current_node.session,
-                source_node_id=current_node.node_id,
-                target_node_id=next_node.node_id,
-            )
-            if output_entries and next_node.node_id not in self._inputs:
-                # Convert current-node output entries to NodeInput format.
-                node_input = NodeInput(
-                    input_type="forwarded_output",
-                    source_node=current_node.node_id,
-                    target_node=next_node.node_id,
-                    messages=[
-                        {
-                            "role": "assistant",
-                            "content": render_llm_content(e.content),
-                        }
-                        for e in output_entries
-                    ],
-                    metadata={
-                        "source_record_ids": [e.record_id for e in output_entries]
-                    },
-                )
-                self.set_input(next_node, node_input)
-                if next_node.session is not None:
-                    next_node.session.session_context.extend(output_entries)
-                logger.debug(
-                    "advanced forwarded_output node=%s next=%s entries=%d",
-                    current_node.node_id,
-                    next_node.node_id,
-                    len(output_entries),
-                )
-
         # Remove current node and clean up input
         self.items.pop(0)
         self._inputs.pop(current_node.node_id, None)
+
+        if handoff is not None and self.items:
+            next_node = self.items[0]
+            if handoff.target_node in (None, next_node.node_id):
+                self.set_input(next_node, handoff)
+                logger.debug(
+                    "advanced explicit_handoff source=%s next=%s",
+                    handoff.source_node,
+                    next_node.node_id,
+                )
 
         return self.current
 

@@ -29,6 +29,8 @@ async def test_tool_results_are_fed_back_to_followup_llm_call() -> None:
     queue = NodeQueue(items=[terminal])
     loop = TinyCUALoop(queue=queue)
     agent = MagicMock()
+    agent.tool_permissions = {}
+    agent.approval_workflow = None
     captured_messages: list[list[dict]] = []
 
     async def call_llm(messages, tools, stream=False):

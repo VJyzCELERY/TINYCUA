@@ -116,6 +116,28 @@ class AppCreationScript:
                     }
                 ],
             }
+        if "node_handoff" in tool_names:
+            if any(
+                message.get("role") == "tool"
+                and "node_handoff" in str(message.get("content", ""))
+                for message in messages
+            ):
+                return {"content": "Assessment handed off.", "tool_calls": []}
+            return {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "node_handoff",
+                            "arguments": (
+                                '{"target_node":"task_analyzer",'
+                                '"instruction":"Analyze unfinished tasks for execution readiness.",'
+                                '"payload":{"assessment":"ready for execution"}}'
+                            ),
+                        }
+                    }
+                ],
+            }
         if "task_update" in tool_names:
             task_id = self._task_id(messages)
             if any(

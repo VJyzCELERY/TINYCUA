@@ -192,11 +192,10 @@ class Node(ABC):
         self._last_retry_exhaustion: dict[str, Any] | None = None
 
     def ensure_session(self, root_or_parent_session: Session) -> Session:
-        """Create or adopt a session.
+        """Create or return an isolated node session.
 
         If ``self.session`` is already set, return it.
-        Otherwise, adopt the parent node's session if a parent exists,
-        or create a new session from ``root_or_parent_session``.
+        Otherwise, create a fresh scoped session from ``root_or_parent_session``.
 
         Args:
             root_or_parent_session: The root session or a parent's session.
@@ -210,17 +209,15 @@ class Node(ABC):
         if self.session is not None:
             return self.session
 
-        if self.parent is not None and hasattr(self.parent, "session"):
-            parent_node = self.parent
-            if parent_node.session is not None:  # type: ignore[union-attr]
-                self.session = parent_node.session  # type: ignore[union-attr]
-                return self.session  # type: ignore[return-value]
-
         if root_or_parent_session is None:
             msg = "No session available: root_or_parent_session is None and no parent"
             raise ValueError(msg)
 
-        self.session = root_or_parent_session
+        self.session = Session(parent_id=root_or_parent_session.session_id)
+        self.session.session_config = root_or_parent_session.session_config
+        self.session.input_context = list(root_or_parent_session.input_context)
+        self.session.task = root_or_parent_session.task
+        self.session.task_store = root_or_parent_session.task_store
         return self.session
 
     def build_instruction(self, override_instructions: str | None = None) -> str:
@@ -289,38 +286,6 @@ class Node(ABC):
         system_msg = builder.build()
         if system_msg["content"]:
             messages.append(system_msg)
-
-        # Add session context if policy says so
-        if (
-            self.config.message_policy.include_session_context
-            and session.session_context
-        ):
-            for m in session.session_context:
-                if isinstance(m, dict):
-                    content = render_llm_content(m.get("content", ""))
-                    if content.strip():
-                        messages.append(
-                            {
-                                "role": "assistant",
-                                "content": content,
-                            }
-                        )
-                else:
-                    content = render_llm_content(m.content)
-                    if content.strip():
-                        messages.append(
-                            {
-                                "role": "assistant",
-                                "content": content,
-                            }
-                        )
-
-        # Add chat history if policy says so
-        if self.config.message_policy.include_chat_history and session.chat_history:
-            for m in session.chat_history:
-                content = render_llm_content(m.content)
-                if content.strip():
-                    messages.append({"role": m.role, "content": content})
 
         # Add continuation messages from input
         continuation = convert_node_input_to_messages(input, source="internal")

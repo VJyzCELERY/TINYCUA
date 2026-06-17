@@ -58,12 +58,13 @@ class TestEnsureSession:
     """Tests for ensure_session method."""
 
     def test_creates_session_from_root(self) -> None:
-        """ensure_session creates session from root session."""
+        """ensure_session creates fresh session from root session."""
         node = ConcreteNode()
         root = Session()
         session = node.ensure_session(root)
-        assert session is root
-        assert node.session is root
+        assert session is not root
+        assert session.parent_id == root.session_id
+        assert node.session is session
 
     def test_returns_existing_session(self) -> None:
         """ensure_session returns existing session if set."""
@@ -73,8 +74,8 @@ class TestEnsureSession:
         result = node.ensure_session(Session())
         assert result is existing
 
-    def test_adopts_parent_session(self) -> None:
-        """ensure_session adopts parent node's session."""
+    def test_does_not_adopt_parent_session(self) -> None:
+        """ensure_session creates an isolated session instead of adopting parent."""
         parent = ConcreteNode()
         child = ConcreteNode()
         child.parent = parent
@@ -82,8 +83,8 @@ class TestEnsureSession:
         parent.session = parent_session
 
         result = child.ensure_session(Session())
-        assert result is parent_session
-        assert child.session is parent_session
+        assert result is not parent_session
+        assert child.session is result
 
     def test_no_session_no_parent_raises(self) -> None:
         """ensure_session raises ValueError with no session and no parent."""
@@ -92,14 +93,15 @@ class TestEnsureSession:
             node.ensure_session(None)
 
     def test_parent_without_session_uses_root(self) -> None:
-        """ensure_session uses root when parent has no session."""
+        """ensure_session creates fresh session from root when parent has no session."""
         parent = ConcreteNode()
         child = ConcreteNode()
         child.parent = parent
         root = Session()
 
         result = child.ensure_session(root)
-        assert result is root
+        assert result is not root
+        assert result.parent_id == root.session_id
 
 
 class TestBuildInstruction:

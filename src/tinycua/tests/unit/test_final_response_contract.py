@@ -133,6 +133,8 @@ class ExecutorResultThenReviewerAgent:
 
     def __init__(self) -> None:
         self.executor_calls = 0
+        self.tool_permissions = {}
+        self.approval_workflow = None
 
     async def _call_llm(self, messages, tools, stream: bool = False):  # noqa: ANN001, ARG002
         system_text = "\n".join(

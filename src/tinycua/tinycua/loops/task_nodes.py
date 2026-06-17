@@ -49,28 +49,28 @@ _TASK_ASSESSOR_UPFRONT_INSTRUCTION = (
     "You are the TaskAssessor for the upfront analysis-effort decomposition loop. "
     "Inspect the whole task tree and select unfinished tasks that are complex "
     "enough to warrant further decomposition. Do not execute tasks and do not "
-    "discuss execution tools. Use task_inspect and "
-    "task_update only for assessment metadata or selected decomposition targets. "
+    "discuss execution tools. Use task_inspect for read-only assessment and "
+    "node_handoff to instruct TaskAnalyzer which tasks to analyze and why. "
+    "Do not mutate task state. "
     "Be concise and do not repeat upstream context."
 )
 _TASK_ASSESSOR_UPFRONT_CONTINUATION = (
     "Based on the whole task tree above, assess decomposition readiness across "
-    "the tree. Use task_update to record assessment metadata such as selected "
-    "task IDs for further decomposition, indivisible tasks, blocked planning "
-    "gaps, or that no further upfront decomposition is useful."
+    "the tree. Use node_handoff to instruct TaskAnalyzer with selected task IDs, "
+    "reasons, constraints, or that no further upfront decomposition is useful."
 )
 _TASK_ASSESSOR_LOCAL_REPLAN_INSTRUCTION = (
     "You are the TaskAssessor for a ResultReviewer-requested local replan. "
     "Inspect the active task and nearby task-tree context to decide whether "
     "that local region needs refinement before execution continues. Do not "
     "reassess the whole roadmap, do not execute tasks, and do not discuss "
-    "execution tools. Use task_inspect and task_update only for local assessment "
-    "metadata or selected decomposition targets."
+    "execution tools. Use task_inspect for read-only assessment and node_handoff "
+    "to instruct TaskAnalyzer. Do not mutate task state."
 )
 _TASK_ASSESSOR_LOCAL_REPLAN_CONTINUATION = (
     "Based on the active task and local task-tree region above, assess whether "
     "the reviewed task needs local decomposition or planning metadata updates. "
-    "Use task_update to record the local assessment, selected decomposition "
+    "Use node_handoff to pass the local assessment, selected decomposition "
     "target, blocked planning gap, or that no local replan is useful."
 )
 

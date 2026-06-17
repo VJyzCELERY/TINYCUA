@@ -9,12 +9,13 @@ from collections.abc import AsyncIterator, Callable
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
+from tinycua_sdk.agent.executor import ToolExecutor
 from tinycua_sdk.agent.loop import BaseLoop
 
-from tinycua.config.system_prompt import SystemPromptBuilder
 from tinycua.models.stream_event import enrich_stream_event, make_lifecycle_event
 from tinycua.config.types import LLMResult, ValidationError, ValidationResult
 from tinycua.loops.context_rendering import (
+    looks_like_planner_prose,
     render_llm_content,
     sanitize_internal_reprs,
     should_include_chat_record,
@@ -36,6 +37,7 @@ from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.loops.route_classifier import RouteClassifier
 from tinycua.loops.task_tree_rendering import render_task_tree
 from tinycua.models.node_input import convert_node_input_to_messages
+from tinycua.models.node_handoff import NodeHandoff
 from tinycua.models.session import Session
 
 if TYPE_CHECKING:
@@ -96,6 +98,7 @@ class TinyCUALoop(BaseLoop):
         self.artifact_dir = getattr(session_config, "artifact_dir", None)
         self.session_dir = getattr(session_config, "session_dir", None)
         self._tool_artifact_seq = 0
+        self._pending_handoffs: list[NodeHandoff] = []
 
     def get_working_messages(self) -> list[dict[str, Any]]:
         """Return the working messages captured during the last run.
@@ -410,7 +413,7 @@ class TinyCUALoop(BaseLoop):
             route_refresher()
         messages = self._build_node_messages(node, override_instructions)
         resolved_tools = node.config.tool_policy.resolve_tools(tools)
-        self._bind_session_tools(resolved_tools)
+        self._bind_session_tools(resolved_tools, node)
         if resolved_tools:
             messages = self._merge_tool_protocol_into_system(messages, resolved_tools)
         return messages, resolved_tools
@@ -454,7 +457,7 @@ class TinyCUALoop(BaseLoop):
             return non_system
         return [{"role": "system", "content": "\n\n".join(system_parts)}, *non_system]
 
-    def _bind_session_tools(self, tools: list[Tool]) -> None:
+    def _bind_session_tools(self, tools: list[Tool], node: Node) -> None:
         """Bind session-aware tools to this loop's root session state."""
         for tool in tools:
             binder = getattr(tool, "bind_task_store", None)
@@ -466,9 +469,16 @@ class TinyCUALoop(BaseLoop):
             workspace_binder = getattr(tool, "bind_workspace", None)
             if callable(workspace_binder):
                 workspace_binder(self.workspace_dir)
+            handoff_binder = getattr(tool, "bind_handoff_store", None)
+            if callable(handoff_binder):
+                handoff_binder(self._pending_handoffs)
+            source_binder = getattr(tool, "bind_source_node", None)
+            if callable(source_binder):
+                source_binder(node.node_id)
 
-    def _execute_tool_calls(
+    async def _execute_tool_calls(
         self,
+        agent: Agent,
         tool_calls: list[dict[str, Any]],
         resolved_tools: list[Tool],
     ) -> list[dict[str, Any]]:
@@ -501,7 +511,7 @@ class TinyCUALoop(BaseLoop):
                 continue
             arguments = self._normalize_tool_call_arguments(allowed_tools[name], arguments)
             try:
-                output = allowed_tools[name](**arguments)  # type: ignore[misc,operator]
+                output = await ToolExecutor.execute(allowed_tools[name], arguments, agent)  # type: ignore[arg-type]
             except Exception as exc:  # noqa: BLE001 - recorded for trace/debugging.
                 results.append({"name": name, "allowed": True, "error": str(exc)})
                 continue
@@ -807,7 +817,8 @@ class TinyCUALoop(BaseLoop):
             all_tool_results: list[dict[str, Any]] = []
             continuation_rounds = 0
             while continuation_rounds < _MAX_TOOL_CONTINUATIONS:
-                tool_results = self._execute_tool_calls(
+                tool_results = await self._execute_tool_calls(
+                    agent,
                     last_result.tool_calls,
                     attempt_tools,
                 )
@@ -1700,10 +1711,11 @@ class TinyCUALoop(BaseLoop):
         if node.node_id in {
             "task_create",
             "task_analyzer",
-            "task_assessor",
             "result_reviewer",
         }:
             return bool(llm_result.metadata.get("tool_results"))
+        if node.node_id == "task_assessor":
+            return self._tool_results_include(llm_result, "node_handoff")
         if node.node_id == "task_executor":
             return self._tool_results_include(llm_result, "task_result_update")
         return False
@@ -1795,7 +1807,7 @@ class TinyCUALoop(BaseLoop):
         }
         any_of_by_node = {
             "task_analyzer": {"task_decompose", "task_update"},
-            "task_assessor": {"task_update"},
+            "task_assessor": {"node_handoff"},
         }
         any_of = any_of_by_node.get(node.node_id)
         if any_of is not None:
@@ -1851,7 +1863,6 @@ class TinyCUALoop(BaseLoop):
             return route_tool
         return {
             "task_create": "task_init",
-            "task_assessor": "task_update",
         }.get(node.node_id)
 
     def _record_retry_continuation(
@@ -2268,9 +2279,10 @@ class TinyCUALoop(BaseLoop):
             enrich_stream_event(event, node_id, node_type, attempt)
         return event
 
-    def _finalize_streamed_node(
+    async def _finalize_streamed_node(
         self,
         node: Node,
+        agent: Agent,
         content_parts: list[str],
         collected_tool_calls: list[dict[str, Any]],
         resolved_tools: list[Tool],
@@ -2283,6 +2295,7 @@ class TinyCUALoop(BaseLoop):
 
         Args:
             node: The node that was streamed.
+            agent: The SDK agent used for tool execution.
             content_parts: Accumulated text delta parts.
             collected_tool_calls: Collected tool call events.
             resolved_tools: Tools allowed for the streamed node.
@@ -2303,7 +2316,11 @@ class TinyCUALoop(BaseLoop):
         )
         self._coerce_structured_tool_calls(llm_result, resolved_tools)
         collected_tool_calls = llm_result.tool_calls
-        tool_results = self._execute_tool_calls(collected_tool_calls, resolved_tools)
+        tool_results = await self._execute_tool_calls(
+            agent,
+            collected_tool_calls,
+            resolved_tools,
+        )
         if tool_results:
             llm_result.metadata["tool_results"] = tool_results
             self._prepend_retry_tool_results(llm_result, retry_tool_results or [])
@@ -2422,10 +2439,52 @@ class TinyCUALoop(BaseLoop):
                 if node.is_terminal:
                     continue
 
-                # Advance queue (calls propagate on current node)
-                self.queue.advance()
+                self.queue.advance(self._pop_handoff_for_next(node))
         finally:
             self._working_messages = all_messages
+
+    def _pop_handoff_for_next(self, node: Node) -> NodeHandoff | None:
+        """Return an explicit handoff from the completed node to the next node."""
+        next_node = self.queue.items[1] if len(self.queue.items) > 1 else None
+        if next_node is None:
+            return None
+        for index, handoff in enumerate(self._pending_handoffs):
+            if handoff.source_node != node.node_id:
+                continue
+            if handoff.target_node not in (None, next_node.node_id):
+                continue
+            return self._pending_handoffs.pop(index)
+        return self._implicit_structured_handoff(node, next_node.node_id)
+
+    def _implicit_structured_handoff(
+        self,
+        node: Node,
+        target_node_id: str,
+    ) -> NodeHandoff | None:
+        """Create narrow typed handoffs for existing structured node outputs."""
+        from tinycua.models.digested_information import DigestedInformation
+
+        if node.session is None:
+            return None
+        if node.node_id not in {"digester", "worker", "result_aggregation"}:
+            return None
+        for entry in reversed(node.session.session_context):
+            content = getattr(entry, "content", None)
+            if isinstance(content, DigestedInformation):
+                return NodeHandoff(
+                    source_node=node.node_id,
+                    target_node=target_node_id,
+                    instruction="Use the digested information as scoped input.",
+                    payload={"digested_information": content},
+                )
+            if node.node_id == "result_aggregation" and content:
+                return NodeHandoff(
+                    source_node=node.node_id,
+                    target_node=target_node_id,
+                    instruction="Use the aggregation result to answer the user.",
+                    payload={"aggregation": content},
+                )
+        return None
 
     async def _stream_node_events(
         self,
@@ -2587,8 +2646,6 @@ class TinyCUALoop(BaseLoop):
         """Run a deterministic node and emit completion lifecycle events."""
         combined, tool_calls = self._execute_deterministic_node(node, resolved_tools)
         if stream_messages is not None:
-            if combined:
-                stream_messages.append({"role": "assistant", "content": combined})
             for tool_call in tool_calls:
                 stream_messages.append({"role": "assistant", "tool_calls": [tool_call]})
         completed = self._emit_lifecycle_event(
@@ -2693,8 +2750,9 @@ class TinyCUALoop(BaseLoop):
                 )
                 raise
 
-            combined, validation, llm_result = self._finalize_streamed_node(
+            combined, validation, llm_result = await self._finalize_streamed_node(
                 node,
+                agent,
                 content_parts,
                 collected_tool_calls,
                 attempt_tools,
@@ -3109,9 +3167,6 @@ class TinyCUALoop(BaseLoop):
         runner = getattr(node, "run_deterministic")
         llm_result = runner(self.queue)
         content = llm_result.content
-        result_metadata = dict(llm_result.metadata)
-        llm_result = self._record_node_output(node, content, llm_result.tool_calls)
-        llm_result.metadata.update(result_metadata)
         if content:
             self._record_node_content_transcript(node, content)
         self._apply_task_lifecycle_marker(node, content)
@@ -3339,6 +3394,8 @@ class TinyCUALoop(BaseLoop):
         content = sanitize_internal_reprs(content)
         if not content.strip():
             return
+        if not node.is_terminal and looks_like_planner_prose(content):
+            return
         if not node.is_terminal:
             key = content.strip()
             if key in self._transcript_seen_node_contents:
@@ -3404,45 +3461,25 @@ class TinyCUALoop(BaseLoop):
         Returns:
             List of message dictionaries for the LLM call.
         """
-        messages: list[dict[str, Any]] = []
         node_input = None
-        skip_record_ids: set[str] = set()
         if self.queue.current is node:
             node_input = self.queue.input_for_current()
-            skip_record_ids = self._source_record_ids_from_node_input(node_input)
-
-        # Build system message via SystemPromptBuilder
-        builder = SystemPromptBuilder()
-        instruction = node.build_instruction(override_instructions)
-        if instruction:
-            builder.add_static(instruction)
-
-        system_msg = builder.build()
-        if system_msg["content"]:
-            messages.append(system_msg)
-
-        # Add session context if policy says so
         context_session = node.session or self.root_session
-        self._append_session_context_messages(
-            messages,
-            node,
-            context_session,
-            skip_record_ids,
-        )
-
-        # Add chat history if policy says so
-        self._append_chat_history_messages(messages, node)
-
-        # Add input context (merged SDK messages) as continuation
-        self._append_input_context_messages(messages, node)
-
-        self._append_node_input_messages(messages, node, node_input)
-
-        continuation = node.build_continuation(context_session)
-        if continuation.strip():
-            self._append_nonblank_message(messages, "assistant", continuation)
-
-        return messages
+        if (
+            node.node_id == "query_analyst"
+            and node_input in (None, {})
+            and self.root_session.input_context
+        ):
+            node_input = list(self.root_session.input_context)
+        original_instruction = None
+        if override_instructions is not None:
+            original_instruction = node._instruction  # noqa: SLF001 - transport shim.
+            node._instruction = override_instructions  # noqa: SLF001 - transport shim.
+        try:
+            return node.build_messages(context_session, node_input or {})
+        finally:
+            if original_instruction is not None:
+                node._instruction = original_instruction  # noqa: SLF001
 
     def _append_session_context_messages(
         self,

@@ -90,6 +90,8 @@ class RuntimeContractScript:
             return "task_create"
         if "task_decompose" in tool_names:
             return "task_analyzer"
+        if "node_handoff" in tool_names:
+            return "task_assessor"
         if "task_update" in tool_names and "task_decompose" not in tool_names:
             return "task_assessor"
         if "task_result_update" in tool_names:
@@ -109,7 +111,7 @@ class RuntimeContractScript:
 
     # ── correct responses per node ───────────────────────────────────────
 
-    def _correct_response(
+    def _correct_response(  # noqa: C901
         self, node: str, tool_names: set[str], messages: list[dict[str, Any]],
     ) -> dict[str, Any]:
         if node == "query_analyst":
@@ -172,14 +174,13 @@ class RuntimeContractScript:
             }
         if node == "task_assessor":
             if any(
-                m.get("role") == "tool" and "task_update" in str(m.get("content", ""))
+                m.get("role") == "tool" and "node_handoff" in str(m.get("content", ""))
                 for m in messages
             ):
-                return {"content": "Assessment recorded.", "tool_calls": []}
-            task_id = self._task_id(messages)
+                return {"content": "Assessment handed off.", "tool_calls": []}
             return {
                 "content": "",
-                "tool_calls": [{"function": {"name": "task_update", "arguments": f'{{"task_id":"{task_id}","assessment":"ready"}}'}}],
+                "tool_calls": [{"function": {"name": "node_handoff", "arguments": '{"target_node":"task_analyzer","instruction":"Analyze unfinished tasks for execution readiness.","payload":{"assessment":"ready"}}'}}],
             }
         if node == "task_executor":
             task_id = self._task_id(messages)

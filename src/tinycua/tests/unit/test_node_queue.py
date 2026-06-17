@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import MagicMock
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.node import Node
+from tinycua.models.node_handoff import NodeHandoff
 
 
 def _make_node(node_id: str, *, is_terminal: bool = False) -> MagicMock:
@@ -50,7 +51,7 @@ class TestNodeQueueAdvance:
     """Tests for advance()."""
 
     def test_advance_removes_current_node(self):
-        """advance() removes items[0] after calling propagate()."""
+        """advance() removes items[0] without implicit propagation."""
         queue = NodeQueue()
         node_a = _make_node("a")
         node_b = _make_node("b")
@@ -58,7 +59,7 @@ class TestNodeQueueAdvance:
 
         result = queue.advance()
 
-        node_a.propagate.assert_called_once()
+        node_a.propagate.assert_not_called()
         assert result is node_b
         assert queue.items == [node_b]
 
@@ -79,15 +80,32 @@ class TestNodeQueueAdvance:
         with pytest.raises(ValueError, match="Cannot advance an empty queue"):
             queue.advance()
 
-    def test_advance_calls_propagate_before_removal(self):
-        """advance() calls propagate() before removing the node."""
+    def test_advance_does_not_call_propagate(self):
+        """advance() does not implicitly propagate context."""
         queue = NodeQueue()
         node_a = _make_node("a")
         queue.items = [node_a]
 
         queue.advance()
 
-        node_a.propagate.assert_called_once()
+        node_a.propagate.assert_not_called()
+
+    def test_advance_sets_explicit_handoff_as_next_input(self):
+        """Explicit handoff is delivered to the next node."""
+        queue = NodeQueue()
+        node_a = _make_node("a")
+        node_b = _make_node("b")
+        queue.items = [node_a, node_b]
+        handoff = NodeHandoff(
+            source_node="a",
+            target_node="b",
+            instruction="Continue with scoped input.",
+        )
+
+        result = queue.advance(handoff)
+
+        assert result is node_b
+        assert queue.input_for_current() is handoff
 
 
 class TestNodeQueueSpawn:

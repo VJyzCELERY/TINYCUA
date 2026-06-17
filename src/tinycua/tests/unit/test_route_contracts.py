@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
+
 from tinycua.factory import create_tinycua_agent
 from tinycua.config.node_config import create_node_config
+from tinycua.loops.node import NodeExecutionError
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.loops.worker import TinyCUAWorkerNode
 
@@ -16,13 +19,13 @@ async def test_query_route_does_not_use_keyword_inference_without_tool_call() ->
         return {"content": "I will plan and execute this task", "tool_calls": []}
 
     agent._call_llm = invalid_route_response  # type: ignore[method-assign]
-    await agent.run("Plan and execute a migration task.")
+    with pytest.raises(NodeExecutionError, match="select_query_route"):
+        await agent.run("Plan and execute a migration task.")
 
     first_trace = agent.loop.get_execution_trace()[0]
     assert first_trace["node_id"] == "query_analyst"
     assert first_trace["route_label"] == ""
     assert first_trace["route_source"] == "missing_tool_call"
-    assert first_trace["retry_exhausted"] is True
 
 
 async def test_query_route_accepts_strict_structured_tool_protocol() -> None:
@@ -30,10 +33,12 @@ async def test_query_route_accepts_strict_structured_tool_protocol() -> None:
     agent = create_tinycua_agent()
 
     async def structured_route_response(messages, tools, stream=False):  # noqa: ANN001, ARG001
-        return {
-            "content": '{"tool_calls":[{"name":"select_query_route","arguments":{"route":"passthrough"}}]}',
-            "tool_calls": [],
-        }
+        if any(tool.name == "select_query_route" for tool in tools):
+            return {
+                "content": '{"tool_calls":[{"name":"select_query_route","arguments":{"route":"passthrough"}}]}',
+                "tool_calls": [],
+            }
+        return {"content": "Hello.", "tool_calls": []}
 
     agent._call_llm = structured_route_response  # type: ignore[method-assign]
     await agent.run("Say hello.")

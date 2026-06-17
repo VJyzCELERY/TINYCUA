@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from tinycua.config.node_config import NodeMessagePolicy, create_node_config
 from tinycua.config.session_config import SessionConfig
 from tinycua.config.types import LLMResult, Tool
@@ -25,6 +27,7 @@ from tinycua.models.node_input import NodeInput
 from tinycua.models.session import Session
 from tinycua.models.session_context_entry import SessionContextEntry
 from tinycua.models.task import AggregatedResult, ReviewerDecision, TaskResult, TaskStatus
+from tinycua_sdk import Agent, LanguageModel
 
 
 def test_build_node_messages_filters_blank_messages_and_preserves_roles() -> None:
@@ -54,10 +57,7 @@ def test_build_node_messages_filters_blank_messages_and_preserves_roles() -> Non
 
     assert all(str(message.get("content", "")).strip() for message in messages)
     assert {message["role"] for message in messages} >= {"assistant", "user"}
-    assert any(
-        message["role"] == "assistant" and message["content"] == "Prior answer"
-        for message in messages
-    )
+    assert not any(message.get("content") == "Prior answer" for message in messages)
 
 
 def test_downstream_nodes_do_not_replay_raw_user_input() -> None:
@@ -191,7 +191,8 @@ def test_forwarded_output_is_not_duplicated_in_next_node_prompt() -> None:
     assert rendered.count("Need runtime hardening") == 1
 
 
-def test_streamed_task_executor_trace_keeps_native_tools() -> None:
+@pytest.mark.asyncio
+async def test_streamed_task_executor_trace_keeps_native_tools() -> None:
     """Streaming finalization records resolved outer native tools in traces."""
     loop = TinyCUALoop()
     node = TinyCUATaskExecutorNode(
@@ -200,8 +201,10 @@ def test_streamed_task_executor_trace_keeps_native_tools() -> None:
     )
     node.ensure_session(loop.root_session)
 
-    loop._finalize_streamed_node(
+    agent = Agent(llm_model=LanguageModel())
+    await loop._finalize_streamed_node(
         node,
+        agent,
         ["done"],
         [],
         node.config.tool_policy.resolve_tools([Tool(name="write_file")]),
@@ -211,7 +214,7 @@ def test_streamed_task_executor_trace_keeps_native_tools() -> None:
 
 
 def test_internal_output_context_uses_assistant_role_not_user() -> None:
-    """Node output context is internal assistant continuation, not user text."""
+    """Root session output context is not implicit downstream prompt input."""
     loop = TinyCUALoop()
     node = ResponseNode(config=create_node_config("response"))
     node.ensure_session(loop.root_session)
@@ -225,13 +228,8 @@ def test_internal_output_context_uses_assistant_role_not_user() -> None:
 
     messages = loop._build_node_messages(node)
 
-    assert any(
-        message["role"] == "assistant"
-        and message["content"] == "Worker internal analysis"
-        for message in messages
-    )
     assert not any(
-        message["role"] == "user" and message["content"] == "Worker internal analysis"
+        message.get("content") == "Worker internal analysis"
         for message in messages
     )
 
@@ -261,7 +259,7 @@ def test_decision_node_classification_continuation_uses_assistant_role() -> None
 
 
 def test_structured_internal_context_is_rendered_as_markdown_not_python_repr() -> None:
-    """Known internal payloads are rendered as readable markdown before reaching the LLM."""
+    """Structured root context is not implicitly rendered into later prompts."""
     loop = TinyCUALoop()
     node = ResponseNode(config=create_node_config("response"))
     node.ensure_session(loop.root_session)
@@ -293,11 +291,10 @@ def test_structured_internal_context_is_rendered_as_markdown_not_python_repr() -
 
     assert "DigestedInformation(" not in rendered_context
     assert "AggregatedResult(" not in rendered_context
-    # Now rendered as markdown, not raw JSON
-    assert "## Digested Information" in rendered_context
-    assert "Need runtime hardening" in rendered_context
-    assert "force route tools" in rendered_context
-    assert "## Aggregated Result" in rendered_context
+    assert "## Digested Information" not in rendered_context
+    assert "Need runtime hardening" not in rendered_context
+    assert "force route tools" not in rendered_context
+    assert "## Aggregated Result" not in rendered_context
 
 
 def test_internal_retry_and_tool_only_chat_records_are_not_llm_bound() -> None:
@@ -331,7 +328,7 @@ def test_internal_retry_and_tool_only_chat_records_are_not_llm_bound() -> None:
 
     assert "RETRY_EXHAUSTED" not in rendered
     assert "task_inspect" not in rendered
-    assert "Visible prior answer" in rendered
+    assert "Visible prior answer" not in rendered
 
 
 def test_task_executor_prompt_is_limited_to_active_task_context() -> None:
@@ -550,13 +547,15 @@ def test_task_assessor_prompt_is_whole_tree_decomposition_only() -> None:
 
     messages, tools = loop._prepare_node(assessor, [])
     rendered = "\n".join(str(message.get("content", "")) for message in messages)
-    task_update = next(tool for tool in tools if tool.name == "task_update")
-    tool_surface = f"{task_update.description} {task_update.parameters}"
+    node_handoff = next(tool for tool in tools if tool.name == "node_handoff")
+    tool_surface = f"{node_handoff.description} {node_handoff.parameters}"
     combined = f"{rendered}\n{tool_surface}"
 
     assert "whole task tree" in rendered.lower()
     assert "further decomposition" in rendered.lower()
     assert "task_result_update" not in combined
+    assert "task_update" not in combined
+    assert "node_handoff" in combined
     assert "complete" not in combined.lower()
     assert "fail executed work" not in combined.lower()
     assert "execution evidence" not in combined.lower()
@@ -579,14 +578,16 @@ def test_task_assessor_local_replan_prompt_is_active_region_only() -> None:
 
     messages, tools = loop._prepare_node(assessor, [])
     rendered = "\n".join(str(message.get("content", "")) for message in messages)
-    task_update = next(tool for tool in tools if tool.name == "task_update")
-    combined = f"{rendered}\n{task_update.description} {task_update.parameters}"
+    node_handoff = next(tool for tool in tools if tool.name == "node_handoff")
+    combined = f"{rendered}\n{node_handoff.description} {node_handoff.parameters}"
 
     assert "local replan" in rendered.lower()
     assert "active task" in rendered.lower()
     assert "Create backend" in rendered
     assert "whole roadmap" in rendered.lower()
     assert "task_result_update" not in combined
+    assert "task_update" not in combined
+    assert "node_handoff" in combined
     assert "execution evidence" not in combined.lower()
 
 
@@ -691,7 +692,8 @@ def test_normalize_system_messages_merges_late_system_messages() -> None:
     assert normalized[1] == {"role": "assistant", "content": "B"}
 
 
-def test_stream_invalid_attempt_is_not_recorded_as_node_output() -> None:
+@pytest.mark.asyncio
+async def test_stream_invalid_attempt_is_not_recorded_as_node_output() -> None:
     """Invalid streamed node output does not become reusable session context."""
     loop = TinyCUALoop()
     node = TinyCUATaskExecutorNode(
@@ -710,8 +712,10 @@ def test_stream_invalid_attempt_is_not_recorded_as_node_output() -> None:
     context_before = len(node.session.session_context)
 
     # Stream an invalid attempt (no tool calls, no task_result_update)
-    combined, validation, _ = loop._finalize_streamed_node(
+    agent = Agent(llm_model=LanguageModel())
+    combined, validation, _ = await loop._finalize_streamed_node(
         node,
+        agent,
         ["plan only answer"],
         [],
         node.config.tool_policy.resolve_tools([Tool(name="write_file")]),

@@ -120,8 +120,8 @@ def test_remote_chat_completions_uses_openai_function_tool_choice_shape() -> Non
     }
 
 
-def test_local_state_single_tool_node_uses_function_tool_choice_shape() -> None:
-    """Local singleton state-tool nodes are forced to avoid prose-only drift."""
+def test_task_assessor_uses_read_only_handoff_tools_without_task_update() -> None:
+    """TaskAssessor no longer narrows to mutation-only task_update."""
     model = LanguageModel(
         provider="openai-chat-completions",
         model_name="local-model",
@@ -144,8 +144,8 @@ def test_local_state_single_tool_node_uses_function_tool_choice_shape() -> None:
         force_required_tool=True,
     )
 
-    assert tool_choice == "required"
-    assert [tool.name for tool in narrowed_tools] == ["task_update"]
+    assert tool_choice is None
+    assert [tool.name for tool in narrowed_tools] == ["task_inspect", "node_handoff"]
 
 
 def test_result_reviewer_requires_a_tool_without_narrowing_tools() -> None:

@@ -17,6 +17,7 @@ from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.loops.task_nodes import TinyCUATaskExecutorNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.session import Session
+from tinycua_sdk import Agent, LanguageModel
 from tinycua_sdk.agent import BaseLoop
 
 from tests.unit.helpers.tinycua_loop_helpers import StubNode, ResponseNode
@@ -379,7 +380,8 @@ async def test_tool_scoping_all_tools():
     assert len(resolved) == 2
 
 
-def test_execute_tool_calls_unwraps_provider_nested_arguments() -> None:
+@pytest.mark.asyncio
+async def test_execute_tool_calls_unwraps_provider_nested_arguments() -> None:
     """Provider adapters unwrap {arguments:{...}} only for real tool kwargs."""
     loop = TinyCUALoop()
     calls = []
@@ -403,7 +405,9 @@ def test_execute_tool_calls_unwraps_provider_nested_arguments() -> None:
             calls.append((path, content))
             return {"success": True, "path": path}
 
-    results = loop._execute_tool_calls(
+    agent = Agent(llm_model=LanguageModel())
+    results = await loop._execute_tool_calls(
+        agent,
         [
             {
                 "type": "function",
@@ -420,7 +424,8 @@ def test_execute_tool_calls_unwraps_provider_nested_arguments() -> None:
     assert results[0]["output"] == {"success": True, "path": "app.py"}
 
 
-def test_execute_tool_calls_preserves_real_arguments_parameter() -> None:
+@pytest.mark.asyncio
+async def test_execute_tool_calls_preserves_real_arguments_parameter() -> None:
     """Nested unwrapping must not break tools with a genuine arguments kwarg."""
     loop = TinyCUALoop()
     calls = []
@@ -441,7 +446,9 @@ def test_execute_tool_calls_preserves_real_arguments_parameter() -> None:
             calls.append(arguments)
             return {"success": True}
 
-    results = loop._execute_tool_calls(
+    agent = Agent(llm_model=LanguageModel())
+    results = await loop._execute_tool_calls(
+        agent,
         [
             {
                 "type": "function",

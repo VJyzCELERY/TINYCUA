@@ -2,13 +2,13 @@
 
 **Spec**: [./spec.md](./spec.md)
 **Status**: In Progress
-**Last Updated**: 2026-06-16
+**Last Updated**: 2026-06-17
 
 ---
 
 ## Overview
 
-This design enforces TinyCUA's documented assistant-continuation message contract inside the current flat `TinyCUALoop`. It does not introduce full sub-session isolation. Instead, it prevents raw SDK/user messages from being replayed into every internal node, makes `NodeInput` the primary LLM-bound handoff channel, appends node-specific assistant continuation prompts, and keeps durable session context bounded and deduplicated.
+This design makes TinyCUA node activation explicit and isolated. `TinyCUALoop` becomes queue/transport infrastructure: it creates fresh node sessions, routes nodes, and passes only scoped `NodeInput`/`NodeHandoff` data. Concrete nodes own prompt/message building, validation, retry semantics, and handoff extraction. Tool invocation uses SDK `ToolExecutor`.
 
 ---
 
@@ -18,33 +18,45 @@ This design enforces TinyCUA's documented assistant-continuation message contrac
 
 ```text
 SDK Agent.run(query)
-  -> TinyCUALoop.root_session.input_context  # external boundary only
-  -> QueryAnalyst prompt                     # may include role=user
-  -> NodeInput assistant handoff             # internal continuation
-  -> Digester / Worker / Task nodes          # assistant context + continuation
-  -> ResponseNode                            # assistant aggregated result + continuation
+  -> TinyCUALoop root session                # durable task/audit state
+  -> QueryAnalyst fresh session              # external user input boundary
+  -> NodeHandoff / NodeInput                 # explicit transport only
+  -> Digester / Worker / Task nodes          # fresh sessions, node-owned prompts
+  -> ResponseNode                            # explicit aggregation handoff
 ```
 
 ### Affected Components
 
 | Component | Change Type | Notes |
 |-----------|-------------|-------|
-| `NodeMessagePolicy` | Modified | Add explicit input-context inclusion policy. |
-| `TinyCUALoop._build_node_messages` | Modified | Include raw input only when policy allows; append node continuations; suppress duplicated handoffs. |
-| `Node` | Modified | Provide node continuation construction. |
-| `QueryAnalyst` | Modified | Convert routes into assistant-role `NodeInput` handoffs. |
-| `NodeQueue` | Modified | Forward outputs as compact assistant messages with source record metadata. |
-| Worker task nodes | Modified | Add focused continuation prompts and task-state context. |
-| Streaming execution | Modified | Use sync-like finalization evidence and resolved-tool tracing. |
+| `NodeHandoff` | New | Generic typed envelope for explicit inter-node instruction/payload. |
+| `node_handoff` tool | New | Lets selected nodes emit explicit handoffs. |
+| `Node` | Modified | Owns message building, validation, retry, and handoff extraction. |
+| `TinyCUALoop` | Modified | Shrinks to scoped transport, queue routing, trace aggregation, and SDK calls. |
+| `NodeQueue` | Modified | Delivers explicit handoffs only; no automatic output forwarding. |
+| `TaskAssessor` | Modified | Read-only: `task_inspect` + `node_handoff`. |
+| Tool execution | Modified | Calls SDK `ToolExecutor.execute`. |
 
 ---
 
 ## Data Model
 
-### Schema Changes _(if applicable)_
+### New Entities
 
-- `NodeMessagePolicy.include_input_context: bool = False` controls whether SDK input context is appended to a node's LLM messages.
-- `NodeInput.metadata["source_record_ids"]` identifies session records already represented in direct node input so session context can skip them.
+```python
+NodeHandoff:
+    source_node: str
+    target_node: str | None
+    instruction: str
+    payload: dict[str, Any]
+    constraints: list[str]
+    metadata: dict[str, Any]
+```
+
+### Schema Changes
+
+- `NodeInput` conversion accepts `NodeHandoff` and renders it as one assistant-role message.
+- Root `Session` remains durable state/audit. Per-node `Session` objects are fresh message containers that share durable `task_store`.
 
 ---
 
@@ -53,19 +65,22 @@ SDK Agent.run(query)
 ### New / Modified Functions
 
 ```python
-def Node.build_continuation(session: Session | None = None) -> str:
-    """Return the assistant-role continuation prompt for this node."""
+def Node.build_messages(input: NodeInputLike) -> list[dict[str, Any]]:
+    """Build this node's LLM messages from explicit input only."""
+
+async def ToolExecutor.execute(tool: Tool, arguments: dict, agent: Agent) -> Any:
+    """SDK-owned permission, approval, and invocation path used by TinyCUA."""
 ```
 
-The continuation is appended after any previous handoff/context and before provider tool feedback/retry continuations.
+Node messages consist of one system message, explicit handoff/input messages, and node-owned continuation messages.
 
 ### Error Handling
 
 | Error Case | Exception / Response | Notes |
 |------------|---------------------|-------|
-| Empty continuation | Omitted message | Nodes may opt out only when no continuation is defined. |
-| Duplicate forwarded output | Skipped session-context entry | Direct `NodeInput` copy remains authoritative. |
-| Missing structured digest | Bounded fallback | Task lifecycle may fall back to raw input only after structured options fail. |
+| Empty handoff instruction | Validation failure | Do not create blank downstream prompts. |
+| No explicit handoff | Empty node input | Never fall back to global `session_context` automatically. |
+| Denied/approval-required tool | SDK `ToolExecutor` result | TinyCUA records result but does not bypass SDK policy. |
 
 ---
 
@@ -73,16 +88,18 @@ The continuation is appended after any previous handoff/context and before provi
 
 ### Phase 1 — MVP _(required for initial release)_
 
-- [ ] Add failing message-contract tests for entry-only user input, assistant handoffs, continuations, and duplicate suppression.
-- [ ] Add `include_input_context` policy and enable it only for QueryAnalyst.
-- [ ] Append node-specific assistant continuation prompts.
-- [ ] Convert QueryAnalyst route handoffs to assistant-role `NodeInput`.
-- [ ] Forward structured outputs through compact assistant messages and suppress duplicates.
-- [ ] Align task lifecycle title fallback with digest/task state.
+- [ ] Add failing tests for explicit handoff-only prompts, no controller leakage, no duplicate digest, TaskAssessor read-only scope, and SDK ToolExecutor permission handling.
+- [ ] Add generic `NodeHandoff` model and `node_handoff` tool.
+- [ ] Stop automatic `session_context`/output forwarding in `NodeQueue`.
+- [ ] Create fresh per-node sessions that share durable task state.
+- [ ] Delegate message building to concrete nodes.
+- [ ] Make TaskAssessor read-only and handoff-producing.
+- [ ] Route TinyCUA tool execution through SDK `ToolExecutor`.
 
 ### Phase 2 — Enhancements _(post-MVP, only if spec explicitly includes it)_
 
-- [ ] Bring streaming tool continuation behavior to full sync parity.
+- [ ] Move remaining node-specific validation out of `TinyCUALoop`.
+- [ ] Prune obsolete propagation/dedupe helpers once explicit handoff tests are green.
 
 > **Note**: Phase 2 must NOT be implemented until Phase 1 is complete and reviewed.
 
@@ -90,15 +107,18 @@ The continuation is appended after any previous handoff/context and before provi
 
 ## Technical Decisions
 
-1. **Decision**: Enforce handoff isolation inside the flat loop first.
-   - **Reason**: It fixes the immediate design drift while minimizing runtime churn.
-   - **Alternatives Considered**: Full sub-session isolation — rejected for this change because it is larger and riskier.
-2. **Decision**: Treat `NodeInput` as the primary LLM-bound handoff.
-   - **Reason**: Queue handoffs are explicit and target-specific; session context remains durable reusable state.
-   - **Alternatives Considered**: Continue replaying root/session context — rejected because it repeats raw user input and pollutes prompts.
-3. **Decision**: Use assistant role for internal session context at LLM boundary.
-   - **Reason**: Design docs state only actual external user input uses role `user`.
-   - **Alternatives Considered**: Preserve prior/input as user role — rejected because internal context is not a fresh user turn.
+1. **Decision**: Use a generic `NodeHandoff` envelope.
+   - **Reason**: Every node can hand off different payloads without making the base model task-specific.
+   - **Alternatives Considered**: Task-specific handoff fields — rejected because handoffs are cross-node infrastructure.
+2. **Decision**: Fresh node sessions share durable task state but not message context.
+   - **Reason**: Isolation prevents prompt leaks while preserving the global task tree.
+   - **Alternatives Considered**: Continue root session sharing — rejected because it leaks controller/digest/retry context.
+3. **Decision**: Nodes own prompt building and validation.
+   - **Reason**: `TinyCUALoop` should be transport/routing infrastructure, not a god object for every node's semantics.
+   - **Alternatives Considered**: Make `TinyCUALoop` the only runtime owner — rejected because it centralizes node internals.
+4. **Decision**: Use SDK `ToolExecutor`.
+   - **Reason**: Permission and approval checks already exist there.
+   - **Alternatives Considered**: Direct `Tool.__call__` — rejected because it bypasses SDK behavior.
 
 ---
 
@@ -106,9 +126,10 @@ The continuation is appended after any previous handoff/context and before provi
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| Internal nodes lose needed request context | Medium | High | QueryAnalyst handoff and DigestedInformation preserve focused request semantics. |
-| Existing tests depend on input replay | Medium | Medium | Update tests to assert entry-only input and explicit passthrough handoff. |
-| Streaming behavior remains divergent | Medium | Medium | Add streaming trace/tool tests and keep Phase 2 scoped. |
+| Internal nodes lose needed request context | Medium | High | QueryAnalyst/Digester/Worker handoffs preserve focused request semantics. |
+| Fresh sessions lose task state | Low | High | Share `task_store` and workspace/session config explicitly. |
+| Existing tests depend on context replay | Medium | Medium | Update tests to assert explicit handoff input. |
+| Async ToolExecutor migration touches many call sites | Medium | Medium | Change one TinyCUA tool execution helper first, then update callers. |
 
 ---
 

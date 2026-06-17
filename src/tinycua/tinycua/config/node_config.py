@@ -285,8 +285,8 @@ def create_node_config(
             "analysis changes or confirms the task tree."
         ),
         "task_assessor": (
-            "Use task_inspect and task_update to record assessment metadata "
-            "instead of prose-only state."
+            "Use task_inspect for read-only assessment and node_handoff to "
+            "instruct TaskAnalyzer instead of mutating task state."
         ),
         "task_executor": (
             "Use action/research tools as needed and then call "
