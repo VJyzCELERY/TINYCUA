@@ -256,8 +256,6 @@ output/<harness>/<category>/<task_id>/<model_timestamp_runid>/
 ├── usage.json          # token counts, cost, elapsed time
 ├── agent.log           # agent execution log
 ├── chat.jsonl          # full conversation trace (OpenClaw)
-├── claude_code_log/    # Claude Code session log (Claude Code)
-├── codex_sessions/     # Codex session JSONLs (Codex)
 ├── gateway.log         # gateway log (OpenClaw)
 └── task_output/        # files produced by the agent
 ```

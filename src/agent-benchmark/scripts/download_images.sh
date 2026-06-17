@@ -4,10 +4,9 @@
 #
 # Usage:
 #   bash scripts/download_images.sh              # Hermes Agent only (default)
-#   bash scripts/download_images.sh --all        # All four harnesses
+#   bash scripts/download_images.sh --all        # All harnesses
 #   bash scripts/download_images.sh --harness openclaw
-#   bash scripts/download_images.sh --harness claudecode
-#   bash scripts/download_images.sh --harness codex
+#   bash scripts/download_images.sh --harness opencode
 #   bash scripts/download_images.sh --harness hermesagent
 #
 # Requires: pip install -U "huggingface_hub[cli]"
@@ -22,8 +21,7 @@ mkdir -p "${DOWNLOAD_DIR}"
 # Image definitions: tag tarball
 declare -A IMAGES=(
   [openclaw]="wildclawbench-ubuntu_v1.3.tar"
-  [claudecode]="wildclawbench-claudecode-ubuntu_v0.2-patched.tar"
-  [codex]="wildclawbench-codex-ubuntu_v0.0.tar"
+  [opencode]="wildclawbench-ubuntu_v1.3.tar"
   [hermesagent]="wildclawbench-hermes-agent-v0.5.tar.gz"
 )
 
@@ -45,8 +43,8 @@ Usage: bash scripts/download_images.sh [OPTION]
 
 Options:
   (none)          Download Hermes Agent only (default)
-  --all           Download all four harnesses
-  --harness NAME  Download a specific harness: openclaw, claudecode, codex, hermesagent
+  --all           Download all harnesses
+  --harness NAME  Download a specific harness: openclaw, opencode, hermesagent
   --list          List available images
   -h, --help      Show this help
 EOF
@@ -55,10 +53,11 @@ EOF
 
 list_images() {
   echo "Available images:"
-  for key in openclaw claudecode codex hermesagent; do
+  for key in openclaw opencode hermesagent; do
     echo "  ${key}: ${IMAGES[$key]}"
   done
   echo ""
+  echo "Loaded tag for openclaw/opencode: wildclawbench-ubuntu:v1.3"
   echo "Loaded tag for hermesagent: wildclawbench-hermes-agent:v0.5"
 }
 
@@ -67,7 +66,7 @@ HARNESS="hermesagent"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --all)
-      for key in openclaw claudecode codex hermesagent; do
+      for key in openclaw opencode hermesagent; do
         download_and_load "$key"
       done
       exit 0
@@ -92,7 +91,7 @@ done
 
 if [[ -z "${IMAGES[$HARNESS]+x}" ]]; then
   echo "ERROR: Unknown harness '${HARNESS}'" >&2
-  echo "Valid options: openclaw, claudecode, codex, hermesagent" >&2
+  echo "Valid options: openclaw, opencode, hermesagent" >&2
   exit 1
 fi
 
