@@ -61,28 +61,37 @@ Each harness is containerized with Docker for reproducible evaluation.
 
 ## Quick Start
 
-### 1. Clone the Repository
+### 1. Check What's Installed
+
+```bash
+# Pre-flight check — see what's already installed vs what's missing
+bash benchmark.sh check
+```
+
+This shows the status of Docker, uv, Python, Docker images, and API keys.
+
+### 3. Clone the Repository
 
 ```bash
 git clone https://github.com/your-org/wildclawbench.git
 cd wildclawbench
 ```
 
-### 2. Run Setup
+### 4. Run Setup
 
 ```bash
 # Full setup (installs deps, downloads all 4 Docker images, creates .env)
 bash benchmark.sh setup
 ```
 
-### 3. Configure Environment
+### 5. Configure Environment
 
 ```bash
 # Edit .env file with your API keys
 nano .env
 ```
 
-### 4. Run Benchmarks
+### 6. Run Benchmarks
 
 ```bash
 # Run all agents sequentially (one at a time)
@@ -95,6 +104,15 @@ bash benchmark.sh run --model openrouter/openai/gpt-5.5
 ---
 
 ## Detailed Setup
+
+### Available Commands
+
+| Command | What it does |
+|---------|-------------|
+| `bash benchmark.sh check` | Pre-flight check — see what's installed |
+| `bash benchmark.sh setup` | Full setup (deps, images, env) |
+| `bash benchmark.sh run` | Run all agents sequentially |
+| `bash benchmark.sh status` | Show latest results |
 
 ### Step 1: Install Dependencies
 
