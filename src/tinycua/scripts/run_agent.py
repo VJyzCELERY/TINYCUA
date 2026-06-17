@@ -26,6 +26,27 @@ logger = logging.getLogger(__name__)
 PROJECT_DIR = Path(__file__).resolve().parents[1]
 
 
+def _load_default_env() -> None:
+    """Load the project ``.env`` before argparse evaluates env-derived defaults.
+
+    ``argparse`` reads ``os.environ`` at parse time to resolve defaults such as
+    ``--worker-effort``. If ``.env`` is only loaded inside ``run()`` (after
+    parsing), those defaults are frozen to the pre-``.env`` values and the user's
+    ``TINYCUA_WORKER_EFFORT`` setting in ``.env`` is silently ignored. Loading
+    ``src/tinycua/.env`` here ensures env-derived argparse defaults see the
+    user's configured values. Shell-provided env vars always win
+    (``override=False``).
+    """
+    candidates = [Path.cwd() / ".env", PROJECT_DIR / ".env"]
+    loaded: set[Path] = set()
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        if resolved in loaded or not resolved.exists():
+            continue
+        load_dotenv(resolved, override=False)
+        loaded.add(resolved)
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse script arguments."""
     parser = argparse.ArgumentParser(
@@ -126,7 +147,15 @@ async def run(args: argparse.Namespace) -> int:
 
 
 def _load_env(env_file: Path) -> None:
-    """Load environment variables without overriding shell-provided values."""
+    """Load environment variables without overriding shell-provided values.
+
+    The project ``.env`` (``src/tinycua/.env`` and ``cwd/.env``) is also loaded
+    by ``_load_default_env`` before argparse so env-derived defaults resolve.
+    This handles the runtime env load: the default ``.env`` path loads the
+    project + cwd candidates (idempotent with ``_load_default_env``), and an
+    explicit ``--env-file`` path loads that file in addition. Shell-provided
+    env vars always win (``override=False``).
+    """
     if env_file.is_absolute() or env_file != Path(".env"):
         if env_file.exists():
             load_dotenv(env_file, override=False)
@@ -203,6 +232,24 @@ class _LiveStreamPrinter:
 
         if event_type == "node.error":
             self._print_marker(node_id, "errors", "[node-error]")
+            return ""
+
+        if event_type == "node.started":
+            # Lightweight start marker so the user sees deterministic orchestration
+            # nodes (analysis_effort, etc.) entering, not just LLM nodes.
+            self._print_marker(node_id, "lifecycle", "[start]")
+            return ""
+
+        if event_type == "node.completed":
+            # Deterministic nodes (AnalysisEffort, ResultAggregation, etc.) emit
+            # their content here, not via response.output_text.delta. Render it
+            # under an `output` header so the stream shows what they did.
+            content = str(event.get("content") or "")
+            finish_reason = str(event.get("finish_reason") or "")
+            if content:
+                self._print_text(node_id, "output", content)
+            elif finish_reason:
+                self._print_marker(node_id, "lifecycle", f"[completed] {finish_reason}")
             return ""
 
         if event_type == "response.usage":
@@ -557,6 +604,9 @@ def _safe_loop_call(loop: Any, method_name: str, *, default: Any, **kwargs: Any)
 
 def main(argv: list[str] | None = None) -> int:
     """Script entrypoint."""
+    # Load src/tinycua/.env (and cwd/.env) BEFORE parsing args so env-derived
+    # argparse defaults (e.g. --worker-effort) see the user's configured values.
+    _load_default_env()
     return asyncio.run(run(parse_args(argv)))
 
 

@@ -205,7 +205,12 @@ def test_list_files_no_match():
 
 
 def test_list_files_with_subdirectories():
-    """list_files only returns files at the top level (non-recursive)."""
+    """list_files lists top-level files and directories (non-recursive).
+
+    Directories appear marked with a trailing ``/`` so the LLM can distinguish
+    them from files. Non-recursive means nested entries below the top level are
+    not flattened into the result.
+    """
     with tempfile.TemporaryDirectory() as tmpdir:
         Path(tmpdir, "file.txt").touch()
         Path(tmpdir, "subdir").mkdir()
@@ -213,9 +218,12 @@ def test_list_files_with_subdirectories():
         from tinycua.agent.tools.native.files import list_files
 
         result = list_files(tmpdir)
-        # Only top-level files, not recursive
-        assert len(result) == 1
+        # Top-level only (non-recursive): file.txt and subdir/, not nested.txt.
+        assert len(result) == 2
         assert any(p.endswith("file.txt") for p in result)
+        assert any(p.endswith("subdir/") for p in result)
+        # The nested file is not flattened up to the top level.
+        assert not any("nested.txt" in p for p in result)
 
 
 def test_list_files_on_file_returns_error():

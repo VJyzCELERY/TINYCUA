@@ -41,8 +41,17 @@ def _uses_unsafe_mkdir_braces(command: str) -> bool:
 def run_shell(command: str, timeout: int = _DEFAULT_TIMEOUT_SECONDS) -> dict[str, Any]:
     """Execute a shell command and capture its output.
 
+    Use this for read-only inspection and verification only: listing files
+    (``ls -la`` to see directories and hidden entries), checking tool versions,
+    running tests, or grepping output. Do NOT use ``run_shell`` to write, create,
+    edit, or delete files — use ``write_file``/``edit_file`` for file changes so
+    the workspace stays auditable. Avoid shell workarounds that bypass the file
+    tools (``echo > file``, ``cat > file``, ``tee``, ``sed -i``, ``mkdir`` via
+    brace expansion); if a file change is needed, call the file tools directly.
+
     Args:
-        command: The shell command to execute.
+        command: The shell command to execute. Runs under ``/bin/sh``; do not
+            rely on shell-specific brace expansion such as ``mkdir -p {a,b}``.
         timeout: Maximum execution time in seconds (default 30).
 
     Returns:

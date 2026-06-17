@@ -187,3 +187,101 @@ def test_run_agent_script_help_documents_required_flags() -> None:
     help_text = result.stdout
     for flag in ("--prompt", "--dir", "--stream"):
         assert flag in help_text, f"--help missing {flag}: {help_text!r}"
+
+
+def test_run_agent_loads_worker_effort_from_env_before_parsing_args(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The script loads .env before argparse so env-derived defaults resolve.
+
+    Spec: ./spec.md:224. Regression guard: ``TINYCUA_WORKER_EFFORT`` set in the
+    project ``.env`` must reach ``SessionConfig.worker_effort``. Previously
+    ``parse_args`` froze the default to ``"none"`` before ``.env`` was loaded,
+    silently ignoring the user's configured effort.
+    """
+    import os
+
+    module = _load_script_module()
+    env_file = tmp_path / ".env"
+    env_file.write_text("TINYCUA_WORKER_EFFORT=high\n", encoding="utf-8")
+
+    # Simulate the script's startup: shell env has no value, .env provides it.
+    monkeypatch.delenv("TINYCUA_WORKER_EFFORT", raising=False)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(module, "PROJECT_DIR", tmp_path, raising=False)
+
+    module._load_default_env()
+    args = module.parse_args(
+        ["--dir", str(tmp_path / "ws"), "--prompt", "hello"]
+    )
+
+    assert os.environ.get("TINYCUA_WORKER_EFFORT") == "high"
+    assert args.worker_effort == "high", (
+        "parse_args did not pick up TINYCUA_WORKER_EFFORT from .env; the env "
+        "was loaded after argparse froze the default."
+    )
+
+
+@pytest.mark.asyncio
+async def test_run_agent_stream_shows_deterministic_effort_node(
+    tmp_path: Path,
+) -> None:
+    """Spec: ./spec.md:224, ./spec.md:270.
+
+    Source: tinycua_loop.md:62-65, analysis_effort.md:30-44.
+    Deterministic orchestration nodes (AnalysisEffort) emit ``node.completed``
+    events whose content must be visible in ``--stream`` so the user can audit
+    that effort passes actually ran. We feed the printer synthetic events
+    matching the real event shapes (captured from a hermetic run) so the test is
+    deterministic and network-free.
+    """
+    import io
+    from contextlib import redirect_stdout
+
+    module = _load_script_module()
+    printer = module._LiveStreamPrinter()
+    buffer = io.StringIO()
+
+    # Real event shapes captured from a hermetic worker-effort run:
+    # analysis_effort emits node.started then node.completed with the scheduled
+    # pass content. query_analyst is shown first for context.
+    events = [
+        {"type": "node.started", "node_id": "query_analyst", "node_type": "ProcessNode"},
+        {"type": "response.output_text.delta", "node_id": "query_analyst", "delta": ""},
+        {"type": "node.started", "node_id": "analysis_effort", "node_type": "ProcessNode"},
+        {
+            "type": "node.completed",
+            "node_id": "analysis_effort",
+            "node_type": "ProcessNode",
+            "content": "Scheduled analysis effort pass 1 of 2.",
+            "finish_reason": "completed",
+        },
+        {"type": "node.started", "node_id": "task_assessor", "node_type": "ProcessNode"},
+        {
+            "type": "node.completed",
+            "node_id": "analysis_effort",
+            "node_type": "ProcessNode",
+            "content": "Analysis effort complete after 2 pass(es).",
+            "finish_reason": "completed",
+        },
+    ]
+
+    with redirect_stdout(buffer):
+        for event in events:
+            printer.handle_event(event)
+        printer.flush()
+
+    output = buffer.getvalue()
+    # The AnalysisEffort deterministic node content must surface in the stream
+    # so the user can see effort passes were scheduled.
+    assert "analysis_effort" in output, (
+        "deterministic analysis_effort node did not appear in stream output; "
+        f"the printer must render node.completed events for deterministic nodes. "
+        f"Stream output:\n{output}"
+    )
+    assert "Scheduled analysis effort pass 1 of 2." in output, (
+        f"analysis_effort node content not rendered in stream:\n{output}"
+    )
+    assert "Analysis effort complete after 2 pass(es)." in output, (
+        f"analysis_effort completion content not rendered in stream:\n{output}"
+    )
