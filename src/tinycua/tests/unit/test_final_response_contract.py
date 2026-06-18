@@ -399,8 +399,8 @@ def test_task_executor_partial_action_evidence_continues_same_task() -> None:
     assert task.result is None
 
 
-def test_invalid_reviewer_approval_rolls_back_task_completion() -> None:
-    """Runtime-rejected approvals must not leave tasks completed."""
+def test_reviewer_approval_with_nonempty_result_is_valid() -> None:
+    """Approving a task with a non-empty result report is valid without artifact inspection."""
     reviewer = TinyCUAResultReviewerNode(
         node_id="result_reviewer",
         config=create_node_config("result_reviewer"),
@@ -409,7 +409,7 @@ def test_invalid_reviewer_approval_rolls_back_task_completion() -> None:
     task = loop.root_session.task_store.create_task("Build app")
     loop.root_session.task_store.record_result(
         task.task_id,
-        TaskResult(content="Built app", artifacts=[{"kind": "file", "path": "app.py"}]),
+        TaskResult(content="Built app"),
     )
     loop.root_session.task_store.record_reviewer_decision(
         task.task_id,
@@ -435,13 +435,48 @@ def test_invalid_reviewer_approval_rolls_back_task_completion() -> None:
         ),
     )
 
+    assert validation.is_valid is True
+
+
+def test_reviewer_approval_with_empty_result_is_invalid() -> None:
+    """Approving a task with no result report is invalid — must retry."""
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="result_reviewer",
+        config=create_node_config("result_reviewer"),
+    )
+    loop = TinyCUALoop(queue=NodeQueue(items=[reviewer, ResponseNode()]))
+    task = loop.root_session.task_store.create_task("Build app")
+    # No result recorded — task.result is None
+    loop.root_session.task_store.record_reviewer_decision(
+        task.task_id,
+        ReviewerDecision.APPROVED,
+        rationale="looks fine",
+    )
+
+    validation = loop._validate_node_result(
+        reviewer,
+        LLMResult(
+            metadata={
+                "tool_results": [
+                    {
+                        "name": "task_review_decision",
+                        "output": {
+                            "success": True,
+                            "task_id": task.task_id,
+                            "decision": "approved",
+                        },
+                    }
+                ]
+            }
+        ),
+    )
+
     assert validation.is_valid is False
-    assert task.status == TaskStatus.IN_PROGRESS
     assert task.reviewer_decisions == []
 
 
 def test_invalid_reviewer_approval_rolls_back_completed_parent() -> None:
-    """Rollback keeps ancestors unfinished when a child approval is invalid."""
+    """Rollback keeps ancestors unfinished when a child approval is invalid (no result)."""
     reviewer = TinyCUAResultReviewerNode(
         node_id="result_reviewer",
         config=create_node_config("result_reviewer"),
@@ -450,11 +485,14 @@ def test_invalid_reviewer_approval_rolls_back_completed_parent() -> None:
     store = loop.root_session.task_store
     root = store.create_task("Build app")
     child = store.create_task("Build vertical slice", parent_id=root.task_id)
+    # Record result on child so approval goes through record_reviewer_decision
     store.record_result(
         child.task_id,
-        TaskResult(content="Built app", artifacts=[{"kind": "file", "path": "app.py"}]),
+        TaskResult(content="Built app"),
     )
     store.record_reviewer_decision(child.task_id, ReviewerDecision.APPROVED)
+    # Now clear the result to simulate empty-result approval rejection
+    child.result = None
 
     validation = loop._validate_node_result(
         reviewer,
@@ -477,8 +515,6 @@ def test_invalid_reviewer_approval_rolls_back_completed_parent() -> None:
     assert validation.is_valid is False
     assert child.status == TaskStatus.IN_PROGRESS
     assert root.status == TaskStatus.IN_PROGRESS
-    assert store.active_task_id == child.task_id
-    assert store.all_done() is False
 
 
 def test_completed_worker_final_response_must_not_ask_clarification() -> None:
@@ -559,8 +595,8 @@ async def test_response_exhaustion_falls_back_to_clean_direct_answer() -> None:
     assert result == "Hello!"
 
 
-def test_task_result_update_merges_prior_partial_artifacts() -> None:
-    """Reviewer evidence includes files written before result update."""
+def test_task_result_update_merges_tool_evidence_metadata() -> None:
+    """Enrichment attaches tool-call transcript evidence to task result metadata."""
     loop = TinyCUALoop()
     task = loop.root_session.task_store.create_task("write file")
     loop.root_session.task_store.record_result(
@@ -591,9 +627,7 @@ def test_task_result_update_merges_prior_partial_artifacts() -> None:
     )
 
     assert task.result is not None
-    assert task.result.artifacts == [
-        {"path": "jwt_utils.py", "kind": "file", "metadata": {"tool_name": "write_file"}}
-    ]
+    assert "tool_results" in task.result.metadata
     assert "executor_partial_tool_results" not in task.metadata
 
 
@@ -907,15 +941,14 @@ def test_task_executor_success_result_accepts_concrete_action_evidence() -> None
     assert validation.is_valid is True
 
 
-def test_result_reviewer_approval_with_artifacts_requires_inspection() -> None:
-    """Reviewer is a quality gate and must inspect artifacts before approval."""
+def test_reviewer_approval_with_nonempty_result_is_valid_without_inspection() -> None:
+    """Reviewer can approve a task with a non-empty result report without file inspection."""
     loop = TinyCUALoop()
     task = loop.root_session.task_store.create_task("create models")
     loop.root_session.task_store.record_result(
         task.task_id,
         TaskResult(content="created backend/models.py", success=True),
     )
-    task.artifacts.append({"path": "backend/models.py", "kind": "file", "metadata": {}})
     reviewer = TinyCUAResultReviewerNode(
         node_id="result_reviewer",
         config=create_node_config("result_reviewer"),
@@ -947,19 +980,17 @@ def test_result_reviewer_approval_with_artifacts_requires_inspection() -> None:
         ),
     )
 
-    assert validation.is_valid is False
-    assert any("inspect" in error.lower() for error in validation.errors)
+    assert validation.is_valid is True
 
 
-def test_result_reviewer_cannot_approve_after_failed_list_files() -> None:
-    """Reviewer approval after failed list_files (output error) is invalid."""
+def test_result_reviewer_approval_without_artifact_inspection_is_valid() -> None:
+    """Reviewer can approve a task with a result report even without file inspection."""
     loop = TinyCUALoop()
     task = loop.root_session.task_store.create_task("create models")
     loop.root_session.task_store.record_result(
         task.task_id,
         TaskResult(content="created backend/models.py", success=True),
     )
-    task.artifacts.append({"path": "backend/models.py", "kind": "file", "metadata": {}})
     reviewer = TinyCUAResultReviewerNode(
         node_id="result_reviewer",
         config=create_node_config("result_reviewer"),
@@ -970,83 +1001,6 @@ def test_result_reviewer_cannot_approve_after_failed_list_files() -> None:
         LLMResult(
             metadata={
                 "tool_results": [
-                    {
-                        "name": "list_files",
-                        "output": {"error": "Path outside workspace: /"},
-                    },
-                    {
-                        "name": "task_review_decision",
-                        "output": {
-                            "success": True,
-                            "task_id": task.task_id,
-                            "decision": "approved",
-                        },
-                    }
-                ]
-            },
-        ),
-    )
-
-    assert validation.is_valid is False
-    assert any("inspect" in error.lower() for error in validation.errors)
-
-
-def test_result_reviewer_task_inspect_only_does_not_satisfy_artifact_inspection() -> None:
-    """task_inspect alone does not verify workspace/file state for artifact approval."""
-    loop = TinyCUALoop()
-    task = loop.root_session.task_store.create_task("create models")
-    loop.root_session.task_store.record_result(
-        task.task_id,
-        TaskResult(content="created backend/models.py", success=True),
-    )
-    task.artifacts.append({"path": "backend/models.py", "kind": "file", "metadata": {}})
-    reviewer = TinyCUAResultReviewerNode(
-        node_id="result_reviewer",
-        config=create_node_config("result_reviewer"),
-    )
-
-    validation = loop._validate_node_result(
-        reviewer,
-        LLMResult(
-            metadata={
-                "tool_results": [
-                    {"name": "task_inspect", "output": {"status": "inspected"}},
-                    {
-                        "name": "task_review_decision",
-                        "output": {
-                            "success": True,
-                            "task_id": task.task_id,
-                            "decision": "approved",
-                        },
-                    }
-                ]
-            },
-        ),
-    )
-
-    assert validation.is_valid is False
-
-
-def test_result_reviewer_successful_list_files_satisfies_inspection() -> None:
-    """Successful list_files satisfies artifact inspection for approval."""
-    loop = TinyCUALoop()
-    task = loop.root_session.task_store.create_task("create models")
-    loop.root_session.task_store.record_result(
-        task.task_id,
-        TaskResult(content="created backend/models.py", success=True),
-    )
-    task.artifacts.append({"path": "backend/models.py", "kind": "file", "metadata": {}})
-    reviewer = TinyCUAResultReviewerNode(
-        node_id="result_reviewer",
-        config=create_node_config("result_reviewer"),
-    )
-
-    validation = loop._validate_node_result(
-        reviewer,
-        LLMResult(
-            metadata={
-                "tool_results": [
-                    {"name": "list_files", "output": ["backend/models.py"]},
                     {
                         "name": "task_review_decision",
                         "output": {

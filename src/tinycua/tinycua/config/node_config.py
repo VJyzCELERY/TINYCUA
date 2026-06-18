@@ -290,10 +290,11 @@ def create_node_config(
         ),
         "task_executor": (
             "Use action/research tools as needed and then call "
-            "task_result_update with the observed result."
+            "task_result_update with a concise outcome report."
         ),
         "result_reviewer": (
-            "Call task_review_decision with approved, needs_revision, "
+            "Verify the executor's outcome report against tool evidence, "
+            "then call task_review_decision with approved, needs_revision, "
             "rejected, or replan."
         ),
     }.get(normalized)

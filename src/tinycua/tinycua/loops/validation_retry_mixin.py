@@ -349,7 +349,7 @@ class ValidationRetryMixin:
             self._validate_task_executor_action(node, llm_result),
             self._validate_tool_owned_task_state(node, llm_result),
             self._validate_result_reviewer_failed_approval(node, llm_result),
-            self._validate_result_reviewer_inspection(node, llm_result),
+            self._validate_result_reviewer_result_exists(node, llm_result),
             self._validate_final_response_content(node, llm_result),
         ):
             if not extra_validation.is_valid:
@@ -395,12 +395,12 @@ class ValidationRetryMixin:
             return validation
         return validation
 
-    def _validate_result_reviewer_inspection(
+    def _validate_result_reviewer_result_exists(
         self,
         node: Node,
         llm_result: LLMResult,
     ) -> ValidationResult:
-        """Require artifact inspection before reviewer approval."""
+        """Prevent reviewer from approving a task with no result report."""
         validation = ValidationResult(is_valid=True, errors=[])
         if node.node_id != "result_reviewer":
             return validation
@@ -421,27 +421,14 @@ class ValidationRetryMixin:
         if not isinstance(task_id, str) or task_id not in self.root_session.task_store.tasks:
             return validation
         task = self.root_session.task_store.tasks[task_id]
-        artifacts = list(task.artifacts)
-        if task.result is not None:
-            artifacts.extend(task.result.artifacts)
-        if not artifacts:
-            return validation
-        inspected = any(
-            item.get("name") in {"list_files", "read_file"}
-            and item.get("error") is None
-            and not (
-                isinstance(item.get("output"), dict)
-                and item["output"].get("error")
-            )
-            for item in tool_results
-        )
-        if inspected:
+        if task.result is not None and task.result.content.strip():
             return validation
         self._rollback_invalid_reviewer_approval(task_id)
         validation.is_valid = False
         validation.errors.append(
-            "ResultReviewer must inspect workspace/artifact files with successful "
-            "list_files or read_file before approving tasks that produced artifacts."
+            "ResultReviewer cannot approve a task with no outcome report. "
+            "The executor must call task_result_update with a non-empty result. "
+            "Choose needs_revision to retry execution."
         )
         return validation
 
@@ -574,7 +561,7 @@ class ValidationRetryMixin:
         node: Node,
         llm_result: LLMResult,
     ) -> ValidationResult:
-        """Validate that TaskExecutor performed work through tools."""
+        """Validate that TaskExecutor performed work through tools and left a result."""
         validation = ValidationResult(is_valid=True, errors=[])
         if node.node_id != "task_executor":
             return validation
@@ -586,6 +573,19 @@ class ValidationRetryMixin:
                 "result, or report a blocked state; do not return a plan-only answer."
             )
             return validation
+        # Require that task_result_update was called
+        result_update_calls = [
+            item for item in tool_results
+            if item.get("name") == "task_result_update"
+            and isinstance(item.get("output"), dict)
+        ]
+        if not result_update_calls:
+            validation.is_valid = False
+            validation.errors.append(
+                "TaskExecutor must call task_result_update with an outcome report "
+                "before finishing. Describe what was done, what was found, and "
+                "whether the task succeeded or failed."
+            )
         return validation
 
     def _validate_tool_owned_task_state(

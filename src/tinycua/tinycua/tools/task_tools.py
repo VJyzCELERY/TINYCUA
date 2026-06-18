@@ -260,7 +260,14 @@ class TaskExecuteTool(SessionTaskToolMixin, Tool):
 
 
 class TaskResultUpdateTool(SessionTaskToolMixin, Tool):
-    """Tool for recording execution results on a task."""
+    """Tool for recording execution results on a task.
+
+    The result content is a semantic report — a concise summary of what was
+    done, what was found, and why the task succeeded or failed.  This report
+    is the primary review target for the ResultReviewer; the reviewer verifies
+    claims made in the report against tool-call evidence.  Every executor
+    invocation MUST call this tool before finishing.
+    """
 
     def __init__(self) -> None:
         SessionTaskToolMixin.__init__(self)
@@ -268,17 +275,27 @@ class TaskResultUpdateTool(SessionTaskToolMixin, Tool):
             self,
             name="task_result_update",
             description=(
-                "Record the execution result for the active or specified task "
-                "after observing action/research/tool evidence."
+                "Report the outcome for the active or specified task. "
+                "Write a concise summary of what was done, what was found, "
+                "and whether the task succeeded or failed. This report is "
+                "the primary evidence the ResultReviewer will verify. "
+                "Always call this tool before finishing — never leave a "
+                "task without a result report."
             ),
             parameters={
                 "type": "object",
                 "properties": {
                     "task_id": {"type": "string"},
-                    "content": {"type": "string"},
+                    "content": {
+                        "type": "string",
+                        "description": (
+                            "Concise outcome report: what was done, what was "
+                            "found, and why it succeeded or failed."
+                        ),
+                    },
                     "success": {"type": "boolean"},
                 },
-                "required": ["content"],
+                "required": ["content", "success"],
                 "additionalProperties": False,
             },
         )
@@ -289,7 +306,7 @@ class TaskResultUpdateTool(SessionTaskToolMixin, Tool):
         content: str = "",
         success: bool = True,
     ) -> dict[str, Any]:
-        """Persist a task execution result."""
+        """Persist a task execution result report."""
         active_id = task_id or self._store.active_task_id
         if active_id is None:
             return {"success": False, "error": "No active task"}

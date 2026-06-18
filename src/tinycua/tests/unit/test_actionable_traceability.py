@@ -177,7 +177,7 @@ def test_task_executor_instruction_requires_real_tool_actions(tmp_path: Path) ->
         tool.name for tool in tools
     }
     assert "MUST use tools" in instruction
-    assert "Do not only provide a plan" in instruction
+    assert "task_result_update" in instruction
 
 
 async def test_task_executor_validates_tool_owned_result_update(tmp_path: Path) -> None:

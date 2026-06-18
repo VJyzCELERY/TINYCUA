@@ -453,7 +453,7 @@ class TinyCUALoop(
         node: Node,
         tool_results: list[dict[str, Any]],
     ) -> None:
-        """Attach observed artifacts/tool evidence to recorded task results."""
+        """Attach tool-call transcript evidence to recorded task results."""
         if node.node_id != "task_executor":
             return
         for item in tool_results:
@@ -473,23 +473,10 @@ class TinyCUALoop(
                 task.metadata.get("executor_partial_tool_results", [])
             )
             merged_tool_results = [*partial_results, *tool_results]
-            artifacts = self._artifacts_from_tool_results(merged_tool_results)
             evidence = self._json_safe(merged_tool_results)
             if task.result is not None:
                 task.result.metadata["tool_results"] = evidence
-                existing_result_paths = {
-                    artifact.get("path") for artifact in task.result.artifacts
-                }
-                for artifact in artifacts:
-                    if artifact.get("path") not in existing_result_paths:
-                        task.result.artifacts.append(artifact)
-                        existing_result_paths.add(artifact.get("path"))
                 task.metadata.pop("executor_partial_tool_results", None)
-            existing_task_paths = {artifact.get("path") for artifact in task.artifacts}
-            for artifact in artifacts:
-                if artifact.get("path") not in existing_task_paths:
-                    task.artifacts.append(artifact)
-                    existing_task_paths.add(artifact.get("path"))
 
     async def _call_node_with_retry(
         self,

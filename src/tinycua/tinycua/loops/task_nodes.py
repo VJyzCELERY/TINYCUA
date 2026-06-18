@@ -80,36 +80,40 @@ _TASK_EXECUTOR_INSTRUCTION = (
     "tools when the active task requires action or evidence. Use whichever "
     "available tools fit the work: create or edit files, inspect the workspace, "
     "run commands or Python, research, fetch URLs, and verify results. After "
-    "real action/research/tool evidence exists, call task_result_update to "
-    "record the actual result. Do not only provide a plan for actionable tasks."
+    "real action/research/tool evidence exists, you MUST call task_result_update "
+    "with a concise outcome report describing what was done, what was found, and "
+    "whether the task succeeded or failed. Never finish without calling "
+    "task_result_update — the report is the primary evidence for review."
 )
 _TASK_EXECUTOR_CONTINUATION = (
     "Based on the active task above, perform the required workspace or research "
     "actions with tools. Do not only provide a plan; create, inspect, run, or "
-    "verify artifacts when the task requires action. For "
-    "actionable success, task_result_update must be backed by a created/edited "
-    "file or a successful action/research tool result. Then call "
-    "task_result_update with a concise result. If inspection shows the task "
-    "cannot be completed as written, call task_result_update with success=false "
-    "and the concrete blocker/evidence so ResultReviewer can retry or replan; "
-    "do not keep repeating read/list inspection."
+    "verify artifacts when the task requires action. For actionable success, "
+    "call task_result_update with a concise outcome report (what was done, what "
+    "was found, success/failure). If inspection shows the task cannot be "
+    "completed as written, call task_result_update with success=false and the "
+    "concrete blocker/evidence so ResultReviewer can retry or replan; do not "
+    "keep repeating read/list inspection."
 )
 
 _RESULT_REVIEWER_INSTRUCTION = (
-    "You are the ResultReviewer. Review the latest task result against the "
-    "requested outcome, tool evidence, and unified task-tree context. Read the "
-    "whole task context before deciding so useful completed-work information can "
-    "inform unfinished future tasks. When artifacts or paths are involved, use "
-    "read-only inspection tools such as list_files or read_file "
-    "before approving. If file or shell evidence is claimed, inspect the "
-    "workspace/artifact file before approving; failed inspection is not evidence. "
-    "Treat duplicate scripts, misplaced files, nested accidental "
+    "You are the ResultReviewer. Review the executor's outcome report against "
+    "the requested outcome and tool evidence. The task result is the executor's "
+    "concise report of what was done and whether it succeeded. Verify the claims "
+    "in the report by inspecting workspace files when artifacts or paths are "
+    "mentioned. Treat duplicate scripts, misplaced files, nested accidental "
     "workspace paths, unsupported claims, or incomplete implementation as quality "
     "gate failures that require needs_revision, rejected, or replan. You MUST call "
     "task_review_decision with approved, needs_revision, rejected, or replan "
     "plus a brief rationale. Do not infer review state from "
     "prose-only output and do not repeat upstream context. Never rewrite completed "
     "tasks."
+)
+_RESULT_REVIEWER_CONTINUATION = (
+    "Based on the executor's outcome report, tool evidence, and unified task "
+    "context above, verify claims by inspecting relevant artifacts when present, "
+    "then call task_review_decision with approved, needs_revision, rejected, or replan "
+    "and a brief reason."
 )
 _RESULT_REVIEWER_CONTINUATION = (
     "Based on the latest task result, execution evidence, and unified task "
@@ -484,12 +488,22 @@ class TinyCUAResultReviewerNode(ProcessNode):
         task = self._task_to_review()
         if task is None:
             return base
-        result = task.result.content if task.result is not None else "No result yet."
+        # Primary review target: the executor's outcome report
+        result_content = task.result.content if task.result is not None else ""
+        if not result_content.strip():
+            # Failsafe: if no result report, include the tool-call transcript
+            # so the reviewer can still assess what happened
+            transcript_lines = []
+            for entry in session.session_context:
+                content = entry.get("content", "") if isinstance(entry, dict) else getattr(entry, "content", "")
+                role = entry.get("role", "") if isinstance(entry, dict) else getattr(entry, "role", "")
+                if role and content:
+                    transcript_lines.append(f"[{role}] {content}")
+            result_content = "(No result report from executor)\n\nExecutor transcript:\n" + "\n".join(transcript_lines[-10:])
         return (
             f"Task under review: {task.task_id} — {task.title}\n"
             f"Task status: {task.status.value}\n"
-            f"Task result: {result}\n"
-            f"Artifacts: {task.artifacts}\n"
+            f"Outcome report: {result_content}\n"
             f"Unified task context:\n{_render_task_tree_markdown(_task_context_snapshot(session))}\n\n{base}"
         )
 
