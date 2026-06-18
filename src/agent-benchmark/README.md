@@ -11,7 +11,10 @@ bash benchmark.sh setup
 # 2. Edit .env with your API keys
 nano .env
 
-# 3. Run all agents sequentially
+# 3. Start LM Studio server (required for local LLM)
+/Users/jonaja29/.lmstudio/bin/lms server start
+
+# 4. Run all agents sequentially
 bash benchmark.sh run
 ```
 
@@ -113,13 +116,16 @@ LM_STUDIO_API_KEY=lm-studio
 For running benchmarks with local models via LM Studio:
 
 1. Install LM Studio and download a model (e.g., `qwen/qwen3.5-9b`)
-2. Start the local server on port 1234
+2. Start the local server on port 1234:
+   ```bash
+   /Users/jonaja29/.lmstudio/bin/lms server start
+   ```
 3. Update `.env`:
    ```bash
    LM_STUDIO_API_KEY=lm-studio
    DEFAULT_MODEL=qwen3.5-9b
    ```
-4. Update `opencode-config.yaml` and `hermes-config.yaml`:
+4. Update `opencode-config.yaml`, `hermes-config.yaml`, and `openclaw-config.yaml`:
    ```yaml
    api_base: http://localhost:1234/v1
    api_key_env: LM_STUDIO_API_KEY

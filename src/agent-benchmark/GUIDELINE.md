@@ -114,6 +114,9 @@ nano .env
 ### 6. Run Benchmarks
 
 ```bash
+# Start LM Studio server (required for local LLM)
+/Users/jonaja29/.lmstudio/bin/lms server start
+
 # Run all agents sequentially (one at a time)
 bash benchmark.sh run
 
