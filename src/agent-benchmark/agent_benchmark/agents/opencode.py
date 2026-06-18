@@ -94,32 +94,51 @@ class OpenCodeAgent(DockerAgent):
 
     def _build_docker_command(self, spec: AgentTaskSpec) -> list[str]:
         """Build docker run command with OpenCode-specific volume mounts."""
+        # Get the project directory to mount the entrypoint script
+        project_dir = Path(__file__).parent.parent.parent
+        entrypoint_script = project_dir / "scripts" / "entrypoint_lmstudio.sh"
+
+        # Determine API base - use host.docker.internal for Docker containers
+        api_base = self._config.api_base.replace("localhost", "host.docker.internal")
+
         return [
             "docker",
             "run",
             "--rm",
+            "--platform",
+            "linux/amd64",
             "-v",
-            f"{spec.output_dir}:/workspace/output",
+            f"{spec.output_dir}:/tmp_workspace/results",
             "-v",
-            f"{spec.workspace_path}:/workspace/workspace",
+            f"{spec.workspace_path}:/tmp_workspace/workspace",
+            "-v",
+            f"{entrypoint_script}:/tmp_workspace/entrypoint.sh:ro",
             "-e",
-            f"{self.api_key_env}={os.environ.get(self.api_key_env, '')}",
+            f"{self.api_key_env}={os.environ.get(self.api_key_env, 'lm-studio')}",
             "-e",
             f"OPENCODE_MODEL={spec.model}",
             "-e",
-            f"OPENCODE_API_BASE={self._config.api_base}",
+            f"OPENCODE_API_BASE={api_base}",
             "-e",
             f"OPENCODE_TEMPERATURE={self._config.temperature}",
             "-e",
             f"OPENCODE_MAX_TOKENS={self._config.max_tokens}",
+            "-e",
+            f"TASK_PROMPT={spec.prompt}",
+            "-e",
+            f"DEFAULT_MODEL={spec.model}",
+            "-e",
+            f"LM_STUDIO_API_BASE={api_base}",
+            "-e",
+            f"LM_STUDIO_API_KEY={os.environ.get(self.api_key_env, 'lm-studio')}",
+            "-e",
+            "LM_STUDIO_MAX_TOKENS=4096",
+            "-e",
+            "LM_STUDIO_TEMPERATURE=0.0",
             "--network",
             "host",
             "--add-host=host.docker.internal:host-gateway",
             self.image_name,
-            "--model",
-            spec.model,
-            "--prompt",
-            spec.prompt,
-            "--timeout",
-            str(spec.timeout_seconds),
+            "bash",
+            "/tmp_workspace/entrypoint.sh",
         ]
