@@ -350,6 +350,7 @@ class ValidationRetryMixin:
             self._validate_tool_owned_task_state(node, llm_result),
             self._validate_result_reviewer_failed_approval(node, llm_result),
             self._validate_result_reviewer_result_exists(node, llm_result),
+            self._validate_result_reviewer_must_inspect(node, llm_result),
             self._validate_final_response_content(node, llm_result),
         ):
             if not extra_validation.is_valid:
@@ -429,6 +430,49 @@ class ValidationRetryMixin:
             "ResultReviewer cannot approve a task with no outcome report. "
             "The executor must call task_result_update with a non-empty result. "
             "Choose needs_revision to retry execution."
+        )
+        return validation
+
+    def _validate_result_reviewer_must_inspect(
+        self,
+        node: Node,
+        llm_result: LLMResult,
+    ) -> ValidationResult:
+        """Require task_inspect before reviewer makes a decision."""
+        validation = ValidationResult(is_valid=True, errors=[])
+        if node.node_id != "result_reviewer":
+            return validation
+        tool_results = [
+            item for item in llm_result.metadata.get("tool_results", [])
+            if isinstance(item, dict)
+        ]
+        # Check that task_inspect was called
+        has_inspect = any(
+            item.get("name") == "task_inspect"
+            and isinstance(item.get("output"), dict)
+            for item in tool_results
+        )
+        if has_inspect:
+            return validation
+        # No task_inspect — reject unless the reviewer decided not to approve
+        decision_result = None
+        for item in reversed(tool_results):
+            if item.get("name") == "task_review_decision":
+                output = item.get("output")
+                if isinstance(output, dict):
+                    decision_result = output
+                    break
+        if decision_result and decision_result.get("decision") != "approved":
+            # Non-approval decisions without inspect are acceptable
+            # (e.g., needs_revision, rejected, replan based on obvious failure)
+            return validation
+        self._rollback_invalid_reviewer_approval(
+            decision_result.get("task_id", "") if decision_result else ""
+        )
+        validation.is_valid = False
+        validation.errors.append(
+            "ResultReviewer must call task_inspect to review task state "
+            "before making a decision. Inspect the task tree first."
         )
         return validation
 

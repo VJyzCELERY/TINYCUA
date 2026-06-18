@@ -220,46 +220,11 @@ class TaskStateStore:
             self.active_task_id = task.task_id
         elif reviewer_decision == ReviewerDecision.APPROVED and task.result is not None:
             target = TaskStatus.COMPLETED if task.result.success else TaskStatus.FAILED
-            if task.result.success:
-                self._share_completed_context_with_unfinished_leaves(task)
             if task.status != target:
                 self.transition(task_id, target)
             self._complete_ready_parents()
             self._refresh_active_task()
         return task
-
-    def _share_completed_context_with_unfinished_leaves(self, source: Task) -> None:
-        """Expose approved source context to unfinished leaf tasks only.
-
-        Completed tasks are immutable after approval. Context from a newly
-        approved task is copied into unfinished leaf metadata so future executors
-        can use discoveries such as project layout without mutating prior work.
-        """
-        if source.result is None:
-            return
-        summary = source.result.summary.strip() or source.result.content.strip()
-        artifact_paths = [
-            str(artifact.get("path"))
-            for artifact in [*source.artifacts, *source.result.artifacts]
-            if isinstance(artifact, dict) and artifact.get("path")
-        ]
-        parts = [f"{source.title}: {summary}"]
-        if artifact_paths:
-            parts.append(f"Artifacts: {', '.join(artifact_paths)}")
-        context_line = " | ".join(part for part in parts if part.strip())
-        if not context_line.strip():
-            return
-        for task in self.tasks.values():
-            if task.task_id == source.task_id:
-                continue
-            if task.children or task.status == TaskStatus.COMPLETED:
-                continue
-            existing = str(task.metadata.get("context", "")).strip()
-            if context_line in existing:
-                continue
-            task.metadata["context"] = (
-                f"{existing}\n{context_line}" if existing else context_line
-            )
 
     def add_artifact(
         self,

@@ -97,29 +97,39 @@ _TASK_EXECUTOR_CONTINUATION = (
 )
 
 _RESULT_REVIEWER_INSTRUCTION = (
-    "You are the ResultReviewer. Review the executor's outcome report against "
-    "the requested outcome and tool evidence. The task result is the executor's "
-    "concise report of what was done and whether it succeeded. Verify the claims "
-    "in the report by inspecting workspace files when artifacts or paths are "
-    "mentioned. Treat duplicate scripts, misplaced files, nested accidental "
-    "workspace paths, unsupported claims, or incomplete implementation as quality "
-    "gate failures that require needs_revision, rejected, or replan. You MUST call "
-    "task_review_decision with approved, needs_revision, rejected, or replan "
-    "plus a brief rationale. Do not infer review state from "
-    "prose-only output and do not repeat upstream context. Never rewrite completed "
-    "tasks."
+    "You are the ResultReviewer — a quality gate. Your job has two phases:\n"
+    "\n"
+    "Phase 1 — Verify: Read the executor's outcome report. Verify claims by\n"
+    "inspecting workspace files (read_file, list_files). Check that claimed\n"
+    "files exist and contain expected content. Treat duplicate scripts,\n"
+    "misplaced files, missing implementations, or unsupported claims as\n"
+    "quality gate failures.\n"
+    "\n"
+    "Phase 2 — Decide: Call task_review_decision with one of:\n"
+    "- approved: the outcome is verified and complete.\n"
+    "- needs_revision: the outcome is partially correct but needs rework.\n"
+    "- rejected: the outcome is fundamentally wrong.\n"
+    "- replan: the outcome introduced a regression (broke existing\n"
+    "  functionality). Describe the regression in the rationale so the\n"
+    "  task analyzer can plan recovery subtasks.\n"
+    "\n"
+    "Phase 3 — Curate context (on approval): After approving, use\n"
+    "task_update to update unfinished task descriptions with discoveries\n"
+    "from this completed task. For example, if this task created a file\n"
+    "that the next task should build on, update the next task's\n"
+    "description to reference it. Do NOT update completed tasks — they\n"
+    "are immutable history.\n"
+    "\n"
+    "You MUST call task_inspect before task_review_decision. Never approve\n"
+    "without verifying the outcome. Never rewrite completed tasks."
 )
 _RESULT_REVIEWER_CONTINUATION = (
-    "Based on the executor's outcome report, tool evidence, and unified task "
-    "context above, verify claims by inspecting relevant artifacts when present, "
-    "then call task_review_decision with approved, needs_revision, rejected, or replan "
-    "and a brief reason."
-)
-_RESULT_REVIEWER_CONTINUATION = (
-    "Based on the latest task result, execution evidence, and unified task "
-    "context above, inspect relevant artifacts/paths when present, then call "
-    "task_review_decision with approved, needs_revision, rejected, or replan "
-    "and a brief reason."
+    "Based on the outcome report and task tree above:\n"
+    "1. Inspect task state with task_inspect.\n"
+    "2. Verify claims by reading workspace files if relevant.\n"
+    "3. Call task_review_decision with your decision.\n"
+    "4. If approved, use task_update on unfinished tasks to add relevant\n"
+    "   context from this completed work."
 )
 
 _RESULT_AGGREGATION_INSTRUCTION = (
@@ -500,11 +510,20 @@ class TinyCUAResultReviewerNode(ProcessNode):
                 if role and content:
                     transcript_lines.append(f"[{role}] {content}")
             result_content = "(No result report from executor)\n\nExecutor transcript:\n" + "\n".join(transcript_lines[-10:])
+        # Highlight unfinished tasks for context curation
+        unfinished = []
+        for t in session.task_store.tasks.values():
+            if t.status.value not in ("completed",) and t.task_id != task.task_id:
+                unfinished.append(f"  - [{t.status.value}] {t.title} (id={t.task_id})")
+        unfinished_block = ""
+        if unfinished:
+            unfinished_block = "\nUnfinished tasks to curate context for:\n" + "\n".join(unfinished) + "\n"
         return (
             f"Task under review: {task.task_id} — {task.title}\n"
             f"Task status: {task.status.value}\n"
             f"Outcome report: {result_content}\n"
-            f"Unified task context:\n{_render_task_tree_markdown(_task_context_snapshot(session))}\n\n{base}"
+            f"Unified task context:\n{_render_task_tree_markdown(_task_context_snapshot(session))}\n"
+            f"{unfinished_block}\n{base}"
         )
 
     def _task_to_review(self):

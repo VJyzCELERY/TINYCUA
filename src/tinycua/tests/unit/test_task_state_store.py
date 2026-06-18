@@ -27,13 +27,12 @@ def test_task_store_advances_after_reviewer_approval() -> None:
     assert store.get_active_task() is second
 
 
-def test_approved_result_context_updates_only_unfinished_leaf_tasks() -> None:
-    """Reviewer-approved context is global to future work but never rewrites done tasks."""
+def test_approved_result_does_not_auto_share_context() -> None:
+    """Reviewer approval does not automatically copy context to unfinished tasks."""
     store = TaskStateStore()
     root = store.create_task("Build app")
     scaffold = store.create_task("Create project scaffold", parent_id=root.task_id)
     module = store.create_task("Create module x", parent_id=root.task_id)
-    docs = store.create_task("Write docs", parent_id=root.task_id)
 
     store.record_result(
         scaffold.task_id,
@@ -42,17 +41,8 @@ def test_approved_result_context_updates_only_unfinished_leaf_tasks() -> None:
     store.record_reviewer_decision(scaffold.task_id, ReviewerDecision.APPROVED)
 
     assert scaffold.status == TaskStatus.COMPLETED
-    assert "context" not in scaffold.metadata
-    assert "Create project scaffold" in module.metadata["context"]
-    assert "backend/app.py" in module.metadata["context"]
-
-    store.record_result(module.task_id, TaskResult(content="Created backend/module_x.py."))
-    store.record_reviewer_decision(module.task_id, ReviewerDecision.APPROVED)
-
-    assert module.status == TaskStatus.COMPLETED
-    assert "Created backend/module_x.py" not in scaffold.metadata.get("context", "")
-    assert "Created backend/module_x.py" not in module.metadata.get("context", "")
-    assert "Created backend/module_x.py" in docs.metadata["context"]
+    # Context is NOT automatically shared — the reviewer curates it manually
+    assert "context" not in module.metadata
 
 
 def test_failed_leaf_remains_active_and_not_done() -> None:

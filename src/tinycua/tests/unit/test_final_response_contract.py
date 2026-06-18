@@ -178,6 +178,13 @@ class ExecutorResultThenReviewerAgent:
                     {
                         "type": "function",
                         "function": {
+                            "name": "task_inspect",
+                            "arguments": "{}",
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
                             "name": "list_files",
                             "arguments": "{}",
                         },
@@ -400,7 +407,7 @@ def test_task_executor_partial_action_evidence_continues_same_task() -> None:
 
 
 def test_reviewer_approval_with_nonempty_result_is_valid() -> None:
-    """Approving a task with a non-empty result report is valid without artifact inspection."""
+    """Approving a task with a non-empty result report is valid when inspector inspects first."""
     reviewer = TinyCUAResultReviewerNode(
         node_id="result_reviewer",
         config=create_node_config("result_reviewer"),
@@ -422,6 +429,10 @@ def test_reviewer_approval_with_nonempty_result_is_valid() -> None:
         LLMResult(
             metadata={
                 "tool_results": [
+                    {
+                        "name": "task_inspect",
+                        "output": {"success": True, "tasks": {}},
+                    },
                     {
                         "name": "task_review_decision",
                         "output": {
@@ -941,8 +952,8 @@ def test_task_executor_success_result_accepts_concrete_action_evidence() -> None
     assert validation.is_valid is True
 
 
-def test_reviewer_approval_with_nonempty_result_is_valid_without_inspection() -> None:
-    """Reviewer can approve a task with a non-empty result report without file inspection."""
+def test_reviewer_approval_requires_task_inspect() -> None:
+    """Reviewer must call task_inspect before approving, even with a result report."""
     loop = TinyCUALoop()
     task = loop.root_session.task_store.create_task("create models")
     loop.root_session.task_store.record_result(
@@ -954,6 +965,7 @@ def test_reviewer_approval_with_nonempty_result_is_valid_without_inspection() ->
         config=create_node_config("result_reviewer"),
     )
 
+    # Approval without task_inspect should be rejected
     validation = loop._validate_node_result(
         reviewer,
         LLMResult(
@@ -980,11 +992,46 @@ def test_reviewer_approval_with_nonempty_result_is_valid_without_inspection() ->
         ),
     )
 
-    assert validation.is_valid is True
+    assert validation.is_valid is False
+    assert any("task_inspect" in error for error in validation.errors)
+
+    # But with task_inspect, approval is valid
+    loop.root_session.task_store.record_result(
+        task.task_id,
+        TaskResult(content="created backend/models.py", success=True),
+    )
+    loop.root_session.task_store.record_reviewer_decision(
+        task.task_id,
+        ReviewerDecision.APPROVED,
+    )
+
+    validation_with_inspect = loop._validate_node_result(
+        reviewer,
+        LLMResult(
+            metadata={
+                "tool_results": [
+                    {
+                        "name": "task_inspect",
+                        "output": {"success": True, "tasks": {}},
+                    },
+                    {
+                        "name": "task_review_decision",
+                        "output": {
+                            "success": True,
+                            "task_id": task.task_id,
+                            "decision": "approved",
+                        },
+                    }
+                ]
+            },
+        ),
+    )
+
+    assert validation_with_inspect.is_valid is True
 
 
 def test_result_reviewer_approval_without_artifact_inspection_is_valid() -> None:
-    """Reviewer can approve a task with a result report even without file inspection."""
+    """Reviewer can approve a task with a result report after task_inspect."""
     loop = TinyCUALoop()
     task = loop.root_session.task_store.create_task("create models")
     loop.root_session.task_store.record_result(
@@ -1001,6 +1048,10 @@ def test_result_reviewer_approval_without_artifact_inspection_is_valid() -> None
         LLMResult(
             metadata={
                 "tool_results": [
+                    {
+                        "name": "task_inspect",
+                        "output": {"success": True, "tasks": {}},
+                    },
                     {
                         "name": "task_review_decision",
                         "output": {

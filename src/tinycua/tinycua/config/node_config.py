@@ -295,7 +295,9 @@ def create_node_config(
         "result_reviewer": (
             "Verify the executor's outcome report against tool evidence, "
             "then call task_review_decision with approved, needs_revision, "
-            "rejected, or replan."
+            "rejected, or replan. On approval, use task_update to curate "
+            "unfinished task descriptions with relevant discoveries. "
+            "On regression, call replan with the regression details."
         ),
     }.get(normalized)
     custom_retry_append = config.custom_retry_append

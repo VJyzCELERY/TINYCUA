@@ -127,7 +127,11 @@ class TaskInspectTool(SessionTaskToolMixin, Tool):
 
 
 class TaskUpdateTool(SessionTaskToolMixin, Tool):
-    """Tool for updating task status, fields, or metadata."""
+    """Tool for updating task description, status, or metadata.
+
+    Reviewers use this to curate context for unfinished tasks after approval.
+    Completed tasks are immutable — updates to them are rejected.
+    """
 
     def __init__(self) -> None:
         SessionTaskToolMixin.__init__(self)
@@ -135,9 +139,10 @@ class TaskUpdateTool(SessionTaskToolMixin, Tool):
             self,
             name="task_update",
             description=(
-                "Update an existing task status or metadata. Use this for "
-                "assessment notes, selected decomposition targets, blocked state, "
-                "or other explicit task metadata."
+                "Update an existing task's description, status, or metadata. "
+                "Use this to add context notes, mark planning state, or curate "
+                "unfinished task descriptions with discoveries from completed work. "
+                "Completed tasks cannot be updated — they are immutable history."
             ),
             parameters={
                 "type": "object",
@@ -145,7 +150,15 @@ class TaskUpdateTool(SessionTaskToolMixin, Tool):
                     "task_id": {
                         "type": "string",
                         "description": (
-                            "Optional task ID. Omit to update the active task."
+                            "Task ID to update. Omit to update the active task."
+                        ),
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": (
+                            "Updated task description. Use this to add relevant "
+                            "context from completed work — file paths, discoveries, "
+                            "or constraints that the next executor should know."
                         ),
                     },
                     "status": {
@@ -165,13 +178,26 @@ class TaskUpdateTool(SessionTaskToolMixin, Tool):
     def __call__(
         self,
         task_id: str | None = None,
+        description: str | None = None,
         status: str | None = None,
         **metadata: str,
     ) -> dict[str, Any]:
-        """Update task status and metadata."""
+        """Update task description, status, and metadata."""
         active_id = task_id or self._store.active_task_id
         if active_id is None:
             return {"success": False, "error": "No active task"}
+        try:
+            task = self._store.get_task(active_id)
+        except ValueError as exc:
+            return {"success": False, "error": str(exc)}
+        if task.status == TaskStatus.COMPLETED:
+            return {
+                "success": False,
+                "error": (
+                    f"Task {active_id} is completed and immutable. "
+                    "Completed tasks cannot be updated."
+                ),
+            }
         if status in {TaskStatus.COMPLETED.value, TaskStatus.FAILED.value}:
             return {
                 "success": False,
@@ -181,9 +207,10 @@ class TaskUpdateTool(SessionTaskToolMixin, Tool):
                 ),
             }
         try:
-            task = self._store.get_task(active_id)
             if status is not None:
                 task = self._store.transition(active_id, TaskStatus(status))
+            if description is not None:
+                task.description = description
             task.metadata.update(metadata)
         except ValueError as exc:
             return {"success": False, "error": str(exc)}
@@ -222,9 +249,21 @@ class TaskDecomposeTool(SessionTaskToolMixin, Tool):
 
         Preserves every analyzer-provided subtask in order. TaskAnalyzer owns
         roadmap size; the runtime must not truncate, collapse, or rewrite it.
+        Completed tasks cannot be decomposed — they are immutable history.
         """
         try:
-            self._store.get_task(task_id)
+            task = self._store.get_task(task_id)
+        except ValueError as exc:
+            return {"success": False, "error": str(exc)}
+        if task.status == TaskStatus.COMPLETED:
+            return {
+                "success": False,
+                "error": (
+                    f"Task {task_id} is completed and immutable. "
+                    "Completed tasks cannot be decomposed."
+                ),
+            }
+        try:
             child_ids = self._store.decompose_task(task_id, subtasks)
         except ValueError as exc:
             return {"success": False, "error": str(exc)}

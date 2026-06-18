@@ -163,16 +163,17 @@ def task_executor_tool_scope() -> NodeToolPolicy:
 
 
 def result_reviewer_tool_scope() -> NodeToolPolicy:
-    """Review/decision + task result/context update tools.
+    """Review/decision, inspection, and context curation tools.
 
-    ResultReviewerNode receives task_result_update for recording
-    review outcomes.
+    ResultReviewerNode verifies executor outcome reports, calls task_inspect
+    to review task state, and can update unfinished task descriptions with
+    relevant discoveries before proceeding.
 
     Returns:
         NodeToolPolicy for ResultReviewerNode.
     """
     return NodeToolPolicy(
-        node_tools=[TaskReviewDecisionTool(), TaskInspectTool()],
+        node_tools=[TaskReviewDecisionTool(), TaskInspectTool(), TaskUpdateTool()],
         include_agent_tools="selected",
         allowed_agent_tool_names=["read_file", "list_files"],
     )
