@@ -234,17 +234,22 @@ def write_artifacts(loop: Any, artifact_dir: Path) -> None:
     (artifact_dir / "transcript.txt").write_text(str(transcript_text), encoding="utf-8")
 
 
-def print_summary(loop: Any, workspace_dir: Path, artifact_dir: Path, result: str) -> None:
-    """Print a concise session summary after a live run."""
+def print_summary(loop: Any, workspace_dir: Path, artifact_dir: Path | None, result: str, *, trace: bool = False) -> None:
+    """Print a concise session summary after a live run.
+
+    Args:
+        loop: The TinyCUALoop instance.
+        workspace_dir: Workspace directory.
+        artifact_dir: Artifact directory (None if --save-artifacts not set).
+        result: Final response text.
+        trace: If True, print execution trace, task tree, and workspace summary.
+    """
+    if not trace:
+        return
     state_snapshot = safe_loop_call(loop, "get_state_snapshot", default={})
-    trace = safe_loop_call(loop, "get_execution_trace", default=[])
-    print("\n=== SESSION DIRECTORIES ===", flush=True)
-    print(f"workspace_dir={workspace_dir}", flush=True)
-    print(f"artifact_dir={artifact_dir}", flush=True)
-    print("\n=== FINAL RESPONSE ===", flush=True)
-    print(result or "<empty>", flush=True)
+    trace_data = safe_loop_call(loop, "get_execution_trace", default=[])
     print("\n=== TRACE ===", flush=True)
-    for index, step in enumerate(trace, start=1):
+    for index, step in enumerate(trace_data, start=1):
         node_id = step.get("node_id") if isinstance(step, dict) else "unknown"
         node_type = step.get("node_type") if isinstance(step, dict) else "unknown"
         route = step.get("route_label") if isinstance(step, dict) else None
@@ -262,8 +267,9 @@ def print_summary(loop: Any, workspace_dir: Path, artifact_dir: Path, result: st
     print("\n=== WORKSPACE FILES ===", flush=True)
     for path in visible_workspace_files(workspace_dir):
         print(f"- {path}", flush=True)
-    print("\n=== ARTIFACTS ===", flush=True)
-    print(f"Full trace/transcript JSON saved under: {artifact_dir}", flush=True)
+    if artifact_dir is not None:
+        print("\n=== ARTIFACTS ===", flush=True)
+        print(f"Full trace/transcript JSON saved under: {artifact_dir}", flush=True)
 
 
 def truncate(value: str, limit: int) -> str:

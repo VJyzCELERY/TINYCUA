@@ -108,6 +108,18 @@ def _add_run_arguments(parser: argparse.ArgumentParser) -> None:
         default=False,
         help="Enable debug logging output.",
     )
+    parser.add_argument(
+        "--trace",
+        action="store_true",
+        default=False,
+        help="Print execution trace, task tree, and workspace summary after the run.",
+    )
+    parser.add_argument(
+        "--save-artifacts",
+        action="store_true",
+        default=False,
+        help="Save trace JSON, transcript, and logs to <dir>/.tinycua-artifacts/.",
+    )
 
 
 def _normalise_run_args(args: argparse.Namespace) -> None:
@@ -194,6 +206,8 @@ def main() -> None:
             timeout=args.timeout,
             verbose=args.verbose,
             env_file=args.env_file,
+            trace=args.trace,
+            save_artifacts=args.save_artifacts,
         )
         raise SystemExit(exit_code)
 

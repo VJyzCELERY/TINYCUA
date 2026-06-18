@@ -31,19 +31,28 @@ def prepare_result_dirs(
     experiment_num: int,
     *,
     overwrite: bool,
-) -> dict[str, Path]:
-    """Create one result directory per agent."""
-    paths = {
+) -> dict[str, dict[str, Path]]:
+    """Create result directories per agent with workdir/ and logs/ subdirs.
+
+    Returns:
+        Dict mapping agent name to {"workdir": Path, "logs": Path}.
+    """
+    result_dirs = {
         agent: output_root / agent / f"experiment-{experiment_num}" for agent in AGENTS
     }
-    existing = [path for path in paths.values() if path.exists()]
+    existing = [p for p in result_dirs.values() if p.exists()]
     if existing and not overwrite:
         msg = f"output exists; rerun with --overwrite: {existing[0]}"
         raise FileExistsError(msg)
-    for path in paths.values():
-        if path.exists():
-            shutil.rmtree(path)
-        path.mkdir(parents=True)
+    paths = {}
+    for agent, result_dir in result_dirs.items():
+        if result_dir.exists():
+            shutil.rmtree(result_dir)
+        workdir = result_dir / "workdir"
+        logs = result_dir / "logs"
+        workdir.mkdir(parents=True)
+        logs.mkdir()
+        paths[agent] = {"workdir": workdir, "logs": logs}
     return paths
 
 
@@ -97,16 +106,17 @@ def run_agent(
     agent: str,
     experiment_num: int,
     prompt: str,
-    result_dir: Path,
+    workdir: Path,
+    logs_dir: Path,
     timeout_seconds: int,
 ) -> int:
     """Run one Docker Compose service and write its artifacts."""
     print(f"[{agent}] starting experiment-{experiment_num}", flush=True)
-    (result_dir / "prompt.txt").write_text(prompt)
+    (logs_dir / "prompt.txt").write_text(prompt)
     env_file = Path(".env")
     if env_file.exists():
-        (result_dir / "container.env").write_text(env_file.read_text())
-    workspace = f"/workspace/experiment-{experiment_num}"
+        (logs_dir / "container.env").write_text(env_file.read_text())
+    container_workspace = f"/workspace/experiment-{experiment_num}"
     command = [
         "docker",
         "compose",
@@ -118,16 +128,16 @@ def run_agent(
         "-e",
         f"EXPERIMENT_PROMPT={prompt}",
         "-e",
-        f"EXPERIMENT_WORKSPACE={workspace}",
+        f"EXPERIMENT_WORKSPACE={container_workspace}",
         "-v",
-        f"{result_dir.resolve()}:{workspace}",
+        f"{workdir.resolve()}:{container_workspace}",
         "--workdir",
-        workspace,
+        container_workspace,
         agent,
     ]
     started = datetime.now(UTC)
-    stdout_path = result_dir / "stdout.log"
-    stderr_path = result_dir / "stderr.log"
+    stdout_path = logs_dir / "stdout.log"
+    stderr_path = logs_dir / "stderr.log"
     try:
         with stdout_path.open("w") as stdout, stderr_path.open("w") as stderr:
             process = subprocess.Popen(command, text=True, stdout=stdout, stderr=stderr)
@@ -142,7 +152,7 @@ def run_agent(
                 process.kill()
                 process.wait()
                 stderr.write("\nInterrupted by user\n")
-                _write_metadata(result_dir, experiment_num, agent, started, 130)
+                _write_metadata(logs_dir, experiment_num, agent, started, 130)
                 print(f"[{agent}] interrupted exit_code=130", flush=True)
                 raise
     except FileNotFoundError as error:
@@ -150,8 +160,8 @@ def run_agent(
         stdout_path.write_text("")
         stderr_path.write_text(f"{error}\n")
 
-    metadata = _write_metadata(result_dir, experiment_num, agent, started, exit_code)
-    print(f"[{agent}] {metadata['status']} exit_code={exit_code}", flush=True)
+    metadata = _write_metadata(logs_dir, experiment_num, agent, started, exit_code)
+    print(f"[{agent}] {metadata['status']} exit_code={exit_code} duration={metadata['duration_seconds']:.1f}s", flush=True)
     return exit_code
 
 
@@ -201,7 +211,14 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         exit_codes = [
-            run_agent(agent, args.num, prompt, paths[agent], timeout_seconds)
+            run_agent(
+                agent,
+                args.num,
+                prompt,
+                paths[agent]["workdir"],
+                paths[agent]["logs"],
+                timeout_seconds,
+            )
             for agent in AGENTS
         ]
     except KeyboardInterrupt:

@@ -102,12 +102,15 @@ def run_command(
     timeout: int,
     verbose: bool,
     env_file: Path | None,
+    trace: bool = False,
+    save_artifacts: bool = False,
 ) -> int:
     """Execute the tinycua run command (always streaming).
 
-    The workspace is ``dir``; run artifacts (trace JSON, transcript, logs) are
-    written under ``<dir>/.tinycua-artifacts`` so they stay grouped with the
-    generated workspace files.
+    By default, only live streaming output and the final response are shown.
+    Use --trace to print the execution trace, task tree, and workspace summary.
+    Use --save-artifacts to write trace JSON, transcript, and logs to
+    ``<dir>/.tinycua-artifacts/``.
 
     Args:
         prompt: Task prompt for the agent.
@@ -120,6 +123,8 @@ def run_command(
         timeout: Maximum execution time in seconds.
         verbose: Whether to enable debug logging.
         env_file: Optional .env file to load before resolving config.
+        trace: Print execution trace, task tree, and workspace summary.
+        save_artifacts: Write trace JSON, transcript, and logs to disk.
 
     Returns:
         Exit code: 0 success, 1 error, 124 timeout.
@@ -139,35 +144,43 @@ def run_command(
     # that ``run_command`` is safe when called directly (e.g. scripts).
     workspace = Path(dir).expanduser().resolve()
     workspace.mkdir(parents=True, exist_ok=True)
-    artifact_dir = workspace / ".tinycua-artifacts"
-    artifact_dir.mkdir(parents=True, exist_ok=True)
 
-    # Ensure artifact directory is writable
-    _test_file = artifact_dir / ".write_test"
-    try:
-        _test_file.touch()
-        _test_file.unlink()
-    except OSError:
-        print(f"Artifact directory not writable: {artifact_dir}", flush=True)
-        return 1
+    artifact_dir: Path | None = None
+    log_path: Path | None = None
+    transcript_path: Path | None = None
 
-    log_path = artifact_dir / "agent.log"
-    transcript_path = artifact_dir / "transcript.jsonl"
+    if save_artifacts:
+        artifact_dir = workspace / ".tinycua-artifacts"
+        artifact_dir.mkdir(parents=True, exist_ok=True)
 
-    write_log_entry(log_path, "start", "info", {"prompt": prompt, "timeout": timeout})
+        # Ensure artifact directory is writable
+        _test_file = artifact_dir / ".write_test"
+        try:
+            _test_file.touch()
+            _test_file.unlink()
+        except OSError:
+            print(f"Artifact directory not writable: {artifact_dir}", flush=True)
+            return 1
+
+        log_path = artifact_dir / "agent.log"
+        transcript_path = artifact_dir / "transcript.jsonl"
+
+        write_log_entry(log_path, "start", "info", {"prompt": prompt, "timeout": timeout})
 
     try:
         config = load_config(provider_url, api_key, model, provider_type)
     except ValueError as e:
-        write_log_entry(log_path, "config", "error", {"error": str(e)})
+        if log_path:
+            write_log_entry(log_path, "config", "error", {"error": str(e)})
         print(f"Configuration error: {e}", flush=True)
         return 1
 
-    write_log_entry(log_path, "config", "info", {
-        "base_url": config["base_url"],
-        "model": config["model"],
-        "provider_type": config["provider_type"],
-    })
+    if log_path:
+        write_log_entry(log_path, "config", "info", {
+            "base_url": config["base_url"],
+            "model": config["model"],
+            "provider_type": config["provider_type"],
+        })
 
     try:
         agent = create_tinycua_agent(
@@ -179,7 +192,8 @@ def run_command(
             llm_model=build_language_model(config),
         )
     except Exception as e:
-        write_log_entry(log_path, "error", "error", {"error": str(e), "phase": "agent_creation"})
+        if log_path:
+            write_log_entry(log_path, "error", "error", {"error": str(e), "phase": "agent_creation"})
         print(f"Failed to create agent: {e}", flush=True)
         return 1
 
@@ -194,7 +208,8 @@ def run_command(
     timer.start()
 
     start_time = time.monotonic()
-    write_log_entry(log_path, "agent_run", "info", {"prompt": prompt})
+    if log_path:
+        write_log_entry(log_path, "agent_run", "info", {"prompt": prompt})
 
     try:
         # Streaming is always on: run_streaming renders node/tool activity live
@@ -203,49 +218,55 @@ def run_command(
         elapsed = time.monotonic() - start_time
 
         if timeout_event.is_set():
-            write_log_entry(log_path, "timeout", "warning", {"timeout": timeout, "elapsed": elapsed})
+            if log_path:
+                write_log_entry(log_path, "timeout", "warning", {"timeout": timeout, "elapsed": elapsed})
             print(f"Agent timed out after {timeout}s", flush=True)
             return 124
 
-        write_log_entry(log_path, "complete", "info", {
-            "elapsed": elapsed,
-            "result_length": len(result) if result else 0,
-        })
+        if log_path:
+            write_log_entry(log_path, "complete", "info", {
+                "elapsed": elapsed,
+                "result_length": len(result) if result else 0,
+            })
 
-        # Write transcript from working messages
+        # Write transcript and runtime exports only when --save-artifacts is set
         loop = agent.loop
-        working_messages = getattr(loop, "_working_messages", [])
-        usage_events = loop.get_usage_events()
 
-        # Primary transcript: OpenClaw-compatible format
-        openclaw_records = convert_working_messages_to_openclaw(
-            working_messages, usage_events,
-        )
-        write_openclaw_jsonl(openclaw_records, transcript_path)
+        if save_artifacts and artifact_dir is not None and transcript_path is not None and log_path is not None:
+            working_messages = getattr(loop, "_working_messages", [])
+            usage_events = loop.get_usage_events()
 
-        # Backward-compatible raw transcript
-        raw_transcript_path = artifact_dir / "transcript.raw.jsonl"
-        write_transcript(working_messages, raw_transcript_path)
+            # Primary transcript: OpenClaw-compatible format
+            openclaw_records = convert_working_messages_to_openclaw(
+                working_messages, usage_events,
+            )
+            write_openclaw_jsonl(openclaw_records, transcript_path)
 
-        # Usage summary
-        usage_path = artifact_dir / "usage.json"
-        write_usage_summary(usage_path, usage_events, elapsed)
+            # Backward-compatible raw transcript
+            raw_transcript_path = artifact_dir / "transcript.raw.jsonl"
+            write_transcript(working_messages, raw_transcript_path)
 
-        _write_runtime_exports(loop, artifact_dir)
+            # Usage summary
+            usage_path = artifact_dir / "usage.json"
+            write_usage_summary(usage_path, usage_events, elapsed)
+
+            _write_runtime_exports(loop, artifact_dir)
 
         print(f"Agent completed in {elapsed:.1f}s", flush=True)
         if result:
             print(result, flush=True)
-        print_live_summary(loop, workspace, artifact_dir, result)
+        print_live_summary(loop, workspace, artifact_dir, result, trace=trace)
 
         return 0
     except asyncio.CancelledError:
         elapsed = time.monotonic() - start_time
-        write_log_entry(log_path, "timeout", "warning", {"timeout": timeout, "elapsed": elapsed})
+        if log_path:
+            write_log_entry(log_path, "timeout", "warning", {"timeout": timeout, "elapsed": elapsed})
         return 124
     except Exception as e:
         elapsed = time.monotonic() - start_time
-        write_log_entry(log_path, "error", "error", {"error": str(e), "elapsed": elapsed})
+        if log_path:
+            write_log_entry(log_path, "error", "error", {"error": str(e), "elapsed": elapsed})
         print(f"Agent error: {e}", flush=True)
         return 1
     finally:
