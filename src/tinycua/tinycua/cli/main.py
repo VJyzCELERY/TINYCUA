@@ -115,6 +115,14 @@ def _add_run_arguments(parser: argparse.ArgumentParser) -> None:
         help="Print execution trace, task tree, and workspace summary after the run.",
     )
     parser.add_argument(
+        "--task-tree",
+        dest="task_tree",
+        action="store_true",
+        default=False,
+        help="Print the task tree (flat pre-order) after the run. Lighter than "
+        "--trace; use this when you only want the roadmap without the full trace.",
+    )
+    parser.add_argument(
         "--save-artifacts",
         action="store_true",
         default=False,
@@ -207,6 +215,7 @@ def main() -> None:
             verbose=args.verbose,
             env_file=args.env_file,
             trace=args.trace,
+            task_tree=args.task_tree,
             save_artifacts=args.save_artifacts,
         )
         raise SystemExit(exit_code)

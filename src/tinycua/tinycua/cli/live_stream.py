@@ -234,7 +234,7 @@ def write_artifacts(loop: Any, artifact_dir: Path) -> None:
     (artifact_dir / "transcript.txt").write_text(str(transcript_text), encoding="utf-8")
 
 
-def print_summary(loop: Any, workspace_dir: Path, artifact_dir: Path | None, result: str, *, trace: bool = False) -> None:
+def print_summary(loop: Any, workspace_dir: Path, artifact_dir: Path | None, result: str, *, trace: bool = False, task_tree: bool = False) -> None:
     """Print a concise session summary after a live run.
 
     Args:
@@ -243,33 +243,41 @@ def print_summary(loop: Any, workspace_dir: Path, artifact_dir: Path | None, res
         artifact_dir: Artifact directory (None if --save-artifacts not set).
         result: Final response text.
         trace: If True, print execution trace, task tree, and workspace summary.
+        task_tree: If True, print only the flat task tree section. Ignored when
+            trace is True (trace already includes the tree).
     """
-    if not trace:
+    if not trace and not task_tree:
         return
     state_snapshot = safe_loop_call(loop, "get_state_snapshot", default={})
-    trace_data = safe_loop_call(loop, "get_execution_trace", default=[])
-    print("\n=== TRACE ===", flush=True)
-    for index, step in enumerate(trace_data, start=1):
-        node_id = step.get("node_id") if isinstance(step, dict) else "unknown"
-        node_type = step.get("node_type") if isinstance(step, dict) else "unknown"
-        route = step.get("route_label") if isinstance(step, dict) else None
-        terminal = step.get("is_terminal") if isinstance(step, dict) else None
-        print(
-            f"[{index}] {node_id} ({node_type}) route={route} terminal={terminal}",
-            flush=True,
-        )
-        if isinstance(step, dict) and step.get("validation_errors"):
-            print(f"    validation_errors={len(step['validation_errors'])}", flush=True)
-        print(flush=True)
-    print("=== TASK TREE ===", flush=True)
-    if isinstance(state_snapshot, dict):
-        print(state_snapshot.get("task_tree_text", "No tasks."), flush=True)
-    print("\n=== WORKSPACE FILES ===", flush=True)
-    for path in visible_workspace_files(workspace_dir):
-        print(f"- {path}", flush=True)
-    if artifact_dir is not None:
-        print("\n=== ARTIFACTS ===", flush=True)
-        print(f"Full trace/transcript JSON saved under: {artifact_dir}", flush=True)
+    if trace:
+        trace_data = safe_loop_call(loop, "get_execution_trace", default=[])
+        print("\n=== TRACE ===", flush=True)
+        for index, step in enumerate(trace_data, start=1):
+            node_id = step.get("node_id") if isinstance(step, dict) else "unknown"
+            node_type = step.get("node_type") if isinstance(step, dict) else "unknown"
+            route = step.get("route_label") if isinstance(step, dict) else None
+            terminal = step.get("is_terminal") if isinstance(step, dict) else None
+            print(
+                f"[{index}] {node_id} ({node_type}) route={route} terminal={terminal}",
+                flush=True,
+            )
+            if isinstance(step, dict) and step.get("validation_errors"):
+                print(f"    validation_errors={len(step['validation_errors'])}", flush=True)
+            print(flush=True)
+    if trace:
+        print("=== FINAL RESPONSE ===", flush=True)
+        print(result or "", flush=True)
+    if trace or task_tree:
+        print("=== TASK TREE ===", flush=True)
+        if isinstance(state_snapshot, dict):
+            print(state_snapshot.get("task_tree_text", "No tasks."), flush=True)
+    if trace:
+        print("\n=== WORKSPACE FILES ===", flush=True)
+        for path in visible_workspace_files(workspace_dir):
+            print(f"- {path}", flush=True)
+        if artifact_dir is not None:
+            print("\n=== ARTIFACTS ===", flush=True)
+            print(f"Full trace/transcript JSON saved under: {artifact_dir}", flush=True)
 
 
 def truncate(value: str, limit: int) -> str:

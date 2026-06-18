@@ -257,6 +257,7 @@ class TestCLIRunExitCodes:
                     timeout=10,
                     verbose=False,
                     env_file=None,
+                    save_artifacts=True,
                 )
                 assert exit_code == 0
                 artifact_dir = tmp_path / ".tinycua-artifacts"

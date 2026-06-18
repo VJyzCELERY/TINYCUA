@@ -711,9 +711,11 @@ def test_prepare_node_merges_tool_contract_into_single_system_message() -> None:
     assert len(system_msgs) == 1
     assert messages[0]["role"] == "system"
     assert "You are the TaskExecutor" in messages[0]["content"]
-    assert "## Available actions" in messages[0]["content"]
-    assert "`write_file`" in messages[0]["content"]
-    assert "## Tool use" in messages[0]["content"]
+    # The SDK exposes tools natively (function schemas + tool_choice); the node
+    # must NOT re-list tools as prose or instruct the LLM how to call them.
+    assert "## Available actions" not in messages[0]["content"]
+    assert "## Tool use" not in messages[0]["content"]
+    assert "strict JSON" not in messages[0]["content"]
 
 
 def test_normalize_system_messages_merges_late_system_messages() -> None:

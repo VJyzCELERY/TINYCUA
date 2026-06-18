@@ -92,12 +92,12 @@ class RuntimeContractScript:
             return "task_analyzer"
         if "node_handoff" in tool_names:
             return "task_assessor"
+        if "task_review_decision" in tool_names:
+            return "result_reviewer"
         if "task_update" in tool_names and "task_decompose" not in tool_names:
             return "task_assessor"
         if "task_result_update" in tool_names:
             return "task_executor"
-        if "task_review_decision" in tool_names:
-            return "result_reviewer"
         if tool_names == {"task_inspect"}:
             return "result_aggregation"
         return "final"
@@ -218,16 +218,24 @@ class RuntimeContractScript:
                 for m in messages
             ):
                 return {"content": "Review recorded.", "tool_calls": []}
+            # Decide-then-inspect: record the decision and inspect the roadmap in
+            # the same response so the node can terminate.
             # First time seeing this task: approve
             if task_id not in self.reviewer_approved_tasks:
                 self.reviewer_approved_tasks.add(task_id)
                 return {
                     "content": "",
-                    "tool_calls": [{"function": {"name": "task_review_decision", "arguments": f'{{"decision":"approved","rationale":"Task {task_id} completed successfully","task_id":"{task_id}"}}'}}],
+                    "tool_calls": [
+                        {"function": {"name": "task_review_decision", "arguments": f'{{"decision":"approved","rationale":"Task {task_id} completed successfully","task_id":"{task_id}"}}'}},
+                        {"function": {"name": "task_inspect", "arguments": "{}"}},
+                    ],
                 }
             return {
                 "content": "",
-                "tool_calls": [{"function": {"name": "task_review_decision", "arguments": f'{{"decision":"approved","rationale":"Verified","task_id":"{task_id}"}}'}}],
+                "tool_calls": [
+                    {"function": {"name": "task_review_decision", "arguments": f'{{"decision":"approved","rationale":"Verified","task_id":"{task_id}"}}'}},
+                    {"function": {"name": "task_inspect", "arguments": "{}"}},
+                ],
             }
         if node == "result_aggregation":
             return {"content": "All tasks completed successfully.", "tool_calls": []}

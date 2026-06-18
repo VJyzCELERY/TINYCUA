@@ -99,9 +99,10 @@ _TASK_EXECUTOR_CONTINUATION = (
 _RESULT_REVIEWER_INSTRUCTION = (
     "You are the ResultReviewer — a quality gate. Your job has four phases:\n"
     "\n"
-    "Phase 1 — Verify: Read the executor's outcome report. Verify claims by\n"
-    "checking that claimed files exist and contain expected content. Run\n"
-    "tests if available. Treat duplicate scripts, misplaced files, missing\n"
+    "Phase 1 — Verify: Read the executor's outcome report (provided above).\n"
+    "Verify claims by checking that claimed files exist and contain expected\n"
+    "content. Run tests if available. You may call task_inspect to re-check\n"
+    "task state. Treat duplicate scripts, misplaced files, missing\n"
     "implementations, or unsupported claims as quality gate failures.\n"
     "\n"
     "Phase 2 — Check regressions: Inspect files that previous completed\n"
@@ -109,11 +110,12 @@ _RESULT_REVIEWER_INSTRUCTION = (
     "this task's changes. Run tests and check diffs to confirm nothing\n"
     "broke. A regression is any change that broke existing functionality\n"
     "— missing imports, changed interfaces, deleted files, or overwritten\n"
-    "content. If you find a regression, call task_review_decision with\n"
-    "decision=replan and describe the regression in the rationale so the\n"
-    "task analyzer can plan recovery subtasks.\n"
+    "content. If you find a regression, decide replan and describe the\n"
+    "regression in the rationale so the task analyzer can plan recovery\n"
+    "subtasks.\n"
     "\n"
-    "Phase 3 — Decide: Call task_review_decision with one of:\n"
+    "Phase 3 — Decide: Call task_review_decision FIRST to record your\n"
+    "decision, before any curation. Choose one of:\n"
     "- approved: the outcome is verified and no regressions found.\n"
     "- needs_revision: the outcome is partially correct but needs rework.\n"
     "- rejected: the outcome is fundamentally wrong.\n"
@@ -121,26 +123,27 @@ _RESULT_REVIEWER_INSTRUCTION = (
     "  functionality). Describe the regression in the rationale so the\n"
     "  task analyzer can plan recovery subtasks.\n"
     "\n"
-    "Phase 4 — Curate context (on approval): After approving, inspect\n"
-    "each unfinished task with task_inspect(task_id=...) to read its\n"
-    "description, then use task_update to add discoveries from this\n"
-    "completed task. For example, if this task created a file that the\n"
-    "next task should build on, update the next task's description to\n"
-    "reference it. Do NOT update completed tasks — they are immutable.\n"
-    "\n"
-    "You MUST call task_inspect before task_review_decision. Never approve\n"
-    "without verifying the outcome. Never rewrite completed tasks."
+    "Phase 4 — Curate context: In the SAME response as your decision, call\n"
+    "task_inspect to review the remaining unfinished tasks (required before\n"
+    "this node can finish). If a future task should build on this completed\n"
+    "work, use task_update to add that context (e.g. file paths,\n"
+    "discoveries) to the next task's description. Curating is suggested but\n"
+    "optional; the task_inspect call is required so the runtime knows you\n"
+    "reviewed remaining work. Do NOT update completed tasks — they are\n"
+    "immutable.\n"
 )
 _RESULT_REVIEWER_CONTINUATION = (
     "Based on the outcome report and roadmap above:\n"
-    "1. Inspect the completed task with task_inspect(task_id=...) to verify.\n"
-    "2. Verify claims by checking workspace files and running tests.\n"
-    "3. Check for regressions: confirm previous work still functions after\n"
+    "1. Verify the outcome report; check workspace files and run tests.\n"
+    "   You may call task_inspect to re-check state.\n"
+    "2. Check for regressions: confirm previous work still functions after\n"
     "   this task's changes. If something broke, decide replan.\n"
-    "4. Call task_review_decision with your decision.\n"
-    "5. If approved, inspect unfinished tasks with task_inspect(task_id=...)\n"
-    "   to read their descriptions, then use task_update to add relevant\n"
-    "   context from this completed work."
+    "3. Call task_review_decision with your decision — do this FIRST to\n"
+    "   update the task status.\n"
+    "4. In the SAME response, call task_inspect to review the remaining\n"
+    "   unfinished tasks (required before this node can finish).\n"
+    "5. (Suggested) If a future task should build on this work, use\n"
+    "   task_update to curate context for it. Do not update completed tasks.\n"
 )
 
 _RESULT_AGGREGATION_INSTRUCTION = (
@@ -254,10 +257,15 @@ def _task_context_snapshot(session: Session) -> dict:
 
 
 def _render_task_tree_markdown(snapshot: dict) -> str:
-    """Render task tree snapshot as readable markdown instead of raw dict.
+    """Render task tree snapshot as a numbered post-order list for the LLM.
 
-    Converts the dense nested dict into a structured markdown format that
-    saves tokens and is easier for the model to parse.
+    Execution starts at the DFS left-most leaf and works up/right
+    (``next_unfinished_leaf``), so the roadmap is printed in execution order:
+    line 1 is the first task worked on, the root (the final goal) is printed
+    last in the header. The list is numbered 1..N (root excluded) and the
+    numbers match ``TaskStateStore.task_number_map`` so the agent can refer to
+    a task by its number instead of a hallucination-prone UUID. Distinct from
+    the user-facing ``render_task_tree`` (which uses ``Task [status] title``).
     """
     tasks = snapshot.get("tasks", {})
     root_id = snapshot.get("root_task_id", "")
@@ -266,30 +274,37 @@ def _render_task_tree_markdown(snapshot: dict) -> str:
     lines: list[str] = []
     if root_id:
         root = tasks.get(root_id, {})
-        lines.append(f"Root: {root.get('title', root_id)} (id={root_id})")
-    if active_id:
+        # Root is the goal, not a work item — no status marker on it.
+        lines.append(f"Root (goal): {root.get('title', root_id)} (id={root_id})")
+    if active_id and active_id != root_id:
         active = tasks.get(active_id, {})
         lines.append(f"Active: {active.get('title', active_id)} (id={active_id})")
-    lines.append("Task list:")
+    lines.append("Task list (in execution order, numbered):")
     lines.append("")
 
-    def _render_task(task_id: str, depth: int = 0) -> None:
+    counter = 0
+
+    def _render_task(task_id: str) -> None:
+        nonlocal counter
         task = tasks.get(task_id, {})
         if not task:
             return
-        indent = "  " * depth
+        # Post-order: children first (left-most leaf becomes line 1).
+        for child_id in task.get("children", []):
+            _render_task(child_id)
+        if task_id == root_id:
+            return  # root is the goal header, not a numbered work item
+        counter += 1
         status = task.get("status", "pending")
         title = task.get("title", task_id)
         marker = " ✓" if status == "completed" else ""
-        lines.append(f"{indent}- [{status}] {title} (id={task_id}){marker}")
+        lines.append(f"{counter}. [{status}] {title} (id={task_id}){marker}")
         result = task.get("result")
         if isinstance(result, dict) and result.get("summary"):
             summary = str(result["summary"])[:120]
-            lines.append(f"{indent}  Result: {summary}")
-        for child_id in task.get("children", []):
-            _render_task(child_id, depth + 1)
+            lines.append(f"   Result: {summary}")
 
-    # Render from root
+    # Post-order traversal from root; root itself is not emitted as a list row.
     if root_id:
         _render_task(root_id)
 

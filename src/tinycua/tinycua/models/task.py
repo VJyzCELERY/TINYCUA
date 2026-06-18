@@ -94,6 +94,12 @@ class TaskStateStore:
     root_task_id: str | None = None
     active_task_id: str | None = None
     transition_log: list[dict[str, Any]] = field(default_factory=list)
+    # ponytail: cached post-order task id list (root excluded) for O(1)
+    # number lookup. None = stale; rebuilt lazily on next access. Invalidated
+    # only on structural change (create_task) — status transitions don't
+    # reorder the tree. Upgrade path: per-subtree incremental rebuild if huge
+    # trees with frequent decomposition ever make the full rebuild costly.
+    _ordered_task_ids: list[str] | None = field(default=None, repr=False)
 
     _ALLOWED_TRANSITIONS: ClassVar[dict[TaskStatus, set[TaskStatus]]] = {
         TaskStatus.PENDING: {TaskStatus.IN_PROGRESS, TaskStatus.BLOCKED},
@@ -125,6 +131,7 @@ class TaskStateStore:
             self.tasks[parent_id].children.append(task.task_id)
         if self.root_task_id is None:
             self.root_task_id = task.task_id
+        self._ordered_task_ids = None  # structural change: invalidate cache
         self._refresh_active_task()
         return task
 
@@ -159,6 +166,63 @@ class TaskStateStore:
         if self.active_task_id is None:
             return None
         return self.tasks[self.active_task_id]
+
+    def _ordered_ids(self) -> list[str]:
+        """Return the cached post-order task id list (root excluded), 1-based.
+
+        Built once per structural change (create_task invalidates the cache)
+        and reused across lookups/render. Post-order DFS so index 1 is the
+        left-most leaf (first executed); root is excluded (it is the goal).
+        """
+        if self._ordered_task_ids is not None:
+            return self._ordered_task_ids
+        ordered: list[str] = []
+        if self.root_task_id is not None and self.root_task_id in self.tasks:
+
+            def visit(task_id: str) -> None:
+                task = self.tasks[task_id]
+                for child_id in task.children:
+                    if child_id in self.tasks:
+                        visit(child_id)
+                if task_id != self.root_task_id:
+                    ordered.append(task_id)
+
+            visit(self.root_task_id)
+        self._ordered_task_ids = ordered
+        return ordered
+
+    def task_number_map(self) -> dict[int, str]:
+        """Return a 1-based number -> task_id map in execution order.
+
+        Post-order DFS over the tree, root excluded: the first entry is the
+        left-most leaf (the first task executed), the last is the right-most
+        node. This numbering matches the rendered roadmap so an agent can refer
+        to a task by its number instead of a hallucination-prone UUID.
+        """
+        ordered = self._ordered_ids()
+        return {index: task_id for index, task_id in enumerate(ordered, start=1)}
+
+    def resolve_task_id(self, task_id: str | None) -> str | None:
+        """Resolve a task reference to a concrete task_id.
+
+        Accepts either a task UUID (existing behaviour) or a task number string
+        matching the rendered roadmap's 1-based post-order numbering. Returns
+        the active task id when ``task_id`` is None/empty. Returns None if the
+        reference does not resolve.
+        """
+        if not task_id:
+            return self.active_task_id
+        if task_id in self.tasks:
+            return task_id
+        # Try numeric reference (1-based post-order index, root excluded).
+        try:
+            number = int(task_id)
+        except (TypeError, ValueError):
+            return None
+        ordered = self._ordered_ids()
+        if 1 <= number <= len(ordered):
+            return ordered[number - 1]
+        return None
 
     def transition(self, task_id: str, status: TaskStatus | str) -> Task:
         """Transition a task after validating its lifecycle edge."""

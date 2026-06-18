@@ -103,12 +103,14 @@ def run_command(
     verbose: bool,
     env_file: Path | None,
     trace: bool = False,
+    task_tree: bool = False,
     save_artifacts: bool = False,
 ) -> int:
     """Execute the tinycua run command (always streaming).
 
     By default, only live streaming output and the final response are shown.
     Use --trace to print the execution trace, task tree, and workspace summary.
+    Use --task-tree to print only the flat task tree (lighter than --trace).
     Use --save-artifacts to write trace JSON, transcript, and logs to
     ``<dir>/.tinycua-artifacts/``.
 
@@ -124,6 +126,7 @@ def run_command(
         verbose: Whether to enable debug logging.
         env_file: Optional .env file to load before resolving config.
         trace: Print execution trace, task tree, and workspace summary.
+        task_tree: Print only the flat task tree after the run.
         save_artifacts: Write trace JSON, transcript, and logs to disk.
 
     Returns:
@@ -253,9 +256,12 @@ def run_command(
             _write_runtime_exports(loop, artifact_dir)
 
         print(f"Agent completed in {elapsed:.1f}s", flush=True)
-        if result:
+        # In trace mode the final response is printed under the
+        # === FINAL RESPONSE === header by print_summary; otherwise print it
+        # bare as the default user-facing output.
+        if result and not trace:
             print(result, flush=True)
-        print_live_summary(loop, workspace, artifact_dir, result, trace=trace)
+        print_live_summary(loop, workspace, artifact_dir, result, trace=trace, task_tree=task_tree)
 
         return 0
     except asyncio.CancelledError:

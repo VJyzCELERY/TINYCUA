@@ -27,6 +27,26 @@ class SessionTaskToolMixin:
         """Bind this tool instance to the active session's task store."""
         self._store = store
 
+    def _resolve_task_ref(
+        self, task_id: str | None
+    ) -> tuple[str | None, dict[str, Any] | None]:
+        """Resolve a task_id (UUID or number) to a concrete task_id.
+
+        Returns ``(resolved_id, None)`` on success, or ``(None, error_dict)``
+        when the reference is unresolvable. Distinguishes a bad explicit
+        reference (echoes it in the error) from an omitted one with no active
+        task.
+        """
+        if task_id:
+            resolved = self._store.resolve_task_id(task_id)
+            if resolved is None:
+                return None, {"success": False, "error": f"Task {task_id} not found."}
+            return resolved, None
+        active = self._store.active_task_id
+        if active is None:
+            return None, {"success": False, "error": "No active task"}
+        return active, None
+
 
 class TaskInitTool(SessionTaskToolMixin, Tool):
     """Tool for initializing a new task tree."""
@@ -122,7 +142,8 @@ class TaskInspectTool(SessionTaskToolMixin, Tool):
             description=(
                 "Inspect task state. Without task_id, returns the full tree "
                 "snapshot. With task_id, returns details for that specific task "
-                "including its description, status, and result."
+                "including its description, status, and result. task_id may be a "
+                "UUID or the task's 1-based number from the rendered roadmap."
             ),
             parameters={
                 "type": "object",
@@ -142,10 +163,10 @@ class TaskInspectTool(SessionTaskToolMixin, Tool):
     def __call__(self, *, task_id: str | None = None) -> dict[str, Any]:
         """Return task details for a specific task, or the full tree snapshot."""
         if task_id is not None:
-            task = self._store.tasks.get(task_id)
-            if task is None:
+            resolved = self._store.resolve_task_id(task_id)
+            if resolved is None or resolved not in self._store.tasks:
                 return {"error": f"Task {task_id} not found."}
-            return self._store._json_safe(asdict(task))
+            return self._store._json_safe(asdict(self._store.tasks[resolved]))
         return self._store.snapshot()
 
 
@@ -165,7 +186,8 @@ class TaskUpdateTool(SessionTaskToolMixin, Tool):
                 "Update an existing task's description, status, or metadata. "
                 "Use this to add context notes, mark planning state, or curate "
                 "unfinished task descriptions with discoveries from completed work. "
-                "Completed tasks cannot be updated — they are immutable history."
+                "Completed tasks cannot be updated — they are immutable history. "
+                "task_id may be a UUID or the task's 1-based number from the roadmap."
             ),
             parameters={
                 "type": "object",
@@ -206,9 +228,9 @@ class TaskUpdateTool(SessionTaskToolMixin, Tool):
         **metadata: str,
     ) -> dict[str, Any]:
         """Update task description, status, and metadata."""
-        active_id = task_id or self._store.active_task_id
-        if active_id is None:
-            return {"success": False, "error": "No active task"}
+        active_id, error = self._resolve_task_ref(task_id)
+        if error is not None:
+            return error
         try:
             task = self._store.get_task(active_id)
         except ValueError as exc:
@@ -251,7 +273,8 @@ class TaskDecomposeTool(SessionTaskToolMixin, Tool):
             description=(
                 "Decompose an existing task into concrete sequential subtasks. "
                 "Choose subtasks from the request and current task state; do not "
-                "use a fixed template."
+                "use a fixed template. task_id may be a UUID or the task's 1-based "
+                "number from the roadmap."
             ),
             parameters={
                 "type": "object",
@@ -274,8 +297,11 @@ class TaskDecomposeTool(SessionTaskToolMixin, Tool):
         roadmap size; the runtime must not truncate, collapse, or rewrite it.
         Completed tasks cannot be decomposed — they are immutable history.
         """
+        resolved = self._store.resolve_task_id(task_id)
+        if resolved is None:
+            return {"success": False, "error": f"Task {task_id} not found."}
         try:
-            task = self._store.get_task(task_id)
+            task = self._store.get_task(resolved)
         except ValueError as exc:
             return {"success": False, "error": str(exc)}
         if task.status == TaskStatus.COMPLETED:
@@ -287,10 +313,10 @@ class TaskDecomposeTool(SessionTaskToolMixin, Tool):
                 ),
             }
         try:
-            child_ids = self._store.decompose_task(task_id, subtasks)
+            child_ids = self._store.decompose_task(resolved, subtasks)
         except ValueError as exc:
             return {"success": False, "error": str(exc)}
-        return {"success": True, "task_id": task_id, "child_task_ids": child_ids}
+        return {"success": True, "task_id": resolved, "child_task_ids": child_ids}
 
 
 class TaskExecuteTool(SessionTaskToolMixin, Tool):
@@ -301,7 +327,8 @@ class TaskExecuteTool(SessionTaskToolMixin, Tool):
         Tool.__init__(
             self,
             name="task_execute",
-            description="Mark the active or specified task as actively executing.",
+            description="Mark the active or specified task as actively executing. "
+            "task_id may be a UUID or the task's 1-based number from the roadmap.",
             parameters={
                 "type": "object",
                 "properties": {"task_id": {"type": "string"}},
@@ -311,9 +338,9 @@ class TaskExecuteTool(SessionTaskToolMixin, Tool):
 
     def __call__(self, task_id: str | None = None) -> dict[str, Any]:
         """Mark a task as in progress for execution dispatch."""
-        active_id = task_id or self._store.active_task_id
-        if active_id is None:
-            return {"success": False, "error": "No active task"}
+        active_id, error = self._resolve_task_ref(task_id)
+        if error is not None:
+            return error
         try:
             task = self._store.transition(active_id, TaskStatus.IN_PROGRESS)
         except ValueError as exc:
@@ -342,7 +369,8 @@ class TaskResultUpdateTool(SessionTaskToolMixin, Tool):
                 "and whether the task succeeded or failed. This report is "
                 "the primary evidence the ResultReviewer will verify. "
                 "Always call this tool before finishing — never leave a "
-                "task without a result report."
+                "task without a result report. task_id may be a UUID or the "
+                "task's 1-based number from the roadmap."
             ),
             parameters={
                 "type": "object",
@@ -369,9 +397,9 @@ class TaskResultUpdateTool(SessionTaskToolMixin, Tool):
         success: bool = True,
     ) -> dict[str, Any]:
         """Persist a task execution result report."""
-        active_id = task_id or self._store.active_task_id
-        if active_id is None:
-            return {"success": False, "error": "No active task"}
+        active_id, error = self._resolve_task_ref(task_id)
+        if error is not None:
+            return error
         try:
             task = self._store.record_result(
                 active_id,
@@ -392,7 +420,8 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
             name="task_review_decision",
             description=(
                 "Record the review decision for a task result: approved, "
-                "needs_revision, rejected, or replan."
+                "needs_revision, rejected, or replan. task_id may be a UUID or "
+                "the task's 1-based number from the roadmap."
             ),
             parameters={
                 "type": "object",
@@ -421,12 +450,18 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
         rationale: str = "",
     ) -> dict[str, Any]:
         """Persist a reviewer decision for the active or specified task."""
-        active_id = task_id or self._store.active_task_id
-        if active_id is None:
-            for task in reversed(list(self._store.tasks.values())):
-                if task.result is not None and not task.reviewer_decisions:
-                    active_id = task.task_id
-                    break
+        active_id: str | None
+        if task_id:
+            active_id = self._store.resolve_task_id(task_id)
+            if active_id is None:
+                return {"success": False, "error": f"Task {task_id} not found."}
+        else:
+            active_id = self._store.active_task_id
+            if active_id is None:
+                for task in reversed(list(self._store.tasks.values())):
+                    if task.result is not None and not task.reviewer_decisions:
+                        active_id = task.task_id
+                        break
         if active_id is None:
             return {"success": False, "error": "No active task"}
         try:

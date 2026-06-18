@@ -254,6 +254,8 @@ class _RouteMatrixScript:
                 for m in messages
             ):
                 return {"content": "Review recorded.", "tool_calls": []}
+            # Decide-then-inspect: record the decision and inspect the roadmap in
+            # the same response so the node can terminate.
             return {
                 "content": "",
                 "tool_calls": [
@@ -262,7 +264,13 @@ class _RouteMatrixScript:
                             "name": "task_review_decision",
                             "arguments": f'{{"decision":"approved","task_id":"{task_id}"}}',
                         }
-                    }
+                    },
+                    {
+                        "function": {
+                            "name": "task_inspect",
+                            "arguments": "{}",
+                        }
+                    },
                 ],
             }
         if node == "result_aggregation":

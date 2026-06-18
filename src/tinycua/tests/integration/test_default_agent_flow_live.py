@@ -34,24 +34,44 @@ def _require_live_llm() -> None:
     if os.environ.get("TINYCUA_LIVE_LLM") != "1":
         pytest.skip("Set TINYCUA_LIVE_LLM=1 to run live LLM contract tests")
 
+    # The local server/model can change with availability, so we only assert
+    # that the required vars are present and that the TinyCUA CLI aliases agree
+    # with the provider-specific ones. We do NOT pin a specific model name.
     required = {
-        "OPENAI_CHAT_COMPLETIONS_BASE_URL": "http://localhost:1234/v1",
-        "OPENAI_CHAT_COMPLETIONS_MODEL": "qwen/qwen3.5-4b",
-        "OPENAI_CHAT_COMPLETIONS_API_KEY": "tinycua-local-test",
-        "TINYCUA_BASE_URL": "http://localhost:1234/v1",
-        "TINYCUA_MODEL": "qwen/qwen3.5-4b",
-        "TINYCUA_API_KEY": "tinycua-local-test",
+        "OPENAI_CHAT_COMPLETIONS_BASE_URL",
+        "OPENAI_CHAT_COMPLETIONS_MODEL",
+        "OPENAI_CHAT_COMPLETIONS_API_KEY",
+        "TINYCUA_BASE_URL",
+        "TINYCUA_MODEL",
+        "TINYCUA_API_KEY",
     }
     missing = [name for name in required if not os.environ.get(name)]
     if missing:
         pytest.fail(f"Missing live LLM environment variables: {', '.join(missing)}")
     mismatched = {
-        name: os.environ.get(name)
-        for name, expected in required.items()
-        if os.environ.get(name) != expected
+        "TINYCUA_BASE_URL": (
+            os.environ.get("TINYCUA_BASE_URL"),
+            os.environ.get("OPENAI_CHAT_COMPLETIONS_BASE_URL"),
+        ),
+        "TINYCUA_MODEL": (
+            os.environ.get("TINYCUA_MODEL"),
+            os.environ.get("OPENAI_CHAT_COMPLETIONS_MODEL"),
+        ),
+        "TINYCUA_API_KEY": (
+            os.environ.get("TINYCUA_API_KEY"),
+            os.environ.get("OPENAI_CHAT_COMPLETIONS_API_KEY"),
+        ),
     }
-    if mismatched:
-        pytest.fail(f"Live LLM environment variables must match local contract: {mismatched}")
+    inconsistent = {
+        name: (got, expected)
+        for name, (got, expected) in mismatched.items()
+        if got != expected
+    }
+    if inconsistent:
+        pytest.fail(
+            "TinyCUA CLI aliases must match the provider-specific env vars: "
+            f"{inconsistent}"
+        )
 
 
 def _live_llm_model() -> LanguageModel:

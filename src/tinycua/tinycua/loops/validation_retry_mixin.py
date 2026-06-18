@@ -299,23 +299,6 @@ class ValidationRetryMixin:
             f"I need to correct this response before continuing: {error!s}"
         )
 
-    def _structured_tool_retry_message(
-        self,
-        error: ValidationError,
-        node: Node,
-        resolved_tools: list[Tool],
-    ) -> str:
-        """Build a JSON-protocol retry instruction without prose framing."""
-        protocol_tools = self._structured_tool_protocol_tools(node, resolved_tools)
-        return (
-            f"I need to use the available tool correctly before continuing: {error!s}. "
-            "My next "
-            "response must be ONLY strict JSON matching the tool-call protocol: "
-            '{"tool_calls":[{"name":"tool_name","arguments":{}}]}. '
-            "Choose one or more valid tools and arguments from these available "
-            f"tools: {', '.join(tool.name for tool in protocol_tools)}."
-        )
-
     def _record_retry_continuation(
         self,
         node: Node,
@@ -350,7 +333,7 @@ class ValidationRetryMixin:
             self._validate_tool_owned_task_state(node, llm_result),
             self._validate_result_reviewer_failed_approval(node, llm_result),
             self._validate_result_reviewer_result_exists(node, llm_result),
-            self._validate_result_reviewer_must_inspect(node, llm_result),
+            self._validate_result_reviewer_inspects_after_decision(node, llm_result),
             self._validate_final_response_content(node, llm_result),
         ):
             if not extra_validation.is_valid:
@@ -433,12 +416,22 @@ class ValidationRetryMixin:
         )
         return validation
 
-    def _validate_result_reviewer_must_inspect(
+    def _validate_result_reviewer_inspects_after_decision(
         self,
         node: Node,
         llm_result: LLMResult,
     ) -> ValidationResult:
-        """Require task_inspect before reviewer makes a decision."""
+        """Require task_inspect alongside a review decision (decide-then-inspect).
+
+        The reviewer records its decision first via task_review_decision, then
+        MUST call task_inspect in the same response to review the remaining
+        roadmap before the node can terminate — this is the cue to curate
+        context for upcoming tasks. The decision itself is never rolled back
+        for a missing inspect: the approval/decision sticks and the retry only
+        needs to add the inspect call. Replacing the old must-inspect-BEFORE-
+        decision rule, which rolled back approvals and trapped the executor in
+        an infinite re-run of the same task.
+        """
         validation = ValidationResult(is_valid=True, errors=[])
         if node.node_id != "result_reviewer":
             return validation
@@ -446,7 +439,15 @@ class ValidationRetryMixin:
             item for item in llm_result.metadata.get("tool_results", [])
             if isinstance(item, dict)
         ]
-        # Check that task_inspect was called
+        has_decision = any(
+            item.get("name") == "task_review_decision"
+            and isinstance(item.get("output"), dict)
+            for item in tool_results
+        )
+        if not has_decision:
+            # No decision in this batch — _validate_tool_owned_task_state
+            # owns the "must call task_review_decision" requirement.
+            return validation
         has_inspect = any(
             item.get("name") == "task_inspect"
             and isinstance(item.get("output"), dict)
@@ -454,25 +455,14 @@ class ValidationRetryMixin:
         )
         if has_inspect:
             return validation
-        # No task_inspect — reject unless the reviewer decided not to approve
-        decision_result = None
-        for item in reversed(tool_results):
-            if item.get("name") == "task_review_decision":
-                output = item.get("output")
-                if isinstance(output, dict):
-                    decision_result = output
-                    break
-        if decision_result and decision_result.get("decision") != "approved":
-            # Non-approval decisions without inspect are acceptable
-            # (e.g., needs_revision, rejected, replan based on obvious failure)
-            return validation
-        self._rollback_invalid_reviewer_approval(
-            decision_result.get("task_id", "") if decision_result else ""
-        )
+        # Decision recorded but no inspect — retry to add it. No rollback:
+        # the decision (including approval) stays so the active task advances.
         validation.is_valid = False
         validation.errors.append(
-            "ResultReviewer must call task_inspect to review task state "
-            "before making a decision. Inspect the roadmap first."
+            "ResultReviewer must call task_inspect after task_review_decision "
+            "to review remaining unfinished tasks before curating context for "
+            "them. The decision is recorded; now inspect the roadmap in the "
+            "same response."
         )
         return validation
 

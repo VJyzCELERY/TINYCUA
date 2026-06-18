@@ -262,56 +262,17 @@ class Node(ABC):
         return "\n".join(parts)
 
     def build_tool_system_prompt(self, resolved_tools: list[Any] | None = None) -> str:
-        """Build node-level tool instructions for the single system prompt."""
-        if not resolved_tools:
-            return ""
+        """Build node-level tool instructions for the single system prompt.
 
-        lines = [
-            "## Available actions",
-            "You can use these tools to do real work. Pick the tool that matches "
-            "the current task; do not claim work is done until a tool result "
-            "supports it.",
-        ]
-        for tool in resolved_tools:
-            name = str(getattr(tool, "name", "")).strip()
-            if not name:
-                continue
-            description = str(getattr(tool, "description", "")).strip() or name
-            lines.append(f"- `{name}`: {description}")
-            args = self._render_tool_args(getattr(tool, "parameters", {}))
-            if args:
-                lines.append(f"  Args: {args}")
-        lines.extend(
-            [
-                "",
-                "## Tool use",
-                "Use native tool calling when available. If native tool calling "
-                "is unavailable, respond only with strict JSON in this shape: "
-                '{"tool_calls":[{"name":"tool_name","arguments":{}}]}.'
-            ]
-        )
-        return "\n".join(lines)
-
-    @staticmethod
-    def _render_tool_args(parameters: Any) -> str:
-        """Render a compact human-readable argument list from a tool schema."""
-        if not isinstance(parameters, dict):
-            return ""
-        properties = parameters.get("properties")
-        if not isinstance(properties, dict) or not properties:
-            return ""
-        required = set(parameters.get("required", []))
-        rendered: list[str] = []
-        for name, schema in properties.items():
-            if not isinstance(schema, dict):
-                rendered.append(f"`{name}`")
-                continue
-            kind = str(schema.get("type", "value"))
-            marker = ", required" if name in required else ""
-            description = str(schema.get("description", "")).strip()
-            suffix = f": {description}" if description else ""
-            rendered.append(f"`{name}` ({kind}{marker}){suffix}")
-        return "; ".join(rendered)
+        The SDK already sends native function schemas to the provider
+        (``tools=...``, ``tool_choice="auto"``) and the ToolExecutor runs the
+        returned tool calls, so the prompt must NOT re-list tools as prose or
+        instruct the LLM how to call them — that's the SDK/provider's job and
+        only duplicates the native schemas (and invites hallucinated JSON
+        protocol). Returns empty; node instructions own the "use tools" guard.
+        """
+        del resolved_tools  # SDK exposes tools natively; no prose needed.
+        return ""
 
     def build_system_message(
         self,

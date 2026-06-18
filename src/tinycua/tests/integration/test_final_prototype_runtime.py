@@ -109,6 +109,48 @@ class ScriptedAgentResponses:
                     }
                 ],
             }
+        if "task_review_decision" in tool_names:
+            if "list_files" in tool_names and not any(
+                message.get("role") == "tool"
+                and "list_files" in str(message.get("content", ""))
+                for message in messages
+            ):
+                return {
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": "list_files",
+                                "arguments": "{}",
+                            }
+                        }
+                    ],
+                }
+            if any(
+                message.get("role") == "tool"
+                and "task_review_decision" in str(message.get("content", ""))
+                for message in messages
+            ):
+                return {"content": "approved", "tool_calls": []}
+            # Decide-then-inspect: record the decision and inspect the roadmap in
+            # the same response so the node can terminate.
+            return {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "task_review_decision",
+                            "arguments": '{"decision":"approved","rationale":"Execution result is present."}',
+                        }
+                    },
+                    {
+                        "function": {
+                            "name": "task_inspect",
+                            "arguments": "{}",
+                        }
+                    },
+                ],
+            }
         if "task_update" in tool_names:
             task_id = self._task_id(messages)
             if any(
@@ -165,40 +207,6 @@ class ScriptedAgentResponses:
                         "function": {
                             "name": "task_result_update",
                             "arguments": '{"content":"Executed migration steps deterministically.","success":true}',
-                        }
-                    }
-                ],
-            }
-        if "task_review_decision" in tool_names:
-            if "list_files" in tool_names and not any(
-                message.get("role") == "tool"
-                and "list_files" in str(message.get("content", ""))
-                for message in messages
-            ):
-                return {
-                    "content": "",
-                    "tool_calls": [
-                        {
-                            "function": {
-                                "name": "list_files",
-                                "arguments": "{}",
-                            }
-                        }
-                    ],
-                }
-            if any(
-                message.get("role") == "tool"
-                and "task_review_decision" in str(message.get("content", ""))
-                for message in messages
-            ):
-                return {"content": "approved", "tool_calls": []}
-            return {
-                "content": "",
-                "tool_calls": [
-                    {
-                        "function": {
-                            "name": "task_review_decision",
-                            "arguments": '{"decision":"approved","rationale":"Execution result is present."}',
                         }
                     }
                 ],

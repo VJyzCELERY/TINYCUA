@@ -265,7 +265,10 @@ def test_cli_run_summary_emits_trace_task_tree_workspace_artifacts(
 
     buffer = io.StringIO()
     with redirect_stdout(buffer):
-        print_summary(mock_loop, workspace, artifact_dir, "Final response to the user.")
+        print_summary(
+            mock_loop, workspace, artifact_dir, "Final response to the user.",
+            trace=True,
+        )
 
     output = buffer.getvalue()
     for section in _REQUIRED_SECTIONS:

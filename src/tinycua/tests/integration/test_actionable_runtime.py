@@ -138,6 +138,45 @@ class AppCreationScript:
                     }
                 ],
             }
+        if "task_review_decision" in tool_names:
+            if not any(
+                message.get("role") == "tool"
+                and (
+                    "read_file" in str(message.get("content", ""))
+                    or "list_files" in str(message.get("content", ""))
+                )
+                for message in messages
+            ):
+                return {
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": "list_files",
+                                "arguments": "{}",
+                            }
+                        }
+                    ],
+                }
+            # Decide-then-inspect protocol: record the decision and inspect the
+            # remaining roadmap in the same response so the node can terminate.
+            return {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "task_review_decision",
+                            "arguments": '{"decision":"approved","rationale":"Tool evidence verifies the task."}',
+                        }
+                    },
+                    {
+                        "function": {
+                            "name": "task_inspect",
+                            "arguments": "{}",
+                        }
+                    },
+                ],
+            }
         if "task_update" in tool_names:
             task_id = self._task_id(messages)
             if any(
@@ -208,43 +247,6 @@ class AppCreationScript:
                             "arguments": '{"command":"python app.py","timeout":5}',
                         },
                     },
-                ],
-            }
-        if "task_review_decision" in tool_names:
-            if not any(
-                message.get("role") == "tool"
-                and (
-                    "read_file" in str(message.get("content", ""))
-                    or "list_files" in str(message.get("content", ""))
-                )
-                for message in messages
-            ):
-                return {
-                    "content": "",
-                    "tool_calls": [
-                        {
-                            "function": {
-                                "name": "list_files",
-                                "arguments": "{}",
-                            }
-                        }
-                    ],
-                }
-            if any(
-                message.get("role") == "tool"
-                and "task_review_decision" in str(message.get("content", ""))
-                for message in messages
-            ):
-                return {"content": "approved", "tool_calls": []}
-            return {
-                "content": "",
-                "tool_calls": [
-                    {
-                        "function": {
-                            "name": "task_review_decision",
-                            "arguments": '{"decision":"approved","rationale":"Tool evidence verifies the task."}',
-                        }
-                    }
                 ],
             }
         return {"content": "final app creation summary", "tool_calls": []}

@@ -53,8 +53,14 @@ async def test_streaming_emits_node_prefixed_transcript_events() -> None:
     assert "[Response] Hello world" in loop.get_transcript_text()
 
 
-def test_task_tree_renderer_shows_nested_hierarchy() -> None:
-    """Task trees should have a readable text hierarchy for notebook/CLI users."""
+def test_task_tree_renderer_shows_execution_order_numbered() -> None:
+    """Task trees render as a numbered post-order list in execution order.
+
+    Execution starts at the DFS left-most leaf (``next_unfinished_leaf``), so
+    line 1 of the list is the first task worked on; the root is the goal
+    header (no status marker), not a numbered work item. Numbering matches
+    ``TaskStateStore.task_number_map`` so the agent can select by number.
+    """
     store = TaskStateStore()
     root = store.create_task("Build note app")
     backend = store.create_task("Create backend", parent_id=root.task_id)
@@ -64,10 +70,16 @@ def test_task_tree_renderer_shows_nested_hierarchy() -> None:
 
     rendered = TinyCUALoop().render_task_tree(store)
 
-    assert "Task [in_progress] Build note app" in rendered
-    assert "|- Task [pending] Create backend" in rendered
-    assert "|  |- Task [pending] Write API" in rendered
-    assert "|- Task [pending] Create frontend" in rendered
+    # Root is the goal header, no status marker on it.
+    assert "Root (goal): Build note app" in rendered
+    # Post-order: Write API (left-most leaf) first, root last in the list.
+    assert rendered.index("Write API") < rendered.index("Create backend")
+    assert rendered.index("Create backend") < rendered.index("Create frontend")
+    assert "Build note app" not in rendered.split("Task list")[1]  # root not in list
+    # Numbered rows.
+    assert "1. Task [pending] Write API" in rendered
+    assert "2. Task [pending] Create backend" in rendered
+    assert "3. Task [pending] Create frontend" in rendered
 
 
 def test_llm_messages_dedupe_original_query_for_digester() -> None:
