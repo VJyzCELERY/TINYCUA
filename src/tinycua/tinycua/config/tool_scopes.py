@@ -28,6 +28,11 @@ from tinycua.tools.task_tools import (
 )
 from tinycua.tools.todo_tools import TodoReadTool, TodoWriteTool
 
+# Agent tool names grouped by access level.  Nodes that only need
+# read-only verification (e.g. ResultReviewer) use READONLY_AGENT_TOOLS
+# so they can inspect the workspace and run tests without mutating files.
+READONLY_AGENT_TOOLS: list[str] = ["read_file", "list_files", "run_shell_readonly"]
+
 
 def query_analyst_tool_scope() -> NodeToolPolicy:
     """Classification + read-only task/context inspection tools.
@@ -169,13 +174,16 @@ def result_reviewer_tool_scope() -> NodeToolPolicy:
     to review task state, and can update unfinished task descriptions with
     relevant discoveries before proceeding.
 
+    Includes run_shell_readonly for running tests and verification commands
+    without risk of accidental filesystem mutation.
+
     Returns:
         NodeToolPolicy for ResultReviewerNode.
     """
     return NodeToolPolicy(
         node_tools=[TaskReviewDecisionTool(), TaskInspectTool(), TaskUpdateTool()],
         include_agent_tools="selected",
-        allowed_agent_tool_names=["read_file", "list_files"],
+        allowed_agent_tool_names=READONLY_AGENT_TOOLS,
     )
 
 

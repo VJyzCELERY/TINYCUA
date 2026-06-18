@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from dataclasses import asdict
+
 from tinycua.config.types import Tool
 from tinycua.models.task import ReviewerDecision, TaskResult, TaskStateStore, TaskStatus
 
@@ -106,23 +108,44 @@ class TaskCreateTool(SessionTaskToolMixin, Tool):
 
 
 class TaskInspectTool(SessionTaskToolMixin, Tool):
-    """Tool for inspecting task state and hierarchy."""
+    """Tool for inspecting task state and hierarchy.
+
+    Without task_id: returns full tree snapshot.
+    With task_id: returns details for that specific task only.
+    """
 
     def __init__(self) -> None:
         SessionTaskToolMixin.__init__(self)
         Tool.__init__(
             self,
             name="task_inspect",
-            description="Inspect the current task tree, active task, and statuses.",
+            description=(
+                "Inspect task state. Without task_id, returns the full tree "
+                "snapshot. With task_id, returns details for that specific task "
+                "including its description, status, and result."
+            ),
             parameters={
                 "type": "object",
-                "properties": {},
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": (
+                            "Specific task ID to inspect. Omit to get the "
+                            "full tree snapshot."
+                        ),
+                    },
+                },
                 "additionalProperties": False,
             },
         )
 
-    def __call__(self) -> dict[str, Any]:
-        """Return the current task tree state."""
+    def __call__(self, *, task_id: str | None = None) -> dict[str, Any]:
+        """Return task details for a specific task, or the full tree snapshot."""
+        if task_id is not None:
+            task = self._store.tasks.get(task_id)
+            if task is None:
+                return {"error": f"Task {task_id} not found."}
+            return self._store._json_safe(asdict(task))
         return self._store.snapshot()
 
 
