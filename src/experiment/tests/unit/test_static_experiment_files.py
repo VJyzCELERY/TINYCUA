@@ -33,9 +33,25 @@ def test_tinycua_dockerfile_installs_local_packages() -> None:
 def test_agent_dockerfiles_expose_harness_commands() -> None:
     """Agent commands stay visible and fail loud."""
     expected = {
-        "opencode.Dockerfile": ["npm install -g opencode-ai", "lmstudio", "opencode run"],
-        "openclaw.Dockerfile": ["npm install -g openclaw@latest", "openai-completions", "openclaw agent"],
-        "hermes.Dockerfile": ["pip install", "hermes-agent==0.16.0", "hermes"],
+        "opencode.Dockerfile": [
+            "npm install -g opencode-ai",
+            "--thinking",
+            "--dangerously-skip-permissions",
+            "opencode run",
+        ],
+        "openclaw.Dockerfile": [
+            "npm install -g openclaw@latest",
+            r'\"profile\":\"full\"',
+            "--verbose on",
+            "openclaw agent",
+        ],
+        "hermes.Dockerfile": [
+            "pip install",
+            "hermes-agent==0.16.0",
+            "hermes chat",
+            "--verbose",
+            "--yolo",
+        ],
     }
 
     for name, snippets in expected.items():
