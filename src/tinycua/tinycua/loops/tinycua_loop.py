@@ -681,25 +681,8 @@ class TinyCUALoop(
                 agent._llm_client = previous_client  # type: ignore[attr-defined]
 
     def _node_max_tokens_override(self, node: Node, model: Any) -> int | None:
-        """Bound compact tool-decision nodes without constraining executors."""
-        budget_by_node = {
-            "query_analyst": 512,
-            "digester": 768,
-            "worker": 512,
-            "task_create": 768,
-            "task_analyzer": 1024,
-            "task_assessor": 768,
-            "task_executor": 1536,
-            "result_reviewer": 768,
-            "result_aggregation": 1536,
-        }
-        budget = budget_by_node.get(node.node_id)
-        if budget is None:
-            return None
-        current = getattr(model, "max_tokens", None)
-        if isinstance(current, int) and current <= budget:
-            return None
-        return budget
+        """Let the server decide max tokens — no client-side override."""
+        return None
 
     async def _invoke_agent_llm(
         self,

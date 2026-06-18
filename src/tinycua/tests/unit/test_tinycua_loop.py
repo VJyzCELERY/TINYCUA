@@ -82,8 +82,8 @@ def test_compact_runtime_nodes_have_output_budget() -> None:
         config=create_node_config("digester"),
     )
 
-    assert loop._node_max_tokens_override(planner, model=None) == 768
-    assert loop._node_max_tokens_override(assessor, model=None) == 1536
+    assert loop._node_max_tokens_override(planner, model=None) is None
+    assert loop._node_max_tokens_override(assessor, model=None) is None
 
 
 def test_worker_state_nodes_have_long_retry_budget() -> None:
