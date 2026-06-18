@@ -348,3 +348,63 @@ def test_list_files_relative_path():
             assert len(result) == 1
     finally:
         os.chdir(original_cwd)
+
+
+def test_list_files_includes_hidden_files_and_directories():
+    """list_files lists both files and directories, including dotfile entries.
+
+    Hidden entries (``.venv``, ``.hidden.txt``) must appear alongside visible
+    ones so a reviewer/executor can see created workspace artifacts. Directories
+    are marked with a trailing ``/`` so the LLM can distinguish them from files.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        Path(tmpdir, "visible.txt").touch()
+        Path(tmpdir, ".hidden.txt").touch()
+        Path(tmpdir, ".venv").mkdir()
+        Path(tmpdir, "subdir").mkdir()
+        from tinycua.agent.tools.native.files import list_files
+
+        result = list_files(tmpdir)
+
+        assert isinstance(result, list)
+        # Compare on the basename portion; directories carry a trailing "/" marker.
+        names = [entry.rstrip("/").rsplit("/", 1)[-1] for entry in result]
+        # Hidden files appear
+        assert ".hidden.txt" in names
+        assert "visible.txt" in names
+        # Directories appear (and the raw entry is suffixed with "/")
+        assert ".venv" in names
+        assert "subdir" in names
+        assert any(entry.endswith("/.venv/") for entry in result)
+        assert any(entry.endswith("/subdir/") for entry in result)
+
+
+def test_list_files_traverses_into_subdirectory_path():
+    """list_files accepts a path to any directory inside the workspace, not just
+    the workspace root."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        Path(tmpdir, "outer").mkdir()
+        Path(tmpdir, "outer", "inner.txt").touch()
+        Path(tmpdir, "outer", "nested_dir").mkdir()
+        from tinycua.agent.tools.native.files import list_files
+
+        result = list_files(f"{tmpdir}/outer")
+
+        names = [entry.rstrip("/").rsplit("/", 1)[-1] for entry in result]
+        assert "inner.txt" in names
+        assert "nested_dir" in names
+        assert any(entry.endswith("/nested_dir/") for entry in result)
+
+
+def test_list_files_default_pattern_still_filters_by_extension():
+    """The pattern kwarg still filters; directories matching the pattern appear
+    too so the LLM isn't blind to structure when filtering."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        Path(tmpdir, "a.txt").touch()
+        Path(tmpdir, "b.py").touch()
+        Path(tmpdir, "src").mkdir()
+        from tinycua.agent.tools.native.files import list_files
+
+        result = list_files(tmpdir, "*.py")
+        names = [Path(entry).name for entry in result]
+        assert "b.py" in names

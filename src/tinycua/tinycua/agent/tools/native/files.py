@@ -369,16 +369,28 @@ def edit_file(
 
 
 @tool
-def list_files(path: str = ".", pattern: str = "*") -> list[str] | dict[str, Any]:
-    """List files in a directory, optionally filtered by a glob pattern.
+def list_files(
+    path: str = ".", pattern: str = "*", recursive: bool = False
+) -> list[str] | dict[str, Any]:
+    """List files and directories in a workspace path, including hidden entries.
+
+    Accepts any directory path inside the workspace (not just the root) so an
+    agent can inspect nested structure. Both files and directories are
+    returned; directories are marked with a trailing ``/`` so the LLM can tell
+    them apart from files. Hidden entries (``.venv``, ``.hidden.txt``) are
+    included so reviewers/agents can see created workspace artifacts.
 
     Args:
-        path: Directory path. Absolute paths start with '/', relative
-            paths are resolved from the current working directory.
-        pattern: Glob pattern for filtering files (default: '*').
+        path: Directory path to list. Relative paths resolve from the session
+            workspace root; absolute paths must stay inside the workspace.
+        pattern: Glob filter applied to leaf names (default ``*`` = everything).
+            Directories matching the pattern are included too.
+        recursive: When True, walk the whole subtree and return relative paths
+            from ``path`` for every entry below it (files and directories).
 
     Returns:
-        A list of absolute file paths on success, or an error dict on failure.
+        A list of absolute paths on success (directories suffixed with ``/``),
+        or an error dict on failure.
     """
     try:
         resolved = _resolve_path(path)
@@ -391,8 +403,19 @@ def list_files(path: str = ".", pattern: str = "*") -> list[str] | dict[str, Any
         return {"error": f"Not a directory: {path}"}
 
     try:
-        files = [str(p) for p in sorted(resolved.glob(pattern)) if p.is_file()]
-        return files
+        if recursive:
+            entries = sorted(resolved.rglob(pattern))
+        else:
+            entries = sorted(resolved.glob(pattern))
+        # ponytail: include dirs (suffixed with /) so a reviewer can see created
+        # artifacts like .venv. If throughput ever matters, add a files-only flag.
+        result = []
+        for entry in entries:
+            if entry.is_dir():
+                result.append(f"{entry}/")
+            else:
+                result.append(str(entry))
+        return result
     except PermissionError:
         return {"error": f"Permission denied: {path}"}
     except Exception as exc:

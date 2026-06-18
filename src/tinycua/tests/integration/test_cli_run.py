@@ -30,33 +30,97 @@ class TestCLIRunArgumentParsing:
         args = parse_args(["hello world"])
         assert args.prompt == "hello world"
 
-    def test_run_accepts_prompt_option_and_dir_alias(self, tmp_path):
+    def test_run_accepts_prompt_option_and_dir(self, tmp_path):
         """Given --prompt and --dir, one-shot args are normalized."""
         from tinycua.cli.run import parse_args
 
         args = parse_args(["--dir", str(tmp_path), "--prompt", "hello world"])
 
         assert args.prompt == "hello world"
-        assert args.workspace == tmp_path
+        assert args.dir == tmp_path
 
-    def test_run_accepts_stream_and_worker_effort(self, tmp_path):
-        """Official run command exposes live one-shot worker options."""
+    def test_run_dir_defaults_to_cwd(self):
+        """--dir defaults to the current working directory."""
+        from tinycua.cli.run import parse_args
+
+        args = parse_args(["build app"])
+        assert args.dir == Path.cwd()
+
+    def test_run_has_no_stream_flag(self, tmp_path):
+        """Streaming is always on; --stream is no longer a flag."""
+        from tinycua.cli.run import parse_args
+
+        # parse_args must accept the core flags without --stream
+        args = parse_args(["--dir", str(tmp_path), "build app"])
+        assert not hasattr(args, "stream"), (
+            "--stream was removed; streaming is the default behavior"
+        )
+
+    def test_run_worker_effort_default_medium(self, tmp_path):
+        """--worker-effort defaults to medium (overridable from env)."""
+        from tinycua.cli.run import parse_args
+
+        args = parse_args(["--dir", str(tmp_path), "build app"])
+        assert args.worker_effort == "medium"
+
+    def test_run_worker_effort_from_env_takes_priority(self, monkeypatch, tmp_path):
+        """TINYCUA_WORKER_EFFORT in env overrides the medium default."""
+        from tinycua.cli.run import parse_args
+
+        monkeypatch.setenv("TINYCUA_WORKER_EFFORT", "high")
+        args = parse_args(["--dir", str(tmp_path), "build app"])
+        assert args.worker_effort == "high"
+
+    def test_run_accepts_provider_url_flag(self, tmp_path):
+        """--provider-url is the primary name for the provider base URL."""
         from tinycua.cli.run import parse_args
 
         args = parse_args(
-            [
-                "--stream",
-                "--worker-effort",
-                "high",
-                "--dir",
-                str(tmp_path),
-                "build app",
-            ]
+            ["--dir", str(tmp_path), "--provider-url", "http://x:1234/v1", "build app"]
         )
+        assert args.provider_url == "http://x:1234/v1"
+        # --base-url is kept as a hidden alias for backward compat.
+        assert args.base_url == "http://x:1234/v1"
 
-        assert args.stream is True
-        assert args.worker_effort == "high"
-        assert args.workspace == tmp_path
+    def test_run_accepts_base_url_alias(self, tmp_path):
+        """--base-url still works as an alias for --provider-url."""
+        from tinycua.cli.run import parse_args
+
+        args = parse_args(
+            ["--dir", str(tmp_path), "--base-url", "http://x:1234/v1", "build app"]
+        )
+        assert args.provider_url == "http://x:1234/v1"
+
+    def test_run_provider_type_defaults_to_chat_completions(self, tmp_path):
+        """--provider-type defaults to openai-chat-completions."""
+        from tinycua.cli.run import parse_args
+
+        args = parse_args(["--dir", str(tmp_path), "build app"])
+        assert args.provider_type == "openai-chat-completions"
+
+    def test_run_provider_type_from_env_takes_priority(self, monkeypatch, tmp_path):
+        """TINYCUA_PROVIDER_TYPE in env overrides the chat-completions default."""
+        from tinycua.cli.run import parse_args
+
+        monkeypatch.setenv("TINYCUA_PROVIDER_TYPE", "openai-responses")
+        args = parse_args(["--dir", str(tmp_path), "build app"])
+        assert args.provider_type == "openai-responses"
+
+    def test_run_accepts_provider_type_flag(self, tmp_path):
+        """--provider-type selects the SDK provider (responses vs chat-completions)."""
+        from tinycua.cli.run import parse_args
+
+        args = parse_args(
+            ["--dir", str(tmp_path), "--provider-type", "openai-responses", "build app"]
+        )
+        assert args.provider_type == "openai-responses"
+
+    def test_run_accepts_env_file(self, tmp_path):
+        """--env specifies an env file path to load before resolving defaults."""
+        from tinycua.cli.run import parse_args
+
+        args = parse_args(["--dir", str(tmp_path), "--env", str(tmp_path / ".env"), "build app"])
+        assert args.env_file == tmp_path / ".env"
 
     def test_run_defaults(self):
         """Given minimal args, defaults are applied correctly."""
@@ -64,34 +128,35 @@ class TestCLIRunArgumentParsing:
 
         args = parse_args(["test"])
         assert args.timeout == 600
-        assert args.output_dir == Path("/tmp_workspace/results")
-        assert args.workspace == Path("/tmp_workspace")
-        assert args.model == "llama3"
-        assert args.stream is False
+        assert args.dir == Path.cwd()
+        assert args.model is None  # resolved from env at run time
+        assert args.provider_type == "openai-chat-completions"
         assert args.worker_effort == "medium"
         assert args.verbose is False
 
-    def test_run_accepts_all_flags(self):
+    def test_run_accepts_all_flags(self, tmp_path):
         """Given all flags, they are parsed correctly."""
         from tinycua.cli.run import parse_args
 
         args = parse_args([
             "--timeout", "30",
-            "--output-dir", "./out",
-            "--workspace", "/ws",
-            "--base-url", "http://localhost:8080/v1",
+            "--dir", str(tmp_path),
+            "--provider-url", "http://localhost:8080/v1",
+            "--provider-type", "openai-responses",
             "--api-key", "sk-test",
             "--model", "llama-3-8b",
+            "--worker-effort", "high",
             "--verbose",
             "my task",
         ])
         assert args.prompt == "my task"
         assert args.timeout == 30
-        assert args.output_dir == Path("./out")
-        assert args.workspace == Path("/ws")
-        assert args.base_url == "http://localhost:8080/v1"
+        assert args.dir == tmp_path
+        assert args.provider_url == "http://localhost:8080/v1"
+        assert args.provider_type == "openai-responses"
         assert args.api_key == "sk-test"
         assert args.model == "llama-3-8b"
+        assert args.worker_effort == "high"
         assert args.verbose is True
 
 
@@ -151,7 +216,7 @@ class TestCLIRunExitCodes:
     """Verify exit codes for success, error, and timeout scenarios."""
 
     def test_exit_code_0_on_success(self, tmp_path):
-        """Given a successful run, exit code is 0."""
+        """Given a successful run, exit code is 0 and artifacts are written."""
         from tinycua.cli.run import run_command
 
         mock_loop = MagicMock()
@@ -171,73 +236,37 @@ class TestCLIRunExitCodes:
         mock_agent = MagicMock()
         mock_agent.loop = mock_loop
 
-        mock_timeout_runner = MagicMock(return_value="run-coro")
+        mock_run_streaming = MagicMock(return_value="stream-coro")
         with patch("tinycua.cli.run.create_tinycua_agent", return_value=mock_agent), \
-             patch("tinycua.cli.run._run_agent_with_timeout", new=mock_timeout_runner), \
+             patch("tinycua.cli.run.run_streaming", new=mock_run_streaming), \
              patch("tinycua.cli.run._run_async_safely", return_value="done"), \
              patch("tinycua.cli.run.load_config", return_value={
                  "base_url": "http://localhost:8080/v1",
                  "api_key": "test",
                  "model": "test-model",
+                 "provider_type": "openai-chat-completions",
              }):
                 exit_code = run_command(
                     prompt="test task",
-                    timeout=10,
-                    output_dir=tmp_path / "test_out",
-                    workspace=tmp_path / "test_ws",
-                    base_url=None, api_key=None, model=None,
-                    verbose=False,
-                )
-                assert exit_code == 0
-                output_dir = tmp_path / "test_out"
-                assert (output_dir / "execution_trace.json").exists()
-                assert (output_dir / "state_snapshot.json").exists()
-                assert (output_dir / "task_tree.json").exists()
-                assert (output_dir / "task_tree.txt").exists()
-                assert (output_dir / "transcript.txt").exists()
-                assert (output_dir / "transcript_events.json").exists()
-                assert (output_dir / "final_response_events.json").exists()
-
-    def test_stream_option_uses_live_runner(self, tmp_path):
-        """Given --stream, run command invokes the live stream renderer."""
-        from tinycua.cli.run import run_command
-
-        mock_loop = MagicMock()
-        mock_loop._working_messages = []
-        mock_loop.get_usage_events = MagicMock(return_value=[])
-        mock_loop.get_execution_trace = MagicMock(return_value=[])
-        mock_loop.get_state_snapshot = MagicMock(
-            return_value={"task_tree": {}, "task_tree_text": "No tasks."}
-        )
-        mock_loop.get_final_response_events = MagicMock(return_value=[])
-        mock_loop.get_transcript_events = MagicMock(return_value=[])
-        mock_agent = MagicMock()
-        mock_agent.loop = mock_loop
-
-        mock_run_streaming = MagicMock(return_value="stream-coro")
-        with patch("tinycua.cli.run.create_tinycua_agent", return_value=mock_agent), \
-             patch("tinycua.cli.run.run_streaming", new=mock_run_streaming), \
-             patch("tinycua.cli.run._run_async_safely", return_value="stream done"), \
-             patch("tinycua.cli.run.load_config", return_value={
-                 "base_url": "http://localhost:8080/v1",
-                 "api_key": "test",
-                 "model": "test-model",
-             }) as _config:
-                exit_code = run_command(
-                    prompt="test task",
-                    timeout=10,
-                    output_dir=tmp_path / "test_out",
-                    workspace=tmp_path / "test_ws",
-                    base_url=None,
+                    dir=tmp_path,
+                    provider_url=None,
+                    provider_type=None,
                     api_key=None,
                     model=None,
+                    worker_effort="medium",
+                    timeout=10,
                     verbose=False,
-                    stream=True,
-                    worker_effort="high",
+                    env_file=None,
                 )
-
-        assert exit_code == 0
-        mock_run_streaming.assert_called_once_with(mock_agent, "test task")
+                assert exit_code == 0
+                artifact_dir = tmp_path / ".tinycua-artifacts"
+                assert (artifact_dir / "execution_trace.json").exists()
+                assert (artifact_dir / "state_snapshot.json").exists()
+                assert (artifact_dir / "task_tree.json").exists()
+                assert (artifact_dir / "task_tree.txt").exists()
+                assert (artifact_dir / "transcript.txt").exists()
+                assert (artifact_dir / "transcript_events.json").exists()
+                assert (artifact_dir / "final_response_events.json").exists()
 
     def test_exit_code_1_on_error(self, tmp_path):
         """Given an agent crash, exit code is 1."""
@@ -250,14 +279,19 @@ class TestCLIRunExitCodes:
                 "base_url": "http://localhost:8080/v1",
                 "api_key": "test",
                 "model": "test-model",
+                "provider_type": "openai-chat-completions",
             }):
                 exit_code = run_command(
                     prompt="test task",
+                    dir=tmp_path,
+                    provider_url=None,
+                    provider_type=None,
+                    api_key=None,
+                    model=None,
+                    worker_effort="medium",
                     timeout=10,
-                    output_dir=tmp_path / "test_out",
-                    workspace=tmp_path / "test_ws",
-                    base_url=None, api_key=None, model=None,
                     verbose=False,
+                    env_file=None,
                 )
                 assert exit_code == 1
 
@@ -274,18 +308,22 @@ class TestCLIRunExitCodes:
                 "base_url": "http://localhost:8080/v1",
                 "api_key": "test",
                 "model": "test-model",
+                "provider_type": "openai-chat-completions",
             }):
-                # Mock _run_async_safely to raise CancelledError (simulates timeout)
-                mock_timeout_runner = MagicMock(return_value="run-coro")
-                with patch("tinycua.cli.run._run_agent_with_timeout", new=mock_timeout_runner), \
+                mock_run_streaming = MagicMock(return_value="stream-coro")
+                with patch("tinycua.cli.run.run_streaming", new=mock_run_streaming), \
                      patch("tinycua.cli.run._run_async_safely", side_effect=asyncio.CancelledError):
                     exit_code = run_command(
                         prompt="test task",
+                        dir=tmp_path,
+                        provider_url=None,
+                        provider_type=None,
+                        api_key=None,
+                        model=None,
+                        worker_effort="medium",
                         timeout=1,  # 1 second timeout
-                        output_dir=tmp_path / "test_out",
-                        workspace=tmp_path / "test_ws",
-                        base_url=None, api_key=None, model=None,
                         verbose=False,
+                        env_file=None,
                     )
                     assert exit_code == 124
 

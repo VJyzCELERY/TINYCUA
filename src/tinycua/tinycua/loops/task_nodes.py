@@ -23,12 +23,7 @@ if TYPE_CHECKING:
 _TASK_ANALYZER_INSTRUCTION = (
     "You are the TaskAnalyzer. Convert the request into concrete, actionable "
     "tasks. Prefer tasks that can be verified by files, commands, tests, or "
-    "search results. For one-shot prototype app requests, prefer one vertical "
-    "slice task that can create a runnable minimal app; do not split backend, "
-    "frontend, and API unless the user explicitly asks for separate projects. "
-    "Prefer plain HTML/CSS/JS served by the Python backend over React/Vue unless "
-    "the user explicitly requests a frontend framework. Inspect the task tree, "
-    "then use task_decompose or "
+    "search results. Inspect the task tree, then use task_decompose or "
     "task_update to mutate task structure/metadata when analysis changes the "
     "tree. Do not repeat upstream context verbatim and do not return opaque "
     "mutation instructions as prose."
@@ -36,13 +31,11 @@ _TASK_ANALYZER_INSTRUCTION = (
 _TASK_ANALYZER_CONTINUATION = (
     "Based on the current request context or focused task context above, "
     "call task_inspect first. If the active/root task needs decomposition, "
-    "call task_decompose with the fewest concrete sequential subtasks chosen from "
-    "the request. For one-shot app builds, prefer one runnable vertical-slice "
-    "subtask over separate backend/frontend/API tasks. Do not repeatedly decompose "
-    "a task that already has children; "
-    "for local replan, refine only the active task or its local children. If no "
-    "further decomposition is useful, call task_update to record that assessment "
-    "on the relevant task."
+    "call task_decompose with the concrete sequential subtasks chosen from "
+    "the request. Do not repeatedly decompose a task that already has "
+    "children; for local replan, refine only the active task or its local "
+    "children. If no further decomposition is useful, call task_update to "
+    "record that assessment on the relevant task."
 )
 _TASK_ANALYZER_LOCAL_REPLAN_CONTINUATION = (
     "Based on the active task region above, refine only that local region if "
@@ -93,9 +86,7 @@ _TASK_EXECUTOR_INSTRUCTION = (
 _TASK_EXECUTOR_CONTINUATION = (
     "Based on the active task above, perform the required workspace or research "
     "actions with tools. Do not only provide a plan; create, inspect, run, or "
-    "verify artifacts when the task requires action. If the task asks for code "
-    "or an app, write the smallest useful runnable vertical slice, prefer stdlib "
-    "or already-available dependencies, and run a simple check. For "
+    "verify artifacts when the task requires action. For "
     "actionable success, task_result_update must be backed by a created/edited "
     "file or a successful action/research tool result. Then call "
     "task_result_update with a concise result. If inspection shows the task "

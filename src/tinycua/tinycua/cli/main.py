@@ -11,8 +11,15 @@ def main() -> None:
     """Dispatch tinycua CLI subcommands.
 
     When invoked without a subcommand, shows help text and exits cleanly.
-    Supported subcommands: run, benchmark.
+    Supported subcommands: run, benchmark, smoke-run.
     """
+    # Load src/tinycua/.env (and cwd/.env) BEFORE parsing args so env-derived
+    # argparse defaults (--worker-effort, --provider-type) see the user's
+    # configured values. Shell-provided env vars always win.
+    from tinycua.cli.config import _load_default_env
+
+    _load_default_env()
+
     parser = argparse.ArgumentParser(
         prog="tinycua",
         description="TinyCUA — Computer-Use Agent CLI.",
@@ -61,15 +68,15 @@ def main() -> None:
 
         exit_code = run_command(
             prompt=run_args.prompt,
-            timeout=run_args.timeout,
-            output_dir=run_args.output_dir,
-            workspace=run_args.workspace,
-            base_url=run_args.base_url,
+            dir=run_args.dir,
+            provider_url=run_args.provider_url,
             api_key=run_args.api_key,
             model=run_args.model,
-            verbose=run_args.verbose,
-            stream=run_args.stream,
+            provider_type=run_args.provider_type,
             worker_effort=run_args.worker_effort,
+            timeout=run_args.timeout,
+            verbose=run_args.verbose,
+            env_file=run_args.env_file,
         )
         raise SystemExit(exit_code)
 

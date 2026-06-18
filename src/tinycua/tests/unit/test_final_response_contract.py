@@ -513,8 +513,17 @@ def test_reviewer_replan_keeps_task_tree_unfinished() -> None:
     assert store.all_done() is False
 
 
-def test_analyzer_failure_creates_one_app_vertical_slice() -> None:
-    """Analyzer recovery creates a minimal child for one-shot app tasks."""
+def test_analyzer_failure_does_not_fabricate_app_vertical_slice() -> None:
+    """Analyzer recovery must not fabricate a vertical-slice task.
+
+    Spec: ./specs/tinycua-runtime-invariants/spec.md:29-42, 218-219, 261.
+    Source: src/tinycua/docs/design/loops/tinycua_loop.md:67-84,
+            src/tinycua/docs/design/loops/task_analyzer.md:23-31.
+    When the analyzer misses its tool call and the root has no children, the
+    recovery must NOT fabricate a hardcoded app/web-ui task. The runtime may
+    only continue when the tree already has children; otherwise it must fail
+    closed so the node retries its own contract.
+    """
     analyzer = TinyCUATaskAnalyzerNode(
         node_id="task_analyzer",
         config=create_node_config("task_analyzer"),
@@ -527,10 +536,13 @@ def test_analyzer_failure_creates_one_app_vertical_slice() -> None:
         ValidationResult(is_valid=False, errors=["missing task_decompose"]),
     )
 
-    assert recovered is True
-    assert len(root.children) == 1
-    child = loop.root_session.task_store.get_task(root.children[0])
-    assert "vertical-slice" in child.title
+    # No children exist, so recovery must NOT fabricate a vertical slice.
+    assert recovered is False
+    assert root.children == []
+    assert not any(
+        "vertical-slice" in str(t).lower()
+        for t in [child.title for child in loop.root_session.task_store.tasks.values()]
+    )
 
 
 @pytest.mark.asyncio

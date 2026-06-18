@@ -22,8 +22,8 @@ _TASK_CREATE_INSTRUCTION = (
 _TASK_CREATE_CONTINUATION = (
     "Based on the request context above, initialize the root task tree "
     "using task tools. Create actionable tasks and avoid repeating upstream "
-    "context verbatim. Keep the tree small for one-shot execution: one root "
-    "task and at most three concrete leaf subtasks."
+    "context verbatim. Initialize one root task; decomposition into subtasks "
+    "is owned by TaskAnalyzer."
 )
 
 

@@ -74,8 +74,14 @@ def test_task_update_cannot_complete_without_execution_result() -> None:
     assert store.get_task(root["task_id"]).status == "pending"
 
 
-def test_task_decompose_caps_one_shot_subtasks() -> None:
-    """Decomposition is capped so prototype runs can finish."""
+def test_task_decompose_preserves_all_analyzer_subtasks() -> None:
+    """Decomposition preserves every analyzer-provided subtask (no cap).
+
+    Spec: ./specs/tinycua-runtime-invariants/spec.md:208-210, 246-249, 262.
+    Source: src/tinycua/docs/design/loops/task_analyzer.md:23-31,
+            src/tinycua/docs/design/models/task.md:10-28.
+    The runtime must not truncate analyzer-created subtasks.
+    """
     store = TaskStateStore()
     init = TaskInitTool()
     decompose = TaskDecomposeTool()
@@ -86,11 +92,22 @@ def test_task_decompose_caps_one_shot_subtasks() -> None:
     result = decompose(root["task_id"], ["one", "two", "three", "four"])
 
     assert result["success"] is True
-    assert len(result["child_task_ids"]) == 3
+    assert len(result["child_task_ids"]) == 4
+    assert [store.get_task(cid).title for cid in result["child_task_ids"]] == [
+        "one",
+        "two",
+        "three",
+        "four",
+    ]
 
 
-def test_task_decompose_collapses_app_web_ui_to_vertical_slice() -> None:
-    """One-shot app builds should not split backend/frontend/API tracks."""
+def test_task_decompose_does_not_collapse_app_web_ui_to_vertical_slice() -> None:
+    """App/web-ui subtasks are preserved, not collapsed to one vertical slice.
+
+    Spec: ./specs/tinycua-runtime-invariants/spec.md:29-42, 246-249, 261.
+    Source: src/tinycua/docs/design/loops/task_analyzer.md:6-17, 23-31.
+    The app/web-ui collapse heuristic is a forbidden prompt-category forcing.
+    """
     store = TaskStateStore()
     init = TaskInitTool()
     decompose = TaskDecomposeTool()
@@ -101,6 +118,7 @@ def test_task_decompose_collapses_app_web_ui_to_vertical_slice() -> None:
     result = decompose(root["task_id"], ["backend", "frontend", "api"])
 
     assert result["success"] is True
-    assert len(result["child_task_ids"]) == 1
-    child = store.get_task(result["child_task_ids"][0])
-    assert "vertical-slice" in child.title
+    assert len(result["child_task_ids"]) == 3
+    titles = [store.get_task(cid).title for cid in result["child_task_ids"]]
+    assert titles == ["backend", "frontend", "api"]
+    assert not any("vertical-slice" in t.lower() for t in titles)
