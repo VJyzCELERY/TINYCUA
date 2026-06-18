@@ -7,8 +7,6 @@ services:
       - .env
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    volumes:
-      - Opencode_Vol:/workspace
 
   hermes:
     build:
@@ -18,8 +16,6 @@ services:
       - .env
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    volumes:
-      - Hermes_Vol:/workspace
 
   openclaw:
     build:
@@ -29,8 +25,6 @@ services:
       - .env
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    volumes:
-      - Openclaw_Vol:/workspace
 
   tinycua:
     build:
@@ -40,11 +34,3 @@ services:
       - .env
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    volumes:
-      - TINYCUA_Vol:/workspace
-
-volumes:
-  Opencode_Vol:
-  Hermes_Vol:
-  Openclaw_Vol:
-  TINYCUA_Vol:

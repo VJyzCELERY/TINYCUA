@@ -120,7 +120,7 @@ def run_agent(
         "-e",
         f"EXPERIMENT_WORKSPACE={workspace}",
         "-v",
-        f"{result_dir}:{workspace}",
+        f"{result_dir.resolve()}:{workspace}",
         "--workdir",
         workspace,
         agent,
