@@ -1,0 +1,50 @@
+services:
+  opencode:
+    build:
+      context: ../..
+      dockerfile: src/experiment/docker/opencode.Dockerfile
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - Opencode_Vol:/workspace
+
+  hermes:
+    build:
+      context: ../..
+      dockerfile: src/experiment/docker/hermes.Dockerfile
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - Hermes_Vol:/workspace
+
+  openclaw:
+    build:
+      context: ../..
+      dockerfile: src/experiment/docker/openclaw.Dockerfile
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - Openclaw_Vol:/workspace
+
+  tinycua:
+    build:
+      context: ../..
+      dockerfile: src/experiment/docker/tinycua.Dockerfile
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - TINYCUA_Vol:/workspace
+
+volumes:
+  Opencode_Vol:
+  Hermes_Vol:
+  Openclaw_Vol:
+  TINYCUA_Vol:
