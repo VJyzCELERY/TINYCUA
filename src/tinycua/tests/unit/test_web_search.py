@@ -130,3 +130,17 @@ def test_web_search_timeout(httpx_mock) -> None:
     result = web_search("slow", timeout=1)
     assert result["success"] is False
     assert "timed out" in result["error"]
+
+
+def test_web_search_coerces_string_params(httpx_mock) -> None:
+    """LLM tool calls may pass int params as strings — coerce defensively."""
+    httpx_mock.add_response(
+        method="GET",
+        url="http://localhost:8080/search?q=test&format=json",
+        json={"results": [{"title": str(i), "url": "", "content": ""} for i in range(10)]},
+    )
+    from tinycua.agent.tools.native.web_search import web_search
+
+    result = web_search("test", max_results="3", timeout="15")
+    assert result["success"] is True
+    assert len(result["results"]) == 3

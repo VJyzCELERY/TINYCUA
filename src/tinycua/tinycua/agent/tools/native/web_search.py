@@ -32,6 +32,13 @@ def web_search(query: str, max_results: int = 5, timeout: int = 15) -> dict[str,
     Returns:
         Structured search results or an error dictionary.
     """
+    # LLM tool calls may pass int params as strings — coerce defensively.
+    try:
+        max_results = int(max_results)
+        timeout = int(timeout)
+    except (TypeError, ValueError):
+        max_results = 5
+        timeout = 15
     if not query.strip():
         return {"success": False, "error": "query must not be blank", "results": []}
     try:
