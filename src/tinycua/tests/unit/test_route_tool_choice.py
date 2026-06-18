@@ -95,8 +95,8 @@ async def test_worker_requires_route_tool_for_local_chat_completions() -> None:
     assert agent.config.llm_model.tool_choice is None
 
 
-def test_remote_chat_completions_uses_openai_function_tool_choice_shape() -> None:
-    """Non-local Chat Completions providers get the OpenAI object form."""
+def test_all_chat_completions_use_required_string_tool_choice() -> None:
+    """All Chat Completions providers get "required" — the tool list is already narrowed."""
     model = LanguageModel(
         provider="openai-chat-completions",
         model_name="gpt-test",
@@ -114,10 +114,7 @@ def test_remote_chat_completions_uses_openai_function_tool_choice_shape() -> Non
 
     tool_choice = loop._forced_tool_choice_for_node(agent, worker, tools)
 
-    assert tool_choice == {
-        "type": "function",
-        "function": {"name": "select_worker_route"},
-    }
+    assert tool_choice == "required"
 
 
 def test_task_assessor_uses_read_only_handoff_tools_without_task_update() -> None:

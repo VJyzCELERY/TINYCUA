@@ -514,24 +514,20 @@ class PromptProtocolMixin:
         node: Node,
         resolved_tools: list[Tool],
     ) -> str | dict[str, Any] | None:
-        """Return provider-compatible forced tool_choice for tool-required nodes."""
+        """Return provider-compatible forced tool_choice for tool-required nodes.
+
+        Always uses ``"required"`` because the tool list is already narrowed to
+        the single required tool by :meth:`_llm_tools_for_required_choice`.
+        The object form ``{"type": "function", "function": {"name": ...}}`` is
+        OpenAI-hosted-API-only and crashes local servers (LM Studio, Ollama,
+        vLLM, etc.) with HTTP 400.  Since ``"required"`` + a single tool list
+        entry is functionally identical, we use it universally.
+        """
         required = self._required_single_tool_choice_name(node)
         if required is None:
             return None
         if required not in {tool.name for tool in resolved_tools}:
             return None
-        model = getattr(agent, "llm_model", None)
-        provider = getattr(model, "provider", "")
-        if (
-            self._required_route_tool_name(node) is not None
-            and provider == "openai-chat-completions"
-            and self._uses_local_openai_server(model)
-        ):
-            return "required"
-        if provider == "openai-chat-completions" and not self._uses_local_openai_server(
-            model
-        ):
-            return {"type": "function", "function": {"name": required}}
         return "required"
 
     def _requires_any_tool_choice(self, node: Node) -> bool:
