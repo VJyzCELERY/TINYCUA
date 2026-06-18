@@ -48,8 +48,9 @@ A researcher configures shared LLM settings once, provides a prompt, runs the ex
 - **FR-006**: System MUST write per-agent output artifacts under `experiment-{num}/` within that agent's persistent storage.
 - **FR-007**: System MUST record start time, end time, duration, agent name, experiment number, and exit code for every agent run.
 - **FR-008**: System MUST preserve stdout and stderr for every agent run.
-- **FR-009**: System SHOULD continue running remaining agents after one agent fails, while clearly marking the failure.
-- **FR-010**: System SHOULD favor readable files and simple commands over a comprehensive benchmarking platform.
+- **FR-009**: System MUST build the TINYCUA image from the local repository's `src/tinycua-sdk` and `src/tinycua` packages.
+- **FR-010**: System SHOULD continue running remaining agents after one agent fails, while clearly marking the failure.
+- **FR-011**: System SHOULD favor readable files and simple commands over a comprehensive benchmarking platform.
 
 ### Key Entities _(include if feature involves data)_
 
@@ -65,6 +66,7 @@ A researcher configures shared LLM settings once, provides a prompt, runs the ex
 - [ ] **Results are easy to compare**: each agent writes prompt, stdout, stderr, and metadata files in a consistent layout.
 - [ ] **Timing is captured**: every agent result records elapsed seconds.
 - [ ] **Configuration is shared**: one settings file controls provider/model settings for all four agents.
+- [ ] **TINYCUA uses local code**: the TINYCUA container installs the repository's local `tinycua-sdk` and `tinycua` packages.
 - [ ] **Failures are visible**: failed agent runs leave logs and non-zero exit codes without hiding later results.
 
 ---
