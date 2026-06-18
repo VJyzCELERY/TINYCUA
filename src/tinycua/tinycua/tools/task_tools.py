@@ -313,7 +313,7 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
             name="task_review_decision",
             description=(
                 "Record the review decision for a task result: approved, "
-                "needs_revision, rejected, replan, or open_question."
+                "needs_revision, rejected, or replan."
             ),
             parameters={
                 "type": "object",
@@ -326,7 +326,6 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
                             "needs_revision",
                             "rejected",
                             "replan",
-                            "open_question",
                         ],
                     },
                     "rationale": {"type": "string"},

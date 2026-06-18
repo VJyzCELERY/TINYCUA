@@ -294,7 +294,7 @@ def create_node_config(
         ),
         "result_reviewer": (
             "Call task_review_decision with approved, needs_revision, "
-            "rejected, replan, or open_question."
+            "rejected, or replan."
         ),
     }.get(normalized)
     custom_retry_append = config.custom_retry_append

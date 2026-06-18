@@ -389,7 +389,7 @@ class ValidationRetryMixin:
             validation.is_valid = False
             validation.errors.append(
                 "ResultReviewer cannot approve a failed task result. Choose "
-                "needs_revision, rejected, replan, or open_question after "
+                "needs_revision, rejected, or replan after "
                 "inspecting the failure evidence."
             )
             return validation
@@ -527,7 +527,6 @@ class ValidationRetryMixin:
         if (
             store.root_task_id is not None
             and not store.all_done()
-            and not self._allows_incomplete_task_terminal_response()
         ):
             validation.is_valid = False
             validation.errors.append(
@@ -536,13 +535,6 @@ class ValidationRetryMixin:
                 "be retried or locally replanned before terminal response."
             )
         return validation
-
-    def _allows_incomplete_task_terminal_response(self) -> bool:
-        """Return whether terminal response is an explicit open question."""
-        for task in self.root_session.task_store.tasks.values():
-            if task.metadata.get("open_question_reason"):
-                return True
-        return False
 
     def _can_stop_after_tool_batch(
         self,

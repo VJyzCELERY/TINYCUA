@@ -37,8 +37,6 @@ def test_worker_runtime_repeated_revision_never_routes_to_response() -> None:
     assert store.all_done() is False
     assert store.active_task_id == active.task_id
     assert [node.node_id for node in queue.items] == ["task_executor", "result_reviewer"]
-    assert "mandatory_passthrough" not in store.tasks[active.task_id].metadata
-    assert "open_question_reason" not in store.tasks[active.task_id].metadata
 
 
 def test_worker_runtime_completed_task_advances_until_aggregation_ready() -> None:
@@ -78,20 +76,6 @@ def test_worker_runtime_failed_task_retries_same_leaf() -> None:
     assert second.status == TaskStatus.PENDING
     assert store.active_task_id == first.task_id
     assert [node.node_id for node in queue.items] == ["task_executor", "result_reviewer"]
-
-
-def test_worker_runtime_open_question_routes_to_terminal_response() -> None:
-    """Reviewer open questions must not proceed with execution or aggregation."""
-    store = TaskStateStore()
-    root = store.create_task("Root")
-    active = store.create_task("Needs clarification", parent_id=root.task_id)
-    store.transition(active.task_id, TaskStatus.IN_PROGRESS)
-    store.record_reviewer_decision(active.task_id, ReviewerDecision.OPEN_QUESTION)
-    queue = NodeQueue()
-
-    WorkerRuntimeController(store).schedule_after_review(queue)
-
-    assert [node.node_id for node in queue.items] == ["response"]
 
 
 def test_worker_runtime_replan_uses_local_assessor_mode() -> None:
