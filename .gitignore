@@ -20,6 +20,7 @@ __pycache__/
 # Config files with secrets (use config.example.yaml as template)
 *.yaml
 !config.example.yaml
+!*-config.yaml
 
 # Logs
 logs/
