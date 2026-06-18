@@ -34,6 +34,24 @@ log_warn()    { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error()   { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step()    { echo -e "${CYAN}[STEP]${NC} $1"; }
 
+# Spinner for long-running commands
+spin() {
+  local pid=$1
+  local task_name=$2
+  local spinstr='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+  local i=0
+  local start_time=$(date +%s)
+
+  while kill -0 "$pid" 2>/dev/null; do
+    local elapsed=$(( $(date +%s) - start_time ))
+    printf "\r  ${CYAN}%s${NC} ${task_name}... %ss " "${spinstr:i++%${#spinstr}:1}" "$elapsed"
+    sleep 0.1
+  done
+
+  elapsed=$(( $(date +%s) - start_time ))
+  printf "\r  ${GREEN}✓${NC} ${task_name} done in %ss   \n" "$elapsed"
+}
+
 # All harnesses
 HARNESS_LIST="openclaw opencode hermesagent"
 
@@ -367,22 +385,19 @@ do_run() {
     cd "${PROJECT_DIR}"
     local exit_code=0
 
-    if [[ "${harness}" == "openclaw" ]]; then
-      uv run python3 eval/run_batch.py \
-        --category "${category}" \
-        --parallel "${parallel}" \
-        ${model_flag} \
-        ${no_score} \
-        ${verbose_flag} || exit_code=$?
-    else
-      uv run python3 eval/run_batch.py \
-        --harness "${harness}" \
-        --category "${category}" \
-        --parallel "${parallel}" \
-        ${model_flag} \
-        ${no_score} \
-        ${verbose_flag} || exit_code=$?
-    fi
+    uv run python3 eval/run_batch.py \
+      --harness "${harness}" \
+      --category "${category}" \
+      --parallel "${parallel}" \
+      ${model_flag} \
+      ${no_score} \
+      ${verbose_flag} > /dev/null 2>&1 &
+    local cmd_pid=$!
+
+    # Show spinner while running
+    spin $cmd_pid "${harness}"
+    wait $cmd_pid
+    exit_code=$?
 
     local harness_end
     harness_end=$(date +%s)
