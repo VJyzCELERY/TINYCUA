@@ -50,9 +50,8 @@ class DockerAgent(BaseAgent):
 
     def run_task(self, spec: AgentTaskSpec) -> AgentExecution:
         """Execute a benchmark task by running the agent in Docker."""
-        api_key = os.environ.get(self.api_key_env, "")
-        # Allow empty API keys for local LLMs (LM Studio, Ollama, etc.)
-        if not api_key and self.api_key_env not in ("LM_STUDIO_API_KEY",):
+        api_key = os.environ.get(self.api_key_env)
+        if not api_key:
             error_msg = f"Required API key env var {self.api_key_env} is not set"
             logger.error(error_msg)
             return AgentExecution(elapsed_time=0.0, error=error_msg)
@@ -151,45 +150,24 @@ class DockerAgent(BaseAgent):
 
     def _build_docker_command(self, spec: AgentTaskSpec) -> list[str]:
         """Build docker run command. Subclasses can override for custom args."""
-        # Get the project directory to mount the entrypoint script
-        project_dir = Path(__file__).parent.parent.parent
-        entrypoint_script = project_dir / "scripts" / "entrypoint_lmstudio.sh"
-
-        # Determine API base - use host.docker.internal for Docker containers
-        api_base = os.environ.get("LM_STUDIO_API_BASE", "http://host.docker.internal:1234/v1")
-
         return [
             "docker",
             "run",
             "--rm",
-            "--platform",
-            "linux/amd64",
             "-v",
             f"{spec.output_dir}:/tmp_workspace/results",
             "-v",
             f"{spec.workspace_path}:/tmp_workspace/workspace",
-            "-v",
-            f"{entrypoint_script}:/tmp_workspace/entrypoint.sh:ro",
             "-e",
-            f"{self.api_key_env}={os.environ.get(self.api_key_env, 'lm-studio')}",
+            f"{self.api_key_env}={os.environ.get(self.api_key_env, '')}",
             "-e",
             f"TASK_PROMPT={spec.prompt}",
             "-e",
             f"DEFAULT_MODEL={spec.model}",
-            "-e",
-            f"LM_STUDIO_API_BASE={api_base}",
-            "-e",
-            f"LM_STUDIO_API_KEY={os.environ.get(self.api_key_env, 'lm-studio')}",
-            "-e",
-            "LM_STUDIO_MAX_TOKENS=4096",
-            "-e",
-            "LM_STUDIO_TEMPERATURE=0.0",
             "--network",
             "host",
             "--add-host=host.docker.internal:host-gateway",
             self.image_name,
-            "bash",
-            "/tmp_workspace/entrypoint.sh",
         ]
 
     def _ensure_image(self) -> None:
