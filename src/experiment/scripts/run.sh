@@ -1,7 +1,8 @@
 #!/usr/bin/env sh
 set -eu
 
-cd "$(dirname "$0")/.."
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+experiment_dir="$script_dir/.."
 
 usage() {
   printf '%s\n' "Usage: scripts/run.sh [OPTIONS] EXPERIMENT_NUM PROMPT" >&2
@@ -30,4 +31,4 @@ fi
 num="$1"
 shift
 
-uv run python run_experiment.py --num "$num" --prompt "$*" $overwrite
+uv run python "$experiment_dir/run_experiment.py" --num "$num" --prompt "$*" $overwrite

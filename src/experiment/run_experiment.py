@@ -7,6 +7,7 @@ import json
 import shutil
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -210,28 +211,39 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        exit_codes = [
-            run_agent(
-                agent,
-                args.num,
-                prompt,
-                paths[agent]["workdir"],
-                paths[agent]["logs"],
-                timeout_seconds,
-            )
-            for agent in AGENTS
-        ]
+        exit_codes: dict[str, int] = {}
+        with ThreadPoolExecutor(max_workers=len(AGENTS)) as pool:
+            futures = {
+                pool.submit(
+                    run_agent,
+                    agent,
+                    args.num,
+                    prompt,
+                    paths[agent]["workdir"],
+                    paths[agent]["logs"],
+                    timeout_seconds,
+                ): agent
+                for agent in AGENTS
+            }
+            for future in as_completed(futures):
+                agent = futures[future]
+                try:
+                    exit_codes[agent] = future.result()
+                except KeyboardInterrupt:
+                    pool.shutdown(wait=False, cancel_futures=True)
+                    return 130
+        ordered_codes = [exit_codes[agent] for agent in AGENTS]
     except KeyboardInterrupt:
         return 130
     print(
         "summary: "
         + ", ".join(
             f"{agent}={'passed' if code == 0 else 'failed'}"
-            for agent, code in zip(AGENTS, exit_codes, strict=True)
+            for agent, code in zip(AGENTS, ordered_codes, strict=True)
         ),
         flush=True,
     )
-    return 1 if any(exit_codes) else 0
+    return 1 if any(ordered_codes) else 0
 
 
 if __name__ == "__main__":
