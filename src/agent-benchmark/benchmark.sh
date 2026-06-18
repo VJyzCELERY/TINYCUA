@@ -218,7 +218,7 @@ do_setup() {
 # WildClawBench Environment Configuration
 OPENROUTER_API_KEY=your_api_key_here
 BRAVE_API_KEY=your_brave_key_here
-DEFAULT_MODEL=openrouter/stepfun/step-3.5-flash:free
+DEFAULT_MODEL=qwen3.5-9b
 JUDGE_MODEL=openai/gpt-5.4
 LOG_LEVEL=INFO
 TIMEOUT=600

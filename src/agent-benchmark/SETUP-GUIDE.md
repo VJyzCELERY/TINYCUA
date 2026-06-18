@@ -88,7 +88,7 @@ OPENROUTER_API_KEY=sk-or-v1-...
 BRAVE_API_KEY=BSA...
 
 # Optional: Model to evaluate
-DEFAULT_MODEL=openrouter/stepfun/step-3.5-flash:free
+DEFAULT_MODEL=qwen3.5-9b
 
 # Optional: Judge model for grading
 JUDGE_MODEL=openai/gpt-5.4
