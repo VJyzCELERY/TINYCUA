@@ -287,7 +287,7 @@ class ValidationRetryMixin:
             and "task_update" in error_text
         ):
             return (
-                "I need to call task_decompose if the task tree needs structural "
+                "I need to call task_decompose if the roadmap needs structural "
                 "changes, or task_update if no further decomposition is useful."
             )
         required = self._missing_or_required_tool_name(node, error_text)
@@ -472,7 +472,7 @@ class ValidationRetryMixin:
         validation.is_valid = False
         validation.errors.append(
             "ResultReviewer must call task_inspect to review task state "
-            "before making a decision. Inspect the task tree first."
+            "before making a decision. Inspect the roadmap first."
         )
         return validation
 
@@ -589,7 +589,7 @@ class ValidationRetryMixin:
             validation.is_valid = False
             validation.errors.append(
                 "Final response cannot synthesize success before every task in "
-                "the worker task tree is actually completed. Failed tasks must "
+                "the worker roadmap is actually completed. Failed tasks must "
                 "be retried or locally replanned before terminal response."
             )
         return validation
@@ -709,7 +709,7 @@ class ValidationRetryMixin:
                 return validation
             validation.is_valid = False
             validation.errors.append(
-                "result_aggregation requires an existing completed task tree; "
+                "result_aggregation requires an existing completed roadmap; "
                 "it cannot synthesize completion from missing task state."
             )
             return validation
@@ -803,13 +803,13 @@ class ValidationRetryMixin:
             "recovery": "skip_analyzer",
             "reason": (
                 "Analyzer did not record additional decomposition or metadata; "
-                "continuing with the existing task tree."
+                "continuing with the existing roadmap."
             ),
         }
         self._record_node_content_transcript(
             node,
             "TaskAnalyzer did not record additional task-state changes; "
-            "continuing with the existing task tree.",
+            "continuing with the existing roadmap.",
         )
         return True
 

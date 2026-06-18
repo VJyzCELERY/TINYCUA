@@ -28,10 +28,19 @@ from tinycua.tools.task_tools import (
 )
 from tinycua.tools.todo_tools import TodoReadTool, TodoWriteTool
 
-# Agent tool names grouped by access level.  Nodes that only need
-# read-only verification (e.g. ResultReviewer) use READONLY_AGENT_TOOLS
-# so they can inspect the workspace and run tests without mutating files.
-READONLY_AGENT_TOOLS: list[str] = ["read_file", "list_files", "run_shell_readonly"]
+# Exploratory tools: strictly read-only, non-internal agent tools.
+# Nodes that need to verify, investigate, or gather information (e.g.
+# ResultReviewer, TaskAnalyzer, TaskAssessor, InformationDigester,
+# ResultAggregation) use EXPLORATORY_AGENT_TOOLS so they can inspect the
+# workspace, run read-only shell commands, search the web, and fetch URLs
+# without mutating files or task state.
+EXPLORATORY_AGENT_TOOLS: list[str] = [
+    "read_file",
+    "list_files",
+    "run_shell_readonly",
+    "web_search",
+    "fetch_url",
+]
 
 
 def query_analyst_tool_scope() -> NodeToolPolicy:
@@ -50,10 +59,11 @@ def query_analyst_tool_scope() -> NodeToolPolicy:
 
 
 def information_digester_tool_scope() -> NodeToolPolicy:
-    """Enhanced context retrieval + digest information tools.
+    """Enhanced context retrieval + digest information + exploratory tools.
 
-    InformationDigesterNode receives exactly two tools:
-    enhanced_context_retrieval and digest_information.
+    InformationDigesterNode receives enhanced_context_retrieval,
+    digest_information, and read-only exploratory tools (web search,
+    file inspection) to gather context before digestion.
 
     Returns:
         NodeToolPolicy for InformationDigesterNode.
@@ -63,7 +73,8 @@ def information_digester_tool_scope() -> NodeToolPolicy:
             EnhancedContextRetrievalTool(),
             DigestInformationTool(),
         ],
-        include_agent_tools="none",
+        include_agent_tools="selected",
+        allowed_agent_tool_names=EXPLORATORY_AGENT_TOOLS,
     )
 
 
@@ -86,7 +97,7 @@ def task_create_tool_scope() -> NodeToolPolicy:
     """Deterministic root task creation tools.
 
     TaskCreateNode receives only TaskInit for initializing exactly one new
-    task tree root. Subtask creation is delegated to TaskAnalyzer.
+    roadmap root. Subtask creation is delegated to TaskAnalyzer.
 
     Returns:
         NodeToolPolicy for TaskCreateNode.
@@ -117,7 +128,8 @@ def task_analyzer_tool_scope(
         base_tools.extend([TaskInitTool(), TaskCreateTool()])
     return NodeToolPolicy(
         node_tools=base_tools,
-        include_agent_tools="none",
+        include_agent_tools="selected",
+        allowed_agent_tool_names=EXPLORATORY_AGENT_TOOLS,
     )
 
 
@@ -132,7 +144,8 @@ def task_assessor_tool_scope() -> NodeToolPolicy:
     """
     return NodeToolPolicy(
         node_tools=[TaskInspectTool(), NodeHandoffTool()],
-        include_agent_tools="none",
+        include_agent_tools="selected",
+        allowed_agent_tool_names=EXPLORATORY_AGENT_TOOLS,
     )
 
 
@@ -140,7 +153,8 @@ def task_executor_tool_scope() -> NodeToolPolicy:
     """Task execution + selected outer agent tools + enhanced_context_retrieval.
 
     TaskExecutorNode receives task execution tools, enhanced context
-    retrieval, and selected outer agent tools (web_search, file_read, calculator).
+    retrieval, and selected outer agent tools (web_search, fetch_url,
+    file ops, shell, python).
 
     Returns:
         NodeToolPolicy for TaskExecutorNode.
@@ -162,7 +176,6 @@ def task_executor_tool_scope() -> NodeToolPolicy:
             "list_files",
             "run_shell",
             "run_python",
-            "calculator",
         ],
     )
 
@@ -183,22 +196,24 @@ def result_reviewer_tool_scope() -> NodeToolPolicy:
     return NodeToolPolicy(
         node_tools=[TaskReviewDecisionTool(), TaskInspectTool(), TaskUpdateTool()],
         include_agent_tools="selected",
-        allowed_agent_tool_names=READONLY_AGENT_TOOLS,
+        allowed_agent_tool_names=EXPLORATORY_AGENT_TOOLS,
     )
 
 
 def result_aggregation_tool_scope() -> NodeToolPolicy:
-    """Aggregation/consolidation tools.
+    """Aggregation/consolidation + exploratory tools.
 
     ResultAggregationNode receives aggregation tools for consolidating
-    results from multiple task executions.
+    results from multiple task executions, plus read-only exploratory
+    tools to inspect artifacts during aggregation.
 
     Returns:
         NodeToolPolicy for ResultAggregationNode.
     """
     return NodeToolPolicy(
         node_tools=[TaskInspectTool()],
-        include_agent_tools="none",
+        include_agent_tools="selected",
+        allowed_agent_tool_names=EXPLORATORY_AGENT_TOOLS,
     )
 
 
@@ -241,6 +256,5 @@ def response_tool_scope(allow_digest: bool = True) -> NodeToolPolicy:
             "list_files",
             "run_shell",
             "run_python",
-            "calculator",
         ],
     )

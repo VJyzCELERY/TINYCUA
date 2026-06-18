@@ -592,7 +592,7 @@ def test_task_assessor_prompt_is_whole_tree_decomposition_only() -> None:
     tool_surface = f"{node_handoff.description} {node_handoff.parameters}"
     combined = f"{rendered}\n{tool_surface}"
 
-    assert "whole task tree" in rendered.lower()
+    assert "whole roadmap" in rendered.lower()
     assert "further decomposition" in rendered.lower()
     assert "task_result_update" not in combined
     assert "task_update" not in combined

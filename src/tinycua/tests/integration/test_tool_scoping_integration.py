@@ -49,7 +49,7 @@ class TestTaskExecutorReceivesCorrectTools:
         assert "task_result_update" in tool_names
         assert "enhanced_context_retrieval" in tool_names
         assert "web_search" in tool_names
-        assert "calculator" in tool_names
+        assert "calculator" not in tool_names  # calculator removed from allowed list
         assert "read_file" in tool_names
 
 

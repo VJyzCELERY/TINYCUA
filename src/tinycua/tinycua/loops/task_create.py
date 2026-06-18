@@ -20,7 +20,7 @@ _TASK_CREATE_INSTRUCTION = (
 )
 
 _TASK_CREATE_CONTINUATION = (
-    "Based on the request context above, initialize the root task tree "
+    "Based on the request context above, initialize the root roadmap "
     "using task tools. Create actionable tasks and avoid repeating upstream "
     "context verbatim. Initialize one root task; decomposition into subtasks "
     "is owned by TaskAnalyzer."

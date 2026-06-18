@@ -282,7 +282,7 @@ def create_node_config(
         ),
         "task_analyzer": (
             "Use task_inspect plus task_decompose or task_update when task "
-            "analysis changes or confirms the task tree."
+            "analysis changes or confirms the roadmap."
         ),
         "task_assessor": (
             "Use task_inspect for read-only assessment and node_handoff to "

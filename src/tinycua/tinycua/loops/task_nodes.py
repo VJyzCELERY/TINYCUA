@@ -23,9 +23,9 @@ if TYPE_CHECKING:
 _TASK_ANALYZER_INSTRUCTION = (
     "You are the TaskAnalyzer. Convert the request into concrete, actionable "
     "tasks. Prefer tasks that can be verified by files, commands, tests, or "
-    "search results. Inspect the task tree, then use task_decompose or "
+    "search results. Inspect the roadmap, then use task_decompose or "
     "task_update to mutate task structure/metadata when analysis changes the "
-    "tree. Do not repeat upstream context verbatim and do not return opaque "
+    "roadmap. Do not repeat upstream context verbatim and do not return opaque "
     "mutation instructions as prose."
 )
 _TASK_ANALYZER_CONTINUATION = (
@@ -47,7 +47,7 @@ _TASK_ANALYZER_LOCAL_REPLAN_CONTINUATION = (
 
 _TASK_ASSESSOR_UPFRONT_INSTRUCTION = (
     "You are the TaskAssessor for the upfront analysis-effort decomposition loop. "
-    "Inspect the whole task tree and select unfinished tasks that are complex "
+    "Inspect the whole roadmap and select unfinished tasks that are complex "
     "enough to warrant further decomposition. Do not execute tasks and do not "
     "discuss execution tools. Use task_inspect for read-only assessment and "
     "node_handoff to instruct TaskAnalyzer which tasks to analyze and why. "
@@ -55,20 +55,20 @@ _TASK_ASSESSOR_UPFRONT_INSTRUCTION = (
     "Be concise and do not repeat upstream context."
 )
 _TASK_ASSESSOR_UPFRONT_CONTINUATION = (
-    "Based on the whole task tree above, assess decomposition readiness across "
-    "the tree. Use node_handoff to instruct TaskAnalyzer with selected task IDs, "
+    "Based on the whole roadmap above, assess decomposition readiness across "
+    "the roadmap. Use node_handoff to instruct TaskAnalyzer with selected task IDs, "
     "reasons, constraints, or that no further upfront decomposition is useful."
 )
 _TASK_ASSESSOR_LOCAL_REPLAN_INSTRUCTION = (
     "You are the TaskAssessor for a ResultReviewer-requested local replan. "
-    "Inspect the active task and nearby task-tree context to decide whether "
+    "Inspect the active task and nearby roadmap context to decide whether "
     "that local region needs refinement before execution continues. Do not "
     "reassess the whole roadmap, do not execute tasks, and do not discuss "
     "execution tools. Use task_inspect for read-only assessment and node_handoff "
     "to instruct TaskAnalyzer. Do not mutate task state."
 )
 _TASK_ASSESSOR_LOCAL_REPLAN_CONTINUATION = (
-    "Based on the active task and local task-tree region above, assess whether "
+    "Based on the active task and local roadmap region above, assess whether "
     "the reviewed task needs local decomposition or planning metadata updates. "
     "Use node_handoff to pass the local assessment, selected decomposition "
     "target, blocked planning gap, or that no local replan is useful."
@@ -132,7 +132,7 @@ _RESULT_REVIEWER_INSTRUCTION = (
     "without verifying the outcome. Never rewrite completed tasks."
 )
 _RESULT_REVIEWER_CONTINUATION = (
-    "Based on the outcome report and task tree above:\n"
+    "Based on the outcome report and roadmap above:\n"
     "1. Inspect the completed task with task_inspect(task_id=...) to verify.\n"
     "2. Verify claims by checking workspace files and running tests.\n"
     "3. Check for regressions: confirm previous work still functions after\n"
@@ -192,7 +192,7 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
         if mode == "local_replan":
             region = _local_task_region(session)
             return f"Local task region for replan:\n{_render_local_region_markdown(region)}\n\n{base}"
-        return f"Task tree:\n{_render_task_tree_markdown(_task_context_snapshot(session))}\n\n{base}"
+        return f"Roadmap:\n{_render_task_tree_markdown(_task_context_snapshot(session))}\n\n{base}"
 
 
 def _local_task_region(session: Session) -> dict:
@@ -270,6 +270,7 @@ def _render_task_tree_markdown(snapshot: dict) -> str:
     if active_id:
         active = tasks.get(active_id, {})
         lines.append(f"Active: {active.get('title', active_id)} (id={active_id})")
+    lines.append("Task list:")
     lines.append("")
 
     def _render_task(task_id: str, depth: int = 0) -> None:
@@ -280,8 +281,7 @@ def _render_task_tree_markdown(snapshot: dict) -> str:
         status = task.get("status", "pending")
         title = task.get("title", task_id)
         marker = " ✓" if status == "completed" else ""
-        active_marker = " ◀" if task_id == active_id else ""
-        lines.append(f"{indent}- [{status}] {title} (id={task_id}){marker}{active_marker}")
+        lines.append(f"{indent}- [{status}] {title} (id={task_id}){marker}")
         result = task.get("result")
         if isinstance(result, dict) and result.get("summary"):
             summary = str(result["summary"])[:120]
@@ -411,11 +411,11 @@ class TinyCUATaskAssessorNode(ProcessNode):
         mode = str(self.config.metadata.get("task_assessor_mode", "upfront_decomposition"))
         if mode == "local_replan":
             return (
-                "Local task-tree region for reviewer-requested replan:\n"
+                "Local roadmap region for reviewer-requested replan:\n"
                 f"{_render_local_region_markdown(_local_task_region(session))}\n\n{base}"
             )
         return (
-            f"Task tree:\n{_render_task_tree_markdown(snapshot)}\n\n"
+            f"Roadmap:\n{_render_task_tree_markdown(snapshot)}\n\n"
             f"{base}"
         )
 
@@ -460,7 +460,7 @@ class TinyCUATaskExecutorNode(ProcessNode):
             "/bin/sh; do not rely on shell-specific brace expansion such as "
             "'mkdir -p {a,b}', because it may create a literal brace-named "
             "directory. Use explicit POSIX-safe paths/commands instead.\n"
-            f"\n## Task Tree Orientation\n{_render_task_tree_markdown(_task_context_snapshot(session))}\n\n{base}"
+            f"\n## Roadmap\n{_render_task_tree_markdown(_task_context_snapshot(session))}\n\n{base}"
         )
 
     def _artifacts_from_tool_results(self, tool_results: list[dict]) -> list[dict]:
@@ -677,15 +677,15 @@ class TinyCUAResultAggregationNode(ProcessNode):
     def _summarize_task_results(self) -> str:
         """Summarize child task outputs for aggregation content."""
         if self.session is None:
-            return "Completed worker task tree."
+            return "Completed worker roadmap."
         parts = []
         for task in self.session.task_store.tasks.values():
             if task.result is not None and task.parent_id is not None:
                 parts.append(f"{task.title}: {task.result.content}")
-        return "\n".join(parts) or "Completed worker task tree."
+        return "\n".join(parts) or "Completed worker roadmap."
 
     def _build_aggregated_result(self, model_context: str) -> AggregatedResult:
-        """Build a response-ready aggregation from task-tree state."""
+        """Build a response-ready aggregation from roadmap state."""
         if self.session is None or self.session.task_store.root_task_id is None:
             return AggregatedResult(root_task_id="", final_context=model_context)
         store = self.session.task_store

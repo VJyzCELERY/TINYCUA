@@ -77,10 +77,14 @@ class TestInformationDigesterToolScope:
         policy = information_digester_tool_scope()
         assert len(policy.node_tools) == 2
 
-    def test_no_outer_tools(self) -> None:
-        """Does not include outer agent tools."""
+    def test_exploratory_outer_tools(self) -> None:
+        """Includes read-only exploratory agent tools (web search, file read)."""
         policy = information_digester_tool_scope()
-        assert policy.include_agent_tools == "none"
+        assert policy.include_agent_tools == "selected"
+        assert "web_search" in policy.allowed_agent_tool_names
+        assert "fetch_url" in policy.allowed_agent_tool_names
+        assert "read_file" in policy.allowed_agent_tool_names
+        assert "write_file" not in policy.allowed_agent_tool_names
 
 
 class TestWorkerToolScope:
@@ -194,11 +198,15 @@ class TestTaskAnalyzerToolScope:
         assert "task_update" in tool_names
         assert "task_decompose" in tool_names
 
-    def test_no_outer_tools(self) -> None:
-        """Does not include outer agent tools in any mode."""
+    def test_exploratory_outer_tools(self) -> None:
+        """Includes read-only exploratory agent tools in all modes."""
         for mode in ("task_creation", "task_recreation", "task_reanalysis"):
             policy = task_analyzer_tool_scope(mode=mode)
-            assert policy.include_agent_tools == "none"
+            assert policy.include_agent_tools == "selected"
+            assert "web_search" in policy.allowed_agent_tool_names
+            assert "fetch_url" in policy.allowed_agent_tool_names
+            assert "read_file" in policy.allowed_agent_tool_names
+            assert "write_file" not in policy.allowed_agent_tool_names
 
 
 class TestTaskAssessorToolScope:
@@ -235,10 +243,14 @@ class TestTaskAssessorToolScope:
         tool_names = [t.name for t in policy.node_tools]
         assert "task_init" not in tool_names
 
-    def test_no_outer_tools(self) -> None:
-        """Does not include outer agent tools."""
+    def test_exploratory_outer_tools(self) -> None:
+        """Includes read-only exploratory agent tools (web search, file read)."""
         policy = task_assessor_tool_scope()
-        assert policy.include_agent_tools == "none"
+        assert policy.include_agent_tools == "selected"
+        assert "web_search" in policy.allowed_agent_tool_names
+        assert "fetch_url" in policy.allowed_agent_tool_names
+        assert "read_file" in policy.allowed_agent_tool_names
+        assert "write_file" not in policy.allowed_agent_tool_names
 
 
 class TestTaskExecutorToolScope:
@@ -280,7 +292,8 @@ class TestTaskExecutorToolScope:
         assert policy.include_agent_tools == "selected"
         assert "web_search" in policy.allowed_agent_tool_names
         assert "read_file" in policy.allowed_agent_tool_names
-        assert "calculator" in policy.allowed_agent_tool_names
+        assert "run_python" in policy.allowed_agent_tool_names
+        assert "calculator" not in policy.allowed_agent_tool_names
 
 
 class TestResultReviewerToolScope:
@@ -304,12 +317,15 @@ class TestResultReviewerToolScope:
         tool_names = [t.name for t in policy.node_tools]
         assert "task_init" not in tool_names
 
-    def test_read_only_outer_tools(self) -> None:
-        """Reviewer may inspect artifacts but cannot mutate workspace files."""
+    def test_exploratory_outer_tools(self) -> None:
+        """Reviewer may inspect artifacts and search the web but cannot mutate files."""
         policy = result_reviewer_tool_scope()
         assert policy.include_agent_tools == "selected"
         assert "list_files" in policy.allowed_agent_tool_names
         assert "read_file" in policy.allowed_agent_tool_names
+        assert "web_search" in policy.allowed_agent_tool_names
+        assert "fetch_url" in policy.allowed_agent_tool_names
+        assert "run_shell_readonly" in policy.allowed_agent_tool_names
         assert "write_file" not in policy.allowed_agent_tool_names
         assert "edit_file" not in policy.allowed_agent_tool_names
         assert "run_shell" not in policy.allowed_agent_tool_names
@@ -334,10 +350,12 @@ class TestResultAggregationToolScope:
         tool_names = [t.name for t in policy.node_tools]
         assert "task_execute" not in tool_names
 
-    def test_no_outer_tools(self) -> None:
-        """Does not include outer agent tools."""
+    def test_exploratory_outer_tools(self) -> None:
+        """Includes read-only exploratory agent tools."""
         policy = result_aggregation_tool_scope()
-        assert policy.include_agent_tools == "none"
+        assert policy.include_agent_tools == "selected"
+        assert "read_file" in policy.allowed_agent_tool_names
+        assert "web_search" in policy.allowed_agent_tool_names
 
 
 class TestResponseToolScope:

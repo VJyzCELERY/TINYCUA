@@ -28,7 +28,7 @@ _INTERNAL_PROMPT_ECHO_MARKERS = (
     "based on the digested information and current task state above",
     "based on the digested information above, initialize the root task",
     "based on the current digested information or focused task context above",
-    "based on the task tree above, choose concise analysis effort",
+    "based on the roadmap above, choose concise analysis effort",
     "based on the active task and shallow roadmap above",
     "based on the active task above, perform the required workspace",
     "based on the latest task result and execution evidence above",

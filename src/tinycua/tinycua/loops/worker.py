@@ -232,7 +232,7 @@ class TinyCUAWorkerNode(DecisionNode):
                     NodeHandoff(
                         source_node=self.node_id,
                         target_node=spawned[0].node_id,
-                        instruction="Use the digested request to create the task tree.",
+                        instruction="Use the digested request to create the roadmap.",
                         payload={"digested_information": digest},
                     ),
                 )

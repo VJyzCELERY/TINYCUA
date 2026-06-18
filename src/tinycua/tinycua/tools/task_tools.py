@@ -37,7 +37,7 @@ class TaskInitTool(SessionTaskToolMixin, Tool):
             self,
             name="task_init",
             description=(
-                "Initialize the worker task tree with exactly one root task. "
+                "Initialize the worker roadmap with exactly one root task. "
                 "Choose the title and description from the actual user request; "
                 "do not create subtasks with this tool."
             ),
