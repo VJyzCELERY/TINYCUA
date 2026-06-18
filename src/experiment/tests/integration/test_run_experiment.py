@@ -57,6 +57,9 @@ def test_runner_invokes_all_agents_in_order_and_writes_metadata(tmp_path: Path):
     )
 
     assert result.returncode == 1
+    assert "[opencode] starting experiment-1" in result.stdout
+    assert "[tinycua] passed exit_code=0" in result.stdout
+    assert "summary: opencode=passed, hermes=failed, openclaw=passed, tinycua=passed" in result.stdout
     assert calls.read_text().splitlines() == SERVICES
     for agent in SERVICES:
         root = tmp_path / "results" / agent / "experiment-1"
@@ -113,3 +116,43 @@ def test_runner_rejects_existing_output_without_overwrite(tmp_path: Path):
 
     assert result.returncode == 2
     assert "overwrite" in result.stderr.lower()
+
+
+def test_runner_times_out_agents_and_writes_partial_logs(tmp_path: Path):
+    """Hung containers are killed and still leave logs."""
+    docker = tmp_path / "docker"
+    docker.write_text(
+        "#!/usr/bin/env python3\n"
+        "import sys, time\n"
+        "print('started', flush=True)\n"
+        "time.sleep(5)\n"
+        "sys.exit(0)\n"
+    )
+    docker.chmod(docker.stat().st_mode | stat.S_IXUSR)
+    env = os.environ | {"PATH": f"{tmp_path}:{os.environ['PATH']}"}
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "run_experiment.py"),
+            "--num",
+            "3",
+            "--prompt",
+            "compare harnesses",
+            "--output-root",
+            str(tmp_path / "results"),
+            "--timeout-seconds",
+            "1",
+        ],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    first = tmp_path / "results" / "opencode" / "experiment-3"
+    assert (first / "stdout.log").read_text() == "started\n"
+    assert "Timed out after 1 seconds" in (first / "stderr.log").read_text()
+    assert json.loads((first / "metadata.json").read_text())["exit_code"] == 124

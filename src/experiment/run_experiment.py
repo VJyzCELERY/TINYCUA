@@ -66,8 +66,42 @@ def build_metadata(
     }
 
 
-def run_agent(agent: str, experiment_num: int, prompt: str, result_dir: Path) -> int:
+def read_timeout_seconds(env_file: Path = Path(".env"), default: int = 900) -> int:
+    """Read runner timeout from .env without adding dependencies."""
+    if not env_file.exists():
+        return default
+    for raw_line in env_file.read_text().splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        if key.strip() == "EXPERIMENT_TIMEOUT_SECONDS":
+            return int(value.strip())
+    return default
+
+
+def _write_metadata(
+    result_dir: Path,
+    experiment_num: int,
+    agent: str,
+    started: datetime,
+    exit_code: int,
+) -> dict[str, object]:
+    """Write run metadata and return it."""
+    metadata = build_metadata(experiment_num, agent, started, datetime.now(UTC), exit_code)
+    (result_dir / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
+    return metadata
+
+
+def run_agent(
+    agent: str,
+    experiment_num: int,
+    prompt: str,
+    result_dir: Path,
+    timeout_seconds: int,
+) -> int:
     """Run one Docker Compose service and write its artifacts."""
+    print(f"[{agent}] starting experiment-{experiment_num}", flush=True)
     (result_dir / "prompt.txt").write_text(prompt)
     env_file = Path(".env")
     if env_file.exists():
@@ -92,21 +126,32 @@ def run_agent(agent: str, experiment_num: int, prompt: str, result_dir: Path) ->
         agent,
     ]
     started = datetime.now(UTC)
+    stdout_path = result_dir / "stdout.log"
+    stderr_path = result_dir / "stderr.log"
     try:
-        result = subprocess.run(command, text=True, capture_output=True, check=False)
-        exit_code = result.returncode
-        stdout = result.stdout
-        stderr = result.stderr
+        with stdout_path.open("w") as stdout, stderr_path.open("w") as stderr:
+            process = subprocess.Popen(command, text=True, stdout=stdout, stderr=stderr)
+            try:
+                exit_code = process.wait(timeout=timeout_seconds)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+                stderr.write(f"\nTimed out after {timeout_seconds} seconds\n")
+                exit_code = 124
+            except KeyboardInterrupt:
+                process.kill()
+                process.wait()
+                stderr.write("\nInterrupted by user\n")
+                _write_metadata(result_dir, experiment_num, agent, started, 130)
+                print(f"[{agent}] interrupted exit_code=130", flush=True)
+                raise
     except FileNotFoundError as error:
         exit_code = 127
-        stdout = ""
-        stderr = f"{error}\n"
-    ended = datetime.now(UTC)
+        stdout_path.write_text("")
+        stderr_path.write_text(f"{error}\n")
 
-    (result_dir / "stdout.log").write_text(stdout)
-    (result_dir / "stderr.log").write_text(stderr)
-    metadata = build_metadata(experiment_num, agent, started, ended, exit_code)
-    (result_dir / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
+    metadata = _write_metadata(result_dir, experiment_num, agent, started, exit_code)
+    print(f"[{agent}] {metadata['status']} exit_code={exit_code}", flush=True)
     return exit_code
 
 
@@ -124,9 +169,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Host-visible result root (default: ./results).",
     )
     parser.add_argument("--overwrite", action="store_true", help="Replace result dirs.")
+    parser.add_argument(
+        "--timeout-seconds",
+        type=int,
+        default=None,
+        help="Runner timeout per harness (default: EXPERIMENT_TIMEOUT_SECONDS or 900).",
+    )
     args = parser.parse_args(argv)
     if args.num < 1:
         parser.error("--num must be positive")
+    if args.timeout_seconds is not None and args.timeout_seconds < 1:
+        parser.error("--timeout-seconds must be positive")
     return args
 
 
@@ -141,11 +194,26 @@ def main(argv: list[str] | None = None) -> int:
             else Path.cwd() / args.output_root
         )
         paths = prepare_result_dirs(output_root, args.num, overwrite=args.overwrite)
+        timeout_seconds = args.timeout_seconds or read_timeout_seconds()
     except (OSError, ValueError) as error:
         print(error, file=sys.stderr)
         return 2
 
-    exit_codes = [run_agent(agent, args.num, prompt, paths[agent]) for agent in AGENTS]
+    try:
+        exit_codes = [
+            run_agent(agent, args.num, prompt, paths[agent], timeout_seconds)
+            for agent in AGENTS
+        ]
+    except KeyboardInterrupt:
+        return 130
+    print(
+        "summary: "
+        + ", ".join(
+            f"{agent}={'passed' if code == 0 else 'failed'}"
+            for agent, code in zip(AGENTS, exit_codes, strict=True)
+        ),
+        flush=True,
+    )
     return 1 if any(exit_codes) else 0
 
 

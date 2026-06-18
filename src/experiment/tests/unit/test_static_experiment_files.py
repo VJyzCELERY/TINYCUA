@@ -42,3 +42,15 @@ def test_agent_dockerfiles_expose_harness_commands() -> None:
         text = (ROOT / "docker" / name).read_text()
         for snippet in snippets:
             assert snippet in text
+
+
+def test_helper_scripts_wrap_setup_and_runner() -> None:
+    """Shell helpers keep common commands one step."""
+    setup = (ROOT / "scripts" / "setup.sh").read_text()
+    run = (ROOT / "scripts" / "run.sh").read_text()
+
+    assert "cp .env.example .env" in setup
+    assert "docker compose build" in setup
+    assert "uv run python run_experiment.py" in run
+    assert "--num" in run
+    assert "--prompt" in run

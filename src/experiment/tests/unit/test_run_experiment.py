@@ -11,6 +11,7 @@ from run_experiment import (
     build_metadata,
     load_prompt,
     prepare_result_dirs,
+    read_timeout_seconds,
 )
 
 
@@ -64,3 +65,11 @@ def test_build_metadata_shape() -> None:
         "status": "failed",
     }
     json.dumps(metadata)
+
+
+def test_read_timeout_seconds_from_env_file(tmp_path: Path) -> None:
+    """Runner timeout defaults from experiment .env."""
+    env_file = tmp_path / ".env"
+    env_file.write_text("# comment\nEXPERIMENT_TIMEOUT_SECONDS=12\n")
+
+    assert read_timeout_seconds(env_file) == 12
