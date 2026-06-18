@@ -763,9 +763,23 @@ class TinyCUALoop(
         }
 
     def _uses_local_openai_server(self, model: Any) -> bool:
-        """Return whether the configured OpenAI-compatible server is local."""
+        """Return whether the configured OpenAI-compatible server is local.
+
+        Local-compatible servers (LM Studio, Ollama, vLLM, etc.) typically
+        only support string ``tool_choice`` values (``"none"``, ``"auto"``,
+        ``"required"``).  The object form (``{"type": "function", ...}``)
+        is only reliable against OpenAI's hosted API.  This heuristic detects
+        local and Docker-internal hosts so ``_forced_tool_choice_for_node``
+        uses the string form.
+        """
         base_url = str(getattr(model, "base_url", "") or "")
-        return any(host in base_url for host in ("localhost", "127.0.0.1", "0.0.0.0"))
+        local_hosts = (
+            "localhost",
+            "127.0.0.1",
+            "0.0.0.0",
+            "host.docker.internal",  # ponytail: Docker→host bridge
+        )
+        return any(host in base_url for host in local_hosts)
 
     async def _collect_stream_events(
         self,
