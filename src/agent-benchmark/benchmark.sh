@@ -178,11 +178,18 @@ do_setup() {
   echo ""
 
   # 1. Check prerequisites
-  log_step "1/4 Checking prerequisites..."
+  log_step "1/5 Checking prerequisites..."
   local missing=()
   command -v docker &>/dev/null || missing+=("docker")
   command -v uv &>/dev/null     || missing+=("uv (curl -LsSf https://astral.sh/uv/install.sh | sh)")
-  command -v hf &>/dev/null     || missing+=("huggingface-hub (pip install -U 'huggingface_hub[cli]')")
+
+  if command -v hf &>/dev/null; then
+    log_success "hf CLI installed"
+  elif uv run python -c "import huggingface_hub" &>/dev/null 2>&1; then
+    log_success "huggingface_hub (Python) installed — will use Python fallback"
+  else
+    missing+=("huggingface-hub (pip install -U 'huggingface_hub' or: curl -LsSf https://hf.co/cli/install.sh | bash)")
+  fi
 
   if [[ ${#missing[@]} -gt 0 ]]; then
     log_error "Missing prerequisites:"
@@ -192,13 +199,40 @@ do_setup() {
   log_success "Prerequisites OK"
 
   # 2. Install Python deps
-  log_step "2/4 Installing Python dependencies..."
+  log_step "2/5 Installing Python dependencies..."
   cd "${PROJECT_DIR}"
   uv pip install -e ".[dev]" 2>/dev/null || uv pip install -e "."
   log_success "Python dependencies installed"
 
-  # 3. Download Docker images
-  log_step "3/4 Downloading Docker images..."
+  # 3. Setup .env (must happen before Docker image download for HF_TOKEN)
+  log_step "3/5 Setting up environment..."
+  local env_file="${PROJECT_DIR}/.env"
+  local env_example="${PROJECT_DIR}/.env.example"
+
+  if [[ ! -f "${env_file}" ]]; then
+    if [[ -f "${env_example}" ]]; then
+      cp "${env_example}" "${env_file}"
+      log_success "Created .env from .env.example"
+    else
+      cat > "${env_file}" <<'ENVEOF'
+# WildClawBench Environment Configuration
+OPENROUTER_API_KEY=your_api_key_here
+BRAVE_API_KEY=your_brave_key_here
+DEFAULT_MODEL=openrouter/stepfun/step-3.5-flash:free
+JUDGE_MODEL=openai/gpt-5.4
+LOG_LEVEL=INFO
+TIMEOUT=600
+ENVEOF
+      log_success "Created .env with defaults"
+    fi
+    echo ""
+    log_warn "Edit .env to set your API keys before running benchmarks"
+  else
+    log_info ".env already exists"
+  fi
+
+  # 4. Download Docker images
+  log_step "4/5 Downloading Docker images..."
   local download_dir="${PROJECT_DIR}/Images"
   mkdir -p "${download_dir}"
 
@@ -215,8 +249,29 @@ do_setup() {
     fi
 
     log_info "Downloading ${harness}..."
-    hf download internlm/WildClawBench "Images/${tarball}" \
-      --repo-type dataset --local-dir "${PROJECT_DIR}" 2>/dev/null || true
+
+    if command -v hf &>/dev/null; then
+      hf download internlm/WildClawBench "Images/${tarball}" \
+        --repo-type dataset --local-dir "${PROJECT_DIR}" 2>/dev/null || true
+    else
+      # Python fallback for environments without the hf CLI
+      uv run python -c "
+import os, sys
+os.environ.setdefault('HF_TOKEN', os.environ.get('HF_TOKEN', ''))
+from huggingface_hub import hf_hub_download
+try:
+    hf_hub_download(
+        repo_id='internlm/WildClawBench',
+        filename='Images/${tarball}',
+        repo_type='dataset',
+        local_dir='${PROJECT_DIR}',
+    )
+    print('Downloaded ${tarball}')
+except Exception as e:
+    print(f'Failed: {e}', file=sys.stderr)
+    sys.exit(1)
+" 2>&1 || true
+    fi
 
     if [[ -f "${download_dir}/${tarball}" ]]; then
       log_info "Loading ${harness} into Docker..."
@@ -226,33 +281,6 @@ do_setup() {
       log_warn "Failed to download ${harness} image, skipping"
     fi
   done
-
-  # 4. Setup .env
-  log_step "4/4 Setting up environment..."
-  local env_file="${PROJECT_DIR}/.env"
-  local env_example="${PROJECT_DIR}/.env.example"
-
-  if [[ ! -f "${env_file}" ]]; then
-    if [[ -f "${env_example}" ]]; then
-      cp "${env_example}" "${env_file}"
-      log_success "Created .env from .env.example"
-    else
-      cat > "${env_file}" <<'ENVEOF'
-# WildClawBench Environment Configuration
-OPENROUTER_API_KEY=your_api_key_here
-BRAVE_API_KEY=your_brave_key_here
-DEFAULT_MODEL=openrouter/stepfun/step-3.5-flash:free
-JUDGE_MODEL=openai/gpt-5.4
-LOG_LEVEL=INFO
-TIMEOUT=300
-ENVEOF
-      log_success "Created .env with defaults"
-    fi
-    echo ""
-    log_warn "Edit .env to set your API keys before running benchmarks"
-  else
-    log_info ".env already exists"
-  fi
 
   echo ""
   echo "=========================================="
@@ -269,6 +297,8 @@ do_run() {
   local model=""
   local agent=""
   local parallel=1
+  local no_score=""
+  local verbose_flag=""
 
   # Parse run options
   while [[ $# -gt 0 ]]; do
@@ -277,6 +307,8 @@ do_run() {
       --model)    model="$2"; shift 2 ;;
       --agent)    agent="$2"; shift 2 ;;
       --parallel) parallel="$2"; shift 2 ;;
+      --no-score) no_score="--no-score"; shift ;;
+      --verbose|-v) verbose_flag="--verbose"; shift ;;
       *) log_error "Unknown option: $1"; exit 1 ;;
     esac
   done
@@ -310,6 +342,8 @@ do_run() {
   echo "  Model    : ${model:-from .env}"
   echo "  Agents   : ${agents_to_run}"
   echo "  Sequential: Yes (one at a time)"
+  echo "  Scoring  : $([ -n "${no_score}" ] && echo "disabled" || echo "enabled")"
+  echo "  Verbose  : $([ -n "${verbose_flag}" ] && echo "yes" || echo "no")"
   echo "=========================================="
   echo ""
 
@@ -334,16 +368,20 @@ do_run() {
     local exit_code=0
 
     if [[ "${harness}" == "openclaw" ]]; then
-      python3 eval/run_batch.py \
+      uv run python3 eval/run_batch.py \
         --category "${category}" \
         --parallel "${parallel}" \
-        ${model_flag} || exit_code=$?
+        ${model_flag} \
+        ${no_score} \
+        ${verbose_flag} || exit_code=$?
     else
-      python3 eval/run_batch.py \
+      uv run python3 eval/run_batch.py \
         --harness "${harness}" \
         --category "${category}" \
         --parallel "${parallel}" \
-        ${model_flag} || exit_code=$?
+        ${model_flag} \
+        ${no_score} \
+        ${verbose_flag} || exit_code=$?
     fi
 
     local harness_end
@@ -478,6 +516,8 @@ Run Options:
   --model MODEL         Model to evaluate (default: from .env)
   --agent AGENT         Run specific agent only (openclaw|opencode|hermesagent)
   --parallel N          Parallel tasks per agent (default: 1)
+  --no-score            Disable scoring (skip evaluation of task output)
+  --verbose, -v         Verbose logging (shows detailed scoring breakdown)
 
 Examples:
   bash benchmark.sh check
@@ -486,7 +526,19 @@ Examples:
   bash benchmark.sh run --model qwen3.5-9b
   bash benchmark.sh run --category 01_Productivity_Flow
   bash benchmark.sh run --agent opencode
+  bash benchmark.sh run --verbose
+  bash benchmark.sh run --no-score
   bash benchmark.sh status
+
+Scoring:
+  By default, each task is scored after execution on a 0.0-1.0 scale based on:
+  - LLM response quality (code blocks, required imports)
+  - File creation (expected files exist with correct names)
+  - Code execution (scripts run without errors)
+  - Output correctness (output matches expected patterns)
+
+  Use --no-score to disable scoring for faster execution.
+  Use --verbose to see detailed scoring breakdown for each criterion.
 
 Execution Flow:
   1. Setup installs all prerequisites and downloads Docker images
@@ -498,7 +550,7 @@ Environment (.env):
   OPENROUTER_API_KEY    Required for API access
   BRAVE_API_KEY         Required for search tasks
   DEFAULT_MODEL         Default model to evaluate
-  JUDGE_MODEL           LLM for judge-based grading
+  JUDGE_MODEL           LLM for judge-based grading (optional)
 EOF
 }
 
