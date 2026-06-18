@@ -137,14 +137,20 @@ def _build_agent(
     if harness == "hermesagent":
         config_path = PROJECT_DIR / "hermes-config.yaml"
         if not config_path.exists():
-            _create_default_config(config_path, model, "OPENROUTER_API_KEY", env)
+            _create_default_config(config_path, model, "LM_STUDIO_API_KEY", env)
         return get_agent("hermesagent", config_path=str(config_path))
 
     if harness == "opencode":
         config_path = PROJECT_DIR / "opencode-config.yaml"
         if not config_path.exists():
-            _create_default_config(config_path, model, "OPENROUTER_API_KEY", env)
+            _create_default_config(config_path, model, "LM_STUDIO_API_KEY", env)
         return get_agent("opencode", config_path=str(config_path))
+
+    if harness == "openclaw":
+        config_path = PROJECT_DIR / "openclaw-config.yaml"
+        if not config_path.exists():
+            _create_default_config(config_path, model, "LM_STUDIO_API_KEY", env)
+        return get_agent("openclaw", config_path=str(config_path))
 
     return get_agent(harness)
 
@@ -153,7 +159,7 @@ def _create_default_config(
     path: Path, model: str, api_key_env: str, env: dict[str, str]
 ) -> None:
     """Create a default agent config file."""
-    api_base = env.get("API_BASE", "https://openrouter.ai/api/v1")
+    api_base = env.get("API_BASE", "http://localhost:1234/v1")
     config = {
         "model": model,
         "api_base": api_base,
