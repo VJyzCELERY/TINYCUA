@@ -56,7 +56,7 @@ def resolve_workspace_path(path: str) -> Path:
         else (workspace / candidate).resolve(strict=False)
     )
     if resolved != workspace and not resolved.is_relative_to(workspace):
-        msg = f"Path outside workspace: {path}"
+        msg = f"Path outside workspace ({workspace}): {path}. Use a relative path instead."
         raise ValueError(msg)
     return resolved
 

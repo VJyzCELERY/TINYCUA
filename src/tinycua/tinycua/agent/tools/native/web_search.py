@@ -2,17 +2,27 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 import httpx
 from tinycua_sdk.tools.decorators import tool
 
-_SEARXNG_URL = "https://searxng.salmon-crested.ts.net/search"
+_DEFAULT_SEARXNG_URL = "http://localhost:8080/search"
+
+
+def _searxng_url() -> str:
+    """Resolve the SearXNG endpoint from the environment at call time.
+
+    Read on each call so ``.env`` loading (which happens after module import
+    in the CLI flow) is honoured.
+    """
+    return os.environ.get("TINYCUA_SEARXNG_URL", _DEFAULT_SEARXNG_URL)
 
 
 @tool
 def web_search(query: str, max_results: int = 5, timeout: int = 15) -> dict[str, Any]:
-    """Search the web using the public SearXNG endpoint.
+    """Search the web using a SearXNG endpoint.
 
     Args:
         query: Search query.
@@ -27,7 +37,7 @@ def web_search(query: str, max_results: int = 5, timeout: int = 15) -> dict[str,
     try:
         with httpx.Client(timeout=timeout, follow_redirects=True) as client:
             response = client.get(
-                _SEARXNG_URL,
+                _searxng_url(),
                 params={"q": query, "format": "json"},
                 headers={"Accept": "application/json"},
             )

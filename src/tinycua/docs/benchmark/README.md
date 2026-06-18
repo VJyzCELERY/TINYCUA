@@ -64,7 +64,7 @@ docker run --rm \
 |----------|---------|-------------|
 | `TINYCUA_API_KEY` | `""` | API key for model endpoint (empty for local) |
 | `TINYCUA_MODEL` | `llama3` | Model name to use for inference |
-| `BRAVE_API_KEY` | `""` | API key for Brave web search |
+| `TINYCUA_SEARXNG_URL` | `http://localhost:8080/search` | SearXNG endpoint for the `web_search` tool |
 | `TINYCUA_LOG_LEVEL` | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR) |
 | `TINYCUA_TIMEOUT` | `300` | Maximum execution time in seconds |
 

@@ -515,6 +515,33 @@ class ValidationRetryMixin:
             return validation
         content = llm_result.content.strip()
         if not content:
+            # ponytail: when the Response node called tools successfully but
+            # produced no accompanying text, synthesize a minimal response from
+            # the tool results instead of failing validation. This prevents
+            # retry exhaustion on tool-call-only rounds (e.g. passthrough mode
+            # where the agent writes a file but doesn't produce a text summary).
+            # Upgrade path: give the agent another LLM call to produce proper
+            # text instead of synthesizing, if response quality matters.
+            tool_results = llm_result.metadata.get("tool_results", [])
+            successful = [
+                item
+                for item in tool_results
+                if isinstance(item, dict)
+                and isinstance(item.get("output"), dict)
+                and item["output"].get("success") is True
+            ]
+            if successful:
+                summaries: list[str] = []
+                for item in successful:
+                    name = item.get("name", "tool")
+                    output = item.get("output", {})
+                    path = output.get("path")
+                    if path:
+                        summaries.append(f"{name}: {path}")
+                    else:
+                        summaries.append(f"{name}: done")
+                llm_result.content = "Done. " + "; ".join(summaries)
+                return validation
             validation.is_valid = False
             validation.errors.append("Final response must be non-empty.")
             return validation
