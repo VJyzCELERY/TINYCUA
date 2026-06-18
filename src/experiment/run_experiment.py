@@ -66,7 +66,7 @@ def build_metadata(
     }
 
 
-def read_timeout_seconds(env_file: Path = Path(".env"), default: int = 900) -> int:
+def read_timeout_seconds(env_file: Path = Path(".env"), default: int = 3600) -> int:
     """Read runner timeout from .env without adding dependencies."""
     if not env_file.exists():
         return default
@@ -173,7 +173,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--timeout-seconds",
         type=int,
         default=None,
-        help="Runner timeout per harness (default: EXPERIMENT_TIMEOUT_SECONDS or 900).",
+        help="Runner timeout per harness (default: EXPERIMENT_TIMEOUT_SECONDS or 3600).",
     )
     args = parser.parse_args(argv)
     if args.num < 1:

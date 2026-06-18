@@ -110,7 +110,7 @@ EXPERIMENT_LLM_PROVIDER=openai-compatible
 EXPERIMENT_LLM_MODEL=qwen3.5-9b
 EXPERIMENT_LLM_BASE_URL=http://localhost:1234/v1
 EXPERIMENT_LLM_API_KEY=<put_api_key_here>
-EXPERIMENT_TIMEOUT_SECONDS=900
+EXPERIMENT_TIMEOUT_SECONDS=3600
 EXPERIMENT_TINYCUA_PROVIDER_TYPE=openai-chat-completions
 ```
 
@@ -143,7 +143,7 @@ tinycua run \
   --api-key "$EXPERIMENT_LLM_API_KEY" \
   --model "$EXPERIMENT_LLM_MODEL" \
   --provider-type "${EXPERIMENT_TINYCUA_PROVIDER_TYPE:-openai-chat-completions}" \
-  --timeout "${EXPERIMENT_TIMEOUT_SECONDS:-900}"
+  --timeout "${EXPERIMENT_TIMEOUT_SECONDS:-3600}"
 ```
 
 Use `--dir`; current `tinycua run` does not use the older `--workspace` / `--output-dir` flags.
