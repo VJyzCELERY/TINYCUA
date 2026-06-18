@@ -33,7 +33,7 @@ Implementation tasks for Agent Harness Experiment. Check off items as completed.
 - [x] Add TINYCUA container setup <!-- id: 8 -->
   - [x] Add `docker/tinycua.Dockerfile`
   - [x] Install local `src/tinycua-sdk` then local `src/tinycua` with uv
-  - [x] Run existing TINYCUA run implementation with `--dir`, `--provider-url`, `--api-key`, `--model`, `--provider-type`, and `--timeout` equivalents
+  - [x] Run `tinycua run` with `--dir`, `--provider-url`, `--api-key`, `--model`, `--provider-type`, and `--timeout`
 - [x] Add Opencode container setup <!-- id: 9 -->
   - [x] Add `docker/opencode.Dockerfile`
   - [x] Install `opencode-ai`

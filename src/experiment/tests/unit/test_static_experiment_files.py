@@ -26,7 +26,8 @@ def test_tinycua_dockerfile_installs_local_packages() -> None:
     assert "COPY src/tinycua ./tinycua" in dockerfile
     assert "uv pip install --no-cache-dir --system ./tinycua-sdk" in dockerfile
     assert "uv pip install --no-cache-dir --system ./tinycua" in dockerfile
-    assert "tinycua_entrypoint.py" in dockerfile
+    assert "tinycua run" in dockerfile
+    assert "--dir" in dockerfile
 
 
 def test_agent_dockerfiles_expose_harness_commands() -> None:
