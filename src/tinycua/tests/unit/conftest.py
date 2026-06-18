@@ -171,21 +171,14 @@ def _resource_limits(request: pytest.FixtureRequest) -> Any:
       - TEST_MEMORY_LIMIT_MB: RSS limit in MB (default: 2048)
     """
     bind_workspace(None)
-    try:
-        original_cwd = Path.cwd()
-    except FileNotFoundError:
-        original_cwd = _PROJECT_ROOT
-        os.chdir(original_cwd)
+    original_cwd = Path.cwd()
     mem_limit_mb = _DEFAULT_MEMORY_LIMIT_MB
     rss_before = _get_rss_mb()
 
     yield
 
     bind_workspace(None)
-    try:
-        os.chdir(original_cwd)
-    except FileNotFoundError:
-        os.chdir(_PROJECT_ROOT)
+    os.chdir(original_cwd)
 
     rss_after = _get_rss_mb()
     rss_delta = rss_after - rss_before

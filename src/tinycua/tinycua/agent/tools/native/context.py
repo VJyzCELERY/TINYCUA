@@ -19,7 +19,8 @@ def bind_workspace(workspace_dir: str | Path | None) -> None:
         _WORKSPACE_DIR.set(None)
         return
     workspace = Path(workspace_dir).expanduser().resolve()
-    workspace.mkdir(parents=True, exist_ok=True)
+    # ponytail: directory creation belongs to the CLI layer, not the tool
+    # binding. Silently recreating a deleted workspace masks bugs.
     _WORKSPACE_DIR.set(workspace)
 
 

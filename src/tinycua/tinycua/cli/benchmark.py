@@ -1,10 +1,14 @@
-"""Benchmark subcommand implementation for tinycua CLI."""
+"""Benchmark subcommand implementation for tinycua CLI.
+
+.. deprecated::
+    ``tinycua benchmark`` is deprecated. Use ``tinycua run`` instead.
+"""
 
 from __future__ import annotations
 
 import argparse
 import logging
-import os
+import warnings
 from pathlib import Path
 
 from tinycua.cli._common import create_agent, run_agent, setup_output_dir
@@ -96,6 +100,8 @@ def benchmark_run_command(
 ) -> int:
     """Execute the tinycua benchmark run command.
 
+    .. deprecated:: Use ``tinycua run`` instead.
+
     Orchestrates config loading, agent creation, execution with timeout
     watchdog, and artifact writing for WildClawBench benchmark evaluation.
 
@@ -113,6 +119,14 @@ def benchmark_run_command(
     Returns:
         Exit code: 0 success, 1 error, 124 timeout.
     """
+    warnings.warn(
+        "tinycua benchmark is deprecated. Use tinycua run instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
+    import os
+
     if verbose:
         logging.basicConfig(level=logging.DEBUG)
     else:
@@ -131,8 +145,9 @@ def benchmark_run_command(
         print(f"Output directory not writable: {output_dir}", flush=True)
         return 1
 
+    # Resolve workspace to absolute path — never mutate process CWD.
+    workspace = workspace.expanduser().resolve()
     workspace.mkdir(parents=True, exist_ok=True)
-    os.chdir(workspace)
 
     log_path = output_dir / "agent.log"
 

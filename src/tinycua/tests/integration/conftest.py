@@ -20,16 +20,9 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 @pytest.fixture(autouse=True)
 def restore_working_directory():
     """Restore cwd after tests that temporarily chdir into disposable dirs."""
-    try:
-        original_cwd = Path.cwd()
-    except FileNotFoundError:
-        original_cwd = _PROJECT_ROOT
-        os.chdir(original_cwd)
+    original_cwd = Path.cwd()
     yield
-    try:
-        os.chdir(original_cwd)
-    except FileNotFoundError:
-        os.chdir(_PROJECT_ROOT)
+    os.chdir(original_cwd)
 
 
 # Load .env.test or .env.test.example automatically

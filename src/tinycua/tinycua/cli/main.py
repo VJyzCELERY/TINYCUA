@@ -5,6 +5,123 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+
+def _load_default_env() -> None:
+    """Load the project ``.env`` before argparse evaluates env-derived defaults."""
+    from tinycua.cli.config import _PROJECT_DIR
+
+    candidates = [Path.cwd() / ".env", _PROJECT_DIR / ".env"]
+    loaded: set[Path] = set()
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        if resolved in loaded or not resolved.exists():
+            continue
+        load_dotenv(resolved, override=False)
+        loaded.add(resolved)
+
+
+def _add_run_arguments(parser: argparse.ArgumentParser) -> None:
+    """Register all ``tinycua run`` arguments on a parser.
+
+    Shared between ``main.py`` (top-level subparser) and ``run.py``
+    (standalone invocation) so the argument set stays in sync without
+    duplication.  Env-derived defaults are resolved at call time so
+    ``_load_default_env`` values are honoured.
+    """
+    parser.add_argument(
+        "prompt",
+        nargs="?",
+        help="Task prompt for the TinyCUA agent.",
+    )
+    parser.add_argument(
+        "--prompt",
+        dest="prompt_option",
+        default=None,
+        help="Task prompt for one-shot invocation. Overrides positional prompt.",
+    )
+    parser.add_argument(
+        "--dir",
+        type=Path,
+        default=None,
+        help="Workspace directory where generated files are written (default: cwd).",
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=None,
+        help="Override TINYCUA_MODEL env var.",
+    )
+    parser.add_argument(
+        "--provider-url",
+        dest="provider_url",
+        type=str,
+        default=None,
+        help="Override TINYCUA_BASE_URL env var (provider base URL).",
+    )
+    parser.add_argument(
+        "--base-url",
+        dest="provider_url",
+        type=str,
+        default=None,
+        help=argparse.SUPPRESS,  # hidden alias for --provider-url
+    )
+    parser.add_argument(
+        "--provider-type",
+        dest="provider_type",
+        type=str,
+        default=os.environ.get("TINYCUA_PROVIDER_TYPE", "openai-chat-completions"),
+        help="Provider API type: openai-chat-completions or openai-responses "
+        "(default: env TINYCUA_PROVIDER_TYPE or openai-chat-completions).",
+    )
+    parser.add_argument(
+        "--api-key",
+        type=str,
+        default=None,
+        help="Override TINYCUA_API_KEY env var.",
+    )
+    parser.add_argument(
+        "--worker-effort",
+        choices=["none", "low", "medium", "high"],
+        default=os.environ.get("TINYCUA_WORKER_EFFORT", "medium"),
+        help="Analysis effort pass count (default: env TINYCUA_WORKER_EFFORT or medium).",
+    )
+    parser.add_argument(
+        "--env",
+        dest="env_file",
+        type=Path,
+        default=None,
+        help="Path to an .env file to load before resolving config (default: src/tinycua/.env).",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=600,
+        help="Maximum execution time in seconds (default: 600).",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        default=False,
+        help="Enable debug logging output.",
+    )
+
+
+def _normalise_run_args(args: argparse.Namespace) -> None:
+    """Post-process run args: merge --prompt into prompt, resolve --dir."""
+    if args.prompt_option:
+        args.prompt = args.prompt_option
+    delattr(args, "prompt_option")
+    # ponytail: resolve --dir to absolute path; default to cwd
+    if args.dir is None:
+        args.dir = Path.cwd()
+    args.dir = args.dir.expanduser().resolve()
+    # `--base-url` and `--provider-url` share dest=provider_url; the first wins.
+    # Expose base_url as a compatibility alias for callers/tests.
+    args.base_url = args.provider_url
 
 
 def main() -> None:
@@ -16,8 +133,6 @@ def main() -> None:
     # Load src/tinycua/.env (and cwd/.env) BEFORE parsing args so env-derived
     # argparse defaults (--worker-effort, --provider-type) see the user's
     # configured values. Shell-provided env vars always win.
-    from tinycua.cli.config import _load_default_env
-
     _load_default_env()
 
     parser = argparse.ArgumentParser(
@@ -26,11 +141,13 @@ def main() -> None:
     )
     subparsers = parser.add_subparsers(dest="command")
 
-    # Register 'run' subcommand
-    subparsers.add_parser(
+    # Register 'run' subcommand with full argument set so argparse validates
+    # everything in a single pass. No re-parsing via sys.argv needed.
+    run_parser = subparsers.add_parser(
         "run",
         help="Run a TinyCUA agent task with a local model endpoint.",
     )
+    _add_run_arguments(run_parser)
 
     # Register 'benchmark' subcommand
     benchmark_parser = subparsers.add_parser(
@@ -59,24 +176,24 @@ def main() -> None:
         raise SystemExit(0)
 
     if args.command == "run":
-        from tinycua.cli.run import parse_args, run_command
+        _normalise_run_args(args)
 
-        run_args = parse_args(sys.argv[2:])
-
-        if not run_args.prompt:
+        if not args.prompt:
             parser.error("the following arguments are required: prompt")
 
+        from tinycua.cli.run import run_command
+
         exit_code = run_command(
-            prompt=run_args.prompt,
-            dir=run_args.dir,
-            provider_url=run_args.provider_url,
-            api_key=run_args.api_key,
-            model=run_args.model,
-            provider_type=run_args.provider_type,
-            worker_effort=run_args.worker_effort,
-            timeout=run_args.timeout,
-            verbose=run_args.verbose,
-            env_file=run_args.env_file,
+            prompt=args.prompt,
+            dir=args.dir,
+            provider_url=args.provider_url,
+            api_key=args.api_key,
+            model=args.model,
+            provider_type=args.provider_type,
+            worker_effort=args.worker_effort,
+            timeout=args.timeout,
+            verbose=args.verbose,
+            env_file=args.env_file,
         )
         raise SystemExit(exit_code)
 

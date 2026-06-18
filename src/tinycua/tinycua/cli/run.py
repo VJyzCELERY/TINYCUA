@@ -79,94 +79,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     Returns:
         Parsed argument namespace.
     """
+    from tinycua.cli.main import _add_run_arguments, _normalise_run_args
+
     parser = argparse.ArgumentParser(
         prog="tinycua run",
         description="Run a TinyCUA agent task. Streams node/tool activity live.",
     )
-    parser.add_argument(
-        "prompt",
-        nargs="?",
-        help="Task prompt for the TinyCUA agent.",
-    )
-    parser.add_argument(
-        "--prompt",
-        dest="prompt_option",
-        default=None,
-        help="Task prompt for one-shot invocation. Overrides positional prompt.",
-    )
-    parser.add_argument(
-        "--dir",
-        type=Path,
-        default=Path.cwd(),
-        help="Workspace directory where generated files are written (default: cwd).",
-    )
-    parser.add_argument(
-        "--model",
-        type=str,
-        default=None,
-        help="Override TINYCUA_MODEL env var.",
-    )
-    parser.add_argument(
-        "--provider-url",
-        dest="provider_url",
-        type=str,
-        default=None,
-        help="Override TINYCUA_BASE_URL env var (provider base URL).",
-    )
-    parser.add_argument(
-        "--base-url",
-        dest="provider_url",
-        type=str,
-        default=None,
-        help=argparse.SUPPRESS,  # hidden alias for --provider-url
-    )
-    parser.add_argument(
-        "--provider-type",
-        dest="provider_type",
-        type=str,
-        default=os.environ.get("TINYCUA_PROVIDER_TYPE", "openai-chat-completions"),
-        help="Provider API type: openai-chat-completions or openai-responses "
-        "(default: env TINYCUA_PROVIDER_TYPE or openai-chat-completions).",
-    )
-    parser.add_argument(
-        "--api-key",
-        type=str,
-        default=None,
-        help="Override TINYCUA_API_KEY env var.",
-    )
-    parser.add_argument(
-        "--worker-effort",
-        choices=["none", "low", "medium", "high"],
-        default=os.environ.get("TINYCUA_WORKER_EFFORT", "medium"),
-        help="Analysis effort pass count (default: env TINYCUA_WORKER_EFFORT or medium).",
-    )
-    parser.add_argument(
-        "--env",
-        dest="env_file",
-        type=Path,
-        default=None,
-        help="Path to an .env file to load before resolving config (default: src/tinycua/.env).",
-    )
-    parser.add_argument(
-        "--timeout",
-        type=int,
-        default=600,
-        help="Maximum execution time in seconds (default: 600).",
-    )
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        default=False,
-        help="Enable debug logging output.",
-    )
+    _add_run_arguments(parser)
     args = parser.parse_args(argv)
-    if args.prompt_option:
-        args.prompt = args.prompt_option
-    delattr(args, "prompt_option")
-    # `--base-url` and `--provider-url` share dest=provider_url; the first wins.
-    # argparse already merged them into args.provider_url. Expose base_url as
-    # a compatibility alias for callers/tests that still read args.base_url.
-    args.base_url = args.provider_url
+    _normalise_run_args(args)
     return args
 
 
@@ -213,7 +134,10 @@ def run_command(
     else:
         logging.basicConfig(level=logging.INFO)
 
-    workspace = dir
+    # Resolve workspace to an absolute path. ``dir`` arrives already
+    # absolute from ``_normalise_run_args`` but we ensure it here too so
+    # that ``run_command`` is safe when called directly (e.g. scripts).
+    workspace = Path(dir).expanduser().resolve()
     workspace.mkdir(parents=True, exist_ok=True)
     artifact_dir = workspace / ".tinycua-artifacts"
     artifact_dir.mkdir(parents=True, exist_ok=True)
