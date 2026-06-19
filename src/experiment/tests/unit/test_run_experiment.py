@@ -9,9 +9,13 @@ import pytest
 from run_experiment import (
     AGENTS,
     _format_stream_line,
+    _hermes_poll_timed_out,
+    _hermes_process_poll_completed,
+    _hermes_process_poll_started,
     build_metadata,
     load_prompt,
     prepare_result_dirs,
+    read_hermes_process_poll_timeout_seconds,
     read_timeout_seconds,
 )
 
@@ -91,6 +95,24 @@ def test_read_timeout_seconds_from_env_file(tmp_path: Path) -> None:
     env_file.write_text("# comment\nEXPERIMENT_TIMEOUT_SECONDS=12\n")
 
     assert read_timeout_seconds(env_file) == 12
+
+
+def test_read_hermes_poll_timeout_from_env_file(tmp_path: Path) -> None:
+    """Hermes process-poll timeout is separately configurable."""
+    env_file = tmp_path / ".env"
+    env_file.write_text("EXPERIMENT_HERMES_PROCESS_POLL_TIMEOUT_SECONDS=7\n")
+
+    assert read_hermes_process_poll_timeout_seconds(env_file) == 7
+
+
+def test_hermes_process_poll_detection() -> None:
+    """Known Hermes background-process poll hangs are detectable."""
+    line = 'Tool call: process with args: {"action":"poll","session_id":"x"}'
+
+    assert _hermes_process_poll_started(line)
+    assert _hermes_process_poll_completed("tool process completed (0.1s)")
+    assert _hermes_poll_timed_out(10.0, 5, 15.1)
+    assert not _hermes_poll_timed_out(10.0, 0, 99.0)
 
 
 # --- _format_stream_line ---

@@ -8,7 +8,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from tinycua.config.system_prompt import SystemPromptBuilder
+from tinycua.config.system_prompt import SystemPromptBuilder, build_runtime_context
 from tinycua.config.types import LLMResult, ValidationError, ValidationResult
 from tinycua.loops.context_rendering import looks_like_planner_prose, render_llm_content
 from tinycua.loops.route_classifier import RouteClassifier
@@ -283,6 +283,7 @@ class Node(ABC):
         instruction = self.build_instruction()
         if instruction:
             builder.add_static(instruction)
+        builder.add_dynamic_context(build_runtime_context())
         tool_prompt = self.build_tool_system_prompt(resolved_tools)
         if tool_prompt:
             builder.add_dynamic_context(tool_prompt)

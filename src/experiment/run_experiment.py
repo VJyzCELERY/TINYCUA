@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import queue
+import re
 import shutil
 import subprocess
 import sys
@@ -25,6 +26,11 @@ WARMUP_DONE_MARKERS: dict[str, str] = {
     "openclaw": "[model-fetch] start",
     "tinycua": "[query_analyst] start",
 }
+
+HERMES_PROCESS_POLL_TIMEOUT_ENV = "EXPERIMENT_HERMES_PROCESS_POLL_TIMEOUT_SECONDS"
+HERMES_PROCESS_POLL_STARTED_RE = re.compile(
+    r"Tool call:\s*process\s+with args:.*\"action\"\s*:\s*\"poll\""
+)
 
 
 def load_prompt(prompt: str | None, prompt_file: Path | None) -> str:
@@ -104,18 +110,50 @@ def build_metadata(
     }
 
 
-def read_timeout_seconds(env_file: Path = Path(".env"), default: int = 3600) -> int:
-    """Read runner timeout from .env without adding dependencies."""
+def read_int_env(key: str, env_file: Path = Path(".env"), default: int = 0) -> int:
+    """Read an integer value from .env without adding dependencies."""
     if not env_file.exists():
         return default
     for raw_line in env_file.read_text().splitlines():
         line = raw_line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
-        key, value = line.split("=", 1)
-        if key.strip() == "EXPERIMENT_TIMEOUT_SECONDS":
+        found_key, value = line.split("=", 1)
+        if found_key.strip() == key:
             return int(value.strip())
     return default
+
+
+def read_timeout_seconds(env_file: Path = Path(".env"), default: int = 3600) -> int:
+    """Read runner timeout from .env without adding dependencies."""
+    return read_int_env("EXPERIMENT_TIMEOUT_SECONDS", env_file, default)
+
+
+def read_hermes_process_poll_timeout_seconds(
+    env_file: Path = Path(".env"),
+    default: int = 600,
+) -> int:
+    """Read Hermes process-poll timeout; 0 disables the guard."""
+    return read_int_env(HERMES_PROCESS_POLL_TIMEOUT_ENV, env_file, default)
+
+
+def _hermes_process_poll_started(line: str) -> bool:
+    """Return whether a Hermes log line starts a background process poll."""
+    return bool(HERMES_PROCESS_POLL_STARTED_RE.search(line))
+
+
+def _hermes_process_poll_completed(line: str) -> bool:
+    """Return whether a Hermes process poll completed."""
+    return "tool process completed" in line.lower()
+
+
+def _hermes_poll_timed_out(
+    started_at: float | None,
+    timeout_seconds: int,
+    now: float,
+) -> bool:
+    """Return whether the Hermes process-poll guard should fire."""
+    return bool(started_at is not None and timeout_seconds > 0 and now - started_at >= timeout_seconds)
 
 
 def _write_metadata(
@@ -173,6 +211,7 @@ def run_agent(
     workdir: Path,
     logs_dir: Path,
     timeout_seconds: int,
+    hermes_process_poll_timeout_seconds: int = 600,
 ) -> int:
     """Run one Docker Compose service and write its artifacts."""
     print(f"[{agent}] starting experiment-{experiment_num}", flush=True)
@@ -239,9 +278,24 @@ def run_agent(
             deadline = time.monotonic() + timeout_seconds
             exit_code: int | None = None
             last_output = time.monotonic()
+            hermes_poll_started_at: float | None = None
             saw_eof = {"out": False, "err": False}
             try:
                 while True:
+                    now = time.monotonic()
+                    if agent == "hermes" and _hermes_poll_timed_out(
+                        hermes_poll_started_at,
+                        hermes_process_poll_timeout_seconds,
+                        now,
+                    ):
+                        process.kill()
+                        process.wait()
+                        stderr.write(
+                            "\nHermes process poll timed out after "
+                            f"{hermes_process_poll_timeout_seconds} seconds\n"
+                        )
+                        exit_code = 124
+                        break
                     remaining = deadline - time.monotonic()
                     if remaining <= 0:
                         process.kill()
@@ -270,6 +324,11 @@ def run_agent(
                         llm_started = datetime.now(UTC)
                         warmup = (llm_started - started).total_seconds()
                         print(f"[{agent}] ⚡ LLM call started (warmup {warmup:.1f}s)", flush=True)
+                    if agent == "hermes":
+                        if _hermes_process_poll_started(line):
+                            hermes_poll_started_at = time.monotonic()
+                        elif _hermes_process_poll_completed(line):
+                            hermes_poll_started_at = None
                     if source == "out":
                         stdout.write(line)
                         stdout.flush()
@@ -340,6 +399,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         paths = prepare_result_dirs(output_root, args.num, overwrite=args.overwrite)
         timeout_seconds = args.timeout_seconds or read_timeout_seconds()
+        hermes_process_poll_timeout_seconds = read_hermes_process_poll_timeout_seconds()
     except (OSError, ValueError) as error:
         print(error, file=sys.stderr)
         return 2
@@ -356,6 +416,7 @@ def main(argv: list[str] | None = None) -> int:
                     paths[agent]["workdir"],
                     paths[agent]["logs"],
                     timeout_seconds,
+                    hermes_process_poll_timeout_seconds,
                 )
             )
     except KeyboardInterrupt:

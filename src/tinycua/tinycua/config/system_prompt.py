@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, Literal
 
 
@@ -111,3 +112,15 @@ class SystemPromptBuilder:
         merged_content = "\n".join(f.content for f in sorted_fragments)
 
         return {"role": "system", "content": merged_content}
+
+
+def build_runtime_context(now: datetime | None = None) -> str:
+    """Build short current date/time context for node system prompts."""
+    current = now or datetime.now().astimezone()
+    offset = current.strftime("%z")
+    timezone = current.tzname() or "local"
+    return (
+        "## Runtime Context\n"
+        f"Current date/time: {current:%Y-%m-%d %H:%M:%S %z}\n"
+        f"Timezone: {timezone} ({offset})"
+    )

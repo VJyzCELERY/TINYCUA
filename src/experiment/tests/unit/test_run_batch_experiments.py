@@ -97,8 +97,8 @@ def test_run_experiment_uses_uv(capsys) -> None:
     assert "$ uv run python run_experiment.py" in capsys.readouterr().out
 
 
-def test_main_judges_and_archives_only_successful_runs(tmp_path: Path, monkeypatch) -> None:
-    """Failed runs do not get noisy judge calls or archived stale results."""
+def test_main_judges_and_archives_failed_runs(tmp_path: Path, monkeypatch) -> None:
+    """Failed runs are still judged and archived."""
     manifest = tmp_path / "prompts.txt"
     manifest.write_text("Experiment_1: ok\nExperiment_2: fail\n")
     judged = []
@@ -127,5 +127,5 @@ def test_main_judges_and_archives_only_successful_runs(tmp_path: Path, monkeypat
     code = run_batch_experiments.main(["--manifest", str(manifest)])
 
     assert code == 1
-    assert judged == [1]
-    assert archived == [(1, "ok")]
+    assert judged == [1, 2]
+    assert archived == [(1, "ok"), (2, "fail")]

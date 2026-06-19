@@ -9,7 +9,7 @@
 
 ## Problem Statement _(mandatory)_
 
-- **Goals**: Provide a batch runner so experiment prompts can be listed once, run sequentially, judged by the existing LLM judge, and archived.
+- **Goals**: Provide a batch runner so experiment prompts can be listed once, run sequentially, judged by the existing LLM judge, and archived. Prevent known Hermes background-process polling hangs from consuming the full experiment timeout.
 - **Gaps**: Today prompts are stored as repeated shell commands in `tmp/experiment_command.txt`, and results must be judged/cleaned up manually.
 - **Non-Goals**: New judging logic, parallel execution, dashboards, or a new results schema.
 - **Constraints**: Use existing `run_experiment.py` and `judge.py`; experiments must run sequentially.
@@ -32,6 +32,7 @@ A user writes `Experiment_1: <prompt>` lines in a text file, runs one script, wa
 - Empty prompt files fail before running anything.
 - Existing results are overwritten only when requested by the batch runner.
 - Failed experiment/judge commands are recorded; `--fail-fast` stops early.
+- Hermes background process polling is capped separately from the full experiment timeout.
 
 ---
 
@@ -41,8 +42,9 @@ A user writes `Experiment_1: <prompt>` lines in a text file, runs one script, wa
 
 - **FR-001**: System MUST parse prompt lines shaped as `Experiment_<number>: <prompt>`.
 - **FR-002**: System MUST run each parsed experiment sequentially through `run_experiment.py`.
-- **FR-003**: System MUST run `judge.py` for each completed experiment.
+- **FR-003**: System MUST run `judge.py` for each attempted experiment, including failed or timed-out agent results.
 - **FR-004**: System MUST archive the requested experiment outputs after judging.
+- **FR-005**: System MUST stop Hermes when its process-poll tool stays unresolved beyond the configured poll timeout.
 
 ### Key Entities _(include if feature involves data)_
 
@@ -65,6 +67,7 @@ A user writes `Experiment_1: <prompt>` lines in a text file, runs one script, wa
 
 - Manifest parsing accepts valid lines and rejects empty files.
 - Archiving moves only requested experiment directories.
+- Hermes poll timeout detects stuck `process poll` output.
 
 ### Integration Tests
 

@@ -22,3 +22,5 @@ uv run python run_batch_experiments.py --manifest tmp/experiment_command.txt
 ```
 
 The batch runner runs experiments sequentially, runs `judge.py` for each one, then moves judged outputs from `results/` to `archives/<timestamp>/`.
+
+Hermes has a separate guard for stuck background-process polling: `EXPERIMENT_HERMES_PROCESS_POLL_TIMEOUT_SECONDS` (default `600`, `0` disables it). Failed or timed-out outputs are still judged and archived.

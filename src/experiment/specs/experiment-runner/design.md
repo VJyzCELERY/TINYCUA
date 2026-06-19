@@ -8,7 +8,7 @@
 
 ## Overview
 
-Add one small batch CLI in `src/experiment` that parses a prompt manifest, invokes the existing experiment runner sequentially, invokes the existing judge per experiment, then moves the judged experiment folders into a timestamped archive.
+Add one small batch CLI in `src/experiment` that parses a prompt manifest, invokes the existing experiment runner sequentially, invokes the existing judge per experiment, then moves the judged experiment folders into a timestamped archive. Add a narrow Hermes guard for background process polling deadlocks.
 
 ---
 
@@ -21,6 +21,8 @@ prompt manifest -> run_batch_experiments.py
                  -> run_experiment.py --num N --prompt ... --overwrite
                  -> judge.py --num N
                  -> archives/<timestamp>/results/<agent>/experiment-N
+
+Hermes run_experiment output -> detect unresolved process poll -> exit 124
 ```
 
 ### Affected Components
@@ -28,6 +30,7 @@ prompt manifest -> run_batch_experiments.py
 | Component | Change Type | Notes |
 |-----------|-------------|-------|
 | `run_batch_experiments.py` | New | Batch orchestration only. |
+| `run_experiment.py` | Modified | Hermes process-poll deadlock guard. |
 | `tests/unit/test_run_batch_experiments.py` | New | Parser and archive helper checks. |
 | `README.md` | Modified | Shows manifest format and command. |
 
@@ -60,6 +63,7 @@ prompt manifest -> run_batch_experiments.py
 | Empty manifest | Exit 2 | No experiment starts. |
 | Bad line | Exit 2 | Points to line number. |
 | Command failure | Exit 1 | Continues by default; stops with `--fail-fast`. |
+| Hermes process poll hang | Exit 124 | Guard applies only to Hermes `process poll`; full timeout remains for other long work. |
 
 ---
 
@@ -70,6 +74,7 @@ prompt manifest -> run_batch_experiments.py
 - [x] Add parser and archive unit tests.
 - [x] Add batch runner CLI.
 - [x] Update README with prompt-list usage.
+- [x] Add Hermes process-poll guard.
 
 ---
 
@@ -87,6 +92,7 @@ prompt manifest -> run_batch_experiments.py
 |------|-----------|--------|------------|
 | Long LLM/Docker runs fail midway | Med | Med | Record failures and archive partial results. |
 | Archiving wrong results | Low | High | Move only requested experiment numbers per agent. |
+| Hermes background server poll never returns | Med | Med | Kill only that known stuck poll after its own timeout. |
 
 ---
 

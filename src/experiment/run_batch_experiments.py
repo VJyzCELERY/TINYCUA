@@ -8,6 +8,7 @@ import re
 import shlex
 import shutil
 import subprocess
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -172,7 +173,6 @@ def main(argv: list[str] | None = None) -> int:
         if code:
             return code
 
-    successful_runs: list[Experiment] = []
     for num, prompt in experiments:
         print(f"\n=== Experiment {num}: run ===", flush=True)
         code = _run_experiment(
@@ -186,10 +186,8 @@ def main(argv: list[str] | None = None) -> int:
             failures.append({"phase": "run", "experiment": num, "exit_code": code})
             if args.fail_fast:
                 return code
-        else:
-            successful_runs.append((num, prompt))
 
-    for num, _ in successful_runs:
+    for num, _ in experiments:
         print(f"\n=== Experiment {num}: judge ===", flush=True)
         code = _run_judge(num, output_root, dry_run=args.dry_run)
         if code:
@@ -203,7 +201,7 @@ def main(argv: list[str] | None = None) -> int:
     archive_dir = archive_results(
         output_root,
         archive_root,
-        successful_runs,
+        experiments,
         manifest,
     )
     (archive_dir / "summary.json").write_text(
