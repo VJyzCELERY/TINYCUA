@@ -9,3 +9,4 @@ if [ ! -f .env ]; then
 fi
 
 docker compose build
+docker compose pull searxng

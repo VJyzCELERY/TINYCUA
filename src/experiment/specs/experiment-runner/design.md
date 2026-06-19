@@ -8,7 +8,7 @@
 
 ## Overview
 
-Add one small batch CLI in `src/experiment` that parses a prompt manifest, invokes the existing experiment runner sequentially, invokes the existing judge per experiment, then moves the judged experiment folders into a timestamped archive. Add a narrow Hermes guard for background process polling deadlocks.
+Add one small batch CLI in `src/experiment` that parses a prompt manifest, invokes the existing experiment runner sequentially, invokes the existing judge per experiment, then moves the judged experiment folders into a timestamped archive. Add a narrow Hermes guard for background process polling deadlocks. Pass SearXNG web search configuration to harnesses that support it.
 
 ---
 
@@ -23,6 +23,7 @@ prompt manifest -> run_batch_experiments.py
                  -> archives/<timestamp>/results/<agent>/experiment-N
 
 Hermes run_experiment output -> detect unresolved process poll -> exit 124
+.env SearXNG values -> bundled searxng service -> harness web_search tools
 ```
 
 ### Affected Components
@@ -31,6 +32,7 @@ Hermes run_experiment output -> detect unresolved process poll -> exit 124
 |-----------|-------------|-------|
 | `run_batch_experiments.py` | New | Batch orchestration only. |
 | `run_experiment.py` | Modified | Hermes process-poll deadlock guard. |
+| `docker-compose.yml` / harness Dockerfiles | Modified | SearXNG env aliases and OpenClaw provider config. |
 | `tests/unit/test_run_batch_experiments.py` | New | Parser and archive helper checks. |
 | `README.md` | Modified | Shows manifest format and command. |
 
@@ -55,6 +57,9 @@ Hermes run_experiment output -> detect unresolved process poll -> exit 124
 
 - CLI: `uv run python run_batch_experiments.py --manifest tmp/experiment_prompts.txt`
 - Optional flags: `--output-root`, `--archive-root`, `--fail-fast`, `--dry-run`.
+- Compose service: `searxng`, exposed on `EXPERIMENT_SEARXNG_HOST_PORT` (default `18080`).
+- Env: `EXPERIMENT_SEARXNG_BASE_URL` for harnesses expecting a SearXNG instance root.
+- Env: `TINYCUA_SEARXNG_URL` for TinyCUA's `/search` endpoint.
 
 ### Error Handling
 
@@ -75,6 +80,7 @@ Hermes run_experiment output -> detect unresolved process poll -> exit 124
 - [x] Add batch runner CLI.
 - [x] Update README with prompt-list usage.
 - [x] Add Hermes process-poll guard.
+- [x] Add shared SearXNG config wiring.
 
 ---
 
@@ -93,6 +99,7 @@ Hermes run_experiment output -> detect unresolved process poll -> exit 124
 | Long LLM/Docker runs fail midway | Med | Med | Record failures and archive partial results. |
 | Archiving wrong results | Low | High | Move only requested experiment numbers per agent. |
 | Hermes background server poll never returns | Med | Med | Kill only that known stuck poll after its own timeout. |
+| Harnesses use different SearXNG env names | Med | Low | Provide common aliases in compose. |
 
 ---
 

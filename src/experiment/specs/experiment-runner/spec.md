@@ -9,7 +9,7 @@
 
 ## Problem Statement _(mandatory)_
 
-- **Goals**: Provide a batch runner so experiment prompts can be listed once, run sequentially, judged by the existing LLM judge, and archived. Prevent known Hermes background-process polling hangs from consuming the full experiment timeout.
+- **Goals**: Provide a batch runner so experiment prompts can be listed once, run sequentially, judged by the existing LLM judge, and archived. Prevent known Hermes background-process polling hangs from consuming the full experiment timeout. Share SearXNG web search configuration across harnesses that support it.
 - **Gaps**: Today prompts are stored as repeated shell commands in `tmp/experiment_command.txt`, and results must be judged/cleaned up manually.
 - **Non-Goals**: New judging logic, parallel execution, dashboards, or a new results schema.
 - **Constraints**: Use existing `run_experiment.py` and `judge.py`; experiments must run sequentially.
@@ -33,6 +33,7 @@ A user writes `Experiment_1: <prompt>` lines in a text file, runs one script, wa
 - Existing results are overwritten only when requested by the batch runner.
 - Failed experiment/judge commands are recorded; `--fail-fast` stops early.
 - Hermes background process polling is capped separately from the full experiment timeout.
+- Harnesses with native SearXNG web search support receive the SearXNG URL.
 
 ---
 
@@ -45,6 +46,7 @@ A user writes `Experiment_1: <prompt>` lines in a text file, runs one script, wa
 - **FR-003**: System MUST run `judge.py` for each attempted experiment, including failed or timed-out agent results.
 - **FR-004**: System MUST archive the requested experiment outputs after judging.
 - **FR-005**: System MUST stop Hermes when its process-poll tool stays unresolved beyond the configured poll timeout.
+- **FR-006**: System MUST expose SearXNG configuration to TinyCUA, Hermes, OpenClaw, and other harnesses that recognize it.
 
 ### Key Entities _(include if feature involves data)_
 
@@ -68,6 +70,7 @@ A user writes `Experiment_1: <prompt>` lines in a text file, runs one script, wa
 - Manifest parsing accepts valid lines and rejects empty files.
 - Archiving moves only requested experiment directories.
 - Hermes poll timeout detects stuck `process poll` output.
+- Static checks cover SearXNG env/config wiring for harness containers.
 
 ### Integration Tests
 

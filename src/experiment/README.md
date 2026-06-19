@@ -24,3 +24,5 @@ uv run python run_batch_experiments.py --manifest tmp/experiment_command.txt
 The batch runner runs experiments sequentially, runs `judge.py` for each one, then moves judged outputs from `results/` to `archives/<timestamp>/`.
 
 Hermes has a separate guard for stuck background-process polling: `EXPERIMENT_HERMES_PROCESS_POLL_TIMEOUT_SECONDS` (default `600`, `0` disables it). Failed or timed-out outputs are still judged and archived.
+
+Web search uses the bundled SearXNG compose service where the harness supports it. Containers use `http://searxng:8080` (`/search` for TinyCUA), exposed on host port `18080` by default. Override `EXPERIMENT_SEARXNG_HOST_PORT`, `EXPERIMENT_SEARXNG_BASE_URL`, or `TINYCUA_SEARXNG_URL` in `.env` if needed. opencode currently has no native SearXNG websearch provider, so it just receives the env aliases for future/tool compatibility.
