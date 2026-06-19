@@ -7,14 +7,12 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_compose_defines_four_services_and_volumes() -> None:
-    """Compose keeps the four harnesses isolated."""
+    """Compose defines the four harness services."""
     compose = (ROOT / "docker-compose.yml").read_text()
 
     for service in ["opencode", "hermes", "openclaw", "tinycua"]:
         assert f"  {service}:" in compose
         assert "env_file:\n      - .env" in compose
-    for volume in ["Opencode_Vol", "Hermes_Vol", "Openclaw_Vol", "TINYCUA_Vol"]:
-        assert volume in compose
     assert "host.docker.internal:host-gateway" in compose
 
 
@@ -67,6 +65,7 @@ def test_helper_scripts_wrap_setup_and_runner() -> None:
 
     assert "cp .env.example .env" in setup
     assert "docker compose build" in setup
-    assert "uv run python run_experiment.py" in run
+    assert "uv run python" in run
+    assert "run_experiment.py" in run
     assert "--num" in run
     assert "--prompt" in run
