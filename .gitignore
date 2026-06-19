@@ -31,6 +31,7 @@ coverage.xml
 *.coverage
 htmlcov/
 src/experiment/results/
+src/experiment/archives/
 
 
 # Local development artifacts

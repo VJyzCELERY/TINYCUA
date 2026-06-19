@@ -9,3 +9,16 @@ Results land under `results/<agent>/experiment-<num>/` with `prompt.txt`, `conta
 Logs are written while each harness runs, and each harness is killed after `EXPERIMENT_TIMEOUT_SECONDS` (default `3600`).
 
 If containers cannot reach a host LLM on `localhost`, set `EXPERIMENT_LLM_BASE_URL=http://host.docker.internal:1234/v1` in `.env`.
+
+Batch runs:
+
+```text
+Experiment_1: Hello there
+Experiment_2: Make a simple analog clock app in one HTML file
+```
+
+```bash
+uv run python run_batch_experiments.py --manifest tmp/experiment_command.txt
+```
+
+The batch runner runs experiments sequentially, runs `judge.py` for each one, then moves judged outputs from `results/` to `archives/<timestamp>/`.
