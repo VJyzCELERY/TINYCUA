@@ -189,6 +189,59 @@ class TestChatCompletionsPayloadTranslation:
         assert tools[0]["function"]["description"] == "Lookup something"
         assert tools[0]["function"]["parameters"] == {"type": "object"}
 
+    @pytest.mark.asyncio
+    async def test_payload_keeps_a_user_turn_for_local_templates(
+        self,
+        client: OpenAIChatCompletionsClient,
+    ):
+        """Local chat templates need a user query even for internal nodes."""
+        payload = await client._build_chat_payload(
+            [
+                {"role": "system", "content": "Use tools."},
+                {"role": "assistant", "content": "Based on context, call lookup."},
+            ],
+            tools=[
+                {
+                    "name": "lookup",
+                    "description": "Lookup",
+                    "parameters": {"type": "object"},
+                },
+            ],
+        )
+
+        assert payload["messages"][-1] == {
+            "role": "user",
+            "content": "Based on context, call lookup.",
+        }
+
+    @pytest.mark.asyncio
+    async def test_payload_does_not_rewrite_tool_result_turns(
+        self,
+        client: OpenAIChatCompletionsClient,
+    ):
+        """Tool result history must stay structurally valid."""
+        payload = await client._build_chat_payload(
+            [
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {"name": "lookup", "arguments": "{}"},
+                        }
+                    ],
+                },
+                {"role": "tool_result", "call_id": "call_1", "content": "ok"},
+            ],
+        )
+
+        assert [message["role"] for message in payload["messages"]] == [
+            "assistant",
+            "tool",
+        ]
+
 
 class TestChatCompletionsNonStreaming:
     """Non-streaming response normalization."""

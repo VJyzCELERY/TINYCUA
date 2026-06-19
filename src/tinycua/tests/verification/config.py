@@ -55,9 +55,8 @@ class GateConfig:
     def from_env(cls) -> GateConfig:
         """Construct GateConfig from environment variables.
 
-        Reads OPENAI_CHAT_COMPLETIONS_BASE_URL, OPENAI_CHAT_COMPLETIONS_MODEL,
-        and OPENAI_CHAT_COMPLETIONS_API_KEY, then builds a LocalModelConfig
-        and wraps it with verification-specific defaults.
+        Reads provider-specific vars first, then TinyCUA CLI aliases, then
+        generic LLM_* fallbacks. Values are normally loaded from .env.test.
 
         Returns:
             GateConfig configured from environment variables.
@@ -66,13 +65,19 @@ class GateConfig:
 
         base_url = os.environ.get(
             "OPENAI_CHAT_COMPLETIONS_BASE_URL",
-            os.environ.get("LLM_BASE_URL", "http://localhost:1234/v1"),
+            os.environ.get(
+                "TINYCUA_BASE_URL",
+                os.environ.get("LLM_BASE_URL", "http://localhost:1234/v1"),
+            ),
         )
         model = os.environ.get(
             "OPENAI_CHAT_COMPLETIONS_MODEL",
-            os.environ.get("LLM_MODEL", "qwen/qwen3.5-4b"),
+            os.environ.get("TINYCUA_MODEL", os.environ.get("LLM_MODEL", "")),
         )
-        api_key = os.environ.get("OPENAI_CHAT_COMPLETIONS_API_KEY", "not-needed")
+        api_key = os.environ.get(
+            "OPENAI_CHAT_COMPLETIONS_API_KEY",
+            os.environ.get("TINYCUA_API_KEY", "not-needed"),
+        )
 
         local_model_config = LocalModelConfig(
             base_url=base_url,

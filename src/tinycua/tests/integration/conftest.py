@@ -64,13 +64,20 @@ def resolve_integration_llm_config() -> IntegrationLLMConfig:
     _ensure_env_loaded()
 
     model = os.environ.get(
-        "OPENAI_CHAT_COMPLETIONS_MODEL", os.environ.get("LLM_MODEL", "")
+        "OPENAI_CHAT_COMPLETIONS_MODEL",
+        os.environ.get("TINYCUA_MODEL", os.environ.get("LLM_MODEL", "")),
     )
     base_url = os.environ.get(
         "OPENAI_CHAT_COMPLETIONS_BASE_URL",
-        os.environ.get("LLM_BASE_URL", "http://localhost:1234/v1"),
+        os.environ.get(
+            "TINYCUA_BASE_URL",
+            os.environ.get("LLM_BASE_URL", "http://localhost:1234/v1"),
+        ),
     )
-    api_key = os.environ.get("OPENAI_CHAT_COMPLETIONS_API_KEY", "")
+    api_key = os.environ.get(
+        "OPENAI_CHAT_COMPLETIONS_API_KEY",
+        os.environ.get("TINYCUA_API_KEY", ""),
+    )
 
     return IntegrationLLMConfig(
         provider="openai-chat-completions",

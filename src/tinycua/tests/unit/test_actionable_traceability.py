@@ -13,11 +13,16 @@ from tinycua.factory import create_tinycua_agent
 from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.response_node import ResponseNode
+from tinycua.loops.task_nodes import TinyCUAResultReviewerNode
 from tinycua.loops.task_nodes import TinyCUATaskAnalyzerNode, TinyCUATaskExecutorNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.node_input import NodeInput
 from tinycua.models.session import Session
 from tinycua.models.task import TaskStateStore, TaskStatus
+from tinycua.tools.task_tools import TaskDecomposeTool
+from tinycua.tools.task_tools import TaskResultUpdateTool
+from tinycua.tools.task_tools import TaskReviewDecisionTool
+from tinycua.tools.task_tools import TaskUpdateTool
 
 
 async def test_streaming_emits_node_prefixed_transcript_events() -> None:
@@ -190,6 +195,57 @@ def test_task_executor_instruction_requires_real_tool_actions(tmp_path: Path) ->
     }
     assert "MUST use tools" in instruction
     assert "task_result_update" in instruction
+
+
+def test_task_node_prompts_are_action_first_not_phase_essays() -> None:
+    """Worker node prompts should call tools, not invite essay answers."""
+    analyzer = TinyCUATaskAnalyzerNode(
+        node_id="task_analyzer",
+        config=create_node_config("task_analyzer"),
+    )
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="result_reviewer",
+        config=create_node_config("result_reviewer"),
+    )
+
+    prompts = [
+        analyzer.build_instruction(),
+        analyzer.build_continuation(),
+        executor.build_instruction(),
+        executor.build_continuation(),
+        reviewer.build_instruction(),
+        reviewer.build_continuation(),
+    ]
+
+    assert all(len(prompt) < 500 for prompt in prompts)
+    combined = "\n".join(prompts)
+    assert "Phase 1" not in combined
+    assert "four phases" not in combined
+    assert "Do not write a plan" in combined
+    assert "Do not describe what you will do" in combined
+    assert "Do not write a long explanation" in combined
+
+
+def test_task_tool_descriptions_are_brief_but_specific() -> None:
+    """Task tool schemas should be clear without prompt-noise essays."""
+    tools = [
+        TaskUpdateTool(),
+        TaskDecomposeTool(),
+        TaskResultUpdateTool(),
+        TaskReviewDecisionTool(),
+    ]
+    descriptions = {tool.name: tool.description for tool in tools}
+
+    assert all(len(description) < 220 for description in descriptions.values())
+    assert "unfinished" in descriptions["task_update"]
+    assert "planning" in descriptions["task_update"]
+    assert "sequential subtasks" in descriptions["task_decompose"]
+    assert "outcome" in descriptions["task_result_update"]
+    assert "approved" in descriptions["task_review_decision"]
 
 
 async def test_task_executor_validates_tool_owned_result_update(tmp_path: Path) -> None:

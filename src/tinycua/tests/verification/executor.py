@@ -71,8 +71,9 @@ class _SyncLLMClient:
     Records LLM interactions for debugging failed paths.
     """
 
-    def __init__(self, agent: Agent) -> None:
+    def __init__(self, agent: Agent, *, timeout: float) -> None:
         self._agent = agent
+        self._timeout = timeout
         self._loop: asyncio.AbstractEventLoop | None = None
         self.interactions: list[dict[str, Any]] = []
 
@@ -94,7 +95,10 @@ class _SyncLLMClient:
             self._loop = asyncio.new_event_loop()
 
         async def _call() -> dict[str, Any]:
-            return await self._agent._call_llm(messages, None)
+            return await asyncio.wait_for(
+                self._agent._call_llm(messages, None),
+                timeout=self._timeout,
+            )
 
         try:
             response = self._loop.run_until_complete(_call())
@@ -171,7 +175,7 @@ class PathExecutor:
         )
 
         agent = Agent(llm_model=llm_model)
-        llm_client = _SyncLLMClient(agent)
+        llm_client = _SyncLLMClient(agent, timeout=timeout)
 
         # Build initial queue with QueryAnalyst and terminal ResponseNode
         qa = TinyCUAQueryAnalystNode(

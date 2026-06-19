@@ -183,11 +183,9 @@ class TaskUpdateTool(SessionTaskToolMixin, Tool):
             self,
             name="task_update",
             description=(
-                "Update an existing task's description, status, or metadata. "
-                "Use this to add context notes, mark planning state, or curate "
-                "unfinished task descriptions with discoveries from completed work. "
-                "Completed tasks cannot be updated — they are immutable history. "
-                "task_id may be a UUID or the task's 1-based number from the roadmap."
+                "Update an unfinished task's description, status, or metadata; "
+                "use for planning notes or context from completed work. Completed "
+                "tasks are immutable. task_id may be UUID or roadmap number."
             ),
             parameters={
                 "type": "object",
@@ -272,9 +270,8 @@ class TaskDecomposeTool(SessionTaskToolMixin, Tool):
             name="task_decompose",
             description=(
                 "Decompose an existing task into concrete sequential subtasks. "
-                "Choose subtasks from the request and current task state; do not "
-                "use a fixed template. task_id may be a UUID or the task's 1-based "
-                "number from the roadmap."
+                "Choose subtasks from the request and current state; do not use a "
+                "fixed template. task_id may be UUID or roadmap number."
             ),
             parameters={
                 "type": "object",
@@ -366,11 +363,8 @@ class TaskResultUpdateTool(SessionTaskToolMixin, Tool):
             description=(
                 "Report the outcome for the active or specified task. "
                 "Write a concise summary of what was done, what was found, "
-                "and whether the task succeeded or failed. This report is "
-                "the primary evidence the ResultReviewer will verify. "
-                "Always call this tool before finishing — never leave a "
-                "task without a result report. task_id may be a UUID or the "
-                "task's 1-based number from the roadmap."
+                "and whether it succeeded. Always call before finishing. "
+                "task_id may be UUID or roadmap number."
             ),
             parameters={
                 "type": "object",

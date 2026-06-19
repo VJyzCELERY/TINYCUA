@@ -624,6 +624,33 @@ class OpenAIChatCompletionsClient(LLMClient):
             for t in tools
         ]
 
+    @staticmethod
+    def _ensure_user_turn_for_local_templates(
+        messages: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Ensure local chat templates have a user query to render."""
+        if any(message.get("role") == "user" for message in messages):
+            return messages
+        if any(
+            message.get("role") in {"tool", "tool_result"}
+            or "tool_calls" in message
+            for message in messages
+        ):
+            return messages
+        patched = [dict(message) for message in messages]
+        for message in reversed(patched):
+            if (
+                message.get("role") == "assistant"
+                and str(message.get("content", "")).strip()
+                and "tool_calls" not in message
+            ):
+                # ponytail: local Jinja chat templates need a user query; reuse
+                # the node prompt instead of adding another prompt layer.
+                message["role"] = "user"
+                return patched
+        patched.append({"role": "user", "content": "Continue."})
+        return patched
+
     async def _build_chat_payload(
         self,
         messages: list[LLMMessage],
@@ -639,6 +666,7 @@ class OpenAIChatCompletionsClient(LLMClient):
             messages,
             _upload_fn=self._ensure_uploaded_file_id,
         )
+        translated = self._ensure_user_turn_for_local_templates(translated)
         payload: dict[str, Any] = {
             "model": self._model_config.model_name,
             "messages": translated,
