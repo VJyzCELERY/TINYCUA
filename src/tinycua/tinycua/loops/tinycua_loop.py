@@ -640,11 +640,6 @@ class TinyCUALoop(
             model_overrides["max_tokens"] = max_tokens
         if tool_choice is not None:
             model_overrides["tool_choice"] = tool_choice
-        elif self._should_request_structured_tool_protocol(agent, node, resolved_tools):
-            model_overrides["response_format"] = self._tool_protocol_response_format(
-                node,
-                resolved_tools
-            )
 
         if not model_overrides:
             return await self._invoke_agent_llm(

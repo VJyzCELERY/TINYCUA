@@ -251,3 +251,42 @@ def test_list_files_absolute_paths():
         result = list_files(tmpdir)
         assert len(result) == 1
         assert result[0].startswith("/")
+
+
+# --- defensive int() coercion for string line args (local models) -------
+
+
+def test_edit_file_accepts_string_start_and_offset():
+    """edit_file must coerce string line args (local models emit "7")."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "coerce.txt")
+        Path(filepath).write_text("line 1\nline 2\nline 3\n")
+        from tinycua.agent.tools.native.files import edit_file
+
+        result = edit_file(filepath, start="2", content="replaced\n", offset="1")
+        assert result["success"] is True
+        assert result["lines_replaced"] == 1
+        assert Path(filepath).read_text() == "line 1\nreplaced\nline 3\n"
+
+
+def test_read_file_accepts_string_start_and_offset():
+    """read_file must coerce string line args (local models emit "7")."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "coerce_read.txt")
+        Path(filepath).write_text("one\ntwo\nthree\nfour\n")
+        from tinycua.agent.tools.native.files import read_file
+
+        result = read_file(filepath, start="2", offset="2")
+        assert result == "two\nthree\n"
+
+
+def test_edit_file_rejects_non_integer_string_start():
+    """A non-numeric start returns a clear error, not a TypeError."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "bad.txt")
+        Path(filepath).write_text("x\n")
+        from tinycua.agent.tools.native.files import edit_file
+
+        result = edit_file(filepath, start="abc", content="y")
+        assert result["success"] is False
+        assert "integer" in result["error"]

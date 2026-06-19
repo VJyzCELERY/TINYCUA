@@ -112,6 +112,16 @@ def read_file(
     Returns:
         The file content as a string on success, or an error dict on failure.
     """
+    # ponytail: defensive int() — local models often emit "7" for line args
+    # even though the schema declares integer. The SDK coerces too, but this
+    # keeps direct tool() calls and any bypass path from crashing.
+    try:
+        if start is not None:
+            start = int(start)
+        if offset is not None:
+            offset = int(offset)
+    except (TypeError, ValueError) as exc:
+        return {"error": f"Invalid line argument (start/offset must be integers): {exc}"}
     result = _read_lines(path)
     if isinstance(result, dict):
         return result  # error dict
@@ -249,6 +259,21 @@ def edit_file(
         A dict with keys: success, path, start_line, lines_replaced,
         bytes_written, error.
     """
+    # ponytail: defensive int() — local models often emit "7" for line args
+    # even though the schema declares integer. The SDK coerces too, but this
+    # keeps direct tool() calls and any bypass path from crashing.
+    try:
+        start = int(start) if start is not None else start
+        offset = int(offset) if offset is not None else offset
+    except (TypeError, ValueError) as exc:
+        return {
+            "success": False,
+            "path": path,
+            "start_line": start,
+            "lines_replaced": 0,
+            "bytes_written": 0,
+            "error": f"Invalid line argument (start/offset must be integers): {exc}",
+        }
     try:
         resolved = _resolve_path(path)
     except ValueError as exc:
