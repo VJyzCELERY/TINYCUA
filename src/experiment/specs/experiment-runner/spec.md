@@ -34,6 +34,8 @@ A user writes `Experiment_1: <prompt>` lines in a text file, runs one script, wa
 - Failed experiment/judge commands are recorded; `--fail-fast` stops early.
 - Hermes background process polling is capped separately from the full experiment timeout.
 - Harnesses with native SearXNG web search support receive the SearXNG URL.
+- Harness-owned identity/cache files are removed from judged workdirs.
+- Container-created result files are made host-readable after each harness run.
 
 ---
 
@@ -47,6 +49,8 @@ A user writes `Experiment_1: <prompt>` lines in a text file, runs one script, wa
 - **FR-004**: System MUST archive the requested experiment outputs after judging.
 - **FR-005**: System MUST stop Hermes when its process-poll tool stays unresolved beyond the configured poll timeout.
 - **FR-006**: System MUST expose SearXNG configuration to TinyCUA, Hermes, OpenClaw, and other harnesses that recognize it.
+- **FR-007**: System MUST remove known harness identity/cache artifacts before judging.
+- **FR-008**: System MUST repair container-created result permissions before local cleanup and judging.
 
 ### Key Entities _(include if feature involves data)_
 
@@ -71,6 +75,7 @@ A user writes `Experiment_1: <prompt>` lines in a text file, runs one script, wa
 - Archiving moves only requested experiment directories.
 - Hermes poll timeout detects stuck `process poll` output.
 - Static checks cover SearXNG env/config wiring for harness containers.
+- Workdir sanitation preserves deliverables while removing known harness artifacts.
 
 ### Integration Tests
 

@@ -24,6 +24,7 @@ prompt manifest -> run_batch_experiments.py
 
 Hermes run_experiment output -> detect unresolved process poll -> exit 124
 .env SearXNG values -> bundled searxng service -> harness web_search tools
+container result -> permission repair -> artifact sanitation -> judge/archive
 ```
 
 ### Affected Components
@@ -32,6 +33,7 @@ Hermes run_experiment output -> detect unresolved process poll -> exit 124
 |-----------|-------------|-------|
 | `run_batch_experiments.py` | New | Batch orchestration only. |
 | `run_experiment.py` | Modified | Hermes process-poll deadlock guard. |
+| `judge.py` | Modified | Defense-in-depth skip for harness artifacts. |
 | `docker-compose.yml` / harness Dockerfiles | Modified | SearXNG env aliases and OpenClaw provider config. |
 | `tests/unit/test_run_batch_experiments.py` | New | Parser and archive helper checks. |
 | `README.md` | Modified | Shows manifest format and command. |
@@ -69,6 +71,7 @@ Hermes run_experiment output -> detect unresolved process poll -> exit 124
 | Bad line | Exit 2 | Points to line number. |
 | Command failure | Exit 1 | Continues by default; stops with `--fail-fast`. |
 | Hermes process poll hang | Exit 124 | Guard applies only to Hermes `process poll`; full timeout remains for other long work. |
+| Root-owned result files | Best-effort permission repair | Uses a short-lived helper container. |
 
 ---
 
@@ -81,6 +84,7 @@ Hermes run_experiment output -> detect unresolved process poll -> exit 124
 - [x] Update README with prompt-list usage.
 - [x] Add Hermes process-poll guard.
 - [x] Add shared SearXNG config wiring.
+- [x] Add result sanitation and permission repair.
 
 ---
 
@@ -100,6 +104,7 @@ Hermes run_experiment output -> detect unresolved process poll -> exit 124
 | Archiving wrong results | Low | High | Move only requested experiment numbers per agent. |
 | Hermes background server poll never returns | Med | Med | Kill only that known stuck poll after its own timeout. |
 | Harnesses use different SearXNG env names | Med | Low | Provide common aliases in compose. |
+| Harness artifacts leak identity to judge | Med | High | Remove known artifacts before judging and skip them in judge copy. |
 
 ---
 

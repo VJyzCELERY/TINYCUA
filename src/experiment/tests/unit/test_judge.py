@@ -2,7 +2,7 @@
 
 import json
 
-from judge import build_judge_prompt, extract_verdict_text, read_env
+from judge import _copy_workdir, build_judge_prompt, extract_verdict_text, read_env
 
 
 # --- read_env ---
@@ -78,3 +78,34 @@ def test_build_judge_prompt_empty_workdir_uses_stdout() -> None:
     prompt = build_judge_prompt("Say hello", "criteria", workdir_empty=True)
     assert "stdout.log" in prompt
     assert "conversational response" in prompt
+
+
+def test_copy_workdir_skips_harness_artifacts(tmp_path) -> None:
+    """Judge never sees harness identity/cache artifacts."""
+    src = tmp_path / "src"
+    dst = tmp_path / "dst"
+    src.mkdir()
+    dst.mkdir()
+    (src / "report.md").write_text("real output")
+    (src / "AGENTS.md").write_text("harness identity")
+    (src / ".openclaw").mkdir()
+    (src / ".tinycua_context_cache").mkdir()
+
+    assert _copy_workdir(src, dst)
+
+    assert (dst / "report.md").exists()
+    assert not (dst / "AGENTS.md").exists()
+    assert not (dst / ".openclaw").exists()
+    assert not (dst / ".tinycua_context_cache").exists()
+
+
+def test_copy_workdir_returns_false_when_only_harness_artifacts(tmp_path) -> None:
+    """Artifact-only workdirs are treated as empty so stdout can be judged."""
+    src = tmp_path / "src"
+    dst = tmp_path / "dst"
+    src.mkdir()
+    dst.mkdir()
+    (src / "AGENTS.md").write_text("harness identity")
+
+    assert not _copy_workdir(src, dst)
+    assert not any(dst.iterdir())

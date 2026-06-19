@@ -1,6 +1,8 @@
 services:
   searxng:
     image: docker.io/searxng/searxng:latest
+    volumes:
+      - ./docker/searxng/settings.yml:/etc/searxng/settings.yml:ro
     ports:
       - "${EXPERIMENT_SEARXNG_HOST_PORT:-18080}:8080"
 

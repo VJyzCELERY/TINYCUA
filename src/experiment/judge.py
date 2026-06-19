@@ -19,6 +19,17 @@ AGENTS = ("opencode", "hermes", "openclaw", "tinycua")
 DEFAULT_JUDGE_MODEL = "openai/gpt-5.4"
 DEFAULT_JUDGE_VARIANT = "high"
 CRITERIA_FILE = Path(__file__).parent / "judge_criteria.md"
+HARNESS_ARTIFACTS = {
+    ".openclaw",
+    ".tinycua_context_cache",
+    "AGENTS.md",
+    "BOOTSTRAP.md",
+    "HEARTBEAT.md",
+    "IDENTITY.md",
+    "SOUL.md",
+    "TOOLS.md",
+    "USER.md",
+}
 
 
 def read_env(key: str, default: str = "", env_file: Path = Path(".env")) -> str:
@@ -78,6 +89,8 @@ def _copy_workdir(src: Path, dst: Path) -> bool:
     """Copy workdir contents into dst. Return True if any files were copied."""
     has_files = False
     for item in src.iterdir():
+        if item.name in HARNESS_ARTIFACTS:
+            continue
         if item.is_dir():
             shutil.copytree(item, dst / item.name)
         else:

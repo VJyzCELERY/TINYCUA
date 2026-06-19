@@ -67,6 +67,7 @@ def test_harnesses_receive_searxng_config() -> None:
     compose = (ROOT / "docker-compose.yml").read_text()
     env = (ROOT / ".env.example").read_text()
     openclaw = (ROOT / "docker" / "openclaw.Dockerfile").read_text()
+    searxng_settings = (ROOT / "docker" / "searxng" / "settings.yml").read_text()
 
     assert "EXPERIMENT_SEARXNG_HOST_PORT=18080" in env
     assert "EXPERIMENT_SEARXNG_BASE_URL=http://searxng:8080" in env
@@ -84,9 +85,12 @@ def test_harnesses_receive_searxng_config() -> None:
         "${TINYCUA_SEARXNG_URL:-http://searxng:8080/search}"
     ) in compose
     assert "depends_on:" in compose
+    assert "./docker/searxng/settings.yml:/etc/searxng/settings.yml:ro" in compose
     assert '\\"provider\\":\\"searxng\\"' in openclaw
     assert '\\"baseUrl\\":\\"' in openclaw
     assert "%/search" in openclaw
+    assert "formats:" in searxng_settings
+    assert "- json" in searxng_settings
 
 
 def test_helper_scripts_wrap_setup_and_runner() -> None:
@@ -97,6 +101,7 @@ def test_helper_scripts_wrap_setup_and_runner() -> None:
     assert "cp .env.example .env" in setup
     assert "docker compose build" in setup
     assert "docker compose pull searxng" in setup
+    assert "docker pull docker.io/library/busybox:1.36" in setup
     assert "uv run python" in run
     assert "run_experiment.py" in run
     assert "--num" in run

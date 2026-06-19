@@ -12,11 +12,13 @@ from run_experiment import (
     _hermes_poll_timed_out,
     _hermes_process_poll_completed,
     _hermes_process_poll_started,
+    build_permission_repair_command,
     build_metadata,
     load_prompt,
     prepare_result_dirs,
     read_hermes_process_poll_timeout_seconds,
     read_timeout_seconds,
+    sanitize_workdir,
 )
 
 
@@ -113,6 +115,32 @@ def test_hermes_process_poll_detection() -> None:
     assert _hermes_process_poll_completed("tool process completed (0.1s)")
     assert _hermes_poll_timed_out(10.0, 5, 15.1)
     assert not _hermes_poll_timed_out(10.0, 0, 99.0)
+
+
+def test_sanitize_workdir_removes_harness_artifacts(tmp_path: Path) -> None:
+    """Harness identity artifacts are removed before judging."""
+    (tmp_path / "report.md").write_text("real output")
+    (tmp_path / "AGENTS.md").write_text("openclaw identity")
+    (tmp_path / ".openclaw").mkdir()
+    (tmp_path / ".openclaw" / "session.jsonl").write_text("secret")
+    (tmp_path / ".tinycua_context_cache").mkdir()
+
+    sanitize_workdir("openclaw", tmp_path)
+    sanitize_workdir("tinycua", tmp_path)
+
+    assert (tmp_path / "report.md").exists()
+    assert not (tmp_path / "AGENTS.md").exists()
+    assert not (tmp_path / ".openclaw").exists()
+    assert not (tmp_path / ".tinycua_context_cache").exists()
+
+
+def test_build_permission_repair_command_uses_host_ids(tmp_path: Path) -> None:
+    """Permission repair runs as root in a helper container but restores host IDs."""
+    command = build_permission_repair_command(tmp_path, uid=1000, gid=1001)
+
+    assert command[:5] == ["docker", "run", "--rm", "-v", f"{tmp_path.resolve()}:/result"]
+    assert "chown -R 1000:1001 /result" in command[-1]
+    assert "chmod -R u+rwX,go+rX /result" in command[-1]
 
 
 # --- _format_stream_line ---

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import queue
 import re
 import shutil
@@ -31,6 +32,19 @@ HERMES_PROCESS_POLL_TIMEOUT_ENV = "EXPERIMENT_HERMES_PROCESS_POLL_TIMEOUT_SECOND
 HERMES_PROCESS_POLL_STARTED_RE = re.compile(
     r"Tool call:\s*process\s+with args:.*\"action\"\s*:\s*\"poll\""
 )
+HARNESS_ARTIFACTS: dict[str, set[str]] = {
+    "openclaw": {
+        ".openclaw",
+        "AGENTS.md",
+        "BOOTSTRAP.md",
+        "HEARTBEAT.md",
+        "IDENTITY.md",
+        "SOUL.md",
+        "TOOLS.md",
+        "USER.md",
+    },
+    "tinycua": {".tinycua_context_cache"},
+}
 
 
 def load_prompt(prompt: str | None, prompt_file: Path | None) -> str:
@@ -154,6 +168,45 @@ def _hermes_poll_timed_out(
 ) -> bool:
     """Return whether the Hermes process-poll guard should fire."""
     return bool(started_at is not None and timeout_seconds > 0 and now - started_at >= timeout_seconds)
+
+
+def sanitize_workdir(agent: str, workdir: Path) -> None:
+    """Remove harness identity/cache artifacts before judging."""
+    for name in HARNESS_ARTIFACTS.get(agent, set()):
+        path = workdir / name
+        if path.is_dir():
+            shutil.rmtree(path, ignore_errors=True)
+        elif path.exists():
+            path.unlink(missing_ok=True)
+
+
+def build_permission_repair_command(result_dir: Path, uid: int, gid: int) -> list[str]:
+    """Build a helper-container command that returns mounted results to host ownership."""
+    return [
+        "docker",
+        "run",
+        "--rm",
+        "-v",
+        f"{result_dir.resolve()}:/result",
+        "docker.io/library/busybox:1.36",
+        "sh",
+        "-c",
+        f"chown -R {uid}:{gid} /result && chmod -R u+rwX,go+rX /result",
+    ]
+
+
+def repair_result_permissions(result_dir: Path) -> None:
+    """Best-effort fix for root-owned files created by containers."""
+    if not result_dir.exists():
+        return
+    command = build_permission_repair_command(result_dir, os.getuid(), os.getgid())
+    result = subprocess.run(command, capture_output=True, text=True)
+    if result.returncode:
+        print(
+            f"[warn] failed to repair permissions for {result_dir}: {result.stderr}",
+            file=sys.stderr,
+            flush=True,
+        )
 
 
 def _write_metadata(
@@ -349,6 +402,9 @@ def run_agent(
         stdout_path.write_text("")
         stderr_path.write_text(f"{error}\n")
 
+    result_dir = logs_dir.parent
+    repair_result_permissions(result_dir)
+    sanitize_workdir(agent, workdir)
     metadata = _write_metadata(logs_dir, experiment_num, agent, started, exit_code, llm_started)
     warmup_str = f" warmup={metadata['warmup_seconds']:.1f}s" if metadata['warmup_seconds'] else ""
     print(
