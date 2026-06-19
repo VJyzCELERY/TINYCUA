@@ -301,6 +301,17 @@ async def test_task_executor_validates_tool_owned_result_update(tmp_path: Path) 
                     }
                 ],
             }
+        if len(captured_tool_choices) == 3:
+            return {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_terminate",
+                        "type": "function",
+                        "function": {"name": "terminate", "arguments": "{}"},
+                    }
+                ],
+            }
         return {"content": "Created app.py", "tool_calls": []}
 
     agent._call_llm = call_llm  # type: ignore[method-assign]
@@ -315,10 +326,11 @@ async def test_task_executor_validates_tool_owned_result_update(tmp_path: Path) 
     assert validation.is_valid
     assert result.content == "Created app.py"
     assert (tmp_path / "app.py").read_text() == 'print("ok")'
-    assert captured_tool_choices == [None, None]
+    assert captured_tool_choices == [None, None, "required"]
     assert "write_file" in captured_tool_names[0]
     assert "run_shell" in captured_tool_names[0]
     assert "task_execute" not in captured_tool_names[0]
+    assert captured_tool_names[2] == ["terminate"]
 
 
 async def test_task_executor_executes_continued_tool_calls(tmp_path: Path) -> None:
@@ -377,7 +389,16 @@ async def test_task_executor_executes_continued_tool_calls(tmp_path: Path) -> No
                 }
             ],
         },
-        {"content": "Created backend.py", "tool_calls": []},
+        {
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_terminate",
+                    "type": "function",
+                    "function": {"name": "terminate", "arguments": "{}"},
+                }
+            ],
+        },
     ]
 
     async def call_llm(messages, tools, stream: bool = False):  # noqa: ANN001, ARG001
@@ -399,6 +420,7 @@ async def test_task_executor_executes_continued_tool_calls(tmp_path: Path) -> No
         "list_files",
         "write_file",
         "task_result_update",
+        "terminate",
     ]
 
 
@@ -448,7 +470,16 @@ async def test_executor_env_check_success_is_left_for_reviewer(tmp_path: Path) -
                 }
             ],
         },
-        {"content": "Python works", "tool_calls": []},
+        {
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_terminate",
+                    "type": "function",
+                    "function": {"name": "terminate", "arguments": "{}"},
+                }
+            ],
+        },
     ]
 
     async def call_llm(messages, tools, stream: bool = False):  # noqa: ANN001, ARG001

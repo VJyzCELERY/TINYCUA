@@ -146,6 +146,7 @@ class ExecutorResultThenReviewerAgent:
 
     def __init__(self) -> None:
         self.executor_calls = 0
+        self.reviewer_calls = 0
         self.tool_permissions = {}
         self.approval_workflow = None
 
@@ -157,6 +158,17 @@ class ExecutorResultThenReviewerAgent:
         )
         if "You are the TaskExecutor" in system_text:
             self.executor_calls += 1
+            if self.executor_calls > 1:
+                return {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "type": "function",
+                            "function": {"name": "terminate", "arguments": "{}"},
+                        }
+                    ],
+                }
             return {
                 "role": "assistant",
                 "content": "",
@@ -171,6 +183,18 @@ class ExecutorResultThenReviewerAgent:
                 ],
             }
         if "You are the ResultReviewer" in system_text:
+            self.reviewer_calls += 1
+            if self.reviewer_calls > 1:
+                return {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "type": "function",
+                            "function": {"name": "terminate", "arguments": "{}"},
+                        }
+                    ],
+                }
             return {
                 "role": "assistant",
                 "content": "",
@@ -440,7 +464,8 @@ def test_reviewer_approval_with_nonempty_result_is_valid() -> None:
                             "task_id": task.task_id,
                             "decision": "approved",
                         },
-                    }
+                    },
+                    {"name": "terminate", "output": {"success": True}},
                 ]
             }
         ),
@@ -767,6 +792,7 @@ def test_task_executor_success_without_action_evidence_is_structurally_valid() -
                         "name": "task_result_update",
                         "output": {"success": True, "task_id": task.task_id},
                     },
+                    {"name": "terminate", "output": {"success": True}},
                 ]
             },
         ),
@@ -797,6 +823,7 @@ def test_task_executor_failure_without_action_evidence_is_valid() -> None:
                         "name": "task_result_update",
                         "output": {"success": False, "task_id": task.task_id},
                     },
+                    {"name": "terminate", "output": {"success": True}},
                 ]
             },
         ),
@@ -828,6 +855,7 @@ def test_task_executor_success_without_action_evidence_reaches_reviewer() -> Non
                     "name": "task_result_update",
                     "output": {"success": True, "task_id": task.task_id},
                 },
+                {"name": "terminate", "output": {"success": True}},
             ]
         },
     )
@@ -860,6 +888,7 @@ def test_task_executor_repeated_success_without_evidence_stays_structural() -> N
             "name": "task_result_update",
             "output": {"success": True, "task_id": task.task_id},
         },
+        {"name": "terminate", "output": {"success": True}},
     ]
     loop.root_session.task_store.record_result(
         task.task_id,
@@ -909,6 +938,7 @@ def test_task_executor_read_only_evidence_is_left_to_reviewer() -> None:
                         "name": "task_result_update",
                         "output": {"success": True, "task_id": task.task_id},
                     },
+                    {"name": "terminate", "output": {"success": True}},
                 ]
             },
         ),
@@ -944,6 +974,7 @@ def test_task_executor_success_result_accepts_concrete_action_evidence() -> None
                         "name": "task_result_update",
                         "output": {"success": True, "task_id": task.task_id},
                     },
+                    {"name": "terminate", "output": {"success": True}},
                 ]
             },
         ),
@@ -986,7 +1017,8 @@ def test_reviewer_approval_requires_task_inspect() -> None:
                             "task_id": task.task_id,
                             "decision": "approved",
                         },
-                    }
+                    },
+                    {"name": "terminate", "output": {"success": True}},
                 ]
             },
         ),
@@ -1021,7 +1053,8 @@ def test_reviewer_approval_requires_task_inspect() -> None:
                             "task_id": task.task_id,
                             "decision": "approved",
                         },
-                    }
+                    },
+                    {"name": "terminate", "output": {"success": True}},
                 ]
             },
         ),
@@ -1059,7 +1092,8 @@ def test_result_reviewer_approval_without_artifact_inspection_is_valid() -> None
                             "task_id": task.task_id,
                             "decision": "approved",
                         },
-                    }
+                    },
+                    {"name": "terminate", "output": {"success": True}},
                 ]
             },
         ),
@@ -1167,7 +1201,7 @@ def test_optional_task_analyzer_validation_failure_skips_pass() -> None:
 
 @pytest.mark.asyncio
 async def test_task_executor_stops_after_successful_result_update() -> None:
-    """A successful task_result_update ends executor turn before reviewer."""
+    """Result update plus terminate ends executor turn before reviewer."""
     executor = TinyCUATaskExecutorNode(
         node_id="task_executor",
         config=create_node_config("task_executor"),
@@ -1187,7 +1221,8 @@ async def test_task_executor_stops_after_successful_result_update() -> None:
         tools=[],
     )
 
-    assert agent.executor_calls == 1
+    assert agent.executor_calls == 2
+    assert agent.reviewer_calls == 2
     assert result == "Final success summary."
     transcript = loop.get_transcript_text(include_node_calls=True)
     assert "[TaskExecutor] LLM input" in transcript

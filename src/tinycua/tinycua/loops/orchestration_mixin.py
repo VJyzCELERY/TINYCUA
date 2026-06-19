@@ -343,6 +343,7 @@ class OrchestrationMixin:
             tool_calls=collected_tool_calls,
         )
         self._coerce_structured_tool_calls(llm_result, resolved_tools)
+        self._coerce_terminate_only_response(resolved_tools, llm_result)
         collected_tool_calls = llm_result.tool_calls
         tool_results = await self._execute_tool_calls(
             agent,

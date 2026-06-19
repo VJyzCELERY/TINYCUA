@@ -17,6 +17,26 @@ from tinycua.models.task import ReviewerDecision, TaskResult, TaskStateStore, Ta
 _DEFAULT_STORE = TaskStateStore()
 
 
+class TerminateTool(Tool):
+    """Tool for explicitly ending a worker lifecycle node."""
+
+    def __init__(self) -> None:
+        Tool.__init__(
+            self,
+            name="terminate",
+            description="End the current node after its required work is complete.",
+            parameters={
+                "type": "object",
+                "properties": {},
+                "additionalProperties": False,
+            },
+        )
+
+    def __call__(self) -> dict[str, Any]:
+        """Record an explicit node termination request."""
+        return {"success": True, "terminated": True}
+
+
 class SessionTaskToolMixin:
     """Mixin for tools that can bind to a session-owned task store."""
 

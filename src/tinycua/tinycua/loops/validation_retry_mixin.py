@@ -23,6 +23,14 @@ logger = logging.getLogger(__name__)
 class ValidationRetryMixin:
     """Mixin extracted from TinyCUALoop for modularity."""
 
+    _TERMINATED_NODE_IDS = {
+        "task_create",
+        "task_analyzer",
+        "task_assessor",
+        "task_executor",
+        "result_reviewer",
+    }
+
     def _retry_message_for_validation(
         self,
         error: ValidationError,
@@ -41,6 +49,14 @@ class ValidationRetryMixin:
             return (
                 "I need to use an appropriate action or research tool for the "
                 "active task, then call task_result_update with that evidence."
+            )
+        if "terminate" in str(error):
+            if node.node_id != "result_reviewer":
+                return "Required node work is complete. Call terminate now."
+            return (
+                "Required node work is complete. Optionally do any remaining "
+                "node-specific cleanup or curation with the available tools, then "
+                "call terminate."
             )
         return self._natural_retry_message(error, node, resolved_tools)
 
@@ -75,11 +91,56 @@ class ValidationRetryMixin:
         retry_message: str | None,
     ) -> list[Tool]:
         """Narrow retry tools when validation names one required state tool."""
+        if self._should_expose_terminate_tool(node, retry_message):
+            from tinycua.tools.task_tools import TerminateTool
+
+            if any(tool.name == "terminate" for tool in resolved_tools):
+                return resolved_tools
+            if node.node_id == "result_reviewer":
+                return [*resolved_tools, TerminateTool()]
+            return [TerminateTool()]
         required = self._retry_required_tool_name(node, retry_message)
         if required is None:
             return resolved_tools
         narrowed = [tool for tool in resolved_tools if tool.name == required]
         return narrowed or resolved_tools
+
+    def _should_expose_terminate_tool(
+        self,
+        node: Node,
+        retry_message: str | None,
+    ) -> bool:
+        """Return whether retry should expose explicit node termination."""
+        return (
+            node.node_id in self._TERMINATED_NODE_IDS
+            and retry_message is not None
+            and "terminate" in retry_message
+        )
+
+    @staticmethod
+    def _validation_needs_terminate(validation: ValidationResult) -> bool:
+        """Return whether validation only needs explicit node termination."""
+        return any("terminate" in error for error in validation.errors)
+
+    @staticmethod
+    def _coerce_terminate_only_response(
+        resolved_tools: list[Tool],
+        llm_result: LLMResult,
+    ) -> None:
+        """Treat an empty terminate-only LLM turn as terminate()."""
+        if [tool.name for tool in resolved_tools] != ["terminate"]:
+            return
+        if llm_result.tool_calls:
+            return
+        # ponytail: local models can ignore forced terminate; this only fires
+        # after terminate is the sole exposed action.
+        llm_result.tool_calls = [
+            {
+                "id": "call_terminate",
+                "type": "function",
+                "function": {"name": "terminate", "arguments": "{}"},
+            }
+        ]
 
     def _retry_required_tool_name(
         self,
@@ -334,6 +395,7 @@ class ValidationRetryMixin:
             self._validate_result_reviewer_failed_approval(node, llm_result),
             self._validate_result_reviewer_result_exists(node, llm_result),
             self._validate_result_reviewer_inspects_after_decision(node, llm_result),
+            self._validate_worker_lifecycle_terminate(node, llm_result),
             self._validate_final_response_content(node, llm_result),
         ):
             if not extra_validation.is_valid:
@@ -465,6 +527,77 @@ class ValidationRetryMixin:
             "same response."
         )
         return validation
+
+    def _validate_worker_lifecycle_terminate(
+        self,
+        node: Node,
+        llm_result: LLMResult,
+    ) -> ValidationResult:
+        """Require explicit terminate after worker lifecycle node requirements."""
+        validation = ValidationResult(is_valid=True, errors=[])
+        if node.node_id not in self._TERMINATED_NODE_IDS:
+            return validation
+        tool_results = [
+            item for item in llm_result.metadata.get("tool_results", [])
+            if isinstance(item, dict)
+        ]
+        if not self._worker_lifecycle_ready_to_terminate(node.node_id, tool_results):
+            return validation
+        has_terminate = any(
+            item.get("name") == "terminate"
+            and isinstance(item.get("output"), dict)
+            and item["output"].get("success") is True
+            for item in tool_results
+        )
+        if has_terminate:
+            return validation
+        validation.is_valid = False
+        if node.node_id == "result_reviewer":
+            validation.errors.append(
+                "result_reviewer completed its required work; optionally curate "
+                "unfinished tasks with task_update, then call terminate."
+            )
+        else:
+            validation.errors.append(
+                f"{node.node_id} completed its required work; call terminate."
+            )
+        return validation
+
+    @staticmethod
+    def _worker_lifecycle_ready_to_terminate(
+        node_id: str,
+        tool_results: list[dict[str, Any]],
+    ) -> bool:
+        """Return whether existing node-specific required conditions are met."""
+        successful = {
+            str(item.get("name"))
+            for item in tool_results
+            if isinstance(item.get("output"), dict)
+            and item["output"].get("success") is True
+        }
+        if node_id == "task_create":
+            return "task_init" in successful
+        if node_id == "task_analyzer":
+            return bool(successful.intersection({"task_decompose", "task_update"}))
+        if node_id == "task_assessor":
+            return "node_handoff" in successful
+        if node_id == "task_executor":
+            return any(
+                item.get("name") == "task_result_update"
+                and isinstance(item.get("output"), dict)
+                for item in tool_results
+            )
+        if node_id == "result_reviewer":
+            return any(
+                item.get("name") == "task_review_decision"
+                and isinstance(item.get("output"), dict)
+                for item in tool_results
+            ) and any(
+                item.get("name") == "task_inspect"
+                and isinstance(item.get("output"), dict)
+                for item in tool_results
+            )
+        return False
 
     def _rollback_invalid_reviewer_approval(self, task_id: str) -> None:
         """Undo reviewer approval side effects when runtime validation rejects it."""

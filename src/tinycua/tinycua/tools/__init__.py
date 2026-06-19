@@ -10,6 +10,7 @@ from tinycua.tools.task_tools import (
     TaskInitTool,
     TaskInspectTool,
     TaskResultUpdateTool,
+    TerminateTool,
     TaskUpdateTool,
 )
 from tinycua.tools.todo_tools import TodoReadTool, TodoWriteTool
@@ -25,6 +26,7 @@ __all__ = [
     "TaskInspectTool",
     "TaskResultUpdateTool",
     "TaskUpdateTool",
+    "TerminateTool",
     "TodoReadTool",
     "TodoWriteTool",
 ]

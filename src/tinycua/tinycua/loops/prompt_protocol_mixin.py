@@ -419,7 +419,11 @@ class PromptProtocolMixin:
         entry is functionally identical, we use it universally.
         """
         required = self._required_single_tool_choice_name(node)
+        if required is None and [tool.name for tool in resolved_tools] == ["terminate"]:
+            required = "terminate"
         if required is None:
+            if node.node_id == "task_analyzer":
+                return "required"
             return None
         if required not in {tool.name for tool in resolved_tools}:
             return None
@@ -474,6 +478,7 @@ class PromptProtocolMixin:
             "task_update",
             "task_decompose",
             "task_init",
+            "terminate",
             "select_query_route",
             "select_worker_route",
         ):

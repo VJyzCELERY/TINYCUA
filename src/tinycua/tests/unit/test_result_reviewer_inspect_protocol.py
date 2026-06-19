@@ -76,12 +76,12 @@ def test_approval_without_inspect_is_not_rolled_back() -> None:
 
 
 def test_approval_with_inspect_in_same_batch_is_valid() -> None:
-    """Decide + inspect in the same response passes validation."""
+    """Decide + inspect makes reviewer ready, but terminate is still required."""
     loop = TinyCUALoop()
     store = loop.root_session.task_store
     root = store.create_task("Root")
     first = store.create_task("First", parent_id=root.task_id)
-    second = store.create_task("Second", parent_id=root.task_id)
+    store.create_task("Second", parent_id=root.task_id)
     store.record_result(first.task_id, TaskResult(content="done", success=True))
     store.record_reviewer_decision(first.task_id, ReviewerDecision.APPROVED)
     node = _reviewer_node(loop.root_session)
@@ -103,10 +103,76 @@ def test_approval_with_inspect_in_same_batch_is_valid() -> None:
         },
     )
 
-    validation = loop._validate_result_reviewer_inspects_after_decision(node, llm_result)
+    validation = loop._validate_node_result(node, llm_result)
+
+    assert not validation.is_valid
+    assert any("terminate" in error for error in validation.errors)
+
+
+def test_result_reviewer_can_terminate_after_decide_and_inspect() -> None:
+    """Reviewer completes only after decision, inspect, and explicit terminate."""
+    loop = TinyCUALoop()
+    store = loop.root_session.task_store
+    root = store.create_task("Root")
+    first = store.create_task("First", parent_id=root.task_id)
+    store.create_task("Second", parent_id=root.task_id)
+    store.record_result(first.task_id, TaskResult(content="done", success=True))
+    store.record_reviewer_decision(first.task_id, ReviewerDecision.APPROVED)
+    node = _reviewer_node(loop.root_session)
+    llm_result = LLMResult(
+        content="approved",
+        metadata={
+            "tool_results": [
+                {
+                    "name": "task_review_decision",
+                    "output": {
+                        "success": True,
+                        "task_id": first.task_id,
+                        "decision": "approved",
+                        "status": "completed",
+                    },
+                },
+                {"name": "task_inspect", "output": {"success": True, "tasks": {}}},
+                {"name": "terminate", "output": {"success": True}},
+            ]
+        },
+    )
+
+    validation = loop._validate_node_result(node, llm_result)
 
     assert validation.is_valid
     assert validation.errors == []
+
+
+def test_result_reviewer_retry_exposes_terminate_without_hiding_update() -> None:
+    """Ready reviewer retry can curate unfinished tasks, then terminate."""
+    loop = TinyCUALoop()
+    node = _reviewer_node(loop.root_session)
+    retry_tools = loop._tools_for_retry_attempt(
+        node,
+        node.config.tool_policy.resolve_tools([]),
+        "Required review work is complete; optionally call task_update, then terminate.",
+    )
+
+    tool_names = {tool.name for tool in retry_tools}
+
+    assert "terminate" in tool_names
+    assert "task_update" in tool_names
+
+
+def test_worker_lifecycle_node_cannot_terminate_before_required_tool() -> None:
+    """Terminate never bypasses each node's required state tool."""
+    loop = TinyCUALoop()
+    node = _reviewer_node(loop.root_session)
+    llm_result = LLMResult(
+        content="done",
+        metadata={"tool_results": [{"name": "terminate", "output": {"success": True}}]},
+    )
+
+    validation = loop._validate_node_result(node, llm_result)
+
+    assert not validation.is_valid
+    assert any("task_review_decision" in error for error in validation.errors)
 
 
 def test_no_decision_skips_inspect_requirement() -> None:
@@ -139,5 +205,8 @@ if __name__ == "__main__":
     # ponytail: self-check — run the three contracts directly.
     test_approval_without_inspect_is_not_rolled_back()
     test_approval_with_inspect_in_same_batch_is_valid()
+    test_result_reviewer_can_terminate_after_decide_and_inspect()
+    test_result_reviewer_retry_exposes_terminate_without_hiding_update()
+    test_worker_lifecycle_node_cannot_terminate_before_required_tool()
     test_no_decision_skips_inspect_requirement()
     print("ok")

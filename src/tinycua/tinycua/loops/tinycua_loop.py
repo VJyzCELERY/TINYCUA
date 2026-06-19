@@ -519,6 +519,7 @@ class TinyCUALoop(
             )
             if not node.is_terminal and node.node_id != "result_aggregation":
                 self._coerce_structured_tool_calls(last_result, attempt_tools)
+            self._coerce_terminate_only_response(attempt_tools, last_result)
             all_tool_results: list[dict[str, Any]] = []
             continuation_rounds = 0
             while continuation_rounds < _MAX_TOOL_CONTINUATIONS:
@@ -542,6 +543,8 @@ class TinyCUALoop(
                 last_validation = self._validate_node_result(node, last_result)
                 if self._can_stop_after_tool_batch(node, last_result, last_validation):
                     return last_result, attempt, last_validation
+                if self._validation_needs_terminate(last_validation):
+                    break
                 attempt_messages.append(
                     {
                         "role": "assistant",
@@ -584,6 +587,7 @@ class TinyCUALoop(
                 )
                 if not node.is_terminal and node.node_id != "result_aggregation":
                     self._coerce_structured_tool_calls(last_result, attempt_tools)
+                self._coerce_terminate_only_response(attempt_tools, last_result)
             if all_tool_results:
                 last_result.metadata = dict(last_result.metadata)
                 last_result.metadata["tool_results"] = list(all_tool_results)
@@ -741,12 +745,15 @@ class TinyCUALoop(
         attempt: int,
     ) -> AsyncIterator[dict[str, Any]]:
         """Collect provider stream events and yield policy-filtered events."""
+        # ponytail: LM Studio can ignore forced single-tool calls while streaming;
+        # terminate has no user-visible text, so use non-stream for that retry.
+        stream = [tool.name for tool in resolved_tools] != ["terminate"]
         stream_result = await self._call_agent_llm(
             agent,
             node,
             messages,
             resolved_tools,
-            stream=True,
+            stream=stream,
         )
         async for event in self._iter_stream_result_events(stream_result):
             if node.is_terminal and event.get("type") == "response.output_text.delta":
@@ -860,4 +867,3 @@ class TinyCUALoop(
         elif event_type == "response.usage":
             self._usage_events.append(event)
         return None
-
