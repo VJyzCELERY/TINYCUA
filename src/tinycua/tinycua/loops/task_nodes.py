@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 from tinycua.config.node_config import create_node_config
 from tinycua.config.types import LLMResult
 from tinycua.loops.node import ProcessNode
+from tinycua.models.digested_information import DigestedInformation
 from tinycua.models.task import (
     AggregatedResult,
     TaskResult,
@@ -21,9 +22,10 @@ if TYPE_CHECKING:
 
 
 _TASK_ANALYZER_INSTRUCTION = (
-    "You are the TaskAnalyzer. Inspect the roadmap. If the active task needs "
-    "subtasks, call task_decompose. If no useful decomposition remains, call "
-    "task_update. Do not write a plan — call a tool."
+    "You are the TaskAnalyzer. You only decompose or refine the roadmap; you do "
+    "not execute tasks or mutate results. Inspect the roadmap. If the active "
+    "task needs subtasks, call task_decompose. If no useful decomposition "
+    "remains, call task_update. Do not write a plan — call a tool."
 )
 _TASK_ANALYZER_CONTINUATION = (
     "Based on the roadmap above, call task_inspect. Then call task_decompose "
@@ -38,11 +40,11 @@ _TASK_ANALYZER_LOCAL_REPLAN_CONTINUATION = (
 
 _TASK_ASSESSOR_UPFRONT_INSTRUCTION = (
     "You are the TaskAssessor for the upfront analysis-effort decomposition loop. "
-    "Inspect the whole roadmap and select unfinished tasks that are complex "
-    "enough to warrant further decomposition. Do not execute tasks and do not "
-    "discuss execution tools. Use task_inspect for read-only assessment and "
-    "node_handoff to instruct TaskAnalyzer which tasks to analyze and why. "
-    "Do not mutate task state. "
+    "You only assess decomposition readiness; you do not execute tasks, mutate "
+    "task state, or discuss execution tools. Inspect the whole roadmap and "
+    "select unfinished tasks that are complex enough to warrant further "
+    "decomposition. Use task_inspect for read-only assessment and node_handoff "
+    "to instruct TaskAnalyzer which tasks to analyze and why. "
     "Be concise and do not repeat upstream context."
 )
 _TASK_ASSESSOR_UPFRONT_CONTINUATION = (
@@ -66,9 +68,11 @@ _TASK_ASSESSOR_LOCAL_REPLAN_CONTINUATION = (
 )
 
 _TASK_EXECUTOR_INSTRUCTION = (
-    "You are the TaskExecutor. Complete the active task. You MUST use tools for "
-    "workspace changes, inspection, commands, Python, research, or verification. "
-    "After the work is done, call task_result_update with a concise outcome "
+    "You are the TaskExecutor. You only execute the active task; you do not "
+    "review, decompose, or curate other tasks. You MUST use tools for "
+    "workspace changes, inspection, commands, Python, research, or "
+    "verification. Preserve explicit user constraints from the work order. "
+    "Your final action MUST call task_result_update with a concise outcome "
     "report. Do not describe what you will do — use the tools and report the "
     "result."
 )
@@ -80,16 +84,19 @@ _TASK_EXECUTOR_CONTINUATION = (
 )
 
 _RESULT_REVIEWER_INSTRUCTION = (
-    "You are the ResultReviewer. Verify the executor's outcome report by "
-    "checking files or running read-only commands/tests. Check that prior work "
-    "still works. Then call task_review_decision with approved, needs_revision, "
-    "rejected, or replan. After deciding, call task_inspect to review remaining "
-    "tasks. Do not write a long explanation — call the tools."
+    "You are the ResultReviewer. You only review outcomes; you do not edit "
+    "files or re-execute work. Verify the outcome with read-only tools "
+    "(read_file, run_shell_readonly, list_files), then call task_review_decision: "
+    "approved, needs_revision, rejected, or replan. Your final action MUST "
+    "call task_review_decision, then task_inspect. If bad, record feedback; "
+    "do not edit files. Terminate after useful task curation so execution can "
+    "continue. Do not write a long explanation — call the tools."
 )
 _RESULT_REVIEWER_CONTINUATION = (
     "Verify the outcome and regressions. Call task_review_decision first. In "
     "the same response, call task_inspect for remaining unfinished tasks. "
-    "Optionally call task_update only to add context to unfinished future tasks."
+    "Optionally call task_update only to add context to unfinished future tasks, "
+    "then call terminate to hand control back to the runtime."
 )
 
 _RESULT_AGGREGATION_INSTRUCTION = (
@@ -141,7 +148,20 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
         if mode == "local_replan":
             region = _local_task_region(session)
             return f"Local task region for replan:\n{_render_local_region_markdown(region)}\n\n{base}"
-        return f"Roadmap:\n{_render_task_tree_markdown(_task_context_snapshot(session))}\n\n{base}"
+        mission = _render_mission_block(session)
+        prefix = f"{mission}\n\n" if mission else ""
+        return f"{prefix}Roadmap:\n{_render_task_tree_markdown(_task_context_snapshot(session))}\n\n{base}"
+
+    def build_tool_system_prompt(self, resolved_tools: list[Any] | None = None) -> str:
+        """Behavioral guidance keyed on present analyzer tools (FR-005)."""
+        names = {getattr(tool, "name", "") for tool in (resolved_tools or [])}
+        if not names.intersection({"task_inspect", "task_decompose", "task_update"}):
+            return ""
+        return (
+            "Tool guidance: call task_inspect to read state, then task_decompose "
+            "to add subtasks or task_update to confirm the roadmap. Do not "
+            "execute work here."
+        )
 
 
 def _local_task_region(session: Session) -> dict:
@@ -314,6 +334,9 @@ def _render_active_task_work_order(session: Session) -> str:
     context = str(active.metadata.get("context", "")).strip()
     if context:
         lines.extend(["", "## Useful Prior Context", context])
+    request_contract = _render_request_contract(session)
+    if request_contract:
+        lines.extend(["", request_contract])
     lines.extend(
         [
             "",
@@ -328,6 +351,65 @@ def _render_active_task_work_order(session: Session) -> str:
             "specific blocker/evidence.",
         ]
     )
+    return "\n".join(lines)
+
+
+def _render_request_contract(session: Session) -> str:
+    """Render original request and constraints for downstream task prompts.
+
+    Derives the original request and constraints from the most recent
+    ``DigestedInformation`` in session_context only. Does NOT fall back to
+    raw ``input_context`` — the canonical mission (FR-001) is the single
+    source for the original request, rendered via ``_render_mission_block``.
+    This keeps the executor/reviewer scoped: they see the digested contract,
+    not the raw user turn.
+    """
+    original = ""
+    constraints: list[str] = []
+    for entry in reversed(session.session_context):
+        content = entry.get("content") if isinstance(entry, dict) else entry.content
+        if not isinstance(content, DigestedInformation):
+            continue
+        original = content.original_query or original
+        constraints = [*content.constraints, *constraints]
+        break
+    if not original and not constraints:
+        return ""
+    lines = ["## Original user request"]
+    if original:
+        lines.append(original)
+    if constraints:
+        lines.append("## Hard constraints")
+        lines.extend(f"- {constraint}" for constraint in constraints if constraint)
+    return "\n".join(lines)
+
+
+def _render_mission_block(session: Session) -> str:
+    """Render a compact canonical mission block from the root task.
+
+    The mission is the single canonical "goal" (original request + hard
+    constraints) stored on the root task at creation time. It travels with
+    the task tree so every worker-internal node sees the same goal without
+    inheriting the full session context. See FR-003.
+
+    Returns an empty string when no mission is stored (no-op).
+    """
+    store = session.task_store
+    if store.root_task_id is None or store.root_task_id not in store.tasks:
+        return ""
+    root = store.tasks[store.root_task_id]
+    mission = str(root.metadata.get("mission", "") or "").strip()
+    constraints = root.metadata.get("inherited_constraints", [])
+    if not isinstance(constraints, list):
+        constraints = []
+    if not mission and not constraints:
+        return ""
+    lines = ["## Mission"]
+    if mission:
+        lines.append(mission)
+    if constraints:
+        lines.append("Hard constraints:")
+        lines.extend(f"- {constraint}" for constraint in constraints if constraint)
     return "\n".join(lines)
 
 
@@ -370,14 +452,26 @@ class TinyCUATaskAssessorNode(ProcessNode):
             return base
         snapshot = _task_context_snapshot(session)
         mode = str(self.config.metadata.get("task_assessor_mode", "upfront_decomposition"))
+        mission = _render_mission_block(session)
+        prefix = f"{mission}\n\n" if mission else ""
         if mode == "local_replan":
             return (
-                "Local roadmap region for reviewer-requested replan:\n"
+                f"{prefix}Local roadmap region for reviewer-requested replan:\n"
                 f"{_render_local_region_markdown(_local_task_region(session))}\n\n{base}"
             )
         return (
-            f"Roadmap:\n{_render_task_tree_markdown(snapshot)}\n\n"
+            f"{prefix}Roadmap:\n{_render_task_tree_markdown(snapshot)}\n\n"
             f"{base}"
+        )
+
+    def build_tool_system_prompt(self, resolved_tools: list[Any] | None = None) -> str:
+        """Behavioral guidance keyed on present assessor tools (FR-005)."""
+        names = {getattr(tool, "name", "") for tool in (resolved_tools or [])}
+        if not names.intersection({"task_inspect", "node_handoff"}):
+            return ""
+        return (
+            "Tool guidance: call task_inspect for read-only assessment and "
+            "node_handoff to instruct TaskAnalyzer. Do not mutate task state."
         )
 
 class TinyCUATaskExecutorNode(ProcessNode):
@@ -411,8 +505,10 @@ class TinyCUATaskExecutorNode(ProcessNode):
         workspace_dir = None
         if session.session_config is not None and session.session_config.workspace_dir:
             workspace_dir = str(session.session_config.workspace_dir)
+        mission = _render_mission_block(session)
+        mission_prefix = f"{mission}\n\n" if mission else ""
         return (
-            f"{_render_active_task_work_order(session)}\n"
+            f"{mission_prefix}{_render_active_task_work_order(session)}\n"
             f"Workspace root: {workspace_dir or 'not configured'}\n"
             "Path discipline: use paths inside the workspace root. Prefer "
             "relative paths such as 'templates/index.html' or "
@@ -440,6 +536,20 @@ class TinyCUATaskExecutorNode(ProcessNode):
                     }
                 )
         return artifacts
+
+    def build_tool_system_prompt(self, resolved_tools: list[Any] | None = None) -> str:
+        """Behavioral guidance keyed on present executor tools (FR-005)."""
+        names = {getattr(tool, "name", "") for tool in (resolved_tools or [])}
+        lines: list[str] = []
+        if "edit_file" in names and "write_file" in names:
+            lines.append("Prefer the narrowest tool: edit_file over write_file for partial changes.")
+        if "run_shell_readonly" in names and "run_shell" in names:
+            lines.append("Prefer run_shell_readonly over run_shell for inspection.")
+        if "task_result_update" in names:
+            lines.append("Your final action MUST call task_result_update with the outcome report.")
+        if not lines:
+            return ""
+        return "Tool guidance: " + " ".join(lines)
 
 
 class TinyCUAResultReviewerNode(ProcessNode):
@@ -490,10 +600,13 @@ class TinyCUAResultReviewerNode(ProcessNode):
         unfinished_block = ""
         if unfinished:
             unfinished_block = "\nUnfinished tasks to curate context for:\n" + "\n".join(unfinished) + "\n"
+        mission = _render_mission_block(session)
+        mission_prefix = f"{mission}\n\n" if mission else ""
         return (
-            f"Task under review: {task.task_id} — {task.title}\n"
+            f"{mission_prefix}Task under review: {task.task_id} — {task.title}\n"
             f"Task status: {task.status.value}\n"
             f"Outcome report: {result_content}\n"
+            f"{_render_request_contract(session)}\n"
             f"Unified task context:\n{_render_task_tree_markdown(_task_context_snapshot(session))}\n"
             f"{unfinished_block}\n{base}"
         )
@@ -560,6 +673,26 @@ class TinyCUAResultReviewerNode(ProcessNode):
                 return self.session.task_store.tasks[task_id]
         return self._task_to_review()
 
+    def build_tool_system_prompt(self, resolved_tools: list[Any] | None = None) -> str:
+        """Behavioral guidance keyed on present reviewer tools (FR-005, FR-008)."""
+        names = {getattr(tool, "name", "") for tool in (resolved_tools or [])}
+        lines: list[str] = []
+        readonly = names.intersection({"read_file", "run_shell_readonly", "list_files"})
+        if readonly:
+            lines.append(
+                "Before approving a task with file artifacts, run at least one "
+                "read-only verification tool (read_file, run_shell_readonly, "
+                "list_files) against the claimed artifact, OR state in the "
+                "rationale why verification was skipped (e.g. pure-research task). "
+                "Do not accept generic 'all requirements met' — cite specific "
+                "evidence (file excerpt, command output)."
+            )
+        if "task_review_decision" in names:
+            lines.append("Your final action MUST call task_review_decision, then task_inspect.")
+        if not lines:
+            return ""
+        return "Tool guidance: " + " ".join(lines)
+
 
 class TinyCUAResultAggregationNode(ProcessNode):
     """Aggregate task results into worker output."""
@@ -600,7 +733,9 @@ class TinyCUAResultAggregationNode(ProcessNode):
                     "reviewer_decisions": task.reviewer_decisions,
                 }
             )
-        return f"Completed task evidence: {task_summaries}\n\n{base}"
+        mission = _render_mission_block(session)
+        mission_prefix = f"{mission}\n\n" if mission else ""
+        return f"{mission_prefix}Completed task evidence: {task_summaries}\n\n{base}"
 
     def parse_loop_result(
         self,

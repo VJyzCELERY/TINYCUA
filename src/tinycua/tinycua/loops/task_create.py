@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from tinycua.loops.node import ProcessNode
@@ -11,6 +12,8 @@ if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
     from tinycua.models.node_input import NodeInputLike
     from tinycua.models.session import Session
+
+logger = logging.getLogger(__name__)
 
 _TASK_CREATE_INSTRUCTION = (
     "You are a task creation node. Your role is to create structured "

@@ -72,6 +72,41 @@ class OrchestrationMixin:
                 return item
         return self.default_terminal_node
 
+    def _maybe_populate_root_mission(self, node: Node) -> None:
+        """Populate the canonical mission on the root task after TaskCreate.
+
+        Derives ``mission`` (original request) and ``inherited_constraints``
+        from the most recent ``DigestedInformation`` in the root session
+        context, or from the raw user query when no digest exists. Idempotent:
+        an existing mission is never overwritten. See FR-001.
+
+        Args:
+            node: The node that just completed; only ``task_create`` triggers
+                population.
+        """
+        if node.node_id != "task_create":
+            return
+        store = self.root_session.task_store
+        if store.root_task_id is None or store.root_task_id not in store.tasks:
+            return
+        root = store.tasks[store.root_task_id]
+        if root.metadata.get("mission"):
+            return  # idempotent: do not clobber an existing mission.
+        from tinycua.models.digested_information import DigestedInformation
+
+        digest: DigestedInformation | None = None
+        for entry in reversed(self.root_session.session_context):
+            content = getattr(entry, "content", None)
+            if isinstance(content, DigestedInformation):
+                digest = content
+                break
+        if digest is not None:
+            root.metadata["mission"] = digest.original_query or ""
+            root.metadata["inherited_constraints"] = list(digest.constraints)
+        else:
+            root.metadata["mission"] = self._latest_user_text().strip()
+            root.metadata["inherited_constraints"] = []
+
     def _prepare_node(
         self,
         node: Node,
@@ -263,6 +298,8 @@ class OrchestrationMixin:
         )
         self._apply_loop_result_hook(node, llm_result, node_input)
         self._publish_structured_outputs_to_root(node)
+        self._maybe_populate_root_mission(node)
+        self._maybe_warn_reviewer_no_verification(node, llm_result)
         self._apply_task_lifecycle_marker(node, content)
 
         # Fire agent_monitor after-hook (if configured)
@@ -383,6 +420,8 @@ class OrchestrationMixin:
 
         self._apply_loop_result_hook(node, llm_result, node_input)
         self._publish_structured_outputs_to_root(node)
+        self._maybe_populate_root_mission(node)
+        self._maybe_warn_reviewer_no_verification(node, llm_result)
         self._apply_task_lifecycle_marker(node, combined)
         on_complete_response = self._build_on_complete_response(node, llm_result)
         node.on_complete(self.queue, on_complete_response)

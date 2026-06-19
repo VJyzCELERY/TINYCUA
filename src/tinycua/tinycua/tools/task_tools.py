@@ -333,6 +333,16 @@ class TaskDecomposeTool(SessionTaskToolMixin, Tool):
             child_ids = self._store.decompose_task(resolved, subtasks)
         except ValueError as exc:
             return {"success": False, "error": str(exc)}
+        # FR-002: propagate inherited constraints from parent to each new child.
+        parent_constraints = task.metadata.get("inherited_constraints", [])
+        if parent_constraints:
+            for child_id in child_ids:
+                child = self._store.tasks.get(child_id)
+                if child is None:
+                    continue
+                # Only set when absent — never overwrite a child's own constraints.
+                if not child.metadata.get("inherited_constraints"):
+                    child.metadata["inherited_constraints"] = list(parent_constraints)
         return {"success": True, "task_id": resolved, "child_task_ids": child_ids}
 
 

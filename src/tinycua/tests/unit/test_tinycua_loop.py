@@ -112,7 +112,8 @@ def test_retry_message_is_assistant_self_correction() -> None:
         llm_result=LLMResult(),
     )
 
-    assert message.startswith("I need to")
+    assert "task_result_update" in message
+    assert "I need to" not in message
     assert "ONLY strict JSON" not in message
 
 
@@ -188,7 +189,7 @@ def test_executor_retry_keeps_all_tools_after_inspection() -> None:
     retry_tools = loop._tools_for_retry_attempt(
         executor,
         tools,
-        "I need to use an appropriate action or research tool.",
+        "Use an appropriate action or research tool, then call task_result_update.",
     )
 
     assert {tool.name for tool in retry_tools} == {
@@ -867,7 +868,7 @@ async def test_stream_retry_prompt_replaces_prior_retry_prompt() -> None:
 
     retry_counts = [
         sum(
-            "You need to call select_query_route" in str(message.get("content", ""))
+            "Call select_query_route" in str(message.get("content", ""))
             for message in call_messages
         )
         for call_messages in captured_messages

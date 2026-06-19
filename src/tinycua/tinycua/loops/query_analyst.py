@@ -21,8 +21,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _QUERY_ANALYST_INSTRUCTION = (
-    "You are a query analyst. Your role is to classify user input and "
-    "route it to the appropriate handler. "
+    "You are a query analyst. You only classify and route; you do not answer "
+    "the user, execute tasks, or mutate state. Your role is to classify user "
+    "input and route it to the appropriate handler. "
     "Analyze the user's request and determine whether it requires "
     "task execution (worker), is uncertain, or should pass through directly. "
     "You MUST call select_query_route with exactly one route: worker, "
@@ -81,6 +82,16 @@ class TinyCUAQueryAnalystNode(DecisionNode):
             is_terminal=is_terminal,
         )
         self._queue: NodeQueue | None = None
+
+    def build_tool_system_prompt(self, resolved_tools: list[Any] | None = None) -> str:
+        """Behavioral guidance keyed on present route tools (FR-005, FR-006)."""
+        names = {getattr(tool, "name", "") for tool in (resolved_tools or [])}
+        if "select_query_route" not in names:
+            return ""
+        return (
+            "Tool guidance: your final action MUST call select_query_route with "
+            "exactly one route. Do not answer with the route in text only."
+        )
 
     def _route_worker(self, input_data: NodeInputLike = "") -> None:
         """Route to WorkerNode with information digestion.

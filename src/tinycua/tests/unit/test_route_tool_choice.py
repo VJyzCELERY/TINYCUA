@@ -311,12 +311,13 @@ async def test_route_tool_failure_retries_then_fails_closed() -> None:
     assert not validation.is_valid
     assert result.content == "passthrough"
     assert len(captured_messages) == 3
-    assert "You need to call select_query_route" in "\n".join(
+    # FR-004: retry is a [System: ...] directive naming the required tool.
+    assert "Call select_query_route" in "\n".join(
         message.get("content", "") for message in captured_messages[-1]
     )
     retry_counts = [
         sum(
-            "You need to call select_query_route" in str(message.get("content", ""))
+            "Call select_query_route" in str(message.get("content", ""))
             for message in call_messages
         )
         for call_messages in captured_messages

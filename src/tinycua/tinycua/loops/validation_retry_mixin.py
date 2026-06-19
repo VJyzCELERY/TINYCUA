@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 from tinycua.config.types import LLMResult, ValidationError, ValidationResult
 from tinycua.loops._loop_constants import _UNBOUNDED_RETRY_ATTEMPTS
+from tinycua.loops.route_classifier import RouteClassifier
 
 if TYPE_CHECKING:
     from tinycua.loops.node import Node
@@ -38,25 +39,31 @@ class ValidationRetryMixin:
         resolved_tools: list[Tool],
         llm_result: LLMResult,
     ) -> str:
-        """Build retry guidance without pretending to be a new user turn."""
+        """Build retry guidance as an imperative runtime directive.
+
+        The message is wrapped by ``_retry_prompt_for_llm`` into a
+        ``[System: ...]``-prefixed user-role message. Internal origin is
+        marked by the prefix; the directive voice is imperative (no
+        first-person "I need to" framing). See FR-004.
+        """
         if node.node_id == "task_executor" and "task_result_update" in str(error):
             tool_results = self._tool_results_from_llm_result(llm_result)
             if self._successful_executor_action_results(tool_results):
                 return (
-                    "I need to call task_result_update with the observed tool "
-                    "results for the active task."
+                    "Call task_result_update with the observed tool results "
+                    "for the active task."
                 )
             return (
-                "I need to use an appropriate action or research tool for the "
-                "active task, then call task_result_update with that evidence."
+                "Use an appropriate action or research tool for the active "
+                "task, then call task_result_update with that evidence."
             )
         if "terminate" in str(error):
             if node.node_id != "result_reviewer":
                 return "Required node work is complete. Call terminate now."
             return (
-                "Required node work is complete. Optionally do any remaining "
-                "node-specific cleanup or curation with the available tools, then "
-                "call terminate."
+                "Required node work is complete. Optionally do useful cleanup "
+                "or curation with the available tools, then call terminate to "
+                "advance the runtime to the next node."
             )
         return self._natural_retry_message(error, node, resolved_tools)
 
@@ -66,7 +73,13 @@ class ValidationRetryMixin:
         retry_feedback: list[dict[str, Any]],
         retry_message: str | None,
     ) -> list[dict[str, Any]]:
-        """Return base node messages, latest tool feedback, and one retry prompt."""
+        """Return base node messages, latest tool feedback, and one retry prompt.
+
+        The retry prompt is emitted as a ``role:"user"`` message with a
+        ``[System: ...]`` prefix marking its internal-runtime origin. The user
+        role is required for provider role-alternation; the prefix
+        distinguishes it from a genuine external user turn. See FR-004.
+        """
         messages = [dict(message) for message in base_messages]
         messages.extend(dict(message) for message in retry_feedback)
         if retry_message:
@@ -80,9 +93,15 @@ class ValidationRetryMixin:
 
     @staticmethod
     def _retry_prompt_for_llm(retry_message: str) -> str:
-        """Convert internal retry note into an ephemeral user correction."""
-        text = retry_message.replace("I need to", "You need to")
-        return f"Correction for the previous response: {text}"
+        """Wrap an internal retry directive as a [System: ...] user message.
+
+        The ``[System: ...]`` prefix marks the message as an internal runtime
+        directive (not a genuine user turn) while keeping the ``user`` role
+        required by OpenAI-compatible provider role alternation. Imperative
+        directive voice is preserved as-is (no first/second-person conversion).
+        See FR-004.
+        """
+        return f"[System: {retry_message}]"
 
     def _tools_for_retry_attempt(
         self,
@@ -339,7 +358,11 @@ class ValidationRetryMixin:
         node: Node,
         resolved_tools: list[Tool],
     ) -> str:
-        """Build an assistant self-correction retry continuation."""
+        """Build an imperative self-correction retry directive.
+
+        Emits imperative voice directly (e.g. "Call X..."), not first-person
+        "I need to..." prose. See FR-004.
+        """
         del resolved_tools
         error_text = str(error)
         if (
@@ -348,17 +371,13 @@ class ValidationRetryMixin:
             and "task_update" in error_text
         ):
             return (
-                "I need to call task_decompose if the roadmap needs structural "
-                "changes, or task_update if no further decomposition is useful."
+                "Call task_decompose if the roadmap needs structural changes, "
+                "or task_update if no further decomposition is useful."
             )
         required = self._missing_or_required_tool_name(node, error_text)
         if required:
-            return (
-                f"I need to call {required} with the current evidence before continuing."
-            )
-        return (
-            f"I need to correct this response before continuing: {error!s}"
-        )
+            return f"Call {required} with the current evidence before continuing."
+        return f"Correct this response before continuing: {error!s}"
 
     def _record_retry_continuation(
         self,
@@ -396,11 +415,45 @@ class ValidationRetryMixin:
             self._validate_result_reviewer_result_exists(node, llm_result),
             self._validate_result_reviewer_inspects_after_decision(node, llm_result),
             self._validate_worker_lifecycle_terminate(node, llm_result),
+            self._validate_decision_route_tool(node, llm_result),
             self._validate_final_response_content(node, llm_result),
         ):
             if not extra_validation.is_valid:
                 validation.is_valid = False
                 validation.errors.extend(extra_validation.errors)
+        return validation
+
+    def _validate_decision_route_tool(
+        self,
+        node: Node,
+        llm_result: LLMResult,
+    ) -> ValidationResult:
+        """Validate route-tool arguments against current state-valid labels."""
+        validation = ValidationResult(is_valid=True, errors=[])
+        required = self._required_route_tool_name(node)
+        labels = list(getattr(node, "classification_labels", []))
+        if required is None or not labels:
+            return validation
+        classifier = RouteClassifier(labels)
+        for tool_call in llm_result.tool_calls:
+            function = tool_call.get("function") or {}
+            name = function.get("name") or tool_call.get("name")
+            if name != required:
+                continue
+            arguments = function.get("arguments") or tool_call.get("arguments") or {}
+            if isinstance(arguments, str):
+                try:
+                    arguments = json.loads(arguments)
+                except json.JSONDecodeError:
+                    arguments = {"route": arguments}
+            route = arguments.get("route") if isinstance(arguments, dict) else None
+            try:
+                classifier.classify(str(route))
+            except ValueError:
+                validation.is_valid = False
+                validation.errors.append(
+                    f"{required} route must be one of {labels}; got {route!r}."
+                )
         return validation
 
     def _validate_result_reviewer_failed_approval(
@@ -1009,3 +1062,58 @@ class ValidationRetryMixin:
         if user_text.lower() in {"hi", "hello", "hey"}:
             return f"{user_text.capitalize()}!"
         return user_text or "Hello!"
+
+    # FR-009: soft verification nudge — NEVER a validation crash.
+    _READONLY_VERIFICATION_TOOLS = frozenset(
+        {"read_file", "run_shell_readonly", "list_files"}
+    )
+
+    def _maybe_warn_reviewer_no_verification(
+        self,
+        node: Node,
+        llm_result: LLMResult,
+    ) -> None:
+        """Record a soft transcript note when a reviewer approves without verifying.
+
+        Condition: ``result_reviewer`` node, latest ``task_review_decision`` is
+        ``approved``, the reviewed task has file-artifact paths, AND no read-only
+        verification tool was called in the batch. Action: a transcript note
+        (informational only). This NEVER sets ``validation.is_valid=False`` —
+        see FR-009 (no crashing failures).
+        """
+        if node.node_id != "result_reviewer":
+            return
+        tool_results = [
+            item for item in llm_result.metadata.get("tool_results", [])
+            if isinstance(item, dict)
+        ]
+        # Find the latest approval.
+        approved_task_id: str | None = None
+        for item in reversed(tool_results):
+            if item.get("name") != "task_review_decision":
+                continue
+            output = item.get("output")
+            if isinstance(output, dict) and output.get("decision") == "approved":
+                approved_task_id = output.get("task_id")
+                break
+        if not isinstance(approved_task_id, str):
+            return
+        task = self.root_session.task_store.tasks.get(approved_task_id)
+        if task is None:
+            return
+        artifact_paths = [
+            artifact.get("path")
+            for artifact in task.artifacts
+            if isinstance(artifact, dict) and artifact.get("path")
+        ]
+        if not artifact_paths:
+            return  # no file artifacts → no nudge.
+        called_tools = {str(item.get("name")) for item in tool_results}
+        if called_tools & self._READONLY_VERIFICATION_TOOLS:
+            return  # verification happened → no nudge.
+        self._record_node_content_transcript(
+            node,
+            "Note: approval recorded without read-only verification of "
+            f"artifacts ({', '.join(artifact_paths)}); consider verifying before "
+            "final aggregation.",
+        )
