@@ -8,7 +8,6 @@ import re
 import shlex
 import shutil
 import subprocess
-import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -16,6 +15,7 @@ from run_experiment import AGENTS
 
 Experiment = tuple[int, str]
 LINE_RE = re.compile(r"^Experiment[_ -]?(\d+)\s*:\s*(.+)$", re.IGNORECASE)
+SCRIPT_DIR = Path(__file__).resolve().parent
 
 
 def load_experiments(manifest: Path) -> list[Experiment]:
@@ -79,15 +79,15 @@ def _run(command: list[str], *, dry_run: bool) -> int:
     print("$ " + shlex.join(command), flush=True)
     if dry_run:
         return 0
-    return subprocess.run(command).returncode
+    return subprocess.run(command, cwd=SCRIPT_DIR).returncode
 
 
 def _run_setup(*, dry_run: bool) -> int:
     """Run existing Docker/setup script once when present."""
-    setup = Path("scripts/setup.sh")
+    setup = SCRIPT_DIR / "scripts" / "setup.sh"
     if not setup.exists():
         return 0
-    return _run(["bash", str(setup)], dry_run=dry_run)
+    return _run(["bash", "scripts/setup.sh"], dry_run=dry_run)
 
 
 def _run_experiment(
@@ -100,7 +100,9 @@ def _run_experiment(
 ) -> int:
     """Invoke the existing single-experiment runner."""
     command = [
-        sys.executable,
+        "uv",
+        "run",
+        "python",
         "run_experiment.py",
         "--num",
         str(num),
@@ -119,7 +121,9 @@ def _run_judge(num: int, output_root: Path, *, dry_run: bool) -> int:
     """Invoke the existing LLM judge for one experiment."""
     return _run(
         [
-            sys.executable,
+            "uv",
+            "run",
+            "python",
             "judge.py",
             "--num",
             str(num),
@@ -149,8 +153,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     """Run the batch."""
     args = parse_args(argv)
+    manifest = args.manifest if args.manifest.is_absolute() else SCRIPT_DIR / args.manifest
+    output_root = (
+        args.output_root if args.output_root.is_absolute() else SCRIPT_DIR / args.output_root
+    )
+    archive_root = (
+        args.archive_root if args.archive_root.is_absolute() else SCRIPT_DIR / args.archive_root
+    )
     try:
-        experiments = load_experiments(args.manifest)
+        experiments = load_experiments(manifest)
     except (OSError, ValueError) as error:
         print(error, file=sys.stderr)
         return 2
@@ -161,12 +172,13 @@ def main(argv: list[str] | None = None) -> int:
         if code:
             return code
 
+    successful_runs: list[Experiment] = []
     for num, prompt in experiments:
         print(f"\n=== Experiment {num}: run ===", flush=True)
         code = _run_experiment(
             num,
             prompt,
-            args.output_root,
+            output_root,
             args.timeout_seconds,
             dry_run=args.dry_run,
         )
@@ -174,10 +186,12 @@ def main(argv: list[str] | None = None) -> int:
             failures.append({"phase": "run", "experiment": num, "exit_code": code})
             if args.fail_fast:
                 return code
+        else:
+            successful_runs.append((num, prompt))
 
-    for num, _ in experiments:
+    for num, _ in successful_runs:
         print(f"\n=== Experiment {num}: judge ===", flush=True)
-        code = _run_judge(num, args.output_root, dry_run=args.dry_run)
+        code = _run_judge(num, output_root, dry_run=args.dry_run)
         if code:
             failures.append({"phase": "judge", "experiment": num, "exit_code": code})
             if args.fail_fast:
@@ -187,10 +201,10 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if failures else 0
 
     archive_dir = archive_results(
-        args.output_root,
-        args.archive_root,
-        experiments,
-        args.manifest,
+        output_root,
+        archive_root,
+        successful_runs,
+        manifest,
     )
     (archive_dir / "summary.json").write_text(
         json.dumps({"failures": failures}, indent=2) + "\n"

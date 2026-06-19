@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+import run_batch_experiments
 from run_batch_experiments import archive_results, load_experiments
 
 
@@ -52,6 +53,79 @@ def test_archive_results_moves_only_requested_experiments(tmp_path: Path) -> Non
     )
 
     assert (archive_dir / "manifest.txt").read_text() == manifest.read_text()
-    assert (archive_dir / "results" / "tinycua" / "experiment-1" / "logs" / "prompt.txt").exists()
+    archived_prompt = (
+        archive_dir / "results" / "tinycua" / "experiment-1" / "logs" / "prompt.txt"
+    )
+    assert archived_prompt.exists()
     assert not (output_root / "tinycua" / "experiment-1").exists()
     assert (output_root / "tinycua" / "experiment-3").exists()
+
+
+def test_run_uses_script_dir_as_cwd(monkeypatch) -> None:
+    """Subprocesses do not inherit a stale/deleted shell cwd."""
+    calls = []
+
+    def fake_run(command, cwd):
+        calls.append((command, cwd))
+
+        class Result:
+            returncode = 0
+
+        return Result()
+
+    monkeypatch.setattr(run_batch_experiments.subprocess, "run", fake_run)
+
+    assert (
+        run_batch_experiments._run(["uv", "run", "python", "judge.py"], dry_run=False)
+        == 0
+    )
+    assert calls == [
+        (["uv", "run", "python", "judge.py"], run_batch_experiments.SCRIPT_DIR)
+    ]
+
+
+def test_run_experiment_uses_uv(capsys) -> None:
+    """Batch runner calls the project command through uv."""
+    run_batch_experiments._run_experiment(
+        1,
+        "Hello",
+        Path("results"),
+        None,
+        dry_run=True,
+    )
+
+    assert "$ uv run python run_experiment.py" in capsys.readouterr().out
+
+
+def test_main_judges_and_archives_only_successful_runs(tmp_path: Path, monkeypatch) -> None:
+    """Failed runs do not get noisy judge calls or archived stale results."""
+    manifest = tmp_path / "prompts.txt"
+    manifest.write_text("Experiment_1: ok\nExperiment_2: fail\n")
+    judged = []
+    archived = []
+
+    monkeypatch.setattr(run_batch_experiments, "_run_setup", lambda dry_run: 0)
+    monkeypatch.setattr(
+        run_batch_experiments,
+        "_run_experiment",
+        lambda num, prompt, output_root, timeout_seconds, dry_run: 1 if num == 2 else 0,
+    )
+    monkeypatch.setattr(
+        run_batch_experiments,
+        "_run_judge",
+        lambda num, output_root, dry_run: judged.append(num) or 0,
+    )
+    monkeypatch.setattr(
+        run_batch_experiments,
+        "archive_results",
+        lambda output_root, archive_root, experiments, manifest: archived.extend(
+            experiments
+        )
+        or tmp_path,
+    )
+
+    code = run_batch_experiments.main(["--manifest", str(manifest)])
+
+    assert code == 1
+    assert judged == [1]
+    assert archived == [(1, "ok")]
