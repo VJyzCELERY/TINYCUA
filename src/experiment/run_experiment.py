@@ -143,6 +143,11 @@ def _format_stream_line(line: str) -> str:
         event = json.loads(stripped)
     except json.JSONDecodeError:
         return line  # Not JSON — hermes/openclaw/tinycua human-readable output
+    # ponytail: json.loads succeeds for any valid JSON (bare string/number/
+    # list), but the code below assumes an object. opencode occasionally
+    # emits a non-object JSON line; pass it through instead of crashing.
+    if not isinstance(event, dict):
+        return line
     part = event.get("part", {})
     etype = event.get("type", "unknown")
     if etype == "text":
@@ -155,6 +160,8 @@ def _format_stream_line(line: str) -> str:
     if etype == "step_finish":
         return "  < step done\n"
     # Unknown JSON event (tool_call, etc.) — show type label
+    if not isinstance(part, dict):
+        return f"  . {etype}\n"
     label = part.get("name") or part.get("type") or etype
     return f"  . {label}\n"
 

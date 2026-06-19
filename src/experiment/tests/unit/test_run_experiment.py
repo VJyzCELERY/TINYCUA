@@ -126,3 +126,11 @@ def test_format_unknown_event_shows_label() -> None:
     """Unknown JSON events (e.g. tool_call) show a type label, not raw JSON."""
     line = json.dumps({"type": "tool_call", "part": {"name": "write_file"}})
     assert _format_stream_line(line) == "  . write_file\n"
+
+
+def test_format_non_object_json_passes_through() -> None:
+    """A valid-but-non-object JSON line (bare string/number/list) is passed
+    through instead of crashing with AttributeError on event.get()."""
+    assert _format_stream_line('"just a string"\n') == '"just a string"\n'
+    assert _format_stream_line("42\n") == "42\n"
+    assert _format_stream_line("[1, 2, 3]\n") == "[1, 2, 3]\n"
