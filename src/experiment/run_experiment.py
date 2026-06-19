@@ -28,6 +28,12 @@ WARMUP_DONE_MARKERS: dict[str, str] = {
     "tinycua": "[query_analyst] start",
 }
 
+# Harnesses that can exit 0 despite producing no user-facing response.
+# When this sentinel appears in stdout, the run is treated as failed.
+_NO_RESPONSE_SENTINELS: dict[str, str] = {
+    "openclaw": "Agent couldn't generate a response",
+}
+
 HERMES_PROCESS_POLL_TIMEOUT_ENV = "EXPERIMENT_HERMES_PROCESS_POLL_TIMEOUT_SECONDS"
 HERMES_PROCESS_POLL_STARTED_RE = re.compile(
     r"Tool call:\s*process\s+with args:.*\"action\"\s*:\s*\"poll\""
@@ -59,11 +65,30 @@ def load_prompt(prompt: str | None, prompt_file: Path | None) -> str:
     return text
 
 
+def parse_agents(raw: str | None) -> tuple[str, ...]:
+    """Parse a comma-separated agent list."""
+    if raw is None:
+        return AGENTS
+    agents = tuple(agent.strip() for agent in raw.split(",") if agent.strip())
+    if not agents:
+        msg = "agents must not be empty"
+        raise ValueError(msg)
+    unknown = [agent for agent in agents if agent not in AGENTS]
+    if unknown:
+        msg = f"unknown agent(s): {', '.join(unknown)}"
+        raise ValueError(msg)
+    if len(set(agents)) != len(agents):
+        msg = "duplicate agents are not allowed"
+        raise ValueError(msg)
+    return agents
+
+
 def prepare_result_dirs(
     output_root: Path,
     experiment_num: int,
     *,
     overwrite: bool,
+    agents: tuple[str, ...] = AGENTS,
 ) -> dict[str, dict[str, Path]]:
     """Create result directories per agent with workdir/ and logs/ subdirs.
 
@@ -71,7 +96,7 @@ def prepare_result_dirs(
         Dict mapping agent name to {"workdir": Path, "logs": Path}.
     """
     result_dirs = {
-        agent: output_root / agent / f"experiment-{experiment_num}" for agent in AGENTS
+        agent: output_root / agent / f"experiment-{experiment_num}" for agent in agents
     }
     existing = [p for p in result_dirs.values() if p.exists()]
     if existing and not overwrite:
@@ -159,6 +184,12 @@ def _hermes_process_poll_started(line: str) -> bool:
 def _hermes_process_poll_completed(line: str) -> bool:
     """Return whether a Hermes process poll completed."""
     return "tool process completed" in line.lower()
+
+
+def _no_response_sentinel(agent: str, stdout_text: str) -> bool:
+    """Return whether a harness exited 0 despite emitting a no-response marker."""
+    sentinel = _NO_RESPONSE_SENTINELS.get(agent)
+    return bool(sentinel and sentinel in stdout_text)
 
 
 def _hermes_poll_timed_out(
@@ -405,6 +436,14 @@ def run_agent(
     result_dir = logs_dir.parent
     repair_result_permissions(result_dir)
     sanitize_workdir(agent, workdir)
+    # ponytail: OpenClaw exits 0 on a no-response turn; override so judging
+    # still runs but the batch summary reports the real outcome.
+    if exit_code == 0 and _no_response_sentinel(agent, stdout_path.read_text()):
+        exit_code = 70
+        stderr_path.write_text(
+            (stderr_path.read_text() or "") + f"\n[{agent}] no-response sentinel matched\n"
+        )
+        print(f"[{agent}] no-response sentinel matched; overriding exit 0 -> 70", flush=True)
     metadata = _write_metadata(logs_dir, experiment_num, agent, started, exit_code, llm_started)
     warmup_str = f" warmup={metadata['warmup_seconds']:.1f}s" if metadata['warmup_seconds'] else ""
     print(
@@ -430,6 +469,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--overwrite", action="store_true", help="Replace result dirs.")
     parser.add_argument(
+        "--agents",
+        help="Comma-separated harnesses to run (default: all). Example: tinycua",
+    )
+    parser.add_argument(
         "--timeout-seconds",
         type=int,
         default=None,
@@ -440,6 +483,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         parser.error("--num must be positive")
     if args.timeout_seconds is not None and args.timeout_seconds < 1:
         parser.error("--timeout-seconds must be positive")
+    try:
+        args.agents = parse_agents(args.agents)
+    except ValueError as error:
+        parser.error(str(error))
     return args
 
 
@@ -453,7 +500,12 @@ def main(argv: list[str] | None = None) -> int:
             if args.output_root.is_absolute()
             else Path.cwd() / args.output_root
         )
-        paths = prepare_result_dirs(output_root, args.num, overwrite=args.overwrite)
+        paths = prepare_result_dirs(
+            output_root,
+            args.num,
+            overwrite=args.overwrite,
+            agents=args.agents,
+        )
         timeout_seconds = args.timeout_seconds or read_timeout_seconds()
         hermes_process_poll_timeout_seconds = read_hermes_process_poll_timeout_seconds()
     except (OSError, ValueError) as error:
@@ -462,8 +514,8 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         exit_codes = []
-        for i, agent in enumerate(AGENTS, 1):
-            print(f"\n=== Agent {i}/{len(AGENTS)}: {agent} ===", flush=True)
+        for i, agent in enumerate(args.agents, 1):
+            print(f"\n=== Agent {i}/{len(args.agents)}: {agent} ===", flush=True)
             exit_codes.append(
                 run_agent(
                     agent,
@@ -481,7 +533,7 @@ def main(argv: list[str] | None = None) -> int:
         "summary: "
         + ", ".join(
             f"{agent}={'passed' if code == 0 else 'failed'}"
-            for agent, code in zip(AGENTS, exit_codes, strict=True)
+            for agent, code in zip(args.agents, exit_codes, strict=True)
         ),
         flush=True,
     )

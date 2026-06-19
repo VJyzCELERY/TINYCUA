@@ -9,6 +9,7 @@ usage() {
   printf '%s\n' "" >&2
   printf '%s\n' "Options:" >&2
   printf '%s\n' "  --overwrite    Replace existing result directories" >&2
+  printf '%s\n' "  --agents LIST   Comma-separated harnesses: opencode,hermes,openclaw,tinycua" >&2
   printf '%s\n' "" >&2
   printf '%s\n' "Example: scripts/run.sh 1 \"Make me a simple clock animation app\"" >&2
   printf '%s\n' "Example: scripts/run.sh --overwrite 1 \"Make me a simple clock animation app\"" >&2
@@ -16,9 +17,11 @@ usage() {
 }
 
 overwrite=""
+agents=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --overwrite) overwrite="--overwrite"; shift ;;
+    --agents) [ "$#" -ge 2 ] || usage; agents="--agents $2"; shift 2 ;;
     -*) printf 'Unknown option: %s\n' "$1" >&2; usage ;;
     *) break ;;
   esac
@@ -31,4 +34,4 @@ fi
 num="$1"
 shift
 
-uv run python "$experiment_dir/run_experiment.py" --num "$num" --prompt "$*" $overwrite
+uv run python "$experiment_dir/run_experiment.py" --num "$num" --prompt "$*" $overwrite $agents

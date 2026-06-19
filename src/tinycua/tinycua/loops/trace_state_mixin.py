@@ -256,7 +256,10 @@ class TraceStateMixin:
                 except json.JSONDecodeError:
                     arguments = {"route": arguments}
             if isinstance(arguments, dict) and "route" in arguments:
-                return classifier.classify(str(arguments["route"]))
+                try:
+                    return classifier.classify(str(arguments["route"]))
+                except ValueError:
+                    return None
         return None
 
     def _build_on_complete_response(

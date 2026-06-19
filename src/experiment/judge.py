@@ -15,7 +15,8 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-AGENTS = ("opencode", "hermes", "openclaw", "tinycua")
+from run_experiment import parse_agents
+
 DEFAULT_JUDGE_MODEL = "openai/gpt-5.4"
 DEFAULT_JUDGE_VARIANT = "high"
 CRITERIA_FILE = Path(__file__).parent / "judge_criteria.md"
@@ -190,10 +191,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output-root", type=Path, default=Path("results"))
     parser.add_argument("--model", help=f"Judge model (default: {DEFAULT_JUDGE_MODEL})")
     parser.add_argument("--variant", help=f"Judge variant (default: {DEFAULT_JUDGE_VARIANT})")
+    parser.add_argument(
+        "--agents",
+        help="Comma-separated harnesses to judge (default: all). Example: tinycua",
+    )
     args = parser.parse_args(argv)
 
     if args.num < 1:
         parser.error("--num must be positive")
+    try:
+        agents = parse_agents(args.agents)
+    except ValueError as error:
+        parser.error(str(error))
 
     result_root = (
         args.output_root if args.output_root.is_absolute() else Path.cwd() / args.output_root
@@ -215,8 +224,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Experiment: {args.num}", flush=True)
 
     exit_codes = []
-    for i, agent in enumerate(AGENTS, 1):
-        print(f"\n=== Judging {i}/{len(AGENTS)}: {agent} ===", flush=True)
+    for i, agent in enumerate(agents, 1):
+        print(f"\n=== Judging {i}/{len(agents)}: {agent} ===", flush=True)
         exit_codes.append(
             judge_agent(
                 agent, args.num, result_root, judge_model, judge_variant, criteria, tmp_base
@@ -229,7 +238,7 @@ def main(argv: list[str] | None = None) -> int:
         "\nsummary: "
         + ", ".join(
             f"{agent}={'ok' if code == 0 else 'fail'}"
-            for agent, code in zip(AGENTS, exit_codes, strict=True)
+            for agent, code in zip(agents, exit_codes, strict=True)
         ),
         flush=True,
     )

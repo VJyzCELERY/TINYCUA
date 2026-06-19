@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from tinycua.config.node_config import create_node_config
+from tinycua.config.types import LLMResult
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.loops.worker import TinyCUAWorkerNode
 
@@ -33,3 +34,29 @@ def test_worker_with_existing_task_exposes_stateful_execution_routes() -> None:
 
     assert "task_creation" not in routes
     assert {"task_recreation", "task_reanalysis", "proceed_execution", "passthrough"}.issubset(routes)
+
+
+def test_worker_rejects_impossible_initial_route_tool_call() -> None:
+    """A model that ignores the route enum should retry, not crash on dispatch."""
+    loop = TinyCUALoop()
+    worker = TinyCUAWorkerNode("worker", create_node_config("worker"))
+    worker.ensure_session(loop.root_session)
+    worker.refresh_route_options()
+
+    validation = loop._validate_node_result(
+        worker,
+        LLMResult(
+            tool_calls=[
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "select_worker_route",
+                        "arguments": '{"route":"passthrough"}',
+                    },
+                }
+            ]
+        ),
+    )
+
+    assert not validation.is_valid
+    assert "task_creation" in "; ".join(validation.errors)

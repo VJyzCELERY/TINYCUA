@@ -91,10 +91,13 @@ def test_run_experiment_uses_uv(capsys) -> None:
         "Hello",
         Path("results"),
         None,
+        ("tinycua",),
         dry_run=True,
     )
 
-    assert "$ uv run python run_experiment.py" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "$ uv run python run_experiment.py" in output
+    assert "--agents tinycua" in output
 
 
 def test_main_judges_and_archives_failed_runs(tmp_path: Path, monkeypatch) -> None:
@@ -108,17 +111,19 @@ def test_main_judges_and_archives_failed_runs(tmp_path: Path, monkeypatch) -> No
     monkeypatch.setattr(
         run_batch_experiments,
         "_run_experiment",
-        lambda num, prompt, output_root, timeout_seconds, dry_run: 1 if num == 2 else 0,
+        lambda num, prompt, output_root, timeout_seconds, agents, dry_run: 1
+        if num == 2
+        else 0,
     )
     monkeypatch.setattr(
         run_batch_experiments,
         "_run_judge",
-        lambda num, output_root, dry_run: judged.append(num) or 0,
+        lambda num, output_root, agents, dry_run: judged.append(num) or 0,
     )
     monkeypatch.setattr(
         run_batch_experiments,
         "archive_results",
-        lambda output_root, archive_root, experiments, manifest: archived.extend(
+        lambda output_root, archive_root, experiments, manifest, agents: archived.extend(
             experiments
         )
         or tmp_path,

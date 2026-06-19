@@ -12,7 +12,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from run_experiment import AGENTS
+from run_experiment import AGENTS, parse_agents
 
 Experiment = tuple[int, str]
 LINE_RE = re.compile(r"^Experiment[_ -]?(\d+)\s*:\s*(.+)$", re.IGNORECASE)
@@ -50,6 +50,7 @@ def archive_results(
     experiments: list[Experiment],
     manifest: Path,
     archive_name: str | None = None,
+    agents: tuple[str, ...] = AGENTS,
 ) -> Path:
     """Move requested experiment results into one archive directory."""
     name = archive_name or datetime.now(UTC).strftime("batch-%Y%m%d-%H%M%SZ")
@@ -61,7 +62,7 @@ def archive_results(
     shutil.copy2(manifest, archive_dir / "manifest.txt")
 
     wanted = {num for num, _ in experiments}
-    for agent in AGENTS:
+    for agent in agents:
         agent_dir = output_root / agent
         for num in wanted:
             src = agent_dir / f"experiment-{num}"
@@ -96,6 +97,7 @@ def _run_experiment(
     prompt: str,
     output_root: Path,
     timeout_seconds: int | None,
+    agents: tuple[str, ...],
     *,
     dry_run: bool,
 ) -> int:
@@ -112,13 +114,21 @@ def _run_experiment(
         "--output-root",
         str(output_root),
         "--overwrite",
+        "--agents",
+        ",".join(agents),
     ]
     if timeout_seconds is not None:
         command += ["--timeout-seconds", str(timeout_seconds)]
     return _run(command, dry_run=dry_run)
 
 
-def _run_judge(num: int, output_root: Path, *, dry_run: bool) -> int:
+def _run_judge(
+    num: int,
+    output_root: Path,
+    agents: tuple[str, ...],
+    *,
+    dry_run: bool,
+) -> int:
     """Invoke the existing LLM judge for one experiment."""
     return _run(
         [
@@ -130,6 +140,8 @@ def _run_judge(num: int, output_root: Path, *, dry_run: bool) -> int:
             str(num),
             "--output-root",
             str(output_root),
+            "--agents",
+            ",".join(agents),
         ],
         dry_run=dry_run,
     )
@@ -145,9 +157,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--skip-setup", action="store_true")
     parser.add_argument("--fail-fast", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--agents",
+        help="Comma-separated harnesses to run/judge (default: all). Example: tinycua",
+    )
     args = parser.parse_args(argv)
     if args.timeout_seconds is not None and args.timeout_seconds < 1:
         parser.error("--timeout-seconds must be positive")
+    try:
+        args.agents = parse_agents(args.agents)
+    except ValueError as error:
+        parser.error(str(error))
     return args
 
 
@@ -180,6 +200,7 @@ def main(argv: list[str] | None = None) -> int:
             prompt,
             output_root,
             args.timeout_seconds,
+            args.agents,
             dry_run=args.dry_run,
         )
         if code:
@@ -189,7 +210,7 @@ def main(argv: list[str] | None = None) -> int:
 
     for num, _ in experiments:
         print(f"\n=== Experiment {num}: judge ===", flush=True)
-        code = _run_judge(num, output_root, dry_run=args.dry_run)
+        code = _run_judge(num, output_root, args.agents, dry_run=args.dry_run)
         if code:
             failures.append({"phase": "judge", "experiment": num, "exit_code": code})
             if args.fail_fast:
@@ -203,6 +224,7 @@ def main(argv: list[str] | None = None) -> int:
         archive_root,
         experiments,
         manifest,
+        agents=args.agents,
     )
     (archive_dir / "summary.json").write_text(
         json.dumps({"failures": failures}, indent=2) + "\n"

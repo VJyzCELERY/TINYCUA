@@ -14,7 +14,7 @@ triggers a retry but NEVER rolls back the decision.
 from __future__ import annotations
 
 from tinycua.config.node_config import create_node_config
-from tinycua.config.types import LLMResult
+from tinycua.config.types import LLMResult, ValidationError
 from tinycua.loops.task_nodes import TinyCUAResultReviewerNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.task import ReviewerDecision, TaskResult, TaskStatus
@@ -160,6 +160,25 @@ def test_result_reviewer_retry_exposes_terminate_without_hiding_update() -> None
     assert "task_update" in tool_names
 
 
+def test_result_reviewer_terminate_retry_explains_handoff() -> None:
+    """Terminate retry should explain handoff, not imply forced immediate stop."""
+    loop = TinyCUALoop()
+    node = _reviewer_node(loop.root_session)
+    message = loop._retry_message_for_validation(
+        ValidationError(
+            "result_reviewer completed its required work; optionally curate "
+            "unfinished tasks with task_update, then call terminate."
+        ),
+        node,
+        node.config.tool_policy.resolve_tools([]),
+        LLMResult(),
+    )
+
+    assert "call terminate" in message
+    assert "advance" in message
+    assert "optional" in message.lower()
+
+
 def test_worker_lifecycle_node_cannot_terminate_before_required_tool() -> None:
     """Terminate never bypasses each node's required state tool."""
     loop = TinyCUALoop()
@@ -207,6 +226,7 @@ if __name__ == "__main__":
     test_approval_with_inspect_in_same_batch_is_valid()
     test_result_reviewer_can_terminate_after_decide_and_inspect()
     test_result_reviewer_retry_exposes_terminate_without_hiding_update()
+    test_result_reviewer_terminate_retry_explains_handoff()
     test_worker_lifecycle_node_cannot_terminate_before_required_tool()
     test_no_decision_skips_inspect_requirement()
     print("ok")

@@ -12,9 +12,11 @@ from run_experiment import (
     _hermes_poll_timed_out,
     _hermes_process_poll_completed,
     _hermes_process_poll_started,
+    _no_response_sentinel,
     build_permission_repair_command,
     build_metadata,
     load_prompt,
+    parse_agents,
     prepare_result_dirs,
     read_hermes_process_poll_timeout_seconds,
     read_timeout_seconds,
@@ -46,6 +48,42 @@ def test_prepare_result_dirs_creates_agent_paths(tmp_path: Path) -> None:
         assert path["logs"] == tmp_path / agent / "experiment-2" / "logs"
         assert path["workdir"].is_dir()
         assert path["logs"].is_dir()
+
+
+def test_prepare_result_dirs_can_select_agents(tmp_path: Path) -> None:
+    """A rerun can isolate one harness without touching other outputs."""
+    existing = tmp_path / "opencode" / "experiment-2"
+    existing.mkdir(parents=True)
+    paths = prepare_result_dirs(
+        tmp_path,
+        2,
+        overwrite=True,
+        agents=("tinycua",),
+    )
+
+    assert tuple(paths) == ("tinycua",)
+    assert existing.exists()
+    assert (tmp_path / "tinycua" / "experiment-2" / "workdir").is_dir()
+
+
+def test_parse_agents_rejects_unknown() -> None:
+    """Agent filters must be real harness names."""
+    assert parse_agents("opencode,tinycua") == ("opencode", "tinycua")
+    with pytest.raises(ValueError, match="unknown"):
+        parse_agents("tinycua,nope")
+
+
+def test_no_response_sentinel_matches_openclaw_failure(tmp_path: Path) -> None:
+    """OpenClaw exits 0 but prints a no-response warning; the runner must flag it."""
+    log = tmp_path / "stdout.log"
+    log.write_text(
+        "[agent/embedded] embedded run agent end: isError=false\n"
+        "⚠️ Agent couldn't generate a response. Note: some tool actions may have already been executed — please verify before retrying.\n"
+    )
+
+    assert _no_response_sentinel("openclaw", log.read_text()) is True
+    assert _no_response_sentinel("opencode", log.read_text()) is False
+    assert _no_response_sentinel("openclaw", "all good, response shipped") is False
 
 
 def test_prepare_result_dirs_requires_overwrite(tmp_path: Path) -> None:

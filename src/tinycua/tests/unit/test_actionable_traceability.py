@@ -18,6 +18,8 @@ from tinycua.loops.task_nodes import TinyCUATaskAnalyzerNode, TinyCUATaskExecuto
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.node_input import NodeInput
 from tinycua.models.session import Session
+from tinycua.models.session_context_entry import SessionContextEntry
+from tinycua.models.digested_information import DigestedInformation
 from tinycua.models.task import TaskStateStore, TaskStatus
 from tinycua.tools.task_tools import TaskDecomposeTool
 from tinycua.tools.task_tools import TaskResultUpdateTool
@@ -195,6 +197,41 @@ def test_task_executor_instruction_requires_real_tool_actions(tmp_path: Path) ->
     }
     assert "MUST use tools" in instruction
     assert "task_result_update" in instruction
+
+
+def test_task_executor_work_order_preserves_original_request_constraints() -> None:
+    """Child tasks should still see user-level constraints like single file."""
+    session = Session()
+    session.input_context = [
+        {
+            "role": "user",
+            "content": "Make an analog clock animation in a single HTML file.",
+        }
+    ]
+    session.session_context.append(
+        SessionContextEntry(
+            segment="output",
+            content=DigestedInformation(
+                context_summary="Build a clock app.",
+                original_query="Make an analog clock animation in a single HTML file.",
+                constraints=["Deliver exactly one self-contained HTML file."],
+            ),
+        )
+    )
+    root = session.task_store.create_task("Build clock app")
+    session.task_store.create_task("Implement clock animation", parent_id=root.task_id)
+    node = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    node.ensure_session(session)
+
+    prompt = node.build_continuation(session)
+
+    assert "Original user request" in prompt
+    assert "single HTML file" in prompt
+    assert "Hard constraints" in prompt
+    assert "one self-contained HTML file" in prompt
 
 
 def test_task_node_prompts_are_action_first_not_phase_essays() -> None:
