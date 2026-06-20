@@ -10,6 +10,9 @@ lms server start          # LM Studio (port 1234)
 ollama serve              # Ollama (port 11434)
 vllm serve <model>        # vLLM (port 8000)
 # ...or any server on any port
+
+# 2. Run benchmark (first time shows setup wizard)
+bash benchmark.sh
 ```
 
 > Docker and SearXNG are started automatically when running benchmarks.
@@ -22,6 +25,7 @@ vllm serve <model>        # vLLM (port 8000)
 | `bash benchmark.sh run` | Run with saved config |
 | `bash benchmark.sh config` | Change provider |
 | `bash benchmark.sh status` | Show results |
+| `bash benchmark.sh searxng` | Manage SearXNG (up\|down\|status) |
 | `bash benchmark.sh help` | Show help |
 
 ## First Time Setup
@@ -39,19 +43,37 @@ Choose your LLM provider:
   2) Ollama (local)        - http://localhost:11434/v1
   3) vLLM (local/remote)   - http://localhost:8000/v1
   4) OpenRouter (cloud)    - https://openrouter.ai/api/v1
-  5) Custom API            - Your own endpoint
+  5) Custom local server   - Your own localhost port
+  6) Custom remote API     - Full URL endpoint
 
-  Enter choice [1-5] (default: 1):
+  Enter choice [1-6] (default: 1):
+```
 
-  Provider: lm-studio
-  API Base: http://localhost:1234/v1
+**Option 5** lets you type any port number:
+```
+Enter your local server port or URL:
+Examples: 8080, 5000, http://localhost:9090/v1
 
-  Enter model name (default: qwen3.5-9b): qwen3.5-9b
-
-[OK] Configuration saved to .provider-config
+Port or URL: 9090
+→ Provider: local-custom
+→ API Base: http://localhost:9090/v1
 ```
 
 Configuration is saved to `.provider-config` and reused on next run.
+
+## SearXNG (Local Search)
+
+SearXNG provides web search capabilities without API keys. It starts automatically when running benchmarks.
+
+```bash
+# Manual control
+bash benchmark.sh searxng up      # Start SearXNG
+bash benchmark.sh searxng status  # Check status
+bash benchmark.sh searxng down    # Stop SearXNG
+
+# Test search API
+curl "http://localhost:8888/search?q=docker&format=json" | jq '.results[:2]'
+```
 
 ## Change Provider
 
@@ -94,7 +116,20 @@ bash benchmark.sh run --category 01_Productivity_Flow
 
 ## Execution Flow
 
-Agents run sequentially (one at a time):
+Agents run sequentially (one at a time) with progress tracking:
+
+```
+Running openclaw...
+────────────────────────────────────────
+[1/5] ✓ productivity_01 (0.85) - 12.3s
+[2/5] ✓ productivity_02 (0.92) - 8.1s
+[3/5] ✓ code_01 (0.78) - 15.2s
+[4/5] ✗ code_02 (0.00) - 10.5s
+[5/5] ✓ search_01 (0.90) - 9.8s
+
+  Progress: 5/5 tasks completed
+  Results:  ✓ 4 passed  ✗ 1 failed
+```
 
 1. **openclaw** → `output/openclaw/`
 2. **opencode** → `output/opencode/`
