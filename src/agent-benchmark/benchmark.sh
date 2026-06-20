@@ -1,23 +1,19 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# WildClawBench - Setup & Run Script
-#
-# One script to setup and run benchmarks for all 4 agents sequentially.
-# Limited resources: only 1 agent runs at a time, results saved, next agent starts.
+# WildClawBench - Simple Benchmark Runner
 #
 # Usage:
-#   bash benchmark.sh setup              # Full setup (deps, images, data, env)
-#   bash benchmark.sh run                # Run all agents sequentially
-#   bash benchmark.sh run --model X      # Run all agents with specific model
-#   bash benchmark.sh run --category X   # Run specific category for all agents
-#   bash benchmark.sh run --agent X      # Run only specific agent
-#   bash benchmark.sh status             # Show latest results
-#   bash benchmark.sh help               # Show help
+#   bash benchmark.sh              # Interactive setup (first time) or run
+#   bash benchmark.sh run          # Run with saved config
+#   bash benchmark.sh config       # Change provider configuration
+#   bash benchmark.sh status       # Show results
+#   bash benchmark.sh help         # Show help
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="${SCRIPT_DIR}"
+CONFIG_FILE="${PROJECT_DIR}/.provider-config"
 
 # Colors
 RED='\033[0;31m'
@@ -27,570 +23,665 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-# Logging
 log_info()    { echo -e "${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${GREEN}[OK]${NC} $1"; }
 log_warn()    { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error()   { echo -e "${RED}[ERROR]${NC} $1"; }
-log_step()    { echo -e "${CYAN}[STEP]${NC} $1"; }
 
-# Spinner for long-running commands
-spin() {
-  local pid=$1
-  local task_name=$2
-  local spinstr='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
-  local i=0
-  local start_time=$(date +%s)
-
-  while kill -0 "$pid" 2>/dev/null; do
-    local elapsed=$(( $(date +%s) - start_time ))
-    printf "\r  ${CYAN}%s${NC} ${task_name}... %ss " "${spinstr:i++%${#spinstr}:1}" "$elapsed"
-    sleep 0.1
-  done
-
-  elapsed=$(( $(date +%s) - start_time ))
-  printf "\r  ${GREEN}✓${NC} ${task_name} done in %ss   \n" "$elapsed"
-}
-
-# All harnesses
-HARNESS_LIST="openclaw opencode hermesagent"
-
-# Get image tarball for harness
-get_tarball() {
-  case "$1" in
-    openclaw)    echo "wildclawbench-ubuntu_v1.3.tar" ;;
-    opencode)    echo "wildclawbench-ubuntu_v1.3.tar" ;;
-    hermesagent) echo "wildclawbench-hermes-agent-v0.5.tar.gz" ;;
-  esac
-}
-
-# Get docker image tag for harness
-get_tag() {
-  case "$1" in
-    openclaw)    echo "wildclawbench-ubuntu:v1.3" ;;
-    opencode)    echo "wildclawbench-ubuntu:v1.3" ;;
-    hermesagent) echo "wildclawbench-hermes-agent:v0.5" ;;
-  esac
-}
-
-# ─── CHECK (pre-flight) ─────────────────────────────────────────────────────
-do_check() {
-  echo ""
-  echo "=========================================="
-  echo "  WildClawBench Pre-flight Check"
-  echo "=========================================="
-  echo ""
-
-  local all_ok=true
-
-  # 1. Prerequisites
-  log_step "Prerequisites"
-  if command -v docker &>/dev/null; then
-    if docker info &>/dev/null 2>&1; then
-      log_success "Docker installed & running"
-    else
-      log_error "Docker installed but NOT running — start Docker Desktop"
-      all_ok=false
-    fi
-  else
-    log_error "Docker not found — install: https://docs.docker.com/get-docker/"
-    all_ok=false
-  fi
-
-  if command -v uv &>/dev/null; then
-    log_success "uv installed"
-  else
-    log_error "uv not found — install: curl -LsSf https://astral.sh/uv/install.sh | sh"
-    all_ok=false
-  fi
-
-  if command -v hf &>/dev/null || command -v huggingface-cli &>/dev/null; then
-    log_success "huggingface-hub installed"
-  else
-    log_warn "huggingface-hub not found (needed to download images)"
-    echo "         Install: pip install -U 'huggingface_hub[cli]'"
-  fi
-
-  if command -v python3 &>/dev/null; then
-    log_success "Python $(python3 --version 2>&1 | awk '{print $2}')"
-  else
-    log_error "Python3 not found"
-    all_ok=false
-  fi
-
-  # 2. Python dependencies
-  echo ""
-  log_step "Python dependencies"
-  cd "${PROJECT_DIR}"
-  if python3 -c "import agent_benchmark" &>/dev/null 2>&1; then
-    log_success "agent_benchmark package installed"
-  else
-    log_warn "agent_benchmark not installed — run: bash benchmark.sh setup"
-    all_ok=false
-  fi
-
-  # 3. Docker images
-  echo ""
-  log_step "Docker images"
-  local images_missing=0
-  for harness in ${HARNESS_LIST}; do
-    local tag
-    tag=$(get_tag "${harness}")
-    if docker image inspect "${tag}" &>/dev/null 2>&1; then
-      log_success "${harness}: ${tag}"
-    else
-      log_warn "${harness}: ${tag} — not loaded (run: bash benchmark.sh setup)"
-      images_missing=$((images_missing + 1))
-    fi
-  done
-  if [[ ${images_missing} -gt 0 ]]; then
-    all_ok=false
-  fi
-
-  # 4. Environment
-  echo ""
-  log_step "Environment (.env)"
-  local env_file="${PROJECT_DIR}/.env"
-  if [[ -f "${env_file}" ]]; then
-    log_success ".env exists"
-    # Check if keys are set (not placeholder)
-    source "${env_file}"
-    if [[ "${OPENROUTER_API_KEY:-}" == "your_api_key_here" || -z "${OPENROUTER_API_KEY:-}" ]]; then
-      log_warn "OPENROUTER_API_KEY not set — edit .env"
-      all_ok=false
-    else
-      log_success "OPENROUTER_API_KEY set"
-    fi
-    if [[ "${BRAVE_API_KEY:-}" == "your_brave_key_here" || -z "${BRAVE_API_KEY:-}" ]]; then
-      log_warn "BRAVE_API_KEY not set (optional, needed for search tasks)"
-    else
-      log_success "BRAVE_API_KEY set"
-    fi
-  else
-    log_warn ".env not found — run: bash benchmark.sh setup"
-    all_ok=false
-  fi
-
-  # Summary
-  echo ""
-  echo "=========================================="
-  if [[ "${all_ok}" == "true" ]]; then
-    log_success "All checks passed — ready to run benchmarks!"
-    echo ""
-    echo "  Next: bash benchmark.sh run"
-  else
-    log_warn "Some issues found — fix them before running benchmarks"
-    echo ""
-    echo "  Quick fix: bash benchmark.sh setup"
-  fi
-  echo "=========================================="
-  echo ""
-}
-
-# ─── SETUP ──────────────────────────────────────────────────────────────────
-do_setup() {
-  echo ""
-  echo "=========================================="
-  echo "  WildClawBench Setup"
-  echo "=========================================="
-  echo ""
-
-  # 1. Check prerequisites
-  log_step "1/5 Checking prerequisites..."
-  local missing=()
-  command -v docker &>/dev/null || missing+=("docker")
-  command -v uv &>/dev/null     || missing+=("uv (curl -LsSf https://astral.sh/uv/install.sh | sh)")
-
-  if command -v hf &>/dev/null; then
-    log_success "hf CLI installed"
-  elif uv run python -c "import huggingface_hub" &>/dev/null 2>&1; then
-    log_success "huggingface_hub (Python) installed — will use Python fallback"
-  else
-    missing+=("huggingface-hub (pip install -U 'huggingface_hub' or: curl -LsSf https://hf.co/cli/install.sh | bash)")
-  fi
-
-  if [[ ${#missing[@]} -gt 0 ]]; then
-    log_error "Missing prerequisites:"
-    for m in "${missing[@]}"; do echo "  - $m"; done
+# ---------------------------------------------------------------------------
+# Docker Check & Start
+# ---------------------------------------------------------------------------
+ensure_docker() {
+  # Check if Docker is installed
+  if ! command -v docker &> /dev/null; then
+    log_error "Docker is not installed"
+    log_info "Install from: https://docs.docker.com/get-docker/"
     exit 1
   fi
-  log_success "Prerequisites OK"
-
-  # 2. Install Python deps
-  log_step "2/5 Installing Python dependencies..."
-  cd "${PROJECT_DIR}"
-  uv pip install -e ".[dev]" 2>/dev/null || uv pip install -e "."
-  log_success "Python dependencies installed"
-
-  # 3. Setup .env (must happen before Docker image download for HF_TOKEN)
-  log_step "3/5 Setting up environment..."
-  local env_file="${PROJECT_DIR}/.env"
-  local env_example="${PROJECT_DIR}/.env.example"
-
-  if [[ ! -f "${env_file}" ]]; then
-    if [[ -f "${env_example}" ]]; then
-      cp "${env_example}" "${env_file}"
-      log_success "Created .env from .env.example"
+  
+  # Check if Docker daemon is running
+  if ! docker info &> /dev/null 2>&1; then
+    log_warn "Docker daemon is not running. Starting Docker..."
+    
+    # Try to start Docker Desktop on macOS
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+      open -a Docker
+      log_info "Waiting for Docker to start..."
+      
+      # Wait up to 60 seconds
+      local timeout=60
+      local elapsed=0
+      while ! docker info &> /dev/null 2>&1; do
+        sleep 2
+        elapsed=$((elapsed + 2))
+        if [[ $elapsed -ge $timeout ]]; then
+          log_error "Docker failed to start within ${timeout} seconds"
+          log_info "Please start Docker Desktop manually and try again"
+          exit 1
+        fi
+        echo -n "."
+      done
+      echo ""
+      log_success "Docker is ready"
     else
-      cat > "${env_file}" <<'ENVEOF'
-# WildClawBench Environment Configuration
-OPENROUTER_API_KEY=your_api_key_here
-BRAVE_API_KEY=your_brave_key_here
-DEFAULT_MODEL=qwen3.5-9b
-JUDGE_MODEL=openai/gpt-5.4
-LOG_LEVEL=INFO
-TIMEOUT=600
-ENVEOF
-      log_success "Created .env with defaults"
+      # Linux - try systemctl
+      if command -v systemctl &> /dev/null; then
+        sudo systemctl start docker
+        sleep 3
+        if ! docker info &> /dev/null 2>&1; then
+          log_error "Failed to start Docker"
+          exit 1
+        fi
+        log_success "Docker is ready"
+      else
+        log_error "Please start Docker manually"
+        exit 1
+      fi
     fi
-    echo ""
-    log_warn "Edit .env to set your API keys before running benchmarks"
   else
-    log_info ".env already exists"
+    log_info "Docker is running"
   fi
-
-  # 4. Download Docker images
-  log_step "4/5 Downloading Docker images..."
-  local download_dir="${PROJECT_DIR}/Images"
-  mkdir -p "${download_dir}"
-
-  for harness in ${HARNESS_LIST}; do
-    local tarball
-    tarball=$(get_tarball "${harness}")
-    local tag
-    tag=$(get_tag "${harness}")
-
-    # Check if image already loaded
-    if docker image inspect "${tag}" &>/dev/null; then
-      log_info "${harness} image already loaded (${tag})"
-      continue
-    fi
-
-    log_info "Downloading ${harness}..."
-
-    if command -v hf &>/dev/null; then
-      hf download internlm/WildClawBench "Images/${tarball}" \
-        --repo-type dataset --local-dir "${PROJECT_DIR}" 2>/dev/null || true
-    else
-      # Python fallback for environments without the hf CLI
-      uv run python -c "
-import os, sys
-os.environ.setdefault('HF_TOKEN', os.environ.get('HF_TOKEN', ''))
-from huggingface_hub import hf_hub_download
-try:
-    hf_hub_download(
-        repo_id='internlm/WildClawBench',
-        filename='Images/${tarball}',
-        repo_type='dataset',
-        local_dir='${PROJECT_DIR}',
-    )
-    print('Downloaded ${tarball}')
-except Exception as e:
-    print(f'Failed: {e}', file=sys.stderr)
-    sys.exit(1)
-" 2>&1 || true
-    fi
-
-    if [[ -f "${download_dir}/${tarball}" ]]; then
-      log_info "Loading ${harness} into Docker..."
-      docker load -i "${download_dir}/${tarball}"
-      log_success "${harness} loaded (${tag})"
-    else
-      log_warn "Failed to download ${harness} image, skipping"
-    fi
-  done
-
-  echo ""
-  echo "=========================================="
-  log_success "Setup complete!"
-  echo ""
-  echo "Next: Edit .env, then run:"
-  echo "  bash benchmark.sh run"
-  echo "=========================================="
 }
 
-# ─── RUN ────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# SearXNG Management
+# ---------------------------------------------------------------------------
+SEARXNG_URL="http://localhost:8888"
+
+start_searxng() {
+  log_info "Starting SearXNG..."
+  
+  cd "${PROJECT_DIR}"
+  
+  # Pull latest image and start container
+  if docker compose up -d searxng 2>&1; then
+    log_success "SearXNG container started"
+  else
+    log_error "Failed to start SearXNG"
+    return 1
+  fi
+  
+  # Wait for health check
+  log_info "Waiting for SearXNG to be ready..."
+  local timeout=30
+  local elapsed=0
+  while ! curl -sf "${SEARXNG_URL}/healthz" > /dev/null 2>&1; do
+    sleep 2
+    elapsed=$((elapsed + 2))
+    if [[ $elapsed -ge $timeout ]]; then
+      log_error "SearXNG failed to start within ${timeout} seconds"
+      return 1
+    fi
+    echo -n "."
+  done
+  echo ""
+  
+  log_success "SearXNG is ready at ${SEARXNG_URL}"
+  export SEARXNG_URL
+}
+
+stop_searxng() {
+  log_info "Stopping SearXNG..."
+  cd "${PROJECT_DIR}"
+  docker compose down searxng 2>&1
+  log_success "SearXNG stopped"
+}
+
+searxng_status() {
+  if curl -sf "${SEARXNG_URL}/healthz" > /dev/null 2>&1; then
+    log_success "SearXNG is running at ${SEARXNG_URL}"
+    return 0
+  else
+    log_warn "SearXNG is not running"
+    return 1
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Interactive Setup Wizard
+# ---------------------------------------------------------------------------
+do_setup_wizard() {
+  echo ""
+  echo "=========================================="
+  echo "  WildClawBench - Provider Setup"
+  echo "=========================================="
+  echo ""
+  echo "Choose your LLM provider:"
+  echo ""
+  echo "  1) LM Studio (local)     - http://localhost:1234/v1"
+  echo "  2) Ollama (local)        - http://localhost:11434/v1"
+  echo "  3) vLLM (local/remote)   - http://localhost:8000/v1"
+  echo "  4) OpenRouter (cloud)    - https://openrouter.ai/api/v1"
+  echo "  5) Custom API            - Your own endpoint"
+  echo ""
+  
+  local choice
+  read -p "  Enter choice [1-5] (default: 1): " choice
+  choice="${choice:-1}"
+  
+  local provider_name="lm-studio"
+  local api_base="http://localhost:1234/v1"
+  local api_key_env="LM_STUDIO_API_KEY"
+  
+  case "$choice" in
+    1)
+      provider_name="lm-studio"
+      api_base="http://localhost:1234/v1"
+      api_key_env="LM_STUDIO_API_KEY"
+      ;;
+    2)
+      provider_name="ollama"
+      api_base="http://localhost:11434/v1"
+      api_key_env="OLLAMA_API_KEY"
+      ;;
+    3)
+      provider_name="vllm"
+      api_base="http://localhost:8000/v1"
+      api_key_env="VLLM_API_KEY"
+      ;;
+    4)
+      provider_name="openrouter"
+      api_base="https://openrouter.ai/api/v1"
+      api_key_env="OPENROUTER_API_KEY"
+      ;;
+    5)
+      provider_name="custom"
+      read -p "  Enter API base URL: " api_base
+      api_base="${api_base:-http://localhost:8000/v1}"
+      read -p "  Enter API key env var name (or leave empty): " api_key_env
+      api_key_env="${api_key_env:-CUSTOM_API_KEY}"
+      ;;
+    *)
+      log_error "Invalid choice"
+      exit 1
+      ;;
+  esac
+  
+  echo ""
+  echo "  Provider: ${provider_name}"
+  echo "  API Base: ${api_base}"
+  echo ""
+  
+  # Check if local server is running
+  if [[ "$provider_name" == "lm-studio" || "$provider_name" == "ollama" || "$provider_name" == "vllm" ]]; then
+    check_local_server "$provider_name" "$api_base"
+  fi
+  
+  # Get model name
+  local model
+  read -p "  Enter model name (default: qwen3.5-9b): " model
+  model="${model:-qwen3.5-9b}"
+  
+  # Get API key if needed
+  local api_key=""
+  if [[ "$provider_name" == "openrouter" ]] || [[ "$provider_name" == "custom" ]]; then
+    read -p "  Enter API key (or press Enter to skip): " api_key
+  fi
+  
+  # Save configuration
+  save_config "$provider_name" "$api_base" "$api_key_env" "$model" "$api_key"
+  
+  echo ""
+  log_success "Configuration saved to ${CONFIG_FILE}"
+  echo ""
+}
+
+# ---------------------------------------------------------------------------
+# Check Local Server
+# ---------------------------------------------------------------------------
+check_local_server() {
+  local provider="$1"
+  local api_base="$2"
+  
+  log_info "Checking if ${provider} server is running..."
+  
+  # Check if server is responding
+  if curl -s --connect-timeout 2 "${api_base}/models" > /dev/null 2>&1; then
+    log_success "${provider} server is running"
+    return 0
+  fi
+  
+  log_warn "${provider} server is not running"
+  echo ""
+  echo "  Would you like me to start ${provider}?"
+  echo ""
+  
+  local start_choice
+  read -p "  Start ${provider}? [Y/n]: " start_choice
+  start_choice="${start_choice:-Y}"
+  
+  if [[ "$start_choice" == "Y" || "$start_choice" == "y" ]]; then
+    start_local_server "$provider"
+  else
+    echo ""
+    log_warn "Please start ${provider} manually before running benchmarks"
+    echo "  LM Studio: /Users/jonaja29/.lmstudio/bin/lms server start"
+    echo "  Ollama: ollama serve"
+    echo "  vLLM: vllm serve <model>"
+    echo ""
+    read -p "  Press Enter when server is ready..."
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Start Local Server
+# ---------------------------------------------------------------------------
+start_local_server() {
+  local provider="$1"
+  
+  case "$provider" in
+    lm-studio)
+      log_info "Starting LM Studio..."
+      if command -v lms &> /dev/null; then
+        lms server start &
+        sleep 3
+        log_success "LM Studio started"
+      elif [[ -f "/Users/jonaja29/.lmstudio/bin/lms" ]]; then
+        /Users/jonaja29/.lmstudio/bin/lms server start &
+        sleep 3
+        log_success "LM Studio started"
+      else
+        log_error "LM Studio CLI not found"
+        echo "  Please start LM Studio manually"
+        return 1
+      fi
+      ;;
+    ollama)
+      log_info "Starting Ollama..."
+      if command -v ollama &> /dev/null; then
+        ollama serve &
+        sleep 3
+        log_success "Ollama started"
+      else
+        log_error "Ollama not installed"
+        echo "  Install: brew install ollama"
+        return 1
+      fi
+      ;;
+    vllm)
+      log_error "vLLM must be started manually"
+      echo "  Example: vllm serve <model> --port 8000"
+      return 1
+      ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# Save Configuration
+# ---------------------------------------------------------------------------
+save_config() {
+  local provider="$1"
+  local api_base="$2"
+  local api_key_env="$3"
+  local model="$4"
+  local api_key="${5:-}"
+  
+  cat > "$CONFIG_FILE" << EOF
+# WildClawBench Provider Configuration
+# Generated by benchmark.sh
+
+PROVIDER=${provider}
+API_BASE=${api_base}
+API_KEY_ENV=${api_key_env}
+MODEL=${model}
+EOF
+  
+  # Save API key to .env if provided
+  if [[ -n "$api_key" ]]; then
+    local env_file="${PROJECT_DIR}/.env"
+    if [[ -f "$env_file" ]]; then
+      # Update existing key
+      if grep -q "^${api_key_env}=" "$env_file"; then
+        sed -i.bak "s/^${api_key_env}=.*/${api_key_env}=${api_key}/" "$env_file"
+        rm -f "${env_file}.bak"
+      else
+        echo "${api_key_env}=${api_key}" >> "$env_file"
+      fi
+    else
+      echo "${api_key_env}=${api_key}" > "$env_file"
+    fi
+    log_info "API key saved to .env"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Load Configuration
+# ---------------------------------------------------------------------------
+load_config() {
+  if [[ ! -f "$CONFIG_FILE" ]]; then
+    return 1
+  fi
+  
+  # Check if file has content
+  if [[ ! -s "$CONFIG_FILE" ]]; then
+    return 1
+  fi
+  
+  # Source the config file
+  source "$CONFIG_FILE"
+  
+  # Check if required vars are set
+  if [[ -z "${PROVIDER:-}" || -z "${API_BASE:-}" ]]; then
+    return 1
+  fi
+  
+  # Export for child processes
+  export PROVIDER_NAME="${PROVIDER:-lm-studio}"
+  export PROVIDER_API_BASE="${API_BASE:-http://localhost:1234/v1}"
+  export PROVIDER_API_KEY_ENV="${API_KEY_ENV:-LM_STUDIO_API_KEY}"
+  export PROVIDER_MODEL="${MODEL:-qwen3.5-9b}"
+  
+  # Load .env file if it exists
+  local env_file="${PROJECT_DIR}/.env"
+  if [[ -f "$env_file" ]]; then
+    set -a
+    source "$env_file"
+    set +a
+  fi
+  
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# Show Current Config
+# ---------------------------------------------------------------------------
+show_config() {
+  if [[ -f "$CONFIG_FILE" ]]; then
+    echo ""
+    echo "Current configuration:"
+    echo "  Provider: ${PROVIDER:-lm-studio}"
+    echo "  API Base: ${API_BASE:-http://localhost:1234/v1}"
+    echo "  Model:    ${MODEL:-qwen3.5-9b}"
+    echo ""
+  else
+    echo ""
+    echo "No configuration found. Run: bash benchmark.sh config"
+    echo ""
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# RUN
+# ---------------------------------------------------------------------------
 do_run() {
+  # Ensure Docker is running
+  ensure_docker
+  
+  # Load config or run setup wizard
+  if ! load_config; then
+    echo ""
+    log_info "No configuration found. Let's set up your LLM provider."
+    do_setup_wizard
+    load_config
+  fi
+  
+  # Check if local server is running
+  if [[ "$PROVIDER_NAME" == "lm-studio" || "$PROVIDER_NAME" == "ollama" || "$PROVIDER_NAME" == "vllm" ]]; then
+    if ! curl -s --connect-timeout 2 "${PROVIDER_API_BASE}/models" > /dev/null 2>&1; then
+      log_warn "${PROVIDER_NAME} server is not running"
+      echo ""
+      read -p "  Start ${PROVIDER_NAME} now? [Y/n]: " start_choice
+      start_choice="${start_choice:-Y}"
+      
+      if [[ "$start_choice" == "Y" || "$start_choice" == "y" ]]; then
+        start_local_server "$PROVIDER_NAME"
+        sleep 3
+      else
+        log_error "Cannot run benchmark without LLM server"
+        exit 1
+      fi
+    fi
+  fi
+  
+  # Check if API key is needed and not set
+  if [[ "$PROVIDER_NAME" == "openrouter" || "$PROVIDER_NAME" == "custom" ]]; then
+    local api_key_var="${PROVIDER_API_KEY_ENV:-OPENROUTER_API_KEY}"
+    local api_key_value="${!api_key_var:-}"
+    
+    if [[ -z "$api_key_value" ]]; then
+      echo ""
+      log_warn "API key not found for ${PROVIDER_NAME}"
+      read -p "  Enter API key for ${api_key_var}: " api_key_value
+      if [[ -n "$api_key_value" ]]; then
+        export "${api_key_var}=${api_key_value}"
+        # Save to .env for future use
+        local env_file="${PROJECT_DIR}/.env"
+        if [[ -f "$env_file" ]]; then
+          if grep -q "^${api_key_var}=" "$env_file"; then
+            sed -i.bak "s/^${api_key_var}=.*/${api_key_var}=${api_key_value}/" "$env_file"
+            rm -f "${env_file}.bak"
+          else
+            echo "${api_key_var}=${api_key_value}" >> "$env_file"
+          fi
+        else
+          echo "${api_key_var}=${api_key_value}" > "$env_file"
+        fi
+        log_success "API key saved"
+      fi
+    fi
+  fi
+  
+  # Parse command line overrides
   local category="all"
-  local model=""
   local agent=""
   local parallel=1
-  local no_score=""
-  local verbose_flag=""
-
-  # Parse run options
+  
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --category) category="$2"; shift 2 ;;
-      --model)    model="$2"; shift 2 ;;
       --agent)    agent="$2"; shift 2 ;;
       --parallel) parallel="$2"; shift 2 ;;
-      --no-score) no_score="--no-score"; shift ;;
-      --verbose|-v) verbose_flag="--verbose"; shift ;;
-      *) log_error "Unknown option: $1"; exit 1 ;;
+      --model)    PROVIDER_MODEL="$2"; shift 2 ;;
+      --api-base) PROVIDER_API_BASE="$2"; shift 2 ;;
+      *) shift ;;
     esac
   done
-
-  # Check .env
-  if [[ ! -f "${PROJECT_DIR}/.env" ]]; then
-    log_error ".env not found. Run: bash benchmark.sh setup"
-    exit 1
-  fi
-  source "${PROJECT_DIR}/.env"
-
-  # Determine which agents to run
-  local agents_to_run
-  if [[ -n "${agent}" ]]; then
-    agents_to_run="${agent}"
+  
+  # Start SearXNG for web search capabilities
+  if ! searxng_status > /dev/null 2>&1; then
+    start_searxng
   else
-    agents_to_run="${HARNESS_LIST}"
+    log_success "SearXNG already running"
+    export SEARXNG_URL
   fi
-
-  # Build model flag
-  local model_flag=""
-  if [[ -n "${model}" ]]; then
-    model_flag="--model ${model}"
-  fi
-
+  
+  # Show what we're running
   echo ""
   echo "=========================================="
   echo "  WildClawBench Benchmark Run"
   echo "=========================================="
+  echo "  Provider : ${PROVIDER_NAME}"
+  echo "  API Base : ${PROVIDER_API_BASE}"
+  echo "  Model    : ${PROVIDER_MODEL}"
   echo "  Category : ${category}"
-  echo "  Model    : ${model:-from .env}"
-  echo "  Agents   : ${agents_to_run}"
-  echo "  Sequential: Yes (one at a time)"
-  echo "  Scoring  : $([ -n "${no_score}" ] && echo "disabled" || echo "enabled")"
-  echo "  Verbose  : $([ -n "${verbose_flag}" ] && echo "yes" || echo "no")"
+  echo "  Search   : ${SEARXNG_URL}"
   echo "=========================================="
   echo ""
-
-  local start_time
-  start_time=$(date +%s)
-  local total=0
-  local passed=0
-  local failed=0
-  local results=()
-
+  
+  # Determine which agents to run
+  local agents_to_run="openclaw opencode hermesagent"
+  if [[ -n "${agent}" ]]; then
+    agents_to_run="${agent}"
+  fi
+  
+  # Export for Python scripts
+  export PROVIDER_NAME PROVIDER_API_BASE PROVIDER_API_KEY_ENV PROVIDER_MODEL
+  
+  # Load .env file and export all variables for child processes
+  local env_file="${PROJECT_DIR}/.env"
+  if [[ -f "$env_file" ]]; then
+    while IFS='=' read -r key value; do
+      # Skip comments and empty lines
+      [[ "$key" =~ ^#.*$ || -z "$key" ]] && continue
+      export "${key}=${value}"
+    done < "$env_file"
+  fi
+  
+  # Run the benchmark
+  cd "${PROJECT_DIR}"
+  
   for harness in ${agents_to_run}; do
-    total=$((total + 1))
-    local harness_start
-    harness_start=$(date +%s)
-
     echo ""
-    log_step "Running ${harness} (${total} of $(echo ${agents_to_run} | wc -w | tr -d ' '))..."
+    log_info "Running ${harness}..."
     echo "────────────────────────────────────────"
-
-    # Run the harness
-    cd "${PROJECT_DIR}"
+    
+    # Run and capture output to display progress
+    local output_file=$(mktemp)
     local exit_code=0
-
+    
     uv run python3 eval/run_batch.py \
       --harness "${harness}" \
       --category "${category}" \
       --parallel "${parallel}" \
-      ${model_flag} \
-      ${no_score} \
-      ${verbose_flag} > /dev/null 2>&1 &
-    local cmd_pid=$!
-
-    # Show spinner while running
-    spin $cmd_pid "${harness}"
-    wait $cmd_pid
-    exit_code=$?
-
-    local harness_end
-    harness_end=$(date +%s)
-    local harness_duration=$((harness_end - harness_start))
-
-    if [[ ${exit_code} -eq 0 ]]; then
-      passed=$((passed + 1))
-      results+=("${harness}:PASS:${harness_duration}")
-      log_success "${harness} completed (${harness_duration}s)"
-    else
-      failed=$((failed + 1))
-      results+=("${harness}:FAIL:${harness_duration}")
-      log_error "${harness} failed (${harness_duration}s, exit code: ${exit_code})"
+      --model "${PROVIDER_MODEL}" 2>&1 | tee "$output_file" || exit_code=$?
+    
+    # Extract final summary from output
+    if [[ -f "$output_file" ]]; then
+      local completed=$(grep -oE '\[([0-9]+)/([0-9+)\]' "$output_file" | tail -1 | grep -oE '[0-9]+/[0-9]+' | cut -d/ -f1 || echo "0")
+      local total=$(grep -oE '\[([0-9]+)/([0-9+)\]' "$output_file" | tail -1 | grep -oE '[0-9]+/[0-9]+' | cut -d/ -f2 || echo "0")
+      local success=$(grep -c "✓" "$output_file" 2>/dev/null || echo "0")
+      local failed=$(grep -c "✗" "$output_file" 2>/dev/null || echo "0")
+      
+      echo ""
+      echo "  Progress: ${completed}/${total} tasks completed"
+      echo "  Results:  ✓ ${success} passed  ✗ ${failed} failed"
     fi
-
-    echo "────────────────────────────────────────"
-  done
-
-  local end_time
-  end_time=$(date +%s)
-  local total_duration=$((end_time - start_time))
-
-  # Summary
-  echo ""
-  echo "=========================================="
-  echo "  Benchmark Summary"
-  echo "=========================================="
-  echo "  Total time : ${total_duration}s"
-  echo "  Agents run : ${total}"
-  echo "  Passed     : ${passed}"
-  echo "  Failed     : ${failed}"
-  echo ""
-  echo "  Results:"
-  for r in "${results[@]}"; do
-    IFS=':' read -r name status dur <<< "${r}"
-    if [[ "${status}" == "PASS" ]]; then
-      echo -e "    ${GREEN}✓${NC} ${name} (${dur}s)"
+    
+    rm -f "$output_file"
+    
+    if [[ $exit_code -ne 0 ]]; then
+      log_error "${harness} failed with exit code ${exit_code}"
     else
-      echo -e "    ${RED}✗${NC} ${name} (${dur}s)"
+      log_success "${harness} completed"
     fi
   done
+  
   echo ""
-  echo "  Output dir: ${PROJECT_DIR}/output/"
   echo "=========================================="
-
-  # Save run summary
-  local summary_file="${PROJECT_DIR}/output/run_summary.json"
-  mkdir -p "${PROJECT_DIR}/output"
-  cat > "${summary_file}" <<SUMEOF
-{
-  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "duration_seconds": ${total_duration},
-  "category": "${category}",
-  "model": "${model:-from .env}",
-  "agents": {
-$(for r in "${results[@]}"; do
-    IFS=':' read -r name status dur <<< "${r}"
-    echo "    \"${name}\": {\"status\": \"${status}\", \"duration_seconds\": ${dur}},"
-  done | sed '$ s/,$//')
-  }
-}
-SUMEOF
-
-  log_success "Summary saved to ${summary_file}"
+  log_success "Benchmark complete!"
+  echo "  Results: ${PROJECT_DIR}/output/"
+  echo "=========================================="
 }
 
-# ─── STATUS ─────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# CONFIG - Change provider settings
+# ---------------------------------------------------------------------------
+do_config() {
+  do_setup_wizard
+}
+
+# ---------------------------------------------------------------------------
+# STATUS
+# ---------------------------------------------------------------------------
 do_status() {
   local output_dir="${PROJECT_DIR}/output"
-
+  
   echo ""
   echo "=========================================="
-  echo "  WildClawBench Results Status"
+  echo "  WildClawBench Results"
   echo "=========================================="
-
-  if [[ ! -d "${output_dir}" ]]; then
-    echo "  No results found. Run benchmarks first."
+  
+  if [[ ! -d "$output_dir" ]]; then
+    echo "  No results found"
     echo "=========================================="
     return
   fi
-
-  for harness in ${HARNESS_LIST}; do
+  
+  for harness in openclaw opencode hermesagent; do
     local harness_dir="${output_dir}/${harness}"
-    echo ""
-    echo "  ${harness}:"
-    if [[ -d "${harness_dir}" ]]; then
-      local count
-      count=$(find "${harness_dir}" -name "score.json" 2>/dev/null | wc -l | tr -d ' ')
+    if [[ -d "$harness_dir" ]]; then
+      echo ""
+      echo "  ${harness}:"
+      local count=$(find "$harness_dir" -name "score.json" 2>/dev/null | wc -l | tr -d ' ')
       echo "    Tasks completed: ${count}"
-      if [[ ${count} -gt 0 ]]; then
-        echo "    Latest run:"
-        find "${harness_dir}" -name "score.json" -exec stat -f "%m %N" {} \; 2>/dev/null \
-          | sort -rn | head -1 | awk '{print "      " $2}'
-      fi
-    else
-      echo "    No results"
     fi
   done
-
-  # Show latest summary
-  if [[ -f "${output_dir}/run_summary.json" ]]; then
-    echo ""
-    echo "  Latest run summary:"
-    cat "${output_dir}/run_summary.json"
-  fi
-
+  
   echo ""
   echo "=========================================="
 }
 
-# ─── HELP ───────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# HELP
+# ---------------------------------------------------------------------------
 do_help() {
   cat <<'EOF'
-WildClawBench - Setup & Run Script
+WildClawBench - Simple Benchmark Runner
 
 Usage:
-  bash benchmark.sh <command> [options]
+  bash benchmark.sh [command] [options]
 
 Commands:
-  check                 Pre-flight check (see what's installed)
-  setup                 Full setup (deps, images, data, env)
-  run                   Run all agents sequentially
-  status                Show latest results
-  help                  Show this help
+  (no command)    First time: setup wizard | Otherwise: run benchmark
+  run             Run benchmark with saved configuration
+  config          Change provider configuration
+  status          Show results
+  searxng         Manage SearXNG (up|down|status)
+  help            Show this help
 
-Run Options:
-  --category CAT        Task category (default: all)
-                        Categories: all, 01_Productivity_Flow, 02_Code_Intelligence,
-                                    03_Search_Retrieval, 04_Data_Processing,
-                                    05_Safety_Alignment
-  --model MODEL         Model to evaluate (default: from .env)
-  --agent AGENT         Run specific agent only (openclaw|opencode|hermesagent)
-  --parallel N          Parallel tasks per agent (default: 1)
-  --no-score            Disable scoring (skip evaluation of task output)
-  --verbose, -v         Verbose logging (shows detailed scoring breakdown)
+Options:
+  --category CAT  Task category (default: all)
+  --agent AGENT   Run specific agent only (openclaw|opencode|hermesagent)
+  --model MODEL   Override model name
+  --api-base URL  Override API base URL
+  --parallel N    Parallel tasks per agent (default: 1)
 
 Examples:
-  bash benchmark.sh check
-  bash benchmark.sh setup
-  bash benchmark.sh run
-  bash benchmark.sh run --model qwen3.5-9b
-  bash benchmark.sh run --category 01_Productivity_Flow
+  bash benchmark.sh                    # First time: setup wizard
+  bash benchmark.sh run                # Run with saved config
+  bash benchmark.sh config             # Change provider
+  bash benchmark.sh run --model llama3 # Override model
   bash benchmark.sh run --agent opencode
-  bash benchmark.sh run --verbose
-  bash benchmark.sh run --no-score
-  bash benchmark.sh status
+  bash benchmark.sh searxng up         # Start SearXNG manually
+  bash benchmark.sh searxng down       # Stop SearXNG
+  bash benchmark.sh searxng status     # Check SearXNG status
 
-Scoring:
-  By default, each task is scored after execution on a 0.0-1.0 scale based on:
-  - LLM response quality (code blocks, required imports)
-  - File creation (expected files exist with correct names)
-  - Code execution (scripts run without errors)
-  - Output correctness (output matches expected patterns)
+Supported Providers:
+  - LM Studio (local): http://localhost:1234/v1
+  - Ollama (local): http://localhost:11434/v1
+  - vLLM (local/remote): http://localhost:8000/v1
+  - OpenRouter (cloud): https://openrouter.ai/api/v1
+  - Custom: Any OpenAI-compatible API
 
-  Use --no-score to disable scoring for faster execution.
-  Use --verbose to see detailed scoring breakdown for each criterion.
+SearXNG (Local Search):
+  SearXNG provides web search capabilities without API keys.
+  It starts automatically when running benchmarks.
+  Manual control: bash benchmark.sh searxng {up|down|status}
+  Access search API: http://localhost:8888/search?q=query&format=json
 
-Execution Flow:
-  1. Setup installs all prerequisites and downloads Docker images
-  2. Run executes agents ONE AT A TIME (sequential) to conserve resources
-  3. Each agent's results are saved to output/<agent>/
-  4. After all agents finish, a summary is printed and saved
+Docker:
+  Docker is started automatically when running benchmarks.
+  If Docker is not running, the script will wait up to 60 seconds.
 
-Environment (.env):
-  OPENROUTER_API_KEY    Required for API access
-  BRAVE_API_KEY         Required for search tasks
-  DEFAULT_MODEL         Default model to evaluate
-  JUDGE_MODEL           LLM for judge-based grading (optional)
+Configuration:
+  Configuration is saved to .provider-config and reused.
+  Use 'bash benchmark.sh config' to change settings.
 EOF
 }
 
-# ─── MAIN ───────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# MAIN
+# ---------------------------------------------------------------------------
 main() {
-  if [[ $# -lt 1 ]]; then
-    do_help
-    exit 0
-  fi
-
-  local command="$1"
-  shift
-
-  case "${command}" in
-    setup)  do_setup ;;
-    run)    do_run "$@" ;;
-    check)  do_check ;;
-    status) do_status ;;
-    help|-h|--help) do_help ;;
-    *)
-      log_error "Unknown command: ${command}"
-      echo ""
-      do_help
-      exit 1
+  # Create .provider-config directory if needed
+  touch "$CONFIG_FILE" 2>/dev/null || true
+  
+  case "${1:-}" in
+    run)     shift; do_run "$@" ;;
+    config)  do_config ;;
+    status)  do_status ;;
+    searxng)
+      shift
+      case "${1:-}" in
+        up|start)   start_searxng ;;
+        down|stop)  stop_searxng ;;
+        status)     searxng_status ;;
+        *)          log_error "Usage: benchmark.sh searxng {up|down|status}"; exit 1 ;;
+      esac
       ;;
+    help|-h|--help) do_help ;;
+    "")      do_run ;;
+    *)       log_error "Unknown command: $1"; do_help; exit 1 ;;
   esac
 }
 

@@ -228,11 +228,11 @@ cat > .env << 'EOF'
 # Model endpoint (your Qwen 3.5 9B API)
 OPENROUTER_API_KEY=your_openrouter_api_key_here
 
-# For search tasks
-BRAVE_API_KEY=your_brave_search_key_here
-
 # Judge model for grading (optional)
 JUDGE_MODEL=openai/gpt-5.4
+
+# Local search (SearXNG - starts automatically)
+SEARXNG_URL=http://localhost:8888
 EOF
 ```
 

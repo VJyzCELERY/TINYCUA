@@ -1,308 +1,164 @@
 # agent-benchmark
 
-WildClawBench multi-harness benchmark adapter — supports OpenClaw, OpenCode (Qwen 3.5 9B), and Hermes Agent.
+WildClawBench — benchmark 3 coding agents (OpenClaw, OpenCode, HermesAgent) on the same tasks.
 
 ## Quick Start
 
 ```bash
-# 1. Setup (installs deps, downloads Docker images, creates .env)
+# 1. Setup
 bash benchmark.sh setup
 
-# 2. Edit .env with your API keys
-nano .env
+# 2. Start your LLM server (one of these)
+lms server start          # LM Studio
+ollama serve              # Ollama
+vllm serve <model>        # vLLM
 
-# 3. Start LM Studio server (required for local LLM)
-/Users/jonaja29/.lmstudio/bin/lms server start
-
-# 4. Run all agents sequentially
-bash benchmark.sh run
+# 3. Run (first time shows setup wizard)
+bash benchmark.sh
 ```
 
-## Usage
+> Docker is started automatically when running benchmarks.
 
-### Single Script Commands
+## Commands
 
-```bash
-bash benchmark.sh setup              # Full setup
-bash benchmark.sh run                # Run all agents sequentially
-bash benchmark.sh run --model X      # Run with specific model
-bash benchmark.sh run --agent X      # Run only one agent
-bash benchmark.sh run --category X   # Run specific task category
-bash benchmark.sh status             # Show results
-bash benchmark.sh help               # Show help
+| Command | Description |
+|---------|-------------|
+| `bash benchmark.sh` | Run (first time: setup wizard) |
+| `bash benchmark.sh run` | Run with saved config |
+| `bash benchmark.sh config` | Change provider |
+| `bash benchmark.sh status` | Show results |
+| `bash benchmark.sh help` | Show help |
+
+## First Time Setup
+
+When you run `bash benchmark.sh` for the first time:
+
+```
+==========================================
+  WildClawBench - Provider Setup
+==========================================
+
+Choose your LLM provider:
+
+  1) LM Studio (local)     - http://localhost:1234/v1
+  2) Ollama (local)        - http://localhost:11434/v1
+  3) vLLM (local/remote)   - http://localhost:8000/v1
+  4) OpenRouter (cloud)    - https://openrouter.ai/api/v1
+  5) Custom API            - Your own endpoint
+
+  Enter choice [1-5] (default: 1):
+
+  Provider: lm-studio
+  API Base: http://localhost:1234/v1
+
+  Enter model name (default: qwen3.5-9b): qwen3.5-9b
+
+[OK] Configuration saved to .provider-config
 ```
 
-### Examples
+Configuration is saved to `.provider-config` and reused on next run.
+
+## Change Provider
 
 ```bash
-# Run all agents with Qwen 3.5 9B
-bash benchmark.sh run --model qwen3.5-9b
+# Run setup wizard again
+bash benchmark.sh config
 
-# Run only OpenCode
+# Or override without changing saved config
+bash benchmark.sh run --model llama3
+bash benchmark.sh run --api-base http://my-server:8000/v1
+```
+
+## Override Options
+
+```bash
+--model MODEL       # Override model name
+--api-base URL      # Override API base URL
+--category CAT      # Run specific category
+--agent AGENT       # Run one agent only
+--parallel N        # Parallel tasks (default: 1)
+```
+
+Examples:
+```bash
 bash benchmark.sh run --agent opencode
-
-# Run only Productivity Flow tasks
+bash benchmark.sh run --model llama3 --api-base http://localhost:11434/v1
 bash benchmark.sh run --category 01_Productivity_Flow
-
-# Run OpenCode with specific model on Code Intelligence tasks
-bash benchmark.sh run --agent opencode --model qwen3.5-9b --category 02_Code_Intelligence
 ```
 
-### Make Targets
+## Supported Providers
 
-```bash
-make setup          # Full setup
-make run            # Run all agents
-make run-model MODEL=qwen3.5-9b
-make run-agent AGENT=opencode
-make status         # Show results
-make help           # Show all targets
-```
-
-### Scoring Options
-
-```bash
-# Run with scoring (default)
-bash benchmark.sh run
-
-# Run without scoring
-bash benchmark.sh run --no-score
-
-# Run with verbose scoring output
-bash benchmark.sh run --verbose
-
-# Run specific agent with verbose scoring
-bash benchmark.sh run --agent opencode --verbose
-```
+| Provider | Default URL | Notes |
+|----------|-------------|-------|
+| LM Studio | `http://localhost:1234/v1` | Local |
+| Ollama | `http://localhost:11434/v1` | Local |
+| vLLM | `http://localhost:8000/v1` | Local/Remote |
+| OpenRouter | `https://openrouter.ai/api/v1` | Cloud |
+| Custom | User-specified | Any OpenAI-compatible API |
 
 ## Execution Flow
 
-The benchmark runs agents **sequentially** (one at a time) to conserve resources:
+Agents run sequentially (one at a time):
 
-1. **openclaw** → results saved to `output/openclaw/`
-2. **opencode** → results saved to `output/opencode/`
-3. **hermesagent** → results saved to `output/hermesagent/`
-
-After all agents complete, a summary is printed and saved to `output/run_summary.json`.
+1. **openclaw** → `output/openclaw/`
+2. **opencode** → `output/opencode/`
+3. **hermesagent** → `output/hermesagent/`
 
 ## Task Categories
 
-| Category | Description | Tasks |
-|----------|-------------|-------|
-| `all` | Run all tasks (default) | 7 |
-| `01_Productivity_Flow` | Task automation and workflow | `productivity_01`, `productivity_02` |
-| `02_Code_Intelligence` | Code understanding and generation | `code_01`, `code_02` |
-| `03_Search_Retrieval` | Information retrieval tasks | `search_01` |
-| `04_Data_Processing` | Data manipulation and analysis | `data_01` |
-| `05_Safety_Alignment` | Safety and alignment tasks | `safety_01` |
+| Category | Tasks |
+|----------|-------|
+| `all` | All tasks |
+| `01_Productivity_Flow` | `productivity_01`, `productivity_02` |
+| `02_Code_Intelligence` | `code_01`, `code_02` |
+| `03_Search_Retrieval` | `search_01` |
+| `04_Data_Processing` | `data_01` |
+| `05_Safety_Alignment` | `safety_01` |
 
-## Environment (.env)
+## Environment Variables (.env)
 
 ```bash
-# Required (for OpenRouter-based models)
-OPENROUTER_API_KEY=your_api_key_here
+# API keys (optional for local providers)
+OPENROUTER_API_KEY=sk-or-...
+LM_STUDIO_API_KEY=lm-studio
+OLLAMA_API_KEY=ollama
 
-# Optional
-BRAVE_API_KEY=your_brave_key_here # Needed for search tasks only
+# Model defaults
 DEFAULT_MODEL=qwen3.5-9b
 JUDGE_MODEL=openai/gpt-5.4
 
-# LM Studio (local LLM)
-LM_STUDIO_API_KEY=lm-studio
-```
-
-### Local LLM Setup (LM Studio)
-
-For running benchmarks with local models via LM Studio:
-
-1. Install LM Studio and download a model (e.g., `qwen/qwen3.5-9b`)
-2. Start the local server on port 1234:
-   ```bash
-   /Users/jonaja29/.lmstudio/bin/lms server start
-   ```
-3. Update `.env`:
-   ```bash
-   LM_STUDIO_API_KEY=lm-studio
-   DEFAULT_MODEL=qwen3.5-9b
-   ```
-4. Update `opencode-config.yaml`, `hermes-config.yaml`, and `openclaw-config.yaml`:
-   ```yaml
-   api_base: http://localhost:1234/v1
-   api_key_env: LM_STUDIO_API_KEY
-   model: qwen3.5-9b
-   ```
-
-See `SETUP_LMSTUDIO.md` for detailed instructions.
-
-## Model Naming
-
-| Harness | Format | Example |
-|---------|--------|---------|
-| OpenClaw | `openrouter/<provider>/<model>` | `openrouter/openai/gpt-5.5` |
-| OpenCode / Hermes | `<provider>/<model>` | `qwen3.5-9b` |
-
-## Documentation
-
-- `SETUP-GUIDE.md` - Quick setup guide for teammates
-- `GUIDELINE.md` - Comprehensive documentation
-- `docs/` - Additional documentation
-
-## Scoring System
-
-WildClawBench includes a rule-based scoring system that evaluates task output on a 0.0-1.0 scale.
-
-### Scoring Criteria
-
-Each task is scored on four dimensions:
-
-| Dimension | Points | Description |
-|-----------|--------|-------------|
-| **Response Quality** | 25 | LLM response contains valid code, required imports |
-| **File Creation** | 25 | Expected files exist with correct names |
-| **Code Execution** | 25 | Scripts run without errors |
-| **Output Correctness** | 25 | Output matches expected patterns |
-
-### Score Output
-
-After scoring, each task directory contains `score.json`:
-```json
-{
-  "task_id": "productivity_01",
-  "score": 0.75,
-  "raw_score": 75.0,
-  "max_score": 100.0,
-  "criteria": [
-    {"name": "llm_response_exists", "points": 5.0, "max_points": 5.0, "passed": true},
-    {"name": "code_block_valid", "points": 10.0, "max_points": 10.0, "passed": true}
-  ]
-}
-```
-
-### Aggregate Scores
-
-`summary_all.json` includes aggregate scoring:
-```json
-{
-  "average_score": 0.72,
-  "min_score": 0.45,
-  "max_score": 0.95,
-  "category_scores": {
-    "01_Productivity_Flow": {"average_score": 0.80, "count": 2}
-  }
-}
-```
-
-### Disable Scoring
-
-Use `--no-score` to skip scoring for faster execution:
-```bash
-bash benchmark.sh run --no-score
+# Local search (SearXNG - no API key needed)
+SEARXNG_URL=http://localhost:8888
 ```
 
 ## Output Structure
 
-All benchmark results are saved to `output/` with the following hierarchy:
-
 ```
 output/
-├── run_summary.json              # Global run summary
-├── openclaw/                     # OpenClaw agent results
-│   ├── summary_all.json          # Agent-level summary
-│   └── <category>/
-│       └── <task_id>/
-│           └── <model>_<timestamp>_<run_id>/
-│               ├── usage.json        # Task execution stats
-│               ├── score.json        # Scoring results
-│               ├── transcript.jsonl  # LLM interaction log
-│               ├── llm_response.txt  # Raw LLM output
-│               └── error.txt         # Error message (if failed)
-├── opencode/                     # OpenCode agent results
-│   └── ...
-└── hermesagent/                  # HermesAgent results
-    └── ...
+├── run_summary.json
+├── openclaw/
+├── opencode/
+└── hermesagent/
+    └── <category>/<task>/<model>_<timestamp>_<run_id>/
+        ├── usage.json
+        ├── score.json
+        ├── transcript.jsonl
+        ├── llm_response.txt
+        └── error.txt (if failed)
 ```
 
-### Run Naming Convention
+## Scoring
 
-Each task run creates a directory named:
-```
-<model>_<timestamp>_<run_id>
-```
+Each task scored 0.0-1.0 on:
+- Response quality (25%)
+- File creation (25%)
+- Code execution (25%)
+- Output correctness (25%)
 
-Example: `qwen3.5-9b_20260618T041243Z_721a60`
+Disable: `bash benchmark.sh run --no-score`
 
-| Field | Description |
-|-------|-------------|
-| `model` | Model identifier (e.g., `qwen3.5-9b`, `step-3.5-flash_free`) |
-| `timestamp` | UTC timestamp `YYYYMMDDTHHmmSSZ` |
-| `run_id` | Random 6-character hex identifier |
+## Help
 
-### Output Files
-
-#### `usage.json`
-Task execution statistics:
-```json
-{
-  "task_id": "productivity_01",
-  "category": "01_Productivity_Flow",
-  "model": "qwen3.5-9b",
-  "elapsed_time": 69.15,
-  "status": "success",
-  "usage": {
-    "requests": 1,
-    "total_tokens": 495,
-    "cost": 0.001238
-  }
-}
-```
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `task_id` | string | Task identifier |
-| `category` | string | Task category |
-| `model` | string | Model used |
-| `elapsed_time` | float | Execution time in seconds |
-| `status` | string | `success` or `error` |
-| `usage.requests` | int | Number of LLM API calls |
-| `usage.total_tokens` | int | Total tokens consumed |
-| `usage.cost` | float | Estimated cost (USD) |
-
-#### `transcript.jsonl`
-JSON Lines file with LLM interaction events:
-```json
-{"type": "llm_response", "model": "qwen3.5-9b", "prompt_length": 297, "response_length": 4718, "elapsed_time": 68.16, "usage": {"total_tokens": 495}}
-```
-
-#### `llm_response.txt`
-Raw text output from the LLM (may contain code blocks, explanations, etc.).
-
-#### `error.txt`
-Error message if the task failed (only present on failures).
-
-#### `run_summary.json`
-Global summary after all agents complete:
-```json
-{
-  "timestamp": "2026-06-18T02:37:45Z",
-  "duration_seconds": 4,
-  "category": "all",
-  "model": "from .env",
-  "agents": {
-    "openclaw": {"status": "PASS", "duration_seconds": 2},
-    "opencode": {"status": "PASS", "duration_seconds": 1},
-    "hermesagent": {"status": "PASS", "duration_seconds": 1}
-  }
-}
-```
-
-#### `summary_all.json`
-Per-agent summary with task-level details (saved to `output/<agent>/summary_all.json`).
-
-## Python API
-
-```python
-from agent_benchmark import get_agent
-
-agent = get_agent("opencode", config_path="opencode-config.yaml")
-agent = get_agent("openclaw")
+```bash
+bash benchmark.sh help
 ```

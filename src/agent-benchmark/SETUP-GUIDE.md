@@ -84,14 +84,14 @@ Set these values:
 # Required: Get from https://openrouter.ai/
 OPENROUTER_API_KEY=sk-or-v1-...
 
-# Required: Get from https://brave.com/search/api/ (free tier available)
-BRAVE_API_KEY=BSA...
-
 # Optional: Model to evaluate
 DEFAULT_MODEL=qwen3.5-9b
 
 # Optional: Judge model for grading
 JUDGE_MODEL=openai/gpt-5.4
+
+# Local search (SearXNG - starts automatically)
+SEARXNG_URL=http://localhost:8888
 ```
 
 ### Step 4: Verify Setup

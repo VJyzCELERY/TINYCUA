@@ -53,9 +53,22 @@ Each harness is containerized with Docker for reproducible evaluation.
 | Key | Required For | How to Get |
 |-----|--------------|------------|
 | `OPENROUTER_API_KEY` | OpenRouter API access | [OpenRouter](https://openrouter.ai/) |
-| `BRAVE_API_KEY` | Search & Retrieval tasks | [Brave Search API](https://brave.com/search/api/) |
 | `JUDGE_MODEL` | Judge-based grading (optional) | Defaults to `openai/gpt-5.4` |
 | `LM_STUDIO_API_KEY` | Local LLM via LM Studio | Set to `lm-studio` (no real key needed) |
+
+### Local Search (SearXNG)
+
+SearXNG provides web search capabilities without API keys. It starts automatically when running benchmarks.
+
+```bash
+# Manual control
+bash benchmark.sh searxng up      # Start SearXNG
+bash benchmark.sh searxng status  # Check status
+bash benchmark.sh searxng down    # Stop SearXNG
+
+# Test search API
+curl "http://localhost:8888/search?q=docker&format=json" | jq '.results[:2]'
+```
 
 ### Local LLM Setup (LM Studio)
 
@@ -81,48 +94,64 @@ See `SETUP_LMSTUDIO.md` for detailed instructions.
 
 ## Quick Start
 
-### 1. Check What's Installed
+### 1. Setup
 
 ```bash
-# Pre-flight check — see what's already installed vs what's missing
-bash benchmark.sh check
-```
-
-This shows the status of Docker, uv, Python, Docker images, and API keys.
-
-### 3. Clone the Repository
-
-```bash
-git clone https://github.com/your-org/wildclawbench.git
-cd wildclawbench
-```
-
-### 4. Run Setup
-
-```bash
-# Full setup (installs deps, downloads all 4 Docker images, creates .env)
+# Full setup (installs deps, downloads Docker images, creates .env)
 bash benchmark.sh setup
 ```
 
-### 5. Configure Environment
+### 2. Start Your LLM Server
+
+Choose one:
+
+| Provider | Start Command | Default URL |
+|----------|---------------|-------------|
+| LM Studio | `/Users/jonaja29/.lmstudio/bin/lms server start` | `http://localhost:1234/v1` |
+| Ollama | `ollama serve` | `http://localhost:11434/v1` |
+| vLLM | `vllm serve <model>` | `http://localhost:8000/v1` |
+| OpenRouter | (cloud, no local start) | `https://openrouter.ai/api/v1` |
+
+### 3. Run Benchmark
 
 ```bash
-# Edit .env file with your API keys
-nano .env
-```
+# First time: interactive setup wizard
+bash benchmark.sh
 
-### 6. Run Benchmarks
-
-```bash
-# Start LM Studio server (required for local LLM)
-/Users/jonaja29/.lmstudio/bin/lms server start
-
-# Run all agents sequentially (one at a time)
+# Subsequent runs: uses saved config
 bash benchmark.sh run
-
-# Or run with specific model
-bash benchmark.sh run --model openrouter/openai/gpt-5.5
 ```
+
+> Docker is started automatically when running benchmarks. No need to start it manually.
+
+### First Time Setup Wizard
+
+When you run `bash benchmark.sh` for the first time:
+
+```
+==========================================
+  WildClawBench - Provider Setup
+==========================================
+
+Choose your LLM provider:
+
+  1) LM Studio (local)     - http://localhost:1234/v1
+  2) Ollama (local)        - http://localhost:11434/v1
+  3) vLLM (local/remote)   - http://localhost:8000/v1
+  4) OpenRouter (cloud)    - https://openrouter.ai/api/v1
+  5) Custom API            - Your own endpoint
+
+  Enter choice [1-5] (default: 1):
+
+  Provider: lm-studio
+  API Base: http://localhost:1234/v1
+
+  Enter model name (default: qwen3.5-9b):
+
+[OK] Configuration saved to .provider-config
+```
+
+Configuration is saved to `.provider-config` and reused automatically.
 
 ---
 
@@ -132,10 +161,11 @@ bash benchmark.sh run --model openrouter/openai/gpt-5.5
 
 | Command | What it does |
 |---------|-------------|
-| `bash benchmark.sh check` | Pre-flight check — see what's installed |
-| `bash benchmark.sh setup` | Full setup (deps, images, env) |
-| `bash benchmark.sh run` | Run all agents sequentially |
+| `bash benchmark.sh` | Run (first time: setup wizard) |
+| `bash benchmark.sh run` | Run with saved configuration |
+| `bash benchmark.sh config` | Change provider configuration |
 | `bash benchmark.sh status` | Show latest results |
+| `bash benchmark.sh help` | Show help |
 
 ### Step 1: Install Dependencies
 
@@ -202,13 +232,15 @@ bash setup.sh --step 4
 **Environment Variables:**
 
 ```bash
-# Required
+# Required (for OpenRouter/cloud providers)
 OPENROUTER_API_KEY=your_api_key_here
 
 # Optional
-BRAVE_API_KEY=your_brave_key_here
 JUDGE_MODEL=openai/gpt-5.4
 DEFAULT_MODEL=qwen3.5-9b
+
+# Local search (SearXNG - starts automatically)
+SEARXNG_URL=http://localhost:8888
 ```
 
 ---

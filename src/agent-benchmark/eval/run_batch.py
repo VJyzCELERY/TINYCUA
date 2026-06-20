@@ -133,24 +133,33 @@ def _build_agent(
 ):
     """Create an agent instance for the given harness."""
     from agent_benchmark import get_agent
+    from agent_benchmark.providers.base import ProviderConfig
+    from agent_benchmark.providers.registry import get_provider
 
+    # Get provider config from environment (bash exports PROVIDER_* into os.environ)
+    provider_name = os.environ.get("PROVIDER_NAME", env.get("PROVIDER_NAME", "lm-studio"))
+    api_base = os.environ.get("PROVIDER_API_BASE", env.get("PROVIDER_API_BASE", "http://localhost:1234/v1"))
+    api_key_env = os.environ.get("PROVIDER_API_KEY_ENV", env.get("PROVIDER_API_KEY_ENV", "LM_STUDIO_API_KEY"))
+    
+    # Create provider config
+    config = ProviderConfig(
+        name=provider_name,
+        api_base=api_base,
+        api_key_env=api_key_env,
+        model=model,
+    )
+    
+    # Get provider instance
+    provider = get_provider(provider_name, config)
+    
     if harness == "hermesagent":
-        config_path = PROJECT_DIR / "hermes-config.yaml"
-        if not config_path.exists():
-            _create_default_config(config_path, model, "LM_STUDIO_API_KEY", env)
-        return get_agent("hermesagent", config_path=str(config_path))
+        return get_agent("hermesagent", provider=provider)
 
     if harness == "opencode":
-        config_path = PROJECT_DIR / "opencode-config.yaml"
-        if not config_path.exists():
-            _create_default_config(config_path, model, "LM_STUDIO_API_KEY", env)
-        return get_agent("opencode", config_path=str(config_path))
+        return get_agent("opencode", provider=provider)
 
     if harness == "openclaw":
-        config_path = PROJECT_DIR / "openclaw-config.yaml"
-        if not config_path.exists():
-            _create_default_config(config_path, model, "LM_STUDIO_API_KEY", env)
-        return get_agent("openclaw", config_path=str(config_path))
+        return get_agent("openclaw", provider=provider)
 
     return get_agent(harness)
 
@@ -158,7 +167,7 @@ def _build_agent(
 def _create_default_config(
     path: Path, model: str, api_key_env: str, env: dict[str, str]
 ) -> None:
-    """Create a default agent config file."""
+    """Create a default agent config file (kept for backward compatibility)."""
     api_base = env.get("API_BASE", "http://localhost:1234/v1")
     config = {
         "model": model,
@@ -181,6 +190,7 @@ def _run_single_task(
     output_base: Path,
     enable_scoring: bool = True,
     verbose: bool = False,
+    progress_callback=None,
 ) -> dict:
     """Run a single task and return result dict.
 
@@ -285,6 +295,9 @@ def _run_single_task(
     usage_path.parent.mkdir(parents=True, exist_ok=True)
     with open(usage_path, "w") as f:
         json.dump(result, f, indent=2)
+
+    if progress_callback:
+        progress_callback(result)
 
     return result
 
@@ -413,6 +426,22 @@ def main() -> None:
 
     agent = _build_agent(args.harness, model, env)
     results: list[dict] = []
+    total_tasks = len(tasks)
+    completed_tasks = [0]
+
+    def progress_callback(result):
+        completed_tasks[0] += 1
+        status = "✓" if result["status"] == "success" else "✗"
+        score_str = f" ({result['score']:.2f})" if result.get("score") is not None else ""
+        logger.info(
+            "[%d/%d] %s %s%s - %.1fs",
+            completed_tasks[0],
+            total_tasks,
+            status,
+            result["task_id"],
+            score_str,
+            result["elapsed_time"],
+        )
 
     if args.parallel > 1:
         with ThreadPoolExecutor(max_workers=args.parallel) as pool:
@@ -425,6 +454,7 @@ def main() -> None:
                     OUTPUT_DIR / args.harness,
                     enable_scoring,
                     args.verbose,
+                    progress_callback,
                 ): task
                 for task in tasks
             }
@@ -453,6 +483,7 @@ def main() -> None:
                     OUTPUT_DIR / args.harness,
                     enable_scoring,
                     args.verbose,
+                    progress_callback,
                 )
                 results.append(result)
             except Exception as exc:
