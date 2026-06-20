@@ -34,7 +34,7 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.hermes
-    image: wildclawbench-hermes-agent:v0.5
+    image: wildclawbench-hermes-agent:latest
     platform: linux/amd64
     volumes:
       - ${OUTPUT_DIR:-./output}:/workspace/output
