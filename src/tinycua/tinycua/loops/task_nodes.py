@@ -535,17 +535,20 @@ class TinyCUATaskExecutorNode(ProcessNode):
                 "verification outcome.\n\n"
                 "Child tasks:\n" + "\n".join(child_statuses) + "\n"
             )
+        path_note = (
+            f"Workspace root: {workspace_dir or 'not configured'}\n"
+            "You are already inside the workspace root — file tools and "
+            "shell commands run from here. Use relative paths only; do not "
+            "prepend the workspace directory name or use absolute paths."
+        )
+
         return (
             f"{mission_prefix}{_render_active_task_work_order(session)}\n"
             f"{verification_note}"
-            f"Workspace root: {workspace_dir or 'not configured'}\n"
-            "You are already inside the workspace root. Write files using "
-            "relative paths directly — e.g. 'report.md', not 'experiment-2/"
-            "report.md' or '/workspace/experiment-2/report.md'. Do not prepend "
-            "the workspace directory name to paths. Shell discipline: commands "
-            "run under /bin/sh; do not rely on shell-specific brace expansion "
-            "such as 'mkdir -p {a,b}'. Use explicit POSIX-safe paths/commands "
-            "instead.\n"
+            f"{path_note}\n"
+            "Shell discipline: commands run under /bin/sh; do not rely on "
+            "shell-specific brace expansion such as 'mkdir -p {a,b}'. Use "
+            "explicit POSIX-safe paths/commands instead.\n"
             f"\n## Roadmap\n{session.task_store.render_markdown()}\n\n{base}"
         )
 
