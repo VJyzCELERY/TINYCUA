@@ -59,6 +59,15 @@ Port or URL: 9090
 → API Base: http://localhost:9090/v1
 ```
 
+**Timeout** is set during setup:
+```
+  Task timeout:
+    - Enter seconds (e.g. 600 for 10 minutes)
+    - Type 'unlimited' for no timeout
+
+  Timeout (default: 600): unlimited
+```
+
 Configuration is saved to `.provider-config` and reused on next run.
 
 ## SearXNG (Local Search)
@@ -94,6 +103,7 @@ bash benchmark.sh run --api-base http://my-server:8000/v1
 --category CAT      # Run specific category
 --agent AGENT       # Run one agent only
 --parallel N        # Parallel tasks (default: 1)
+--timeout N         # Task timeout: seconds or 'unlimited' (default: 600)
 ```
 
 Examples:
@@ -101,6 +111,8 @@ Examples:
 bash benchmark.sh run --agent opencode
 bash benchmark.sh run --model llama3 --api-base http://localhost:11434/v1
 bash benchmark.sh run --category 01_Productivity_Flow
+bash benchmark.sh run --timeout unlimited    # No timeout
+bash benchmark.sh run --timeout 300          # 5 minutes
 ```
 
 ## Supported Providers

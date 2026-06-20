@@ -130,6 +130,15 @@ Port or URL: 9090
 → API Base: http://localhost:9090/v1
 ```
 
+**Timeout** is set during setup:
+```
+  Task timeout:
+    - Enter seconds (e.g. 600 for 10 minutes)
+    - Type 'unlimited' for no timeout
+
+  Timeout (default: 600): unlimited
+```
+
 Configuration is saved to `.provider-config` and reused automatically.
 
 ---
@@ -233,6 +242,7 @@ bash benchmark.sh run [options]
 | `--agent` | Run specific agent only | All agents |
 | `--model` | Model to evaluate | From `.env` |
 | `--parallel` | Parallel tasks per agent | `1` |
+| `--timeout` | Task timeout: seconds or 'unlimited' | `600` |
 
 ### Examples
 
@@ -251,6 +261,12 @@ bash benchmark.sh run --category 01_Productivity_Flow
 
 # Run Hermes with specific model on Code Intelligence tasks
 bash benchmark.sh run --agent hermesagent --model openai/gpt-5.5 --category 02_Code_Intelligence
+
+# Run with unlimited timeout (no timeout)
+bash benchmark.sh run --timeout unlimited
+
+# Run with 5 minute timeout
+bash benchmark.sh run --timeout 300
 ```
 
 ### Sequential Execution with Progress
