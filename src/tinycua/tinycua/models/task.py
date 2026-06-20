@@ -314,13 +314,35 @@ class TaskStateStore:
                 task.status = TaskStatus.IN_PROGRESS
             self.active_task_id = task.task_id
             self._bump_version()
-        elif reviewer_decision == ReviewerDecision.APPROVED and task.result is not None:
-            target = TaskStatus.COMPLETED if task.result.success else TaskStatus.FAILED
-            if task.status != target:
-                self.transition(task_id, target)  # transition bumps version
-            self._complete_ready_parents()
-            self._refresh_active_task()
-            self._bump_version()
+        elif reviewer_decision == ReviewerDecision.APPROVED:
+            # Parent tasks (root, phases) never get a task_result_update from
+            # the executor — they complete when all children are done. Auto-
+            # generate a synthetic result so the approval can proceed. Without
+            # this, the reviewer gets stuck: it approves the root task, but
+            # the approval is silently skipped (task.result is None), and the
+            # validator crashes with "cannot approve a task with no outcome
+            # report" — an unrecoverable hard failure.
+            if task.result is None and task.children:
+                task.result = TaskResult(
+                    content="Completed from child task results",
+                    success=True,
+                    metadata={"aggregated": True},
+                )
+            if task.result is not None:
+                target = TaskStatus.COMPLETED if task.result.success else TaskStatus.FAILED
+                if task.status != target:
+                    # Parent tasks may be PENDING (no executor worked on them
+                    # directly). Transition through IN_PROGRESS first since
+                    # PENDING→COMPLETED is not an allowed edge.
+                    if task.status == TaskStatus.PENDING:
+                        task.status = TaskStatus.IN_PROGRESS
+                    if task.status != target:
+                        self.transition(task_id, target)  # transition bumps version
+                    else:
+                        self._bump_version()
+                self._complete_ready_parents()
+                self._refresh_active_task()
+                self._bump_version()
         return task
 
     def add_artifact(

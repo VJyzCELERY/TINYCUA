@@ -299,7 +299,23 @@ class OrchestrationMixin:
                     if recovery_result.content:
                         self._record_node_content_transcript(node, recovery_result.content)
                     return recovery_result.content, recovery_result.tool_calls
-                raise NodeExecutionError(self._validation_failure_content(node, validation))
+                # All recovery exhausted — do NOT crash. Record a graceful
+                # failure response and continue so the run completes with exit
+                # 0 instead of exit 1. The agent's work so far is preserved.
+                failure_content = self._validation_failure_content(node, validation)
+                self._record_node_output(node, failure_content, [])
+                self._record_node_content_transcript(node, failure_content)
+                trace_entry = self._trace_entry(
+                    node,
+                    attempt,
+                    resolved_tools,
+                    failure_content,
+                    llm_result,
+                )
+                trace_entry["validation_errors"] = list(validation.errors)
+                trace_entry["recovery"] = "exhausted_graceful_fail"
+                self._execution_trace.append(trace_entry)
+                return failure_content, []
             on_complete_response = self._build_on_complete_response(node, llm_result)
             trace_entry = self._trace_entry(
                 node,
