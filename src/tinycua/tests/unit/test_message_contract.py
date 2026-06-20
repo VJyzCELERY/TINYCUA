@@ -427,8 +427,7 @@ def test_task_executor_prompt_includes_workspace_path_discipline(tmp_path) -> No
     rendered = "\n".join(str(message.get("content", "")) for message in messages)
 
     assert str(tmp_path.resolve()) in rendered
-    assert "Prefer relative paths" in rendered
-    assert "/templates/index.html" in rendered
+    assert "relative paths" in rendered.lower()
     assert "do not rely on shell-specific brace expansion" in rendered
     assert "do not keep repeating read/list inspection" in rendered
 

@@ -14,10 +14,12 @@ if TYPE_CHECKING:
     from tinycua.models.node_input import NodeInputLike
 
 _RESPONSE_CONTINUATION = (
-    "Based on the accepted Worker result or direct-response context above, "
-    "synthesize the final user-facing answer. Be concise and mention concrete "
-    "artifacts or verification evidence when available. Do not emit JSON, "
-    "tool-call protocol payloads, or internal routing details."
+    "The work is already done — the completed task evidence above shows what "
+    "was accomplished. Summarize it as the final user-facing answer. Be "
+    "concise, mention concrete artifacts (file paths) and key findings. Do "
+    "NOT redo the work (no web searches, no file writes, no new research). "
+    "Do not emit JSON, tool-call protocol payloads, or internal routing "
+    "details. If a report file was created, mention its path."
 )
 
 

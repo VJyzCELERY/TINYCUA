@@ -539,13 +539,13 @@ class TinyCUATaskExecutorNode(ProcessNode):
             f"{mission_prefix}{_render_active_task_work_order(session)}\n"
             f"{verification_note}"
             f"Workspace root: {workspace_dir or 'not configured'}\n"
-            "Path discipline: use paths inside the workspace root. Prefer "
-            "relative paths such as 'templates/index.html' or "
-            "'static/css/style.css'; do not use filesystem-root absolute paths "
-            "like '/templates/index.html'. Shell discipline: commands run under "
-            "/bin/sh; do not rely on shell-specific brace expansion such as "
-            "'mkdir -p {a,b}', because it may create a literal brace-named "
-            "directory. Use explicit POSIX-safe paths/commands instead.\n"
+            "You are already inside the workspace root. Write files using "
+            "relative paths directly — e.g. 'report.md', not 'experiment-2/"
+            "report.md' or '/workspace/experiment-2/report.md'. Do not prepend "
+            "the workspace directory name to paths. Shell discipline: commands "
+            "run under /bin/sh; do not rely on shell-specific brace expansion "
+            "such as 'mkdir -p {a,b}'. Use explicit POSIX-safe paths/commands "
+            "instead.\n"
             f"\n## Roadmap\n{session.task_store.render_markdown()}\n\n{base}"
         )
 
@@ -756,27 +756,30 @@ class TinyCUAResultAggregationNode(ProcessNode):
         )
 
     def build_continuation(self, session: Session | None = None) -> str:
-        """Build aggregation continuation with completed task evidence."""
+        """Build aggregation continuation with completed task evidence as markdown."""
         base = super().build_continuation(session)
         if session is None:
             return base
-        task_summaries = []
+        # Render completed tasks as clean markdown — NOT a Python repr.
+        # The old code did f"Completed task evidence: {task_summaries}" which
+        # emitted a raw list[dict] repr that confused the response node.
+        lines: list[str] = []
         for task in session.task_store.tasks.values():
             if task.result is None:
                 continue
-            task_summaries.append(
-                {
-                    "task_id": task.task_id,
-                    "title": task.title,
-                    "status": task.status.value,
-                    "result": task.result.content,
-                    "artifacts": task.artifacts,
-                    "reviewer_decisions": task.reviewer_decisions,
-                }
-            )
+            status_mark = " ✓" if task.status.value == "completed" else ""
+            lines.append(f"- **{task.title}** [{task.status.value}]{status_mark}")
+            summary = task.result.summary or task.result.content
+            if summary:
+                lines.append(f"  {summary[:300]}")
+            if task.artifacts:
+                paths = [a.get("path", "") for a in task.artifacts if a.get("path")]
+                if paths:
+                    lines.append(f"  Artifacts: {', '.join(paths)}")
+        evidence_block = "\n".join(lines) if lines else "No completed tasks."
         mission = _render_mission_block(session)
         mission_prefix = f"{mission}\n\n" if mission else ""
-        return f"{mission_prefix}Completed task evidence: {task_summaries}\n\n{base}"
+        return f"{mission_prefix}## Completed Task Evidence\n{evidence_block}\n\n{base}"
 
     def parse_loop_result(
         self,
