@@ -1,0 +1,50 @@
+# OpenCode Agent Docker image for WildClawBench benchmarking.
+#
+# Installs opencode-ai from npm (anomalyco/opencode). Runs in one-shot
+# mode: receives TASK_PROMPT via env var, executes, saves transcript, exits.
+#
+# Build:
+#   docker build -f docker/Dockerfile.opencode -t wildclawbench-opencode .
+#
+# Run:
+#   docker run --rm \
+#     -e TASK_PROMPT="your task" \
+#     -e OPENCODE_MODEL="anthropic/claude-sonnet-4" \
+#     -e ANTHROPIC_API_KEY="sk-..." \
+#     -v /path/to/results:/tmp_workspace/results \
+#     -v /path/to/workspace:/tmp_workspace/workspace \
+#     --add-host=host.docker.internal:host-gateway \
+#     wildclawbench-opencode
+
+FROM node:22-slim AS base
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    NODE_ENV=production
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash \
+    coreutils \
+    curl \
+    git \
+    python3 \
+    python3-pip \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install opencode-ai globally
+RUN npm install -g opencode-ai@latest
+
+# Verify installation
+RUN opencode --version
+
+WORKDIR /tmp_workspace
+
+# Copy entrypoint
+COPY docker/entrypoint-opencode.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["--help"]
+
+LABEL org.opencontainers.image.source="https://github.com/TINYCUA/TINYCUA"
+LABEL org.opencontainers.image.description="OpenCode agent (opencode-ai) — WildClawBench benchmark harness"

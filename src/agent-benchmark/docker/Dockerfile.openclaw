@@ -1,0 +1,57 @@
+# OpenClaw Agent Docker image for WildClawBench benchmarking.
+#
+# Installs openclaw from npm (openclaw/openclaw). Runs in one-shot mode:
+# receives TASK_PROMPT via env var, executes agent, saves transcript, exits.
+#
+# Build:
+#   docker build -f docker/Dockerfile.openclaw -t wildclawbench-openclaw .
+#
+# Run:
+#   docker run --rm \
+#     -e TASK_PROMPT="your task" \
+#     -e OPENCLAW_MODEL="openrouter/openai/gpt-5.5" \
+#     -e OPENROUTER_API_KEY="sk-or-..." \
+#     -v /path/to/results:/tmp_workspace/results \
+#     -v /path/to/workspace:/tmp_workspace/workspace \
+#     --add-host=host.docker.internal:host-gateway \
+#     wildclawbench-openclaw
+
+FROM node:22-slim AS base
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    NODE_ENV=production
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash \
+    coreutils \
+    curl \
+    git \
+    python3 \
+    python3-pip \
+    ca-certificates \
+    tini \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install openclaw globally
+RUN npm install -g openclaw@latest
+
+# Verify installation
+RUN openclaw --version
+
+# Initialize openclaw config directory
+RUN mkdir -p /root/.openclaw/agents/main/agent \
+    && mkdir -p /root/.openclaw/agents/main/sessions \
+    && mkdir -p /tmp_workspace/results \
+    && mkdir -p /tmp_workspace/workspace
+
+WORKDIR /tmp_workspace
+
+# Copy entrypoint
+COPY docker/entrypoint-openclaw.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["--help"]
+
+LABEL org.opencontainers.image.source="https://github.com/TINYCUA/TINYCUA"
+LABEL org.opencontainers.image.description="OpenClaw agent — WildClawBench benchmark harness"

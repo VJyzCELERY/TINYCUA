@@ -1,51 +1,60 @@
 # Hermes Agent Docker image for WildClawBench benchmarking.
 #
-# Multi-stage build based on upstream WildClawBench Hermes agent at
-# https://github.com/InternLM/WildClawBench/tree/86d7144/src/agents/hermesagent
+# Installs hermes-agent from pip (NousResearch/hermes-agent). Runs in
+# one-shot mode: receives TASK_PROMPT via env var, executes agent,
+# saves transcript, exits.
 #
-# Expected image size: ~5GB (base Python + dependencies).
-# Pin intentionally — update by changing the COMMIT argument.
+# Build:
+#   docker build -f docker/Dockerfile.hermes -t wildclawbench-hermes-agent .
 #
-# Usage:
-#   docker build -f docker/Dockerfile.hermes -t hermes-agent .
+# Run:
+#   docker run --rm \
+#     -e TASK_PROMPT="your task" \
+#     -e HERMES_MODEL="openrouter/anthropic/claude-sonnet-4" \
+#     -e OPENROUTER_API_KEY="sk-or-..." \
+#     -v /path/to/results:/tmp_workspace/results \
+#     -v /path/to/workspace:/tmp_workspace/workspace \
+#     --add-host=host.docker.internal:host-gateway \
+#     wildclawbench-hermes-agent
 
-ARG HERMES_COMMIT=86d7144
-ARG BASE_IMAGE=python:3.12-slim
+FROM python:3.12-slim AS base
 
-# ---- Stage 1: base ----
-FROM ${BASE_IMAGE} AS base
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash \
+    coreutils \
+    curl \
     git \
+    wget \
+    ca-certificates \
+    # Node.js (required by hermes-agent for some tools)
+    ca-certificates gnupg \
+    && mkdir -p /etc/apt/keyrings \
+    && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
+    && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list \
+    && apt-get update && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
+# Install hermes-agent
+RUN pip install --no-cache-dir hermes-agent
 
-# Clone pinned Hermes agent
-ARG HERMES_COMMIT
-RUN git clone https://github.com/InternLM/WildClawBench.git /app/wildclawbench && \
-    cd /app/wildclawbench && \
-    git checkout ${HERMES_COMMIT}
+# Create directories
+RUN mkdir -p /opt/hermes \
+    && mkdir -p /root/.hermes \
+    && mkdir -p /tmp_workspace/results \
+    && mkdir -p /tmp_workspace/workspace
 
-WORKDIR /app/wildclawbench/src/agents/hermesagent
+WORKDIR /tmp_workspace
 
-# ---- Stage 2: dependencies ----
-FROM base AS deps
+# Copy entrypoint
+COPY docker/entrypoint-hermes.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
-RUN pip install --no-cache-dir -r requirements.txt
-
-# ---- Stage 3: runtime ----
-FROM deps AS runtime
-
-COPY . /app/wildclawbench
-
-ENV PYTHONUNBUFFERED=1
-ENV HERMES_CONFIG=/workspace/hermes-config.yaml
-
-ENTRYPOINT ["python", "-m", "hermes_agent"]
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["--help"]
 
-# Document labels
-LABEL org.opencontainers.image.source="https://github.com/InternLM/WildClawBench"
-LABEL org.opencontainers.image.description="Hermes agent — WildClawBench benchmark harness"
-LABEL org.opencontainers.image.version="${HERMES_COMMIT}"
+LABEL org.opencontainers.image.source="https://github.com/TINYCUA/TINYCUA"
+LABEL org.opencontainers.image.description="Hermes agent (NousResearch) — WildClawBench benchmark harness"
