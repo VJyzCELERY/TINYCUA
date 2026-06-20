@@ -52,9 +52,8 @@ Each harness is containerized with Docker for reproducible evaluation.
 
 | Key | Required For | How to Get |
 |-----|--------------|------------|
-| `OPENROUTER_API_KEY` | OpenRouter API access | [OpenRouter](https://openrouter.ai/) |
-| `JUDGE_MODEL` | Judge-based grading (optional) | Defaults to `openai/gpt-5.4` |
-| `LM_STUDIO_API_KEY` | Local LLM via LM Studio | Set to `lm-studio` (no real key needed) |
+| `PROVIDER_API_KEY` | Agent provider API access | Set during setup wizard |
+| `JUDGE_PROVIDER_API_KEY` | Judge-based grading | Set during setup wizard |
 
 ### Local Search (SearXNG)
 
@@ -87,7 +86,17 @@ Choose one:
 | Custom local | Your own server | `http://localhost:<port>/v1` |
 | Custom remote | Any API endpoint | User-specified URL |
 
-### 2. Run Benchmark
+### 2. Build Agent Docker Images
+
+```bash
+# Build all agent images (required first time)
+bash benchmark.sh build
+
+# OR download pre-built images instead:
+bash scripts/download_images.sh --all
+```
+
+### 3. Run Benchmark
 
 ```bash
 # First time: interactive setup wizard
@@ -101,45 +110,25 @@ bash benchmark.sh run
 
 ### First Time Setup Wizard
 
-When you run `bash benchmark.sh` for the first time:
+When you run `bash benchmark.sh` for the first time, the setup wizard asks for:
 
-```
-==========================================
-  WildClawBench - Provider Setup
-==========================================
+1. **Agent Provider** (for running tasks):
+   - Provider name (e.g., `lm-studio`, `openrouter`)
+   - Base URL (e.g., `http://localhost:1234/v1`)
+   - Model name (e.g., `qwen3.5-9b`)
+   - API key (if needed)
 
-Choose your LLM provider:
+2. **Judge Provider** (for grading responses):
+   - Provider name (e.g., `openrouter`)
+   - Base URL (e.g., `https://openrouter.ai/api/v1`)
+   - Model name (e.g., `openai/gpt-5.4`)
+   - API key
 
-  1) LM Studio (local)     - http://localhost:1234/v1
-  2) Ollama (local)        - http://localhost:11434/v1
-  3) vLLM (local/remote)   - http://localhost:8000/v1
-  4) OpenRouter (cloud)    - https://openrouter.ai/api/v1
-  5) Custom local server   - Your own localhost port
-  6) Custom remote API     - Full URL endpoint
+3. **Timeout**:
+   - Enter seconds (e.g., 600 for 10 minutes)
+   - Type `unlimited` for no timeout
 
-  Enter choice [1-6] (default: 1):
-```
-
-**Option 5** lets you type any port number:
-```
-Enter your local server port or URL:
-Examples: 8080, 5000, http://localhost:9090/v1
-
-Port or URL: 9090
-→ Provider: local-custom
-→ API Base: http://localhost:9090/v1
-```
-
-**Timeout** is set during setup:
-```
-  Task timeout:
-    - Enter seconds (e.g. 600 for 10 minutes)
-    - Type 'unlimited' for no timeout
-
-  Timeout (default: 600): unlimited
-```
-
-Configuration is saved to `.provider-config` and reused automatically.
+Configuration is saved to `.env` and reused automatically.
 
 ---
 
@@ -154,6 +143,7 @@ Configuration is saved to `.provider-config` and reused automatically.
 | `bash benchmark.sh config` | Change provider configuration |
 | `bash benchmark.sh status` | Show latest results |
 | `bash benchmark.sh searxng` | Manage SearXNG (up\|down\|status) |
+| `bash benchmark.sh build` | Build agent Docker images |
 | `bash benchmark.sh help` | Show help |
 
 ### Step 1: Install Dependencies
@@ -161,40 +151,28 @@ Configuration is saved to `.provider-config` and reused automatically.
 ```bash
 # Install Python dependencies
 uv pip install -e ".[dev]"
-
-# Or use the setup script
-bash setup.sh --step 1
 ```
 
-### Step 2: Download Docker Images
+### Step 2: Build Docker Images
 
 ```bash
-# Download all images
-bash script/download_images.sh --all
+# Build all agent images
+docker compose --profile hermes --profile opencode --profile openclaw build
 
-# Download specific harness
-bash script/download_images.sh --harness hermesagent
+# Or build specific agent
+docker compose --profile hermes build hermes-agent
+docker compose --profile opencode build opencode-agent
+docker compose --profile openclaw build openclaw-agent
 
-# Or use the setup script
-bash setup.sh --step 2
+# Or use the script
+bash benchmark.sh build
 ```
-
-**Available Images:**
-
-| Harness | Image Tarball | Loaded Tag |
-|---------|---------------|------------|
-| OpenClaw | `wildclawbench-ubuntu_v1.3.tar` | `wildclawbench-ubuntu:v1.3` |
-| OpenCode | `wildclawbench-ubuntu_v1.3.tar` | `wildclawbench-ubuntu:v1.3` |
-| Hermes Agent | `wildclawbench-hermes-agent-v0.5.tar.gz` | `wildclawbench-hermes-agent:v0.5` |
 
 ### Step 3: Prepare Task Data
 
 ```bash
 # Run the preparation script
-bash script/prepare.sh
-
-# Or use the setup script
-bash setup.sh --step 3
+bash scripts/prepare.sh
 ```
 
 **What the preparation script does:**
@@ -218,9 +196,9 @@ bash benchmark.sh run
 ```
 
 The script automatically:
-- Saves API keys to `.env` during setup wizard
+- Saves provider config to `.env` during setup wizard
 - Sets SearXNG URL
-- Saves provider config to `.provider-config`
+- Configures judge provider
 
 > Docker and SearXNG are started automatically when running benchmarks.
 
@@ -241,6 +219,7 @@ bash benchmark.sh run [options]
 | `--category` | Task category to run | `all` |
 | `--agent` | Run specific agent only | All agents |
 | `--model` | Model to evaluate | From `.env` |
+| `--api-base` | Override API base URL | From `.env` |
 | `--parallel` | Parallel tasks per agent | `1` |
 | `--timeout` | Task timeout: seconds or 'unlimited' | `600` |
 
@@ -484,6 +463,68 @@ After completion, summary reports are generated:
 
 ---
 
+## Docker Compose Profiles
+
+Agent harnesses use Docker Compose profiles for selective startup:
+
+```bash
+# Build all agent images
+docker compose --profile hermes --profile opencode --profile openclaw build
+
+# Build specific agent
+docker compose --profile hermes build hermes-agent
+
+# Run agent directly (one-shot)
+docker compose --profile hermes run --rm hermes-agent
+
+# Start SearXNG only
+docker compose up -d searxng
+```
+
+### Services
+
+| Service | Profile | Description |
+|---------|---------|-------------|
+| `searxng` | (always) | Local search engine |
+| `hermes-agent` | `hermes` | Hermes agent harness |
+| `opencode-agent` | `opencode` | OpenCode agent harness |
+| `openclaw-agent` | `openclaw` | OpenClaw agent harness |
+
+---
+
+## Environment Variables
+
+Configuration is managed via `.env` file (created by setup wizard):
+
+```bash
+# Agent Provider
+PROVIDER_NAME=your_provider_name
+PROVIDER_BASE_URL=http://localhost:1234/v1
+PROVIDER_MODEL=your_model_here
+PROVIDER_API_KEY=your_key_here
+
+# Judge Provider (for grading)
+JUDGE_PROVIDER_NAME=your_judge_provider_name
+JUDGE_PROVIDER_BASE_URL=https://openrouter.ai/api/v1
+JUDGE_PROVIDER_MODEL=your_judge_model_here
+JUDGE_PROVIDER_API_KEY=your_key_here
+
+# Local search
+SEARXNG_URL=http://localhost:8888
+
+# Runtime
+LOG_LEVEL=INFO
+TIMEOUT=600
+
+# Docker Compose paths
+OUTPUT_DIR=./output
+WORKSPACE_DIR=./workspace
+```
+
+See `.env.example` for the full template.
+
+---
+
 ## Custom Models
 
 ### Using OpenRouter
@@ -491,48 +532,18 @@ After completion, summary reports are generated:
 Default configuration uses OpenRouter. Set your model in `.env`:
 
 ```bash
-DEFAULT_MODEL=openrouter/anthropic/claude-sonnet-4.6
+PROVIDER_MODEL=openrouter/anthropic/claude-sonnet-4.6
 ```
 
-### Using Custom Endpoint (OpenClaw Only)
+### Using Custom Endpoint
 
-For OpenClaw, you can use a custom API endpoint instead of OpenRouter:
-
-1. **Create a JSON configuration file** (`my_api.json`):
-
-```json
-{
-  "providers": {
-    "my-openai-proxy": {
-      "baseUrl": "http://host.docker.internal:8000/v1",
-      "apiKey": "${MY_PROXY_API_KEY}",
-      "api": "openai-completions",
-      "models": [
-        {
-          "id": "my-model",
-          "name": "My Model"
-        }
-      ]
-    }
-  }
-}
-```
-
-2. **Set environment variables** in `.env`:
+For custom API endpoints, set the base URL in `.env`:
 
 ```bash
-MY_PROXY_API_KEY=your_api_key_here
+PROVIDER_BASE_URL=http://your-server:8000/v1
+PROVIDER_MODEL=your-model-name
+PROVIDER_API_KEY=your_api_key_here
 ```
-
-3. **Run with custom config**:
-
-```bash
-python3 eval/run_batch.py --category 01_Productivity_Flow \
-                          --models-config my_api.json \
-                          --model my-openai-proxy/my-model
-```
-
-**Important:** Some task prompts and evaluation scripts have OpenRouter explicitly mentioned. If you bypass OpenRouter, you may need to adjust these references manually.
 
 ---
 
@@ -564,36 +575,16 @@ bash benchmark.sh searxng down
 bash benchmark.sh searxng up
 ```
 
-#### Image Download Fails
-
-```bash
-# Check huggingface-hub installation
-pip show huggingface-hub
-
-# Reinstall if needed
-pip install -U "huggingface_hub[cli]"
-
-# Login if required
-huggingface-cli login
-```
-
-#### YouTube Download Fails
-
-```bash
-# Update yt-dlp
-pip install -U yt-dlp
-
-# Try with cookies
-yt-dlp --cookies-from-browser chrome <url>
-```
-
-#### Memory Issues
+#### Image Build Fails
 
 ```bash
 # Check Docker resource limits
 docker system info
 
 # Increase Docker memory limit in Docker Desktop settings
+
+# Rebuild with no cache
+docker compose --profile hermes build --no-cache hermes-agent
 ```
 
 #### API Key Errors
@@ -601,17 +592,18 @@ docker system info
 ```bash
 # Verify environment variables
 source .env
-echo $OPENROUTER_API_KEY
+echo $PROVIDER_API_KEY
+echo $JUDGE_PROVIDER_API_KEY
 
 # Test API connectivity
-curl -H "Authorization: Bearer $OPENROUTER_API_KEY" \
-     https://openrouter.ai/api/v1/models
+curl -H "Authorization: Bearer $PROVIDER_API_KEY" \
+     $PROVIDER_BASE_URL/models
 ```
 
 ### Getting Help
 
 1. Check the [Troubleshooting Guide](docs/troubleshooting.md)
-2. Search [existing issues](https://github.com/your-org/wildclawbench/issues)
+2. Search [existing issues](https://github.com/TINYCUA/TINYCUA/issues)
 3. Create a new issue with:
    - Your OS and Docker version
    - The command you ran

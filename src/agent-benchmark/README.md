@@ -11,7 +11,12 @@ ollama serve              # Ollama (port 11434)
 vllm serve <model>        # vLLM (port 8000)
 # ...or any server on any port
 
-# 2. Run benchmark (first time shows setup wizard)
+# 2. Build agent Docker images (first time only)
+bash benchmark.sh build
+# OR download pre-built images:
+bash scripts/download_images.sh --all
+
+# 3. Run benchmark (first time shows setup wizard)
 bash benchmark.sh
 ```
 
@@ -26,49 +31,57 @@ bash benchmark.sh
 | `bash benchmark.sh config` | Change provider |
 | `bash benchmark.sh status` | Show results |
 | `bash benchmark.sh searxng` | Manage SearXNG (up\|down\|status) |
+| `bash benchmark.sh build` | Build agent Docker images |
 | `bash benchmark.sh help` | Show help |
 
 ## First Time Setup
 
-When you run `bash benchmark.sh` for the first time:
+When you run `bash benchmark.sh` for the first time, the setup wizard asks for:
 
+1. **Agent Provider** (for running tasks):
+   - Provider name (e.g., `lm-studio`, `openrouter`)
+   - Base URL (e.g., `http://localhost:1234/v1`)
+   - Model name (e.g., `qwen3.5-9b`)
+   - API key (if needed)
+
+2. **Judge Provider** (for grading responses):
+   - Provider name (e.g., `openrouter`)
+   - Base URL (e.g., `https://openrouter.ai/api/v1`)
+   - Model name (e.g., `openai/gpt-5.4`)
+   - API key
+
+3. **Timeout**:
+   - Enter seconds (e.g., 600 for 10 minutes)
+   - Type `unlimited` for no timeout
+
+Configuration is saved to `.env` and reused on next run.
+
+## Docker Compose Profiles
+
+Agent harnesses use Docker Compose profiles for selective startup:
+
+```bash
+# Build all agent images
+docker compose --profile hermes --profile opencode --profile openclaw build
+
+# Build specific agent
+docker compose --profile hermes build hermes-agent
+
+# Run agent directly (one-shot)
+docker compose --profile hermes run --rm hermes-agent
+
+# Start SearXNG only
+docker compose up -d searxng
 ```
-==========================================
-  WildClawBench - Provider Setup
-==========================================
 
-Choose your LLM provider:
+**Services:**
 
-  1) LM Studio (local)     - http://localhost:1234/v1
-  2) Ollama (local)        - http://localhost:11434/v1
-  3) vLLM (local/remote)   - http://localhost:8000/v1
-  4) OpenRouter (cloud)    - https://openrouter.ai/api/v1
-  5) Custom local server   - Your own localhost port
-  6) Custom remote API     - Full URL endpoint
-
-  Enter choice [1-6] (default: 1):
-```
-
-**Option 5** lets you type any port number:
-```
-Enter your local server port or URL:
-Examples: 8080, 5000, http://localhost:9090/v1
-
-Port or URL: 9090
-→ Provider: local-custom
-→ API Base: http://localhost:9090/v1
-```
-
-**Timeout** is set during setup:
-```
-  Task timeout:
-    - Enter seconds (e.g. 600 for 10 minutes)
-    - Type 'unlimited' for no timeout
-
-  Timeout (default: 600): unlimited
-```
-
-Configuration is saved to `.provider-config` and reused on next run.
+| Service | Profile | Description |
+|---------|---------|-------------|
+| `searxng` | (always) | Local search engine |
+| `hermes-agent` | `hermes` | Hermes agent harness |
+| `opencode-agent` | `opencode` | OpenCode agent harness |
+| `openclaw-agent` | `openclaw` | OpenClaw agent harness |
 
 ## SearXNG (Local Search)
 
@@ -126,6 +139,37 @@ bash benchmark.sh run --timeout 300          # 5 minutes
 | Custom local | `http://localhost:<port>/v1` | Any local server |
 | Custom remote | User-specified URL | Any API endpoint |
 
+## Environment Variables
+
+Configuration is managed via `.env` file (created by setup wizard):
+
+```bash
+# Agent Provider
+PROVIDER_NAME=your_provider_name
+PROVIDER_BASE_URL=http://localhost:1234/v1
+PROVIDER_MODEL=your_model_here
+PROVIDER_API_KEY=your_key_here
+
+# Judge Provider (for grading)
+JUDGE_PROVIDER_NAME=your_judge_provider_name
+JUDGE_PROVIDER_BASE_URL=https://openrouter.ai/api/v1
+JUDGE_PROVIDER_MODEL=your_judge_model_here
+JUDGE_PROVIDER_API_KEY=your_key_here
+
+# Local search
+SEARXNG_URL=http://localhost:8888
+
+# Runtime
+LOG_LEVEL=INFO
+TIMEOUT=600
+
+# Docker Compose paths
+OUTPUT_DIR=./output
+WORKSPACE_DIR=./workspace
+```
+
+See `.env.example` for the full template.
+
 ## Execution Flow
 
 Agents run sequentially (one at a time) with progress tracking:
@@ -157,21 +201,6 @@ Running openclaw...
 | `03_Search_Retrieval` | `search_01` |
 | `04_Data_Processing` | `data_01` |
 | `05_Safety_Alignment` | `safety_01` |
-
-## Environment Variables
-
-No manual setup needed. When you run `bash benchmark.sh`:
-
-1. **API keys** (OpenRouter, etc.) are saved automatically to `.env` during setup wizard
-2. **SearXNG URL** is set automatically
-3. **Provider config** is saved to `.provider-config`
-
-Just run:
-```bash
-bash benchmark.sh
-```
-
-The script handles everything.
 
 ## Output Structure
 
