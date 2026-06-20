@@ -21,8 +21,8 @@ This document provides comprehensive instructions for setting up and running the
 
 WildClawBench is a benchmark suite for evaluating AI coding agents across three harnesses:
 
-- **OpenClaw** - Open-source coding agent
-- **OpenCode** - OpenCode harness with Qwen 3.5 9B
+- **OpenClaw** - Open-source coding agent (uses direct LLM API calls)
+- **OpenCode** - OpenCode harness
 - **Hermes Agent** - Hermes coding agent
 
 Each harness is containerized with Docker for reproducible evaluation.
@@ -147,15 +147,12 @@ uv pip install -e ".[dev]"
 
 ```bash
 # Build all agent images
-docker compose --profile hermes --profile opencode --profile openclaw build
+bash benchmark.sh build
 
 # Or build specific agent
-docker compose --profile hermes build hermes-agent
-docker compose --profile opencode build opencode-agent
-docker compose --profile openclaw build openclaw-agent
-
-# Or use the script
-bash benchmark.sh build
+bash benchmark.sh build hermes
+bash benchmark.sh build opencode
+bash benchmark.sh build openclaw
 ```
 
 ### Step 3: Prepare Task Data
@@ -277,7 +274,7 @@ bash benchmark.sh run --agent opencode --verbose
 
 | Harness | Format | Example |
 |---------|--------|---------|
-| OpenClaw | `openrouter/<provider>/<model>` | `openrouter/openai/gpt-5.5` |
+| OpenClaw | `<provider>/<model>` | `qwen/qwen3.5-9b` |
 | OpenCode / Hermes | `<provider>/<model>` | `qwen3.5-9b` |
 
 ---
@@ -453,32 +450,32 @@ After completion, summary reports are generated:
 
 ---
 
-## Docker Compose Profiles
+## Docker Compose
 
-Agent harnesses use Docker Compose profiles for selective startup:
+Agent services use official images from registries:
 
 ```bash
-# Build all agent images
-docker compose --profile hermes --profile opencode --profile openclaw build
-
-# Build specific agent
-docker compose --profile hermes build hermes-agent
+# Start shared infrastructure (SearXNG)
+docker compose up -d searxng
 
 # Run agent directly (one-shot)
-docker compose --profile hermes run --rm hermes-agent
+docker compose run --rm hermes
+docker compose run --rm opencode
+docker compose run --rm openclaw-gateway
 
-# Start SearXNG only
-docker compose up -d searxng
+# Or with task prompt
+TASK_PROMPT="your task" docker compose run --rm hermes
 ```
 
 ### Services
 
-| Service | Profile | Description |
-|---------|---------|-------------|
-| `searxng` | (always) | Local search engine |
-| `hermes-agent` | `hermes` | Hermes agent harness |
-| `opencode-agent` | `opencode` | OpenCode agent harness |
-| `openclaw-agent` | `openclaw` | OpenClaw agent harness |
+| Service | Image | Port | Description |
+|---------|-------|------|-------------|
+| `searxng` | `searxng/searxng:latest` | 8888 | Local search engine |
+| `hermes` | `ghcr.io/nousresearch/hermes-agent:latest` | 8642 | Hermes agent |
+| `opencode` | `ghcr.io/pilinux/opencode:latest` | 4096 | OpenCode agent |
+| `openclaw-gateway` | `openclaw/openclaw:latest` | 18789 | OpenClaw gateway |
+| `openclaw-cli` | `openclaw/openclaw:latest` | — | OpenClaw admin (profile: admin) |
 
 ---
 
@@ -574,7 +571,7 @@ docker system info
 # Increase Docker memory limit in Docker Desktop settings
 
 # Rebuild with no cache
-docker compose --profile hermes build --no-cache hermes-agent
+bash benchmark.sh build hermes
 ```
 
 #### API Key Errors

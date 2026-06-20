@@ -91,32 +91,32 @@ When you run `bash benchmark.sh` for the first time, the setup wizard asks for:
 
 Configuration is saved to `.env` and reused on next run.
 
-## Docker Compose Profiles
+## Docker Compose
 
-Agent harnesses use Docker Compose profiles for selective startup:
+Agent services use official images from registries:
 
 ```bash
-# Build all agent images
-docker compose --profile hermes --profile opencode --profile openclaw build
-
-# Build specific agent
-docker compose --profile hermes build hermes-agent
+# Start shared infrastructure (SearXNG)
+docker compose up -d searxng
 
 # Run agent directly (one-shot)
-docker compose --profile hermes run --rm hermes-agent
+docker compose run --rm hermes
+docker compose run --rm opencode
+docker compose run --rm openclaw-gateway
 
-# Start SearXNG only
-docker compose up -d searxng
+# Or with task prompt
+TASK_PROMPT="your task" docker compose run --rm hermes
 ```
 
 **Services:**
 
-| Service | Profile | Description |
-|---------|---------|-------------|
-| `searxng` | (always) | Local search engine |
-| `hermes-agent` | `hermes` | Hermes agent harness |
-| `opencode-agent` | `opencode` | OpenCode agent harness |
-| `openclaw-agent` | `openclaw` | OpenClaw agent harness |
+| Service | Image | Port | Description |
+|---------|-------|------|-------------|
+| `searxng` | `searxng/searxng:latest` | 8888 | Local search engine |
+| `hermes` | `ghcr.io/nousresearch/hermes-agent:latest` | 8642 | Hermes agent |
+| `opencode` | `ghcr.io/pilinux/opencode:latest` | 4096 | OpenCode agent |
+| `openclaw-gateway` | `openclaw/openclaw:latest` | 18789 | OpenClaw gateway |
+| `openclaw-cli` | `openclaw/openclaw:latest` | — | OpenClaw admin (profile: admin) |
 
 ## SearXNG (Local Search)
 

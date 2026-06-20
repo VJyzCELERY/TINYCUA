@@ -35,6 +35,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install openclaw globally
 RUN npm install -g openclaw@latest
 
+# Install Python requests for direct API calls
+RUN pip install --break-system-packages requests
+
 # Verify installation
 RUN openclaw --version
 
