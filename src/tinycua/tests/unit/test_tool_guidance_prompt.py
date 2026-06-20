@@ -14,7 +14,6 @@ from tinycua.agent.tools.native import (
     edit_file,
     read_file,
     run_shell,
-    run_shell_readonly,
     write_file,
 )
 from tinycua.config.node_config import create_node_config
@@ -35,7 +34,7 @@ from tinycua.tools.task_tools import (
 
 
 def test_task_executor_tool_guidance_prefers_narrowest_tool() -> None:
-    """Executor guidance prefers edit_file over write_file, readonly over shell."""
+    """Executor guidance prefers edit_file over write_file."""
     node = TinyCUATaskExecutorNode(
         node_id="task_executor", config=create_node_config("task_executor")
     )
@@ -45,7 +44,6 @@ def test_task_executor_tool_guidance_prefers_narrowest_tool() -> None:
         write_file,
         edit_file,
         run_shell,
-        run_shell_readonly,
     ]
 
     guidance = node.build_tool_system_prompt(tools)
@@ -55,8 +53,8 @@ def test_task_executor_tool_guidance_prefers_narrowest_tool() -> None:
     assert "task_result_update" in guidance
 
 
-def test_result_reviewer_tool_guidance_requires_readonly_verification() -> None:
-    """Reviewer guidance instructs read-only verification before deciding."""
+def test_result_reviewer_tool_guidance_requires_verification() -> None:
+    """Reviewer guidance instructs verification (run_shell/read_file) before deciding."""
     node = TinyCUAResultReviewerNode(
         node_id="result_reviewer", config=create_node_config("result_reviewer")
     )
@@ -65,12 +63,12 @@ def test_result_reviewer_tool_guidance_requires_readonly_verification() -> None:
         TaskInspectTool(),
         TaskUpdateTool(),
         read_file,
-        run_shell_readonly,
+        run_shell,
     ]
 
     guidance = node.build_tool_system_prompt(tools)
 
-    assert "read_file" in guidance or "run_shell_readonly" in guidance
+    assert "read_file" in guidance or "run_shell" in guidance
     assert "task_review_decision" in guidance
 
 

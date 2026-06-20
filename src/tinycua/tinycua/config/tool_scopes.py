@@ -28,16 +28,15 @@ from tinycua.tools.task_tools import (
 )
 from tinycua.tools.todo_tools import TodoReadTool, TodoWriteTool
 
-# Exploratory tools: strictly read-only, non-internal agent tools.
-# Nodes that need to verify, investigate, or gather information (e.g.
-# ResultReviewer, TaskAnalyzer, TaskAssessor, InformationDigester,
-# ResultAggregation) use EXPLORATORY_AGENT_TOOLS so they can inspect the
-# workspace, run read-only shell commands, search the web, and fetch URLs
-# without mutating files or task state.
+# Exploratory tools: inspection-oriented agent tools. ``run_shell`` is gated
+# in-tool by a hardline blocklist (unrecoverable commands) + a recoverable-
+# destructive warning layer, so it is safe to hand to read-oriented nodes
+# (reviewer, analyzer, assessor, digester, aggregation) for verification
+# without a separate neutered "readonly" tool. The gate is in shell.py.
 EXPLORATORY_AGENT_TOOLS: list[str] = [
     "read_file",
     "list_files",
-    "run_shell_readonly",
+    "run_shell",
     "web_search",
     "fetch_url",
 ]
@@ -187,8 +186,10 @@ def result_reviewer_tool_scope() -> NodeToolPolicy:
     to review task state, and can update unfinished task descriptions with
     relevant discoveries before proceeding.
 
-    Includes run_shell_readonly for running tests and verification commands
-    without risk of accidental filesystem mutation.
+    Includes run_shell (gated in-tool: hardline commands blocked, recoverable
+    destructive commands warn but execute) for running tests and verification
+    commands. The reviewer verifies by checking exit_code/exit_code_meaning,
+    not by LLM-judging source text.
 
     Returns:
         NodeToolPolicy for ResultReviewerNode.

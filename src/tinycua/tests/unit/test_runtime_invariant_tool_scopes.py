@@ -35,8 +35,14 @@ from tinycua.config.node_config import NodeToolPolicy
 # depends on session config; import lazily to keep the test hermetic.
 from tinycua.config.tool_scopes import response_tool_scope
 
+# Arbitrary write/execute tools — only TaskExecutor and ResponseNode may have
+# these. run_shell is NOT in this set: it is the gated exploratory shell
+# (hardline blocks unrecoverable commands like rm -rf /; recoverable destructive
+# commands warn but execute). Reviewer/analyzer/digester/assessor use it for
+# verification (test -f, grep, pytest, git diff) — the gate is the safety net,
+# not tool selection.
 _ARBITRARY_ACTION_AGENT_TOOLS = frozenset(
-    {"write_file", "edit_file", "run_shell", "run_python"}
+    {"write_file", "edit_file", "run_python"}
 )
 
 # (node_id, scope_factory) pairs for every internal node that is NOT
@@ -85,10 +91,11 @@ def test_information_digester_has_only_digest_read_tools() -> None:
     assert "task_decompose" not in names
     assert "task_result_update" not in names
     assert "task_review_decision" not in names
-    # Forbidden action tools
+    # Forbidden action tools (write/execute). run_shell is allowed — it is the
+    # gated exploratory shell (hardline blocks unrecoverable commands; recoverable
+    # destructive warns but executes). The digester uses it for read-only research.
     assert "write_file" not in names
     assert "edit_file" not in names
-    assert "run_shell" not in names
     assert "run_python" not in names
 
 
@@ -156,7 +163,10 @@ def test_result_reviewer_is_read_only_no_write_or_execute() -> None:
     assert "task_review_decision" in names
     assert "read_file" in names
     assert "list_files" in names
+    # run_shell IS in the reviewer scope — it is the gated exploratory shell
+    # (hardline blocks unrecoverable; recoverable-destructive warns). The
+    # reviewer verifies via exit_code/exit_code_meaning.
+    assert "run_shell" in names
     assert "write_file" not in names
     assert "edit_file" not in names
-    assert "run_shell" not in names
     assert "run_python" not in names

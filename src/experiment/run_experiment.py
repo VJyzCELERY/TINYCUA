@@ -8,6 +8,7 @@ import os
 import queue
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -163,8 +164,15 @@ def read_int_env(key: str, env_file: Path = Path(".env"), default: int = 0) -> i
     return default
 
 
-def read_timeout_seconds(env_file: Path = Path(".env"), default: int = 3600) -> int:
-    """Read runner timeout from .env without adding dependencies."""
+def read_timeout_seconds(env_file: Path = Path(".env"), default: int = 14400) -> int:
+    """Read runner timeout from .env without adding dependencies.
+
+    Default is 14400s (4 hours) — 4× the old 3600s cap. The agent is now
+    productive enough (680+ LLM calls per run, 33 executor cycles) that the
+    old 1-hour wall clock killed it mid-work. The fair idle timeout
+    (--idle-timeout-seconds, default 600s) is the primary "is it stuck?"
+    guard; the hard cap is just a safety net for truly runaway processes.
+    """
     return read_int_env("EXPERIMENT_TIMEOUT_SECONDS", env_file, default)
 
 
@@ -296,8 +304,18 @@ def run_agent(
     logs_dir: Path,
     timeout_seconds: int,
     hermes_process_poll_timeout_seconds: int = 600,
+    idle_timeout_seconds: int = 0,
 ) -> int:
-    """Run one Docker Compose service and write its artifacts."""
+    """Run one Docker Compose service and write its artifacts.
+
+    Args:
+        timeout_seconds: Hard wall-clock deadline from start. Always enforced.
+        idle_timeout_seconds: Optional "fair clock" — when > 0, the agent is
+            only killed if it produces NO output for this many seconds. The
+            deadline extends each time output arrives, so an actively-working
+            agent never hits the idle timeout; only a truly stuck/hung one
+            does. When 0, only the hard wall-clock deadline applies.
+    """
     print(f"[{agent}] starting experiment-{experiment_num}", flush=True)
     (logs_dir / "prompt.txt").write_text(prompt)
     env_file = Path(".env")
@@ -362,38 +380,79 @@ def run_agent(
             deadline = time.monotonic() + timeout_seconds
             exit_code: int | None = None
             last_output = time.monotonic()
+            # Fair clock: when idle_timeout_seconds > 0, the agent is only
+            # killed if silent for that long. The deadline extends on every
+            # output line, so an actively-working agent (LLM calls, tool
+            # output) never hits it — only a stuck/hung one does.
+            idle_deadline: float | None = (
+                time.monotonic() + idle_timeout_seconds if idle_timeout_seconds > 0 else None
+            )
             hermes_poll_started_at: float | None = None
             saw_eof = {"out": False, "err": False}
             try:
                 while True:
                     now = time.monotonic()
+                    # Hermes poll guard: when hermes polls a never-ending
+                    # background process (e.g. a uvicorn server), the poll
+                    # blocks forever. Instead of killing the run (exit 124),
+                    # send SIGINT so hermes can wrap up its turn and emit
+                    # whatever response it has (the app was already built).
+                    # If SIGINT doesn't work, the idle timeout or hard cap
+                    # handles it. This is the fairness fix: hermes built the
+                    # app and was verifying — it shouldn't lose all its work
+                    # just because the server poll blocks.
                     if agent == "hermes" and _hermes_poll_timed_out(
                         hermes_poll_started_at,
                         hermes_process_poll_timeout_seconds,
                         now,
                     ):
-                        process.kill()
-                        process.wait()
                         stderr.write(
                             "\nHermes process poll timed out after "
-                            f"{hermes_process_poll_timeout_seconds} seconds\n"
+                            f"{hermes_process_poll_timeout_seconds}s — "
+                            "sending SIGINT to let it wrap up\n"
                         )
-                        exit_code = 124
-                        break
-                    remaining = deadline - time.monotonic()
+                        try:
+                            process.send_signal(signal.SIGINT)
+                        except (OSError, ProcessLookupError):
+                            pass
+                        hermes_poll_started_at = None  # don't re-fire
+                        # Give hermes 30s to wrap up after SIGINT, then let the
+                        # idle timeout / hard cap handle the rest.
+                        last_output = time.monotonic()
+                    # Hard wall-clock always applies (cap total runtime).
+                    remaining = deadline - now
                     if remaining <= 0:
                         process.kill()
                         process.wait()
                         stderr.write(f"\nTimed out after {timeout_seconds} seconds\n")
                         exit_code = 124
                         break
+                    # Fair idle clock: if set, kill only when silent > idle_timeout.
+                    if idle_deadline is not None:
+                        idle_remaining = idle_deadline - now
+                        if idle_remaining <= 0:
+                            silent = time.monotonic() - last_output
+                            process.kill()
+                            process.wait()
+                            stderr.write(
+                                f"\nIdle timed out after {idle_timeout_seconds}s "
+                                f"of no output (silent {silent:.0f}s)\n"
+                            )
+                            exit_code = 124
+                            break
+                        wait_for = min(remaining, idle_remaining, 1.0)
+                    else:
+                        wait_for = min(remaining, 1.0)
                     try:
-                        item = line_queue.get(timeout=min(remaining, 1.0))
+                        item = line_queue.get(timeout=wait_for)
                     except queue.Empty:
                         silent = time.monotonic() - last_output
                         if silent >= 15:
                             print(f"[{agent}] … ({silent:.0f}s)", flush=True)
                             last_output = time.monotonic()
+                            # The "…" tick counts as activity for the silent
+                            # indicator but NOT for the fair idle clock (only
+                            # real agent output extends the deadline).
                         continue
                     source, line = item
                     if line is None:  # EOF for this stream
@@ -403,6 +462,9 @@ def run_agent(
                             break
                         continue
                     last_output = time.monotonic()
+                    # Real agent output → extend the fair idle deadline.
+                    if idle_deadline is not None:
+                        idle_deadline = time.monotonic() + idle_timeout_seconds
                     # Detect first LLM call to start the runtime timer
                     if llm_started is None and warmup_marker and warmup_marker in line:
                         llm_started = datetime.now(UTC)
@@ -476,7 +538,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--timeout-seconds",
         type=int,
         default=None,
-        help="Runner timeout per harness (default: EXPERIMENT_TIMEOUT_SECONDS or 3600).",
+        help="Hard wall-clock cap per harness (default: EXPERIMENT_TIMEOUT_SECONDS or 14400).",
+    )
+    parser.add_argument(
+        "--idle-timeout-seconds",
+        type=int,
+        default=None,
+        help=(
+            "Fair clock: kill the agent only if it produces NO output for this "
+            "many seconds (resets on every output line). An actively-working "
+            "agent never hits it — only a stuck/hung one does. Default: 0 "
+            "(disabled; hard wall-clock only). Env: EXPERIMENT_IDLE_TIMEOUT_SECONDS."
+        ),
     )
     args = parser.parse_args(argv)
     if args.num < 1:
@@ -508,6 +581,9 @@ def main(argv: list[str] | None = None) -> int:
         )
         timeout_seconds = args.timeout_seconds or read_timeout_seconds()
         hermes_process_poll_timeout_seconds = read_hermes_process_poll_timeout_seconds()
+        idle_timeout_seconds = args.idle_timeout_seconds
+        if idle_timeout_seconds is None:
+            idle_timeout_seconds = read_int_env("EXPERIMENT_IDLE_TIMEOUT_SECONDS")
     except (OSError, ValueError) as error:
         print(error, file=sys.stderr)
         return 2
@@ -525,6 +601,7 @@ def main(argv: list[str] | None = None) -> int:
                     paths[agent]["logs"],
                     timeout_seconds,
                     hermes_process_poll_timeout_seconds,
+                    idle_timeout_seconds,
                 )
             )
     except KeyboardInterrupt:

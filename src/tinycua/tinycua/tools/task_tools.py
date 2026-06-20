@@ -150,8 +150,15 @@ class TaskCreateTool(SessionTaskToolMixin, Tool):
 class TaskInspectTool(SessionTaskToolMixin, Tool):
     """Tool for inspecting task state and hierarchy.
 
-    Without task_id: returns full tree snapshot.
-    With task_id: returns details for that specific task only.
+    Two-tier (FR-011/FR-012):
+    - No ``task_id`` → returns a compact list ``[{id, title, status, has_result}]``
+      for the whole tree. Cheap to render and to put in the prompt; this is the
+      "scan the roadmap" mode.
+    - With ``task_id`` → returns one task with compacted detail (last 2
+      reviewer_decisions, result truncated to 200 chars, empty fields dropped).
+      This is the "drill into a specific task" mode.
+    ``task_id`` may be a UUID or the task's 1-based number from the rendered
+    roadmap.
     """
 
     def __init__(self) -> None:
@@ -160,10 +167,12 @@ class TaskInspectTool(SessionTaskToolMixin, Tool):
             self,
             name="task_inspect",
             description=(
-                "Inspect task state. Without task_id, returns the full tree "
-                "snapshot. With task_id, returns details for that specific task "
-                "including its description, status, and result. task_id may be a "
-                "UUID or the task's 1-based number from the rendered roadmap."
+                "Inspect task state. Without task_id, returns a compact list "
+                "of all tasks (id, title, status, has_result) — scan this "
+                "first. With task_id, returns compacted detail for one task "
+                "(last 2 reviewer decisions, result truncated to 200 chars). "
+                "task_id may be a UUID or the task's 1-based number from the "
+                "rendered roadmap."
             ),
             parameters={
                 "type": "object",
@@ -171,8 +180,8 @@ class TaskInspectTool(SessionTaskToolMixin, Tool):
                     "task_id": {
                         "type": "string",
                         "description": (
-                            "Specific task ID to inspect. Omit to get the "
-                            "full tree snapshot."
+                            "Specific task ID to inspect for detail. Omit to "
+                            "get the compact list of all tasks."
                         ),
                     },
                 },
@@ -181,13 +190,14 @@ class TaskInspectTool(SessionTaskToolMixin, Tool):
         )
 
     def __call__(self, *, task_id: str | None = None) -> dict[str, Any]:
-        """Return task details for a specific task, or the full tree snapshot."""
+        """Return the compact list (no task_id) or compacted detail (with task_id)."""
         if task_id is not None:
             resolved = self._store.resolve_task_id(task_id)
             if resolved is None or resolved not in self._store.tasks:
                 return {"error": f"Task {task_id} not found."}
-            return self._store._json_safe(asdict(self._store.tasks[resolved]))
-        return self._store.snapshot()
+            detail = self._store.compact_task_detail(resolved)
+            return detail if detail is not None else {"error": f"Task {task_id} not found."}
+        return self._store.snapshot_compact()
 
 
 class TaskUpdateTool(SessionTaskToolMixin, Tool):

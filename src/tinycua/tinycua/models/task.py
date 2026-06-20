@@ -85,6 +85,25 @@ class Task:
     artifacts: list[dict[str, Any]] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
 
+    @property
+    def failure_count(self) -> int:
+        """Number of times review has sent this task back (needs_revision/rejected/replan).
+
+        Derived from the ``reviewer_decisions`` audit trail — no separate
+        counter to keep in sync. Used by the reviewer continuation as soft
+        context so the reviewer can weigh replan vs retry itself (FR-021).
+        """
+        back_decisions = {
+            ReviewerDecision.NEEDS_REVISION.value,
+            ReviewerDecision.REJECTED.value,
+            ReviewerDecision.REPLAN.value,
+        }
+        return sum(
+            1
+            for d in self.reviewer_decisions
+            if d.get("decision") in back_decisions
+        )
+
 
 @dataclass
 class TaskStateStore:
@@ -100,6 +119,11 @@ class TaskStateStore:
     # reorder the tree. Upgrade path: per-subtree incremental rebuild if huge
     # trees with frequent decomposition ever make the full rebuild costly.
     _ordered_task_ids: list[str] | None = field(default=None, repr=False)
+    # Monotonic version — bumped on EVERY mutation (structural or status). Used
+    # as the cache key for _render_task_tree_markdown so it only re-renders when
+    # the tree actually changed, keeping continuation bytes stable for prompt
+    # caching. Starts at 0; first read of any render is a cache miss by design.
+    version: int = 0
 
     _ALLOWED_TRANSITIONS: ClassVar[dict[TaskStatus, set[TaskStatus]]] = {
         TaskStatus.PENDING: {TaskStatus.IN_PROGRESS, TaskStatus.BLOCKED},
@@ -113,6 +137,10 @@ class TaskStateStore:
         TaskStatus.FAILED: {TaskStatus.PENDING, TaskStatus.IN_PROGRESS},
         TaskStatus.COMPLETED: set(),
     }
+
+    def _bump_version(self) -> None:
+        """Increment the monotonic version (called on every mutation)."""
+        self.version += 1
 
     def create_task(
         self,
@@ -132,6 +160,7 @@ class TaskStateStore:
         if self.root_task_id is None:
             self.root_task_id = task.task_id
         self._ordered_task_ids = None  # structural change: invalidate cache
+        self._bump_version()
         self._refresh_active_task()
         return task
 
@@ -244,6 +273,7 @@ class TaskStateStore:
                 "to": next_status.value,
             }
         )
+        self._bump_version()
         self._refresh_active_task()
         return task
 
@@ -253,6 +283,7 @@ class TaskStateStore:
         if task.status in {TaskStatus.PENDING, TaskStatus.FAILED}:
             self.transition(task_id, TaskStatus.IN_PROGRESS)
         task.result = result
+        self._bump_version()
         self._refresh_active_task()
         return task
 
@@ -282,12 +313,14 @@ class TaskStateStore:
             if task.status != TaskStatus.IN_PROGRESS:
                 task.status = TaskStatus.IN_PROGRESS
             self.active_task_id = task.task_id
+            self._bump_version()
         elif reviewer_decision == ReviewerDecision.APPROVED and task.result is not None:
             target = TaskStatus.COMPLETED if task.result.success else TaskStatus.FAILED
             if task.status != target:
-                self.transition(task_id, target)
+                self.transition(task_id, target)  # transition bumps version
             self._complete_ready_parents()
             self._refresh_active_task()
+            self._bump_version()
         return task
 
     def add_artifact(
@@ -301,6 +334,7 @@ class TaskStateStore:
         """Attach an artifact reference to a task."""
         task = self.get_task(task_id)
         task.artifacts.append({"path": path, "kind": kind, "metadata": metadata or {}})
+        self._bump_version()
         return task
 
     def next_unfinished_leaf(self) -> Task | None:
@@ -348,6 +382,67 @@ class TaskStateStore:
             "transition_log": list(self.transition_log),
         }
 
+    def snapshot_compact(self) -> dict[str, Any]:
+        """Return a compact task LIST for quick scanning (FR-011).
+
+        No descriptions, results, reviewer_decisions, artifacts, metadata, or
+        transition_log — just ``{id, title, status, has_result}`` per task.
+        This is what ``task_inspect`` with no ``task_id`` returns so the
+        reviewer can scan the roadmap cheaply before drilling into a specific
+        task for detail.
+        """
+        return {
+            "root_task_id": self.root_task_id,
+            "active_task_id": self.active_task_id,
+            "tasks": [
+                {
+                    "id": task_id,
+                    "title": task.title,
+                    "status": task.status.value,
+                    "has_result": task.result is not None,
+                }
+                for task_id, task in self.tasks.items()
+            ],
+        }
+
+    def compact_task_detail(self, task_id: str) -> dict[str, Any] | None:
+        """Return one task with compacted detail (FR-012), or None if not found.
+
+        - ``reviewer_decisions`` truncated to the last 2.
+        - ``result.content``/``result.summary`` truncated to 200 chars.
+        - Empty ``metadata``/``artifacts``/``children`` omitted.
+        """
+        task = self.tasks.get(task_id)
+        if task is None:
+            return None
+        detail: dict[str, Any] = {
+            "id": task.task_id,
+            "title": task.title,
+            "status": task.status.value,
+            "parent_id": task.parent_id,
+            "description": task.description,
+        }
+        if task.children:
+            detail["children"] = list(task.children)
+        if task.active_child_id:
+            detail["active_child_id"] = task.active_child_id
+        if task.result is not None:
+            result = task.result
+            detail["result"] = {
+                "success": result.success,
+                "content": result.content[:200],
+                "summary": result.summary[:200],
+            }
+            if result.artifacts:
+                detail["result"]["artifacts"] = result.artifacts
+        if task.reviewer_decisions:
+            detail["reviewer_decisions"] = list(task.reviewer_decisions[-2:])
+        if task.artifacts:
+            detail["artifacts"] = task.artifacts
+        if task.metadata:
+            detail["metadata"] = task.metadata
+        return self._json_safe(detail)
+
     def _refresh_active_task(self) -> None:
         """Refresh active_task_id to the first unfinished leaf."""
         active = self.next_unfinished_leaf()
@@ -390,3 +485,26 @@ class TaskStateStore:
         if isinstance(value, list):
             return [self._json_safe(item) for item in value]
         return value
+
+    # ponytail: cached markdown render of the task tree, keyed on version.
+    # Re-renders only when the tree mutates (version bumps). Keeps the
+    # continuation bytes stable across calls that don't change task state
+    # (helps prompt-cache prefix stability). Upgrade path: invalidate on
+    # selective subtree changes if partial renders ever matter.
+    _render_cache: tuple[int, str] = field(default=None, repr=False)
+
+    def render_markdown(self) -> str:
+        """Return a cached markdown render of the task tree (FR-014).
+
+        Mirrors ``_render_task_tree_markdown(_task_context_snapshot(session))``
+        but caches the result keyed on ``version`` so repeated calls in a node's
+        retry loop don't re-render or change the continuation bytes.
+        """
+        if self._render_cache is not None and self._render_cache[0] == self.version:
+            return self._render_cache[1]
+        from tinycua.loops.task_nodes import _render_task_tree_markdown, _task_context_snapshot_from_store
+
+        text = _render_task_tree_markdown(_task_context_snapshot_from_store(self))
+        # Avoid a hard import cycle at module load: build the snapshot lazily.
+        self._render_cache = (self.version, text)
+        return text

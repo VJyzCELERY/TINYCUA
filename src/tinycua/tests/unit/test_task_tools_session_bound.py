@@ -29,7 +29,11 @@ def test_task_tools_are_session_bound_and_do_not_leak_between_stores() -> None:
 
     assert len(first_store.tasks) == 1
     assert len(second_store.tasks) == 1
-    assert inspect()["tasks"][second_store.root_task_id]["title"] == "Second session"
+    # task_inspect (list mode) returns a compact list of {id,title,status,has_result}.
+    listing = inspect()
+    titles = [t["title"] for t in listing["tasks"]]
+    assert "Second session" in titles
+    assert second_store.root_task_id in {t["id"] for t in listing["tasks"]}
 
 
 def test_task_tools_are_active_task_aware_and_error_safe() -> None:

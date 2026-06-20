@@ -6,6 +6,7 @@ import logging
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from tinycua.config.system_prompt import SystemPromptBuilder, build_runtime_context
@@ -190,6 +191,12 @@ class Node(ABC):
         self._instruction = instruction
         self._continuation = continuation
         self._last_retry_exhaustion: dict[str, Any] | None = None
+        # ponytail: cache the assembled system message per (node, tools) so
+        # repeated calls in a retry loop replay identical system bytes — keeps
+        # the prompt-cache prefix stable (llama.cpp KV reuse, OpenAI prefix
+        # caching). Invalidated only when the resolved tools list changes.
+        self._cached_system_message: dict[str, str] | None = None
+        self._cached_system_key: tuple[int, ...] | None = None
 
     def ensure_session(self, root_or_parent_session: Session) -> Session:
         """Create or return an isolated node session.
@@ -278,7 +285,20 @@ class Node(ABC):
         self,
         resolved_tools: list[Any] | None = None,
     ) -> dict[str, str]:
-        """Build one system message from node sections and tool guidance."""
+        """Build one system message from node sections and tool guidance.
+
+        Cached per (node, tools-signature) so repeated calls in a session's
+        retry loop replay the SAME system bytes — essential for prompt-cache
+        prefix stability (llama.cpp KV reuse, OpenAI prefix caching). The
+        cache key is the id() tuple of the resolved tools list so identical
+        tool objects reuse the cached message.
+        """
+        cache_key = tuple(id(t) for t in (resolved_tools or []))
+        if (
+            self._cached_system_message is not None
+            and self._cached_system_key == cache_key
+        ):
+            return self._cached_system_message
         builder = SystemPromptBuilder()
         instruction = self.build_instruction()
         if instruction:
@@ -287,7 +307,10 @@ class Node(ABC):
         tool_prompt = self.build_tool_system_prompt(resolved_tools)
         if tool_prompt:
             builder.add_dynamic_context(tool_prompt)
-        return builder.build()
+        message = builder.build()
+        self._cached_system_message = message
+        self._cached_system_key = cache_key
+        return message
 
     def build_messages(
         self,
@@ -323,6 +346,22 @@ class Node(ABC):
             if role == "user" and not self.config.message_policy.include_input_context:
                 role = "assistant"
             messages.append({"role": role, "content": content})
+
+        # Current date/time as a small USER message in the volatile suffix —
+        # NOT in the system prompt, so the system prefix stays byte-stable for
+        # prompt caching (FR-015). Placed right before the node continuation so
+        # the model still sees the time when it responds.
+        now = datetime.now().astimezone()
+        messages.append(
+            {
+                "role": "user",
+                "content": (
+                    f"<context>Current date/time: "
+                    f"{now:%Y-%m-%d %H:%M:%S %z}, timezone: "
+                    f"{now.tzname() or 'local'}</context>"
+                ),
+            }
+        )
 
         node_continuation = self.build_continuation(session)
         if node_continuation.strip():

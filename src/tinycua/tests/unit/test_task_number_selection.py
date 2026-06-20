@@ -76,7 +76,8 @@ def test_task_inspect_accepts_number() -> None:
     skeleton_id = store.task_number_map()[1]
 
     result = tool(task_id="1")
-    assert result.get("task_id") == skeleton_id
+    # detail mode returns the task under "id" (compact shape, FR-012).
+    assert result.get("id") == skeleton_id
     assert result.get("title") == "HTML skeleton"
 
 

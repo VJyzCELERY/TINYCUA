@@ -12,7 +12,9 @@ from typing import TYPE_CHECKING, Any
 
 from tinycua.config.types import LLMResult, ValidationError, ValidationResult
 from tinycua.loops._loop_constants import _UNBOUNDED_RETRY_ATTEMPTS
+from tinycua.loops.context_rendering import sanitize_internal_reprs
 from tinycua.loops.route_classifier import RouteClassifier
+from tinycua.agent.tools.native.output_persist import persist_if_oversized
 
 if TYPE_CHECKING:
     from tinycua.loops.node import Node
@@ -989,6 +991,117 @@ class ValidationRetryMixin:
         )
         return True
 
+    async def _recovery_retry(
+        self,
+        node: Node,
+        agent: Agent,
+        resolved_tools: list[Tool],
+        last_result: LLMResult,
+        validation: ValidationResult,
+    ) -> tuple[LLMResult, ValidationResult] | None:
+        """One focused minimal-context retry after normal retries exhaust.
+
+        Strips all accumulated tool history / continuations and gives the model
+        a quiet room: just the node instruction, its last response, and the
+        validation requirement. The LLM freely decides the correct call — this
+        is NOT forced behavior, just a cleaner context so a model stuck in a
+        verification loop can see clearly.
+
+        Returns (new_llm_result, new_validation) if the recovery call produces
+        a valid result, otherwise None (caller proceeds to raise/record).
+        """
+        from datetime import datetime
+
+        # Build a minimal message list: system instruction + last response + ask.
+        system_msg = node.build_system_message(resolved_tools)
+        recovery_messages: list[dict[str, Any]] = []
+        if system_msg.get("content"):
+            recovery_messages.append(system_msg)
+        # Current time (same volatile-suffix pattern as Node.build_messages).
+        now = datetime.now().astimezone()
+        recovery_messages.append(
+            {
+                "role": "user",
+                "content": (
+                    f"<context>Current date/time: {now:%Y-%m-%d %H:%M:%S %z}, "
+                    f"timezone: {now.tzname() or 'local'}</context>"
+                ),
+            }
+        )
+        # The model's last response (what it did that failed validation).
+        last_content = (last_result.content or "").strip()
+        tool_call_summary = ""
+        if last_result.tool_calls:
+            names = [
+                tc.get("function", {}).get("name", "?")
+                for tc in last_result.tool_calls
+                if isinstance(tc, dict)
+            ]
+            tool_call_summary = f" (called: {', '.join(names)})"
+        recovery_messages.append(
+            {
+                "role": "assistant",
+                "content": f"[My last response]{tool_call_summary}: {last_content}",
+            }
+        )
+        # The focused ask: based on that, what's the correct call?
+        errors = "; ".join(validation.errors)
+        node_continuation = node.build_continuation(node.session) if node.session else ""
+        recovery_messages.append(
+            {
+                "role": "user",
+                "content": (
+                    f"The above response did not satisfy the node's requirement: "
+                    f"{errors}\n\n"
+                    f"Based on your last response and the node instruction below, "
+                    f"call the correct tool(s) now to satisfy the requirement. "
+                    f"Do not repeat what you already did — make the missing call.\n\n"
+                    f"{node_continuation}"
+                ),
+            }
+        )
+        try:
+            raw_response = await self._call_agent_llm(
+                agent,
+                node,
+                recovery_messages,
+                resolved_tools,
+            )
+        except Exception:
+            return None
+        recovery_result = LLMResult(
+            content=sanitize_internal_reprs(raw_response.get("content") or ""),
+            role=raw_response.get("role", "assistant"),
+            tool_calls=raw_response.get("tool_calls") or [],
+            metadata=raw_response.get("metadata", {}),
+            reasoning=raw_response.get("reasoning", ""),
+        )
+        if not node.is_terminal and node.node_id != "result_aggregation":
+            self._coerce_structured_tool_calls(recovery_result, resolved_tools)
+        self._coerce_terminate_only_response(resolved_tools, recovery_result)
+        # Execute any tool calls the recovery produced.
+        all_tool_results: list[dict[str, Any]] = []
+        if recovery_result.tool_calls:
+            tool_results = await self._execute_tool_calls(
+                agent,
+                recovery_result.tool_calls,
+                resolved_tools,
+            )
+            if tool_results:
+                all_tool_results.extend(tool_results)
+        if all_tool_results:
+            recovery_result.metadata = dict(recovery_result.metadata)
+            recovery_result.metadata["tool_results"] = list(all_tool_results)
+        recovery_validation = self._validate_node_result(node, recovery_result)
+        if recovery_validation.is_valid:
+            self._record_node_content_transcript(
+                node,
+                "Recovery retry succeeded after normal retries exhausted; "
+                "the model made the correct call with a focused context.",
+            )
+            return recovery_result, recovery_validation
+        return None
+
     def _stream_retry_message(
         self,
         agent: Agent,
@@ -1033,13 +1146,20 @@ class ValidationRetryMixin:
                 if index < len(normalized_tool_calls)
                 else {}
             )
+            raw_content = json.dumps(tool_result, default=str)
+            tool_call_id = (
+                tool_call.get("id") or str(tool_result.get("name", ""))
+            )
+            tool_name = str(tool_result.get("name", ""))
+            content = persist_if_oversized(
+                raw_content, tool_call_id, tool_name=tool_name
+            )
             messages.append(
                 {
                     "role": "tool",
-                    "tool_call_id": tool_call.get("id")
-                    or str(tool_result.get("name", "")),
-                    "name": str(tool_result.get("name", "")),
-                    "content": json.dumps(tool_result, default=str),
+                    "tool_call_id": tool_call_id,
+                    "name": tool_name,
+                    "content": content,
                 }
             )
         return messages
@@ -1065,7 +1185,7 @@ class ValidationRetryMixin:
 
     # FR-009: soft verification nudge — NEVER a validation crash.
     _READONLY_VERIFICATION_TOOLS = frozenset(
-        {"read_file", "run_shell_readonly", "list_files"}
+        {"read_file", "run_shell", "list_files"}
     )
 
     def _maybe_warn_reviewer_no_verification(

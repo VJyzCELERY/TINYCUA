@@ -115,12 +115,16 @@ class SystemPromptBuilder:
 
 
 def build_runtime_context(now: datetime | None = None) -> str:
-    """Build short current date/time context for node system prompts."""
-    current = now or datetime.now().astimezone()
-    offset = current.strftime("%z")
-    timezone = current.tzname() or "local"
-    return (
-        "## Runtime Context\n"
-        f"Current date/time: {current:%Y-%m-%d %H:%M:%S %z}\n"
-        f"Timezone: {timezone} ({offset})"
-    )
+    """Build a STABLE runtime context label for node system prompts.
+
+    Deliberately does NOT include a timestamp: a per-call ``datetime.now()`` in
+    the system message guarantees zero prompt-cache hits on every provider
+    (llama.cpp KV reuse, OpenAI prefix caching). The current date/time is
+    injected into the last USER message instead (see Node.build_messages) so
+    the system prefix stays byte-stable across calls in a session.
+
+    The ``now`` arg is accepted for backward-compat/test purposes but ignored
+    — the context is constant.
+    """
+    del now  # stability by design; see docstring
+    return "## Runtime Context\nAgent runtime: TinyCUA"

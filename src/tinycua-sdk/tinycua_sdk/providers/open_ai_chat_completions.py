@@ -113,6 +113,80 @@ _CHAT_SUPPORTED_FIELDS: set[str] = {
 }
 
 
+# Hosts that indicate a local OpenAI-compatible server (llama.cpp / LM Studio /
+# vLLM / Ollama) where the llama.cpp-style ``cache_prompt`` field enables KV
+# reuse for identical prompt prefixes. Used to decide whether to inject
+# ``cache_prompt: true`` into the chat payload — harmless on servers that
+# don't recognize it, but we only inject for local hosts so cloud APIs never
+# see an unexpected field.
+_LOCAL_HOST_FRAGMENTS: tuple[str, ...] = (
+    "localhost",
+    "127.0.0.1",
+    "0.0.0.0",
+    "host.docker.internal",
+)
+
+
+def _is_local_base_url(base_url: str | None) -> bool:
+    """Return True when ``base_url`` points at a local OpenAI-compatible server."""
+    if not base_url:
+        return False
+    lower = str(base_url).lower()
+    return any(host in lower for host in _LOCAL_HOST_FRAGMENTS)
+
+
+# ---------------------------------------------------------------------------
+# Inline reasoning extraction — provider-specific fallback
+# ---------------------------------------------------------------------------
+# When a local OpenAI-compatible server (llama.cpp / LM Studio) is run WITHOUT
+# --reasoning-format deepseek, Qwen3/DeepSeek models emit reasoning inline as
+# ... tags inside the ``content`` field instead of a separate
+# ``reasoning_content`` field. This extracts the thinking trace so it can be
+# re-injected as ``reasoning_content`` on the next turn (coherency for
+# multi-step tool use with reasoning models). Qwen3's chat template injects
+# the opening  tag, so the model may emit only the closing  with
+# the visible answer after it — both cases are handled.
+
+import re as _re
+
+_INLINE_THINK_RE = _re.compile(
+    r"<(?:think|thinking|reasoning)>(.*?)</(?:think|thinking|reasoning)>",
+    _re.DOTALL | _re.IGNORECASE,
+)
+_BARE_THINK_PREFIX_RE = _re.compile(
+    r"^(.*?)(?:</(?:think|thinking|reasoning)>)\s*",
+    _re.DOTALL | _re.IGNORECASE,
+)
+
+
+def _extract_inline_thinking(content: str) -> tuple[str, str]:
+    """Extract inline reasoning from content.
+
+    Returns ``(reasoning, stripped_content)``. When no reasoning is found,
+    returns ``("", content)`` unchanged. Handles:
+    1. Full ... blocks anywhere in content.
+    2. Bare  prefix (when the chat template injected the
+       opening tag and the model only emitted the close + visible answer).
+    """
+    if not content:
+        return "", content
+    reasoning_parts: list[str] = []
+
+    def _capture(m: _re.Match) -> str:
+        reasoning_parts.append(m.group(1))
+        return ""
+
+    stripped = _INLINE_THINK_RE.sub(_capture, content)
+    if not reasoning_parts:
+        m = _BARE_THINK_PREFIX_RE.match(stripped)
+        if m and m.group(1).strip():
+            reasoning_parts.append(m.group(1))
+            stripped = stripped[m.end():]
+    if not reasoning_parts:
+        return "", content
+    return ("\n".join(reasoning_parts).strip(), stripped.strip())
+
+
 async def _translate_chat_attachment(
     attachment: FileAttachment,
     *,
@@ -682,6 +756,21 @@ class OpenAIChatCompletionsClient(LLMClient):
             if "tool_choice" not in payload:
                 payload["tool_choice"] = "auto"
 
+        # Prompt-cache enablement for local OpenAI-compatible servers
+        # (llama.cpp / LM Studio): send cache_prompt=true so the server reuses
+        # KV cache for identical prompt prefixes instead of re-prefilling every
+        # call. Passed via ``extra_body`` (the OpenAI Python client's escape
+        # hatch for non-standard fields) so the typed client doesn't reject the
+        # unknown kwarg — llama.cpp / LM Studio read it from the raw body.
+        # Only injected when the base_url points at a local host so a cloud API
+        # never sees the field.
+        if _is_local_base_url(self._model_config.base_url):
+            existing_extra = payload.get("extra_body")
+            if isinstance(existing_extra, dict):
+                existing_extra["cache_prompt"] = True
+            else:
+                payload["extra_body"] = {"cache_prompt": True}
+
         return payload
 
     async def _ensure_uploaded_file_id(self, attachment: FileAttachment) -> str:
@@ -932,6 +1021,16 @@ class OpenAIChatCompletionsClient(LLMClient):
             message = choices[0].get("message", {})
             content = message.get("content") or None
             reasoning_content = message.get("reasoning_content") or None
+
+            # Inline-tag fallback: when the server doesn't split reasoning into
+            # a separate field (LM Studio without --reasoning-format deepseek),
+            # Qwen3 emits ... inline in content. Extract it so it
+            # doesn't leak into the next turn's content verbatim.
+            if not reasoning_content and content:
+                extracted, stripped = _extract_inline_thinking(content)
+                if extracted:
+                    reasoning_content = extracted
+                    content = stripped or None
 
             raw_tool_calls = message.get("tool_calls")
             if raw_tool_calls:

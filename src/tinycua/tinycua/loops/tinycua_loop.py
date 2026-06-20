@@ -5,6 +5,7 @@ from __future__ import annotations
 import inspect
 import json
 import logging
+import re
 from collections.abc import AsyncIterator, Callable
 from typing import TYPE_CHECKING, Any
 
@@ -16,6 +17,11 @@ from tinycua.loops._loop_constants import _MAX_TOOL_CONTINUATIONS
 from tinycua.loops.context_rendering import render_llm_content, sanitize_internal_reprs
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.models.node_handoff import NodeHandoff
+from tinycua.agent.tools.native.output_persist import (
+    enforce_turn_budget,
+    evict_superseded_file_reads,
+    persist_if_oversized,
+)
 from tinycua.loops.orchestration_mixin import OrchestrationMixin
 from tinycua.loops.prompt_protocol_mixin import PromptProtocolMixin
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
@@ -32,6 +38,92 @@ if TYPE_CHECKING:
     from tinycua_sdk.tools.decorators import Tool
 
 logger = logging.getLogger(__name__)
+
+# Regex for inline reasoning blocks: <think>...</think>, <thinking>...</thinking>,
+# <reasoning>...</reasoning> (case-insensitive, DOTALL for multiline blocks).
+# Used as a fallback when the server doesn't split reasoning into a separate
+# reasoning_content field (LM Studio without --reasoning-format deepseek).
+# Qwen3 chat templates inject the opening <think> tag, so the model's output
+# may contain only the closing </think> without an explicit opening — we handle
+# both the full <think>...</think> and the bare </think> prefix cases.
+_INLINE_THINK_RE = re.compile(
+    r"<(?:think|thinking|reasoning)>(.*?)</(?:think|thinking|reasoning)>",
+    re.DOTALL | re.IGNORECASE,
+)
+# Bare closing tag prefix: </think> ...rest (when the opening was injected by
+# the chat template and the model only emits the close + visible answer).
+_BARE_THINK_PREFIX_RE = re.compile(
+    r"^(.*?)(?:</(?:think|thinking|reasoning)>)\s*",
+    re.DOTALL | re.IGNORECASE,
+)
+
+
+def _extract_inline_thinking(content: str) -> tuple[str, str]:
+    """Extract inline reasoning from content, return (reasoning, stripped_content).
+
+    Handles two cases:
+    1. Full <think>...</think> blocks anywhere in content.
+    2. Bare </think> prefix (when the chat template injected the opening tag
+       and the model only emitted the close + visible answer).
+
+    Returns ("", content) when no reasoning is found.
+    """
+    if not content:
+        return "", content
+    reasoning_parts: list[str] = []
+    # Case 1: full <think>...</think> blocks.
+    def _capture(m: re.Match) -> str:
+        reasoning_parts.append(m.group(1))
+        return ""  # remove from content
+
+    stripped = _INLINE_THINK_RE.sub(_capture, content)
+    # Case 2: bare </think> prefix (reasoning before the close tag).
+    if not reasoning_parts:
+        m = _BARE_THINK_PREFIX_RE.match(stripped)
+        if m and m.group(1).strip():
+            reasoning_parts.append(m.group(1))
+            stripped = stripped[m.end():]
+    return ("\n".join(reasoning_parts).strip(), stripped.strip()) if reasoning_parts else ("", content)
+
+
+def _detect_repetition(content: str, min_block: int = 50, threshold: int = 3) -> bool:
+    """Detect if the model is in a degenerate repetition loop.
+
+    Checks whether any substring of length >= ``min_block`` appears ``threshold``
+    or more times in ``content``. Uses a simple approach: sample a few candidate
+    substrings from different positions and count their occurrences. This is
+    O(n * k) where k is the number of candidates — fast enough for periodic
+    checks every ~20 deltas.
+
+    Returns True if degenerate repetition is detected, False otherwise.
+    Legitimate long generation (code, reports) rarely repeats the same 50-char
+    block 3+ times verbatim, so false positives are unlikely.
+    """
+    if len(content) < min_block * threshold:
+        return False
+    # Sample candidate substrings from different positions in the content.
+    # Take the first min_block chars, a chunk from the middle, and a chunk
+    # near the end — if ANY of them appears threshold+ times, it's a loop.
+    candidates: list[str] = []
+    # Candidate 1: the very first block (catches "start repeating from beginning").
+    candidates.append(content[:min_block])
+    # Candidate 2: a block from the last quarter (catches "started repeating late").
+    quarter = len(content) // 4
+    if quarter + min_block <= len(content):
+        candidates.append(content[quarter:quarter + min_block])
+    # Candidate 3: the last min_block chars (catches "just started repeating").
+    if len(content) >= min_block:
+        candidates.append(content[-min_block:])
+    for candidate in candidates:
+        if not candidate.strip():
+            continue
+        # Count occurrences — use str.count which is C-level fast.
+        # For non-overlapping counts this is sufficient; repetition loops
+        # produce non-overlapping copies.
+        count = content.count(candidate)
+        if count >= threshold:
+            return True
+    return False
 
 
 class TinyCUALoop(
@@ -516,6 +608,7 @@ class TinyCUALoop(
                 role=raw_response.get("role", "assistant"),
                 tool_calls=raw_response.get("tool_calls") or [],
                 metadata=raw_response.get("metadata", {}),
+                reasoning=raw_response.get("reasoning", ""),
             )
             if not node.is_terminal and node.node_id != "result_aggregation":
                 self._coerce_structured_tool_calls(last_result, attempt_tools)
@@ -545,28 +638,55 @@ class TinyCUALoop(
                     return last_result, attempt, last_validation
                 if self._validation_needs_terminate(last_validation):
                     break
-                attempt_messages.append(
-                    {
-                        "role": "assistant",
-                        "content": last_result.content,
-                        "tool_calls": normalized_tool_calls,
-                    }
-                )
+                assistant_msg: dict[str, Any] = {
+                    "role": "assistant",
+                    "content": last_result.content,
+                    "tool_calls": normalized_tool_calls,
+                }
+                # Reasoning coherency: re-inject reasoning_content so the
+                # model retains its thinking trace across tool-call turns
+                # (Qwen3 maintainers: multi-step tool use requires it). Gated
+                # on non-empty so non-reasoning models are unaffected.
+                if last_result.reasoning:
+                    assistant_msg["reasoning_content"] = last_result.reasoning
+                attempt_messages.append(assistant_msg)
                 for index, tool_result in enumerate(tool_results):
                     tool_call = (
                         normalized_tool_calls[index]
                         if index < len(normalized_tool_calls)
                         else {}
                     )
+                    raw_content = json.dumps(tool_result, default=str)
+                    tool_call_id = (
+                        tool_call.get("id") or tool_result.get("name", "")
+                    )
+                    tool_name = tool_result.get("name", "")
+                    # ponytail: persist oversized results to a temp file so the
+                    # reviewer's attempt_messages don't balloon (experiment-4
+                    # peaked at 257K input tokens this way). Under the threshold
+                    # this is a passthrough.
+                    content = persist_if_oversized(
+                        raw_content, tool_call_id, tool_name=tool_name
+                    )
                     attempt_messages.append(
                         {
                             "role": "tool",
-                            "tool_call_id": tool_call.get("id")
-                            or tool_result.get("name", ""),
-                            "name": tool_result.get("name", ""),
-                            "content": json.dumps(tool_result, default=str),
+                            "tool_call_id": tool_call_id,
+                            "name": tool_name,
+                            "content": content,
                         }
                     )
+                # Evict superseded file reads: when the model re-reads a file
+                # it just edited, the older reads are stale (the file changed).
+                # Stub them so the prompt stops growing from redundant re-reads
+                # (experiment-4 executor re-read api.py 8× → ballooned to 68K).
+                # This passes the FULL attempt_messages (assistant tool_calls +
+                # tool results interleaved) so the path mapping can resolve.
+                evict_superseded_file_reads(attempt_messages)
+                # High safety-net ceiling only — NOT a tight budget. Normal
+                # operation never hits it; it's an OOM guard for pathological
+                # runaway (e.g. 100 distinct large file reads).
+                enforce_turn_budget(attempt_messages)
                 continuation_rounds += 1
                 if continuation_rounds >= _MAX_TOOL_CONTINUATIONS:
                     break
@@ -680,7 +800,14 @@ class TinyCUALoop(
                 agent._llm_client = previous_client  # type: ignore[attr-defined]
 
     def _node_max_tokens_override(self, node: Node, model: Any) -> int | None:
-        """Let the server decide max tokens — no client-side override."""
+        """Let the server decide max tokens — no client-side override.
+
+        We do NOT hard-cap max_tokens: legitimate generation (long code files,
+        detailed reports) may need many tokens, and capping would truncate
+        real work. Instead, degenerate repetition is handled by the stream
+        collector's repetition detection (same block repeating 3+ times →
+        cut the stream), which is surgical and doesn't affect normal generation.
+        """
         return None
 
     async def _invoke_agent_llm(
@@ -703,12 +830,18 @@ class TinyCUALoop(
     async def _collect_async_stream_result(self, stream_result: Any) -> dict[str, Any]:
         """Collect an async stream into a non-stream response dict."""
         content_parts: list[str] = []
+        reasoning_parts: list[str] = []
         tool_calls: list[dict[str, Any]] = []
         metadata: dict[str, Any] = {}
         async for event in stream_result:
             event_type = event.get("type") if isinstance(event, dict) else None
             if event_type == "response.output_text.delta":
                 content_parts.append(str(event.get("delta", "")))
+            elif event_type == "response.reasoning.delta":
+                # Reasoning model coherency (Qwen3/DeepSeek/etc.): accumulate
+                # the thinking trace so it can be re-injected as
+                # reasoning_content on the next turn's assistant message.
+                reasoning_parts.append(str(event.get("delta", "")))
             elif event_type == "response.tool_call":
                 tool_calls.append(event)
             elif event_type == "tool_call.ready":
@@ -724,12 +857,26 @@ class TinyCUALoop(
                 )
             elif event_type == "response.usage":
                 metadata["usage"] = event.get("usage")
-        return {
+        result = {
             "role": "assistant",
             "content": "".join(content_parts),
             "tool_calls": tool_calls,
             "metadata": metadata,
         }
+        reasoning_text = "".join(reasoning_parts)
+        # Inline-tag fallback: when the server doesn't split reasoning into a
+        # separate field (LM Studio without --reasoning-format deepseek), Qwen3
+        # emits ... inline in content. Extract it so it doesn't leak into the
+        # next turn's content verbatim (inflating context + confusing the model).
+        content_text = result["content"]
+        if not reasoning_text and content_text:
+            extracted, stripped = _extract_inline_thinking(content_text)
+            if extracted:
+                reasoning_text = extracted
+                result["content"] = stripped
+        if reasoning_text:
+            result["reasoning"] = reasoning_text
+        return result
 
     async def _collect_stream_events(
         self,
@@ -744,7 +891,25 @@ class TinyCUALoop(
         node_type: str,
         attempt: int,
     ) -> AsyncIterator[dict[str, Any]]:
-        """Collect provider stream events and yield policy-filtered events."""
+        """Collect provider stream events and yield policy-filtered events.
+
+        Includes two hallucination/degeneration guards (no LLM needed — pure
+        algorithmic, instant, deterministic):
+
+        1. Repetition detection: if a substring of >= 50 chars appears 3+ times
+           in the accumulated content, the model is in a degenerate loop — cut
+           the stream. Catches the "Inspect the root goal..." pattern from
+           experiment-4 (same ~200-char block repeated 22K tokens).
+
+        2. Time watchdog: if the stream has been running for > 120s without
+           producing a tool call or finishing, cut it. Catches stuck states
+           that aren't simple repetition (infinite reasoning, network stall).
+
+        Neither hard-caps max_tokens — legitimate long generation is unaffected
+        because real content doesn't repeat the same 50-char block 3+ times.
+        """
+        import time as _time
+
         # ponytail: LM Studio can ignore forced single-tool calls while streaming;
         # terminate has no user-visible text, so use non-stream for that retry.
         stream = [tool.name for tool in resolved_tools] != ["terminate"]
@@ -755,10 +920,51 @@ class TinyCUALoop(
             resolved_tools,
             stream=stream,
         )
+        _rep_check_interval = 20   # check every N deltas (avoid per-delta cost)
+        _rep_min_block = 50        # min substring length to consider a repeat
+        _rep_threshold = 3         # N occurrences of the same substring → cut
+        _rep_max_content = 20_000  # don't scan beyond this (cap CPU)
+        _watchdog_seconds = 120     # max seconds per LLM call without tool/finish
+        _delta_count = 0
+        _stream_start = _time.monotonic()
         async for event in self._iter_stream_result_events(stream_result):
-            if node.is_terminal and event.get("type") == "response.output_text.delta":
-                content_parts.append(str(event.get("delta", "")))
+            event_type = event.get("type", "")
+            # Time watchdog — cut if stuck for too long.
+            if _time.monotonic() - _stream_start > _watchdog_seconds:
+                break
+            if event_type == "response.output_text.delta":
+                delta_text = str(event.get("delta", ""))
+                if node.is_terminal:
+                    content_parts.append(delta_text)
+                    continue
+                content_parts.append(delta_text)
+                _delta_count += 1
+                # Periodically check for degenerate repetition.
+                if _delta_count % _rep_check_interval == 0:
+                    full_content = "".join(content_parts)
+                    if len(full_content) > _rep_max_content:
+                        full_content = full_content[-_rep_max_content:]
+                    if _detect_repetition(full_content, _rep_min_block, _rep_threshold):
+                        break
+                transcript = self._handle_stream_event(
+                    node,
+                    event,
+                    content_parts,
+                    collected_tool_calls,
+                )
+                enriched = self._enrich_and_yield(
+                    event,
+                    include_meta,
+                    node.node_id,
+                    node_type,
+                    attempt,
+                )
+                if not final_only or node.is_terminal:
+                    yield enriched
+                    if transcript is not None:
+                        yield transcript
                 continue
+            # Non-delta events
             transcript = self._handle_stream_event(
                 node,
                 event,

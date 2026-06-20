@@ -90,6 +90,10 @@ class TinyCUAWorkerNode(DecisionNode):
             is_terminal=is_terminal,
         )
         self._current_digest: DigestedInformation | None = None
+        # ponytail: cache the route-selection tool per label-set so identical
+        # valid-route sets reuse the same tool object and keep the tools-prefix
+        # byte-stable for prompt caching (FR-018).
+        self._route_tool_cache: dict[tuple[str, ...], object] = {}
 
     def state_valid_route_labels(self) -> list[str]:
         """Return only worker routes that are valid for current task state."""
@@ -103,14 +107,22 @@ class TinyCUAWorkerNode(DecisionNode):
         ]
 
     def refresh_route_options(self) -> None:
-        """Refresh worker route schema and classifier labels from session state."""
+        """Refresh worker route schema and classifier labels from session state.
+
+        Caches the route tool per label-set (FR-018) so identical label sets
+        reuse the same tool object — keeps the tools-prefix byte-stable for
+        prompt caching. Rebuilds only when the valid labels actually change.
+        """
         labels = self.state_valid_route_labels()
         self.classification_labels = labels
+        cache_key = tuple(labels)
+        cached = self._route_tool_cache.get(cache_key)
+        if cached is None:
+            cached = WorkerRouteSelectionTool(labels)
+            self._route_tool_cache[cache_key] = cached
         for index, tool in enumerate(self.config.tool_policy.node_tools):
             if tool.name == "select_worker_route":
-                self.config.tool_policy.node_tools[index] = WorkerRouteSelectionTool(
-                    labels
-                )
+                self.config.tool_policy.node_tools[index] = cached
                 break
 
     def build_messages(

@@ -11,13 +11,11 @@ from tinycua.agent.tools.native import (
     read_file,
     run_python,
     run_shell,
-    run_shell_readonly,
     write_file,
 )
 
 __all__ = [
     "run_shell",
-    "run_shell_readonly",
     "read_file",
     "write_file",
     "edit_file",

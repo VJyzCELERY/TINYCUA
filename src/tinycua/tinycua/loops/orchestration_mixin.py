@@ -273,6 +273,32 @@ class OrchestrationMixin:
                 validation,
                 llm_result,
             ):
+                # Recovery step: one focused minimal-context retry before
+                # giving up. Strips accumulated tool history so a model stuck in
+                # a verification loop can see clearly and make the missing call.
+                # The LLM freely decides — not forced behavior, just a quieter room.
+                recovery = await self._recovery_retry(
+                    node, agent, resolved_tools, llm_result, validation
+                )
+                if recovery is not None:
+                    recovery_result, recovery_validation = recovery
+                    trace_entry = self._trace_entry(
+                        node,
+                        attempt,
+                        resolved_tools,
+                        recovery_result.content,
+                        recovery_result,
+                    )
+                    trace_entry["validation_errors"] = []
+                    trace_entry["recovery"] = "focused_retry"
+                    self._execution_trace.append(trace_entry)
+                    llm_result = self._record_node_output(
+                        node, recovery_result.content, recovery_result.tool_calls
+                    )
+                    llm_result.metadata.update(dict(recovery_result.metadata))
+                    if recovery_result.content:
+                        self._record_node_content_transcript(node, recovery_result.content)
+                    return recovery_result.content, recovery_result.tool_calls
                 raise NodeExecutionError(self._validation_failure_content(node, validation))
             on_complete_response = self._build_on_complete_response(node, llm_result)
             trace_entry = self._trace_entry(

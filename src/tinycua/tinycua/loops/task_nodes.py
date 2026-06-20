@@ -85,18 +85,17 @@ _TASK_EXECUTOR_CONTINUATION = (
 
 _RESULT_REVIEWER_INSTRUCTION = (
     "You are the ResultReviewer. You only review outcomes; you do not edit "
-    "files or re-execute work. Verify the outcome with read-only tools "
-    "(read_file, run_shell_readonly, list_files), then call task_review_decision: "
-    "approved, needs_revision, rejected, or replan. Your final action MUST "
-    "call task_review_decision, then task_inspect. If bad, record feedback; "
-    "do not edit files. Terminate after useful task curation so execution can "
-    "continue. Do not write a long explanation — call the tools."
+    "files or re-execute work. Verify with run_shell (test -f, grep, pytest, "
+    "git diff) and check exit_code/exit_code_meaning, not eyeballed source. "
+    "Then call task_review_decision: approved, needs_revision, rejected, or "
+    "replan. If bad, record feedback; do not edit files. Terminate after "
+    "useful task curation. Do not write a long explanation — call the tools."
 )
 _RESULT_REVIEWER_CONTINUATION = (
-    "Verify the outcome and regressions. Call task_review_decision first. In "
-    "the same response, call task_inspect for remaining unfinished tasks. "
-    "Optionally call task_update only to add context to unfinished future tasks, "
-    "then call terminate to hand control back to the runtime."
+    "Verify the outcome. Call task_review_decision first. Then call "
+    "task_inspect (no task_id) for the compact task list; only for a task you "
+    "want to annotate, call task_inspect with that task_id for detail, then "
+    "task_update to add context. Then call terminate."
 )
 
 _RESULT_AGGREGATION_INSTRUCTION = (
@@ -150,7 +149,7 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
             return f"Local task region for replan:\n{_render_local_region_markdown(region)}\n\n{base}"
         mission = _render_mission_block(session)
         prefix = f"{mission}\n\n" if mission else ""
-        return f"{prefix}Roadmap:\n{_render_task_tree_markdown(_task_context_snapshot(session))}\n\n{base}"
+        return f"{prefix}Roadmap:\n{session.task_store.render_markdown()}\n\n{base}"
 
     def build_tool_system_prompt(self, resolved_tools: list[Any] | None = None) -> str:
         """Behavioral guidance keyed on present analyzer tools (FR-005)."""
@@ -210,7 +209,17 @@ def _local_task_region(session: Session) -> dict:
 
 def _task_context_snapshot(session: Session) -> dict:
     """Return unified task context without stale unfinished parent aggregates."""
-    snapshot = session.task_store.snapshot()
+    return _task_context_snapshot_from_store(session.task_store)
+
+
+def _task_context_snapshot_from_store(store) -> dict:
+    """Store-based variant of ``_task_context_snapshot`` (no Session needed).
+
+    Returns a snapshot with unfinished-parent aggregates nulled out so the
+    renderer doesn't show stale "Completed from child task results" summaries
+    on parents whose children aren't all done yet.
+    """
+    snapshot = store.snapshot()
     tasks = snapshot.get("tasks", {})
     if not isinstance(tasks, dict):
         return snapshot
@@ -450,7 +459,6 @@ class TinyCUATaskAssessorNode(ProcessNode):
         base = super().build_continuation(session)
         if session is None:
             return base
-        snapshot = _task_context_snapshot(session)
         mode = str(self.config.metadata.get("task_assessor_mode", "upfront_decomposition"))
         mission = _render_mission_block(session)
         prefix = f"{mission}\n\n" if mission else ""
@@ -460,7 +468,7 @@ class TinyCUATaskAssessorNode(ProcessNode):
                 f"{_render_local_region_markdown(_local_task_region(session))}\n\n{base}"
             )
         return (
-            f"{prefix}Roadmap:\n{_render_task_tree_markdown(snapshot)}\n\n"
+            f"{prefix}Roadmap:\n{session.task_store.render_markdown()}\n\n"
             f"{base}"
         )
 
@@ -517,7 +525,7 @@ class TinyCUATaskExecutorNode(ProcessNode):
             "/bin/sh; do not rely on shell-specific brace expansion such as "
             "'mkdir -p {a,b}', because it may create a literal brace-named "
             "directory. Use explicit POSIX-safe paths/commands instead.\n"
-            f"\n## Roadmap\n{_render_task_tree_markdown(_task_context_snapshot(session))}\n\n{base}"
+            f"\n## Roadmap\n{session.task_store.render_markdown()}\n\n{base}"
         )
 
     def _artifacts_from_tool_results(self, tool_results: list[dict]) -> list[dict]:
@@ -543,8 +551,6 @@ class TinyCUATaskExecutorNode(ProcessNode):
         lines: list[str] = []
         if "edit_file" in names and "write_file" in names:
             lines.append("Prefer the narrowest tool: edit_file over write_file for partial changes.")
-        if "run_shell_readonly" in names and "run_shell" in names:
-            lines.append("Prefer run_shell_readonly over run_shell for inspection.")
         if "task_result_update" in names:
             lines.append("Your final action MUST call task_result_update with the outcome report.")
         if not lines:
@@ -602,13 +608,25 @@ class TinyCUAResultReviewerNode(ProcessNode):
             unfinished_block = "\nUnfinished tasks to curate context for:\n" + "\n".join(unfinished) + "\n"
         mission = _render_mission_block(session)
         mission_prefix = f"{mission}\n\n" if mission else ""
+        # FR-021: surface the failure count as SOFT context so the reviewer —
+        # which still LLM-decides — can weigh replan over retry when a task has
+        # bounced many times. Not a forced decision; just visible signal.
+        failure_count = task.failure_count
+        failure_note = ""
+        if failure_count >= 5:
+            failure_note = (
+                f"\nNote: this task has been sent back for rework "
+                f"{failure_count} times. Repeated identical retries are unlikely "
+                f"to succeed; consider replan (the plan may be wrong) rather than "
+                f"another retry.\n"
+            )
         return (
             f"{mission_prefix}Task under review: {task.task_id} — {task.title}\n"
             f"Task status: {task.status.value}\n"
             f"Outcome report: {result_content}\n"
             f"{_render_request_contract(session)}\n"
-            f"Unified task context:\n{_render_task_tree_markdown(_task_context_snapshot(session))}\n"
-            f"{unfinished_block}\n{base}"
+            f"Unified task context:\n{session.task_store.render_markdown()}\n"
+            f"{unfinished_block}{failure_note}\n{base}"
         )
 
     def _task_to_review(self):
@@ -677,15 +695,17 @@ class TinyCUAResultReviewerNode(ProcessNode):
         """Behavioral guidance keyed on present reviewer tools (FR-005, FR-008)."""
         names = {getattr(tool, "name", "") for tool in (resolved_tools or [])}
         lines: list[str] = []
-        readonly = names.intersection({"read_file", "run_shell_readonly", "list_files"})
+        readonly = names.intersection({"read_file", "run_shell", "list_files"})
         if readonly:
             lines.append(
                 "Before approving a task with file artifacts, run at least one "
-                "read-only verification tool (read_file, run_shell_readonly, "
-                "list_files) against the claimed artifact, OR state in the "
-                "rationale why verification was skipped (e.g. pure-research task). "
-                "Do not accept generic 'all requirements met' — cite specific "
-                "evidence (file excerpt, command output)."
+                "verification tool (read_file, run_shell, list_files) against "
+                "the claimed artifact, OR state in the rationale why "
+                "verification was skipped (e.g. pure-research task). Prefer "
+                "run_shell with exit_code checks (test -f, grep, pytest, git "
+                "diff) over eyeballing source. Do not accept generic 'all "
+                "requirements met' — cite specific evidence (file excerpt, "
+                "command output, exit_code)."
             )
         if "task_review_decision" in names:
             lines.append("Your final action MUST call task_review_decision, then task_inspect.")

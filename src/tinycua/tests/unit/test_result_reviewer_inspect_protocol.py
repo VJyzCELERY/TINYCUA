@@ -220,8 +220,50 @@ def test_no_decision_skips_inspect_requirement() -> None:
     assert validation.is_valid
 
 
+def test_reviewer_surfaces_failure_count_as_soft_context() -> None:
+    """FR-021: a task sent back 5+ times gets a soft 'consider replan' note.
+
+    The reviewer still LLM-decides — the note is context, not a forced
+    decision. Below 5 failures, no note appears.
+    """
+    loop = TinyCUALoop()
+    store = loop.root_session.task_store
+    root = store.create_task("Root")
+    first = store.create_task("First", parent_id=root.task_id)
+    store.record_result(first.task_id, TaskResult(content="done", success=True))
+
+    # Simulate 5 send-backs (needs_revision) so failure_count == 5.
+    for _ in range(5):
+        store.record_reviewer_decision(first.task_id, ReviewerDecision.NEEDS_REVISION)
+
+    node = _reviewer_node(loop.root_session)
+    continuation = node.build_continuation(loop.root_session)
+
+    assert "5 times" in continuation
+    assert "replan" in continuation.lower()
+    # The note is soft context, not a forced instruction — the continuation
+    # still invites the reviewer to decide (task_review_decision with any of
+    # the four outcomes).
+    assert "task_review_decision" in node.build_instruction()
+
+
+def test_reviewer_no_failure_note_below_threshold() -> None:
+    """Below 5 failures, the reviewer continuation carries no failure note."""
+    loop = TinyCUALoop()
+    store = loop.root_session.task_store
+    root = store.create_task("Root")
+    first = store.create_task("First", parent_id=root.task_id)
+    store.record_result(first.task_id, TaskResult(content="done", success=True))
+    store.record_reviewer_decision(first.task_id, ReviewerDecision.NEEDS_REVISION)
+
+    node = _reviewer_node(loop.root_session)
+    continuation = node.build_continuation(loop.root_session)
+
+    assert "times" not in continuation  # no soft note at failure_count=1
+
+
 if __name__ == "__main__":
-    # ponytail: self-check — run the three contracts directly.
+    # ponytail: self-check — run the contracts directly.
     test_approval_without_inspect_is_not_rolled_back()
     test_approval_with_inspect_in_same_batch_is_valid()
     test_result_reviewer_can_terminate_after_decide_and_inspect()
@@ -229,4 +271,6 @@ if __name__ == "__main__":
     test_result_reviewer_terminate_retry_explains_handoff()
     test_worker_lifecycle_node_cannot_terminate_before_required_tool()
     test_no_decision_skips_inspect_requirement()
+    test_reviewer_surfaces_failure_count_as_soft_context()
+    test_reviewer_no_failure_note_below_threshold()
     print("ok")

@@ -66,6 +66,12 @@ class LLMResult:
     role: str = "assistant"
     tool_calls: list[dict] = field(default_factory=list)
     metadata: dict[str, str] = field(default_factory=dict)
+    # Reasoning content from reasoning models (Qwen3/DeepSeek/etc.). Preserved
+    # and re-injected as reasoning_content on the next turn's assistant message
+    # for multi-turn coherency (Qwen3 maintainers: "multi-step tool use with
+    # thinking models requires the prior thinking content"). Empty for
+    # non-reasoning models — no-op when empty.
+    reasoning: str = ""
 
 
 @dataclass

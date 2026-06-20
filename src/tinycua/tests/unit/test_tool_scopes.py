@@ -318,17 +318,18 @@ class TestResultReviewerToolScope:
         assert "task_init" not in tool_names
 
     def test_exploratory_outer_tools(self) -> None:
-        """Reviewer may inspect artifacts and search the web but cannot mutate files."""
+        """Reviewer may inspect artifacts, run gated shell, and search the web."""
         policy = result_reviewer_tool_scope()
         assert policy.include_agent_tools == "selected"
         assert "list_files" in policy.allowed_agent_tool_names
         assert "read_file" in policy.allowed_agent_tool_names
         assert "web_search" in policy.allowed_agent_tool_names
         assert "fetch_url" in policy.allowed_agent_tool_names
-        assert "run_shell_readonly" in policy.allowed_agent_tool_names
+        # run_shell (gated in-tool) replaces the old run_shell_readonly — the
+        # reviewer verifies by checking exit_code/exit_code_meaning.
+        assert "run_shell" in policy.allowed_agent_tool_names
         assert "write_file" not in policy.allowed_agent_tool_names
         assert "edit_file" not in policy.allowed_agent_tool_names
-        assert "run_shell" not in policy.allowed_agent_tool_names
 
 
 class TestResultAggregationToolScope:

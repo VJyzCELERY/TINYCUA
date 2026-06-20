@@ -115,7 +115,15 @@ def test_llm_messages_dedupe_original_query_for_digester() -> None:
 
     messages = loop._build_node_messages(digester)
 
-    user_messages = [message for message in messages if message.get("role") == "user"]
+    # User messages excluding the volatile runtime-context timestamp user
+    # message (Phase 3 FR-015) — that one is intentional and not a duplicate
+    # of the original query.
+    user_messages = [
+        message
+        for message in messages
+        if message.get("role") == "user"
+        and "Current date/time:" not in str(message.get("content", ""))
+    ]
     assistant_handoffs = [
         message
         for message in messages

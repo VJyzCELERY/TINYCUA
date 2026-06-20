@@ -114,7 +114,6 @@ def _native_tools(policy: NativeToolPolicy | None = None) -> list[Any]:
         read_file,
         run_python,
         run_shell,
-        run_shell_readonly,
         web_search,
         write_file,
     )
@@ -126,7 +125,6 @@ def _native_tools(policy: NativeToolPolicy | None = None) -> list[Any]:
         edit_file,
         list_files,
         run_shell,
-        run_shell_readonly,
         run_python,
         fetch_url,
         web_search,
