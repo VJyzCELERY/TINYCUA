@@ -667,7 +667,7 @@ Supported Providers:
   - vLLM (local/remote): http://localhost:8000/v1
   - OpenRouter (cloud): https://openrouter.ai/api/v1
   - Custom local: Your own localhost server (just type port number)
-  - Custom remote: Any OpenAI-compatible API (full URL)
+  - Custom remote: Any API endpoint (full URL)
 
 SearXNG (Local Search):
   SearXNG provides web search capabilities without API keys.

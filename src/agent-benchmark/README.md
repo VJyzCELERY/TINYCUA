@@ -9,10 +9,7 @@ WildClawBench — benchmark 3 coding agents (OpenClaw, OpenCode, HermesAgent) on
 lms server start          # LM Studio (port 1234)
 ollama serve              # Ollama (port 11434)
 vllm serve <model>        # vLLM (port 8000)
-# ...or any OpenAI-compatible server on any port
-
-# 2. Run benchmark (first time shows setup wizard)
-bash benchmark.sh
+# ...or any server on any port
 ```
 
 > Docker and SearXNG are started automatically when running benchmarks.
@@ -93,7 +90,7 @@ bash benchmark.sh run --category 01_Productivity_Flow
 | vLLM | `http://localhost:8000/v1` | Local/Remote |
 | OpenRouter | `https://openrouter.ai/api/v1` | Cloud |
 | Custom local | `http://localhost:<port>/v1` | Any local server |
-| Custom remote | User-specified URL | Any OpenAI-compatible API |
+| Custom remote | User-specified URL | Any API endpoint |
 
 ## Execution Flow
 
