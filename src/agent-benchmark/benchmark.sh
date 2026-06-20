@@ -6,6 +6,7 @@
 #   bash benchmark.sh              # Interactive setup (first time) or run
 #   bash benchmark.sh run          # Run with saved config
 #   bash benchmark.sh config       # Change provider configuration
+#   bash benchmark.sh build        # Build agent Docker images
 #   bash benchmark.sh status       # Show results
 #   bash benchmark.sh help         # Show help
 # ---------------------------------------------------------------------------
@@ -138,6 +139,49 @@ searxng_status() {
 }
 
 # ---------------------------------------------------------------------------
+# Build Agent Docker Images
+# ---------------------------------------------------------------------------
+do_build() {
+  local agent="${1:-all}"
+  
+  echo ""
+  echo "=========================================="
+  echo "  Building Agent Docker Images"
+  echo "=========================================="
+  echo ""
+  
+  cd "${PROJECT_DIR}"
+  
+  case "$agent" in
+    hermes)
+      log_info "Building Hermes agent image..."
+      docker compose --profile hermes build hermes-agent
+      ;;
+    opencode)
+      log_info "Building OpenCode agent image..."
+      docker compose --profile opencode build opencode-agent
+      ;;
+    openclaw)
+      log_info "Building OpenClaw agent image..."
+      docker compose --profile openclaw build openclaw-agent
+      ;;
+    all)
+      log_info "Building all agent images..."
+      docker compose --profile hermes --profile opencode --profile openclaw build
+      ;;
+    *)
+      log_error "Unknown agent: $agent"
+      echo "  Valid agents: hermes, opencode, openclaw, all"
+      exit 1
+      ;;
+  esac
+  
+  echo ""
+  log_success "Build complete!"
+  echo ""
+}
+
+# ---------------------------------------------------------------------------
 # Interactive Setup Wizard
 # ---------------------------------------------------------------------------
 do_setup_wizard() {
@@ -145,98 +189,40 @@ do_setup_wizard() {
   echo "=========================================="
   echo "  WildClawBench - Provider Setup"
   echo "=========================================="
+  
+  # --- Agent Provider Setup ---
   echo ""
-  echo "Choose your LLM provider:"
+  echo "  [Agent Provider]"
   echo ""
-  echo "  1) LM Studio (local)     - http://localhost:1234/v1"
-  echo "  2) Ollama (local)        - http://localhost:11434/v1"
-  echo "  3) vLLM (local/remote)   - http://localhost:8000/v1"
-  echo "  4) OpenRouter (cloud)    - https://openrouter.ai/api/v1"
-  echo "  5) Custom local server   - Your own localhost port"
-  echo "  6) Custom remote API     - Full URL endpoint"
-  echo ""
+  read -p "  Provider name (e.g. lm-studio, ollama, openrouter): " provider_name
+  provider_name="${provider_name:-lm-studio}"
   
-  local choice
-  read -p "  Enter choice [1-6] (default: 1): " choice
-  choice="${choice:-1}"
+  read -p "  Base URL (e.g. http://localhost:1234/v1): " api_base
+  api_base="${api_base:-http://localhost:1234/v1}"
   
-  local provider_name="lm-studio"
-  local api_base="http://localhost:1234/v1"
-  local api_key_env="LM_STUDIO_API_KEY"
-  
-  case "$choice" in
-    1)
-      provider_name="lm-studio"
-      api_base="http://localhost:1234/v1"
-      api_key_env="LM_STUDIO_API_KEY"
-      ;;
-    2)
-      provider_name="ollama"
-      api_base="http://localhost:11434/v1"
-      api_key_env="OLLAMA_API_KEY"
-      ;;
-    3)
-      provider_name="vllm"
-      api_base="http://localhost:8000/v1"
-      api_key_env="VLLM_API_KEY"
-      ;;
-    4)
-      provider_name="openrouter"
-      api_base="https://openrouter.ai/api/v1"
-      api_key_env="OPENROUTER_API_KEY"
-      ;;
-    5)
-      provider_name="local-custom"
-      echo ""
-      echo "  Enter your local server port or URL:"
-      echo "  Examples: 8080, 5000, http://localhost:9090/v1"
-      echo ""
-      read -p "  Port or URL: " custom_input
-      custom_input="${custom_input:-8080}"
-      
-      # If just a port number, build the URL
-      if [[ "$custom_input" =~ ^[0-9]+$ ]]; then
-        api_base="http://localhost:${custom_input}/v1"
-      else
-        api_base="${custom_input}"
-      fi
-      api_key_env="LOCAL_CUSTOM_API_KEY"
-      ;;
-    6)
-      provider_name="custom"
-      read -p "  Enter API base URL: " api_base
-      api_base="${api_base:-http://localhost:8000/v1}"
-      read -p "  Enter API key env var name (or leave empty): " api_key_env
-      api_key_env="${api_key_env:-CUSTOM_API_KEY}"
-      ;;
-    *)
-      log_error "Invalid choice"
-      exit 1
-      ;;
-  esac
-  
-  echo ""
-  echo "  Provider: ${provider_name}"
-  echo "  API Base: ${api_base}"
-  echo ""
-  
-  # Check if local server is running
-  if [[ "$provider_name" == "lm-studio" || "$provider_name" == "ollama" || "$provider_name" == "vllm" || "$provider_name" == "local-custom" ]]; then
-    check_local_server "$provider_name" "$api_base"
-  fi
-  
-  # Get model name
-  local model
-  read -p "  Enter model name (default: qwen3.5-9b): " model
+  read -p "  Model name: " model
   model="${model:-qwen3.5-9b}"
   
-  # Get API key if needed
-  local api_key=""
-  if [[ "$provider_name" == "openrouter" ]] || [[ "$provider_name" == "custom" ]]; then
-    read -p "  Enter API key (or press Enter to skip): " api_key
-  fi
+  read -p "  API key (leave empty for local): " api_key
+  api_key="${api_key:-}"
   
-  # Get timeout
+  # --- Judge Provider Setup ---
+  echo ""
+  echo "  [Judge Provider] (for grading responses)"
+  echo ""
+  read -p "  Judge provider name (e.g. openrouter, lm-studio): " judge_name
+  judge_name="${judge_name:-openrouter}"
+  
+  read -p "  Judge base URL (e.g. https://openrouter.ai/api/v1): " judge_base_url
+  judge_base_url="${judge_base_url:-https://openrouter.ai/api/v1}"
+  
+  read -p "  Judge model name: " judge_model
+  judge_model="${judge_model:-openai/gpt-5.4}"
+  
+  read -p "  Judge API key: " judge_api_key
+  judge_api_key="${judge_api_key:-}"
+  
+  # --- Runtime Settings ---
   echo ""
   echo "  Task timeout:"
   echo "    - Enter seconds (e.g. 600 for 10 minutes)"
@@ -246,11 +232,11 @@ do_setup_wizard() {
   read -p "  Timeout (default: 600): " timeout
   timeout="${timeout:-600}"
   
-  # Save configuration
-  save_config "$provider_name" "$api_base" "$api_key_env" "$model" "$api_key" "$timeout"
+  # Save configuration to .env
+  save_env_config "$provider_name" "$api_base" "$model" "$api_key" "$judge_name" "$judge_base_url" "$judge_model" "$judge_api_key" "$timeout"
   
   echo ""
-  log_success "Configuration saved to ${CONFIG_FILE}"
+  log_success "Configuration saved to .env"
   echo ""
 }
 
@@ -344,78 +330,73 @@ start_local_server() {
 # ---------------------------------------------------------------------------
 # Save Configuration
 # ---------------------------------------------------------------------------
-save_config() {
+save_env_config() {
   local provider="$1"
   local api_base="$2"
-  local api_key_env="$3"
-  local model="$4"
-  local api_key="${5:-}"
-  local timeout="${6:-600}"
+  local model="$3"
+  local api_key="${4:-}"
+  local judge_name="${5:-openrouter}"
+  local judge_base_url="${6:-https://openrouter.ai/api/v1}"
+  local judge_model="${7:-openai/gpt-5.4}"
+  local judge_api_key="${8:-}"
+  local timeout="${9:-600}"
   
-  cat > "$CONFIG_FILE" << EOF
-# WildClawBench Provider Configuration
+  cat > "${PROJECT_DIR}/.env" << EOF
+# Agent Benchmark Environment Configuration
 # Generated by benchmark.sh
 
-PROVIDER=${provider}
-API_BASE=${api_base}
-API_KEY_ENV=${api_key_env}
-MODEL=${model}
+# Provider (agent harness)
+PROVIDER_NAME=${provider}
+PROVIDER_BASE_URL=${api_base}
+PROVIDER_MODEL=${model}
+PROVIDER_API_KEY=${api_key}
+
+# Judge Provider (for grading responses)
+JUDGE_PROVIDER_NAME=${judge_name}
+JUDGE_PROVIDER_BASE_URL=${judge_base_url}
+JUDGE_PROVIDER_MODEL=${judge_model}
+JUDGE_PROVIDER_API_KEY=${judge_api_key}
+
+# Local search
+SEARXNG_URL=http://localhost:8888
+
+# Runtime
+LOG_LEVEL=INFO
 TIMEOUT=${timeout}
 EOF
-  
-  # Save API key to .env if provided
-  if [[ -n "$api_key" ]]; then
-    local env_file="${PROJECT_DIR}/.env"
-    if [[ -f "$env_file" ]]; then
-      # Update existing key
-      if grep -q "^${api_key_env}=" "$env_file"; then
-        sed -i.bak "s/^${api_key_env}=.*/${api_key_env}=${api_key}/" "$env_file"
-        rm -f "${env_file}.bak"
-      else
-        echo "${api_key_env}=${api_key}" >> "$env_file"
-      fi
-    else
-      echo "${api_key_env}=${api_key}" > "$env_file"
-    fi
-    log_info "API key saved to .env"
-  fi
 }
 
 # ---------------------------------------------------------------------------
 # Load Configuration
 # ---------------------------------------------------------------------------
 load_config() {
-  if [[ ! -f "$CONFIG_FILE" ]]; then
+  local env_file="${PROJECT_DIR}/.env"
+  
+  if [[ ! -f "$env_file" ]] || [[ ! -s "$env_file" ]]; then
     return 1
   fi
   
-  # Check if file has content
-  if [[ ! -s "$CONFIG_FILE" ]]; then
-    return 1
-  fi
-  
-  # Source the config file
-  source "$CONFIG_FILE"
+  # Source the .env file
+  set -a
+  source "$env_file"
+  set +a
   
   # Check if required vars are set
-  if [[ -z "${PROVIDER:-}" || -z "${API_BASE:-}" ]]; then
+  if [[ -z "${PROVIDER_NAME:-}" || -z "${PROVIDER_BASE_URL:-}" ]]; then
     return 1
   fi
   
   # Export for child processes
-  export PROVIDER_NAME="${PROVIDER:-lm-studio}"
-  export PROVIDER_API_BASE="${API_BASE:-http://localhost:1234/v1}"
-  export PROVIDER_API_KEY_ENV="${API_KEY_ENV:-LM_STUDIO_API_KEY}"
-  export PROVIDER_MODEL="${MODEL:-qwen3.5-9b}"
+  export PROVIDER_NAME="${PROVIDER_NAME}"
+  export PROVIDER_API_BASE="${PROVIDER_BASE_URL}"
+  export PROVIDER_MODEL="${PROVIDER_MODEL}"
   export PROVIDER_TIMEOUT="${TIMEOUT:-600}"
   
-  # Load .env file if it exists
-  local env_file="${PROJECT_DIR}/.env"
-  if [[ -f "$env_file" ]]; then
-    set -a
-    source "$env_file"
-    set +a
-  fi
+  # Export judge provider settings
+  export JUDGE_PROVIDER_NAME="${JUDGE_PROVIDER_NAME:-openrouter}"
+  export JUDGE_PROVIDER_BASE_URL="${JUDGE_PROVIDER_BASE_URL:-https://openrouter.ai/api/v1}"
+  export JUDGE_PROVIDER_MODEL="${JUDGE_PROVIDER_MODEL:-openai/gpt-5.4}"
+  export JUDGE_PROVIDER_API_KEY="${JUDGE_PROVIDER_API_KEY:-}"
   
   return 0
 }
@@ -424,12 +405,24 @@ load_config() {
 # Show Current Config
 # ---------------------------------------------------------------------------
 show_config() {
-  if [[ -f "$CONFIG_FILE" ]]; then
+  local env_file="${PROJECT_DIR}/.env"
+  
+  if [[ -f "$env_file" ]]; then
+    # Source to get values
+    set -a
+    source "$env_file"
+    set +a
+    
     echo ""
     echo "Current configuration:"
-    echo "  Provider: ${PROVIDER:-lm-studio}"
-    echo "  API Base: ${API_BASE:-http://localhost:1234/v1}"
-    echo "  Model:    ${MODEL:-qwen3.5-9b}"
+    echo "  Provider: ${PROVIDER_NAME:-lm-studio}"
+    echo "  Base URL: ${PROVIDER_BASE_URL:-http://localhost:1234/v1}"
+    echo "  Model:    ${PROVIDER_MODEL:-qwen3.5-9b}"
+    echo ""
+    echo "  Judge:    ${JUDGE_PROVIDER_NAME:-openrouter}"
+    echo "  Judge URL: ${JUDGE_PROVIDER_BASE_URL:-https://openrouter.ai/api/v1}"
+    echo "  Judge Model: ${JUDGE_PROVIDER_MODEL:-openai/gpt-5.4}"
+    echo ""
     echo "  Timeout:  ${TIMEOUT:-600}"
     echo ""
   else
@@ -472,34 +465,6 @@ do_run() {
     fi
   fi
   
-  # Check if API key is needed and not set
-  if [[ "$PROVIDER_NAME" == "openrouter" || "$PROVIDER_NAME" == "custom" ]]; then
-    local api_key_var="${PROVIDER_API_KEY_ENV:-OPENROUTER_API_KEY}"
-    local api_key_value="${!api_key_var:-}"
-    
-    if [[ -z "$api_key_value" ]]; then
-      echo ""
-      log_warn "API key not found for ${PROVIDER_NAME}"
-      read -p "  Enter API key for ${api_key_var}: " api_key_value
-      if [[ -n "$api_key_value" ]]; then
-        export "${api_key_var}=${api_key_value}"
-        # Save to .env for future use
-        local env_file="${PROJECT_DIR}/.env"
-        if [[ -f "$env_file" ]]; then
-          if grep -q "^${api_key_var}=" "$env_file"; then
-            sed -i.bak "s/^${api_key_var}=.*/${api_key_var}=${api_key_value}/" "$env_file"
-            rm -f "${env_file}.bak"
-          else
-            echo "${api_key_var}=${api_key_value}" >> "$env_file"
-          fi
-        else
-          echo "${api_key_var}=${api_key_value}" > "$env_file"
-        fi
-        log_success "API key saved"
-      fi
-    fi
-  fi
-  
   # Parse command line overrides
   local category="all"
   local agent=""
@@ -532,8 +497,9 @@ do_run() {
   echo "  WildClawBench Benchmark Run"
   echo "=========================================="
   echo "  Provider : ${PROVIDER_NAME}"
-  echo "  API Base : ${PROVIDER_API_BASE}"
+  echo "  Base URL : ${PROVIDER_API_BASE}"
   echo "  Model    : ${PROVIDER_MODEL}"
+  echo "  Judge    : ${JUDGE_PROVIDER_NAME} / ${JUDGE_PROVIDER_MODEL}"
   echo "  Category : ${category}"
   echo "  Search   : ${SEARXNG_URL}"
   echo "=========================================="
@@ -546,7 +512,8 @@ do_run() {
   fi
   
   # Export for Python scripts
-  export PROVIDER_NAME PROVIDER_API_BASE PROVIDER_API_KEY_ENV PROVIDER_MODEL
+  export PROVIDER_NAME PROVIDER_API_BASE PROVIDER_MODEL
+  export JUDGE_PROVIDER_NAME JUDGE_PROVIDER_BASE_URL JUDGE_PROVIDER_MODEL JUDGE_PROVIDER_API_KEY
   
   # Load .env file and export all variables for child processes
   local env_file="${PROJECT_DIR}/.env"
@@ -660,6 +627,7 @@ Commands:
   (no command)    First time: setup wizard | Otherwise: run benchmark
   run             Run benchmark with saved configuration
   config          Change provider configuration
+  build [agent]   Build agent Docker images (hermes|opencode|openclaw|all)
   status          Show results
   searxng         Manage SearXNG (up|down|status)
   help            Show this help
@@ -676,32 +644,22 @@ Examples:
   bash benchmark.sh                    # First time: setup wizard
   bash benchmark.sh run                # Run with saved config
   bash benchmark.sh config             # Change provider
+  bash benchmark.sh build              # Build all agent images
+  bash benchmark.sh build hermes       # Build Hermes only
   bash benchmark.sh run --model llama3 # Override model
   bash benchmark.sh run --agent opencode
   bash benchmark.sh searxng up         # Start SearXNG manually
   bash benchmark.sh searxng down       # Stop SearXNG
   bash benchmark.sh searxng status     # Check SearXNG status
 
-Supported Providers:
-  - LM Studio (local): http://localhost:1234/v1
-  - Ollama (local): http://localhost:11434/v1
-  - vLLM (local/remote): http://localhost:8000/v1
-  - OpenRouter (cloud): https://openrouter.ai/api/v1
-  - Custom local: Your own localhost server (just type port number)
-  - Custom remote: Any API endpoint (full URL)
-
-SearXNG (Local Search):
-  SearXNG provides web search capabilities without API keys.
-  It starts automatically when running benchmarks.
-  Manual control: bash benchmark.sh searxng {up|down|status}
-  Access search API: http://localhost:8888/search?q=query&format=json
-
-Docker:
-  Docker is started automatically when running benchmarks.
-  If Docker is not running, the script will wait up to 60 seconds.
+Docker Compose Profiles:
+  The agent images are built using Docker Compose profiles:
+    --profile hermes    Hermes agent
+    --profile opencode  OpenCode agent
+    --profile openclaw  OpenClaw agent
 
 Configuration:
-  Configuration is saved to .provider-config and reused.
+  Configuration is saved to .env file.
   Use 'bash benchmark.sh config' to change settings.
 EOF
 }
@@ -716,6 +674,7 @@ main() {
   case "${1:-}" in
     run)     shift; do_run "$@" ;;
     config)  do_config ;;
+    build)   shift; do_build "${1:-all}" ;;
     status)  do_status ;;
     searxng)
       shift

@@ -1,4 +1,16 @@
+# WildClawBench Agent Benchmark Docker Compose
+#
+# Usage:
+#   docker compose up -d                    # Start SearXNG (shared infra)
+#   docker compose --profile hermes run --rm hermes-agent
+#   docker compose --profile opencode run --rm opencode-agent
+#   docker compose --profile openclaw run --rm openclaw-agent
+#
+# Or run multiple profiles:
+#   docker compose --profile hermes --profile opencode up -d
+
 services:
+  # ============= SHARED INFRASTRUCTURE =============
   searxng:
     image: searxng/searxng:latest
     container_name: searxng
@@ -15,3 +27,71 @@ services:
       timeout: 5s
       retries: 3
     restart: unless-stopped
+
+  # ============= AGENT SERVICES (Profiles) =============
+  hermes-agent:
+    profiles: ["hermes"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.hermes
+    image: wildclawbench-hermes-agent:v0.5
+    platform: linux/amd64
+    volumes:
+      - ${OUTPUT_DIR:-./output}:/workspace/output
+      - ${WORKSPACE_DIR:-./workspace}:/workspace/workspace
+    environment:
+      - HERMES_MODEL=${PROVIDER_MODEL:-qwen3.5-9b}
+      - HERMES_BASE_URL=${PROVIDER_BASE_URL:-http://host.docker.internal:1234/v1}
+      - HERMES_API_KEY=${PROVIDER_API_KEY:-}
+      - HERMES_TEMPERATURE=0.0
+      - HERMES_MAX_TOKENS=4096
+      - TASK_PROMPT=${TASK_PROMPT:-}
+      - LLM_API_BASE=${PROVIDER_BASE_URL:-http://host.docker.internal:1234/v1}
+      - LLM_API_KEY=${PROVIDER_API_KEY:-}
+      - LLM_MODEL=${PROVIDER_MODEL:-qwen3.5-9b}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  opencode-agent:
+    profiles: ["opencode"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.opencode
+    image: wildclawbench-opencode:latest
+    platform: linux/amd64
+    volumes:
+      - ${OUTPUT_DIR:-./output}:/tmp_workspace/results
+      - ${WORKSPACE_DIR:-./workspace}:/tmp_workspace/workspace
+    environment:
+      - OPENCODE_MODEL=${PROVIDER_MODEL:-qwen3.5-9b}
+      - OPENCODE_API_BASE=${PROVIDER_BASE_URL:-http://host.docker.internal:1234/v1}
+      - OPENCODE_TEMPERATURE=0.0
+      - OPENCODE_MAX_TOKENS=4096
+      - TASK_PROMPT=${TASK_PROMPT:-}
+      - LLM_API_BASE=${PROVIDER_BASE_URL:-http://host.docker.internal:1234/v1}
+      - LLM_API_KEY=${PROVIDER_API_KEY:-}
+      - LLM_MODEL=${PROVIDER_MODEL:-qwen3.5-9b}
+      - LLM_TEMPERATURE=0.0
+      - LLM_MAX_TOKENS=4096
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  openclaw-agent:
+    profiles: ["openclaw"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.openclaw
+    image: wildclawbench-openclaw:latest
+    platform: linux/amd64
+    volumes:
+      - ${OUTPUT_DIR:-./output}:/tmp_workspace/results
+      - ${WORKSPACE_DIR:-./workspace}:/tmp_workspace/workspace
+    environment:
+      - TASK_PROMPT=${TASK_PROMPT:-}
+      - LLM_API_BASE=${PROVIDER_BASE_URL:-http://host.docker.internal:1234/v1}
+      - LLM_API_KEY=${PROVIDER_API_KEY:-}
+      - LLM_MODEL=${PROVIDER_MODEL:-qwen3.5-9b}
+      - LLM_TEMPERATURE=0.0
+      - LLM_MAX_TOKENS=4096
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
