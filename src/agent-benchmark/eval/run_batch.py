@@ -402,9 +402,9 @@ def main() -> None:
     )
     parser.add_argument(
         "--timeout",
-        type=int,
+        type=str,
         default=None,
-        help="Task timeout in seconds (default: 600). Use 0 for unlimited.",
+        help="Task timeout: number in seconds, or 'unlimited' (default: 600)",
     )
     args = parser.parse_args()
 
@@ -420,14 +420,25 @@ def main() -> None:
     enable_scoring = not args.no_score
 
     # Resolve timeout: CLI flag > env var > default
+    def parse_timeout(value: str | None) -> int | None:
+        """Parse timeout value. Returns None for unlimited, int for seconds."""
+        if value is None:
+            return DEFAULT_TIMEOUT
+        value = value.strip().lower()
+        if value in ("unlimited", "none", "inf", "infinite"):
+            return None
+        try:
+            return int(value)
+        except ValueError:
+            logger.warning("Invalid timeout value '%s', using default %ds", value, DEFAULT_TIMEOUT)
+            return DEFAULT_TIMEOUT
+
     if args.timeout is not None:
-        task_timeout = args.timeout
+        task_timeout = parse_timeout(args.timeout)
     else:
-        task_timeout = int(env.get("TIMEOUT", str(DEFAULT_TIMEOUT)))
+        task_timeout = parse_timeout(env.get("TIMEOUT", str(DEFAULT_TIMEOUT)))
     
-    # 0 means unlimited (no timeout)
-    if task_timeout == 0:
-        task_timeout = None  # None = no timeout in subprocess
+    if task_timeout is None:
         logger.info("Timeout: unlimited")
     else:
         logger.info("Timeout: %ds per task", task_timeout)

@@ -236,8 +236,18 @@ do_setup_wizard() {
     read -p "  Enter API key (or press Enter to skip): " api_key
   fi
   
+  # Get timeout
+  echo ""
+  echo "  Task timeout:"
+  echo "    - Enter seconds (e.g. 600 for 10 minutes)"
+  echo "    - Type 'unlimited' for no timeout"
+  echo ""
+  local timeout
+  read -p "  Timeout (default: 600): " timeout
+  timeout="${timeout:-600}"
+  
   # Save configuration
-  save_config "$provider_name" "$api_base" "$api_key_env" "$model" "$api_key"
+  save_config "$provider_name" "$api_base" "$api_key_env" "$model" "$api_key" "$timeout"
   
   echo ""
   log_success "Configuration saved to ${CONFIG_FILE}"
@@ -340,6 +350,7 @@ save_config() {
   local api_key_env="$3"
   local model="$4"
   local api_key="${5:-}"
+  local timeout="${6:-600}"
   
   cat > "$CONFIG_FILE" << EOF
 # WildClawBench Provider Configuration
@@ -349,6 +360,7 @@ PROVIDER=${provider}
 API_BASE=${api_base}
 API_KEY_ENV=${api_key_env}
 MODEL=${model}
+TIMEOUT=${timeout}
 EOF
   
   # Save API key to .env if provided
@@ -395,6 +407,7 @@ load_config() {
   export PROVIDER_API_BASE="${API_BASE:-http://localhost:1234/v1}"
   export PROVIDER_API_KEY_ENV="${API_KEY_ENV:-LM_STUDIO_API_KEY}"
   export PROVIDER_MODEL="${MODEL:-qwen3.5-9b}"
+  export PROVIDER_TIMEOUT="${TIMEOUT:-600}"
   
   # Load .env file if it exists
   local env_file="${PROJECT_DIR}/.env"
@@ -417,6 +430,7 @@ show_config() {
     echo "  Provider: ${PROVIDER:-lm-studio}"
     echo "  API Base: ${API_BASE:-http://localhost:1234/v1}"
     echo "  Model:    ${MODEL:-qwen3.5-9b}"
+    echo "  Timeout:  ${TIMEOUT:-600}"
     echo ""
   else
     echo ""
@@ -554,8 +568,10 @@ do_run() {
     
     # Build command with optional timeout
     local cmd="uv run python3 eval/run_batch.py --harness ${harness} --category ${category} --parallel ${parallel} --model ${PROVIDER_MODEL}"
-    if [[ -n "$timeout" ]]; then
-      cmd="${cmd} --timeout ${timeout}"
+    # Use CLI timeout if provided, otherwise use config timeout
+    local effective_timeout="${timeout:-${PROVIDER_TIMEOUT:-600}}"
+    if [[ -n "$effective_timeout" ]]; then
+      cmd="${cmd} --timeout ${effective_timeout}"
     fi
     
     # Run and capture output to display progress
@@ -654,7 +670,7 @@ Options:
   --model MODEL   Override model name
   --api-base URL  Override API base URL
   --parallel N    Parallel tasks per agent (default: 1)
-  --timeout N     Task timeout in seconds (default: 600, 0=unlimited)
+  --timeout N     Task timeout: seconds or 'unlimited' (default: 600)
 
 Examples:
   bash benchmark.sh                    # First time: setup wizard
