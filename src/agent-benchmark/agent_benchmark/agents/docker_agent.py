@@ -14,9 +14,12 @@ import os
 import subprocess
 import time
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from agent_benchmark.base_agent import AgentExecution, AgentTaskSpec, BaseAgent
+
+if TYPE_CHECKING:
+    from agent_benchmark.providers.base import Provider
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +41,19 @@ class DockerAgent(BaseAgent):
     default_cost_per_token: float = 0.0000025
     transcript_path: str = "/tmp_workspace/results/transcript.jsonl"
 
+    def __init__(self, provider: Provider | None = None, **kwargs: Any) -> None:
+        """Initialize DockerAgent with optional provider config.
+
+        Args:
+            provider: LLM provider instance. If None, uses legacy config.
+            **kwargs: Additional arguments for BaseAgent.
+        """
+        self._provider = provider
+        if provider:
+            self.api_key_env = provider.config.api_key_env
+            self.default_cost_per_token = provider.config.cost_per_token
+        super().__init__(**kwargs)
+
     @property
     def expects_gateway(self) -> bool:
         """Docker agents do not need a long-running gateway."""
@@ -51,8 +67,8 @@ class DockerAgent(BaseAgent):
     def run_task(self, spec: AgentTaskSpec) -> AgentExecution:
         """Execute a benchmark task by running the agent in Docker."""
         api_key = os.environ.get(self.api_key_env, "")
-        # Allow empty API keys for local LLMs (LM Studio, Ollama, etc.)
-        if not api_key and self.api_key_env not in ("LM_STUDIO_API_KEY",):
+        # Allow empty API keys for local LLMs (LM Studio, Ollama, custom local, etc.)
+        if not api_key and self.api_key_env not in ("LM_STUDIO_API_KEY", "LOCAL_CUSTOM_API_KEY", "CUSTOM_API_KEY"):
             error_msg = f"Required API key env var {self.api_key_env} is not set"
             logger.error(error_msg)
             return AgentExecution(elapsed_time=0.0, error=error_msg)
@@ -108,7 +124,7 @@ class DockerAgent(BaseAgent):
         self, task_id: str, output_dir: Path, elapsed_time: float
     ) -> dict[str, Any]:
         """Collect usage statistics from the transcript JSONL."""
-        transcript_path = Path(output_dir) / "transcript.jsonl"
+        transcript_path = output_dir / "transcript.jsonl"
 
         if not transcript_path.exists():
             logger.debug("No transcript found at %s", transcript_path)
@@ -153,12 +169,30 @@ class DockerAgent(BaseAgent):
         """Build docker run command. Subclasses can override for custom args."""
         # Get the project directory to mount the entrypoint script
         project_dir = Path(__file__).parent.parent.parent
-        entrypoint_script = project_dir / "scripts" / "entrypoint_lmstudio.sh"
+        entrypoint_script = project_dir / "scripts" / "entrypoint.sh"
 
-        # Determine API base - use host.docker.internal for Docker containers
-        api_base = os.environ.get("LM_STUDIO_API_BASE", "http://host.docker.internal:1234/v1")
+        # Get provider environment variables
+        if self._provider:
+            provider_env = self._provider.get_entrypoint_env()
+            # Replace localhost with host.docker.internal for Docker containers
+            if "LLM_API_BASE" in provider_env:
+                provider_env["LLM_API_BASE"] = provider_env["LLM_API_BASE"].replace(
+                    "localhost", "host.docker.internal"
+                )
+        else:
+            # Legacy fallback for backward compatibility
+            provider_env = {
+                "LLM_API_BASE": os.environ.get(
+                    "LM_STUDIO_API_BASE", "http://host.docker.internal:1234/v1"
+                ),
+                "LLM_API_KEY": os.environ.get(self.api_key_env, "lm-studio"),
+                "LLM_MODEL": spec.model,
+                "LLM_TEMPERATURE": "0.0",
+                "LLM_MAX_TOKENS": "4096",
+            }
 
-        return [
+        # Build base command
+        cmd = [
             "docker",
             "run",
             "--rm",
@@ -170,27 +204,27 @@ class DockerAgent(BaseAgent):
             f"{spec.workspace_path}:/tmp_workspace/workspace",
             "-v",
             f"{entrypoint_script}:/tmp_workspace/entrypoint.sh:ro",
-            "-e",
-            f"{self.api_key_env}={os.environ.get(self.api_key_env, 'lm-studio')}",
-            "-e",
-            f"TASK_PROMPT={spec.prompt}",
-            "-e",
-            f"DEFAULT_MODEL={spec.model}",
-            "-e",
-            f"LM_STUDIO_API_BASE={api_base}",
-            "-e",
-            f"LM_STUDIO_API_KEY={os.environ.get(self.api_key_env, 'lm-studio')}",
-            "-e",
-            "LM_STUDIO_MAX_TOKENS=4096",
-            "-e",
-            "LM_STUDIO_TEMPERATURE=0.0",
-            "--network",
-            "host",
-            "--add-host=host.docker.internal:host-gateway",
-            self.image_name,
-            "bash",
-            "/tmp_workspace/entrypoint.sh",
         ]
+
+        # Add provider environment variables
+        for key, value in provider_env.items():
+            cmd.extend(["-e", f"{key}={value}"])
+
+        # Add task-specific environment variables
+        cmd.extend(
+            [
+                "-e",
+                f"TASK_PROMPT={spec.prompt}",
+                "-e",
+                f"DEFAULT_MODEL={spec.model}",
+                "--add-host=host.docker.internal:host-gateway",
+                self.image_name,
+                "bash",
+                "/tmp_workspace/entrypoint.sh",
+            ]
+        )
+
+        return cmd
 
     def _ensure_image(self) -> None:
         """Ensure the Docker image exists locally. Builds if missing."""
