@@ -64,11 +64,14 @@ def _load_env(env_path: Path) -> dict[str, str]:
     return env
 
 
-def _load_tasks(tasks_dir: Path, category: str) -> list[dict]:
+def _load_tasks(tasks_dir: Path, category: str, default_timeout: int | None = None) -> list[dict]:
     """Load all task definitions from tasks/ directory, filtered by category."""
     if not tasks_dir.exists():
         logger.warning("Tasks directory not found: %s", tasks_dir)
         return []
+
+    if default_timeout is None:
+        default_timeout = DEFAULT_TIMEOUT
 
     tasks: list[dict] = []
     for task_file in sorted(tasks_dir.rglob("*.yaml")):
@@ -89,7 +92,7 @@ def _load_tasks(tasks_dir: Path, category: str) -> list[dict]:
         task.setdefault("task_id", task_file.stem)
         task.setdefault("category", task_category)
         task.setdefault("prompt", "")
-        task.setdefault("timeout", DEFAULT_TIMEOUT)
+        task.setdefault("timeout", default_timeout)
         tasks.append(task)
 
     for task_file in sorted(tasks_dir.rglob("*.json")):
@@ -110,7 +113,7 @@ def _load_tasks(tasks_dir: Path, category: str) -> list[dict]:
         task.setdefault("task_id", task_file.stem)
         task.setdefault("category", task_category)
         task.setdefault("prompt", "")
-        task.setdefault("timeout", DEFAULT_TIMEOUT)
+        task.setdefault("timeout", default_timeout)
         tasks.append(task)
 
     return tasks
@@ -397,6 +400,12 @@ def main() -> None:
     parser.add_argument(
         "--verbose", "-v", action="store_true", help="Verbose logging"
     )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=None,
+        help="Task timeout in seconds (default: 600). Use 0 for unlimited.",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -410,13 +419,26 @@ def main() -> None:
     model = _get_model(args.harness, args.model, env)
     enable_scoring = not args.no_score
 
+    # Resolve timeout: CLI flag > env var > default
+    if args.timeout is not None:
+        task_timeout = args.timeout
+    else:
+        task_timeout = int(env.get("TIMEOUT", str(DEFAULT_TIMEOUT)))
+    
+    # 0 means unlimited (no timeout)
+    if task_timeout == 0:
+        task_timeout = None  # None = no timeout in subprocess
+        logger.info("Timeout: unlimited")
+    else:
+        logger.info("Timeout: %ds per task", task_timeout)
+
     logger.info("Harness: %s, Model: %s, Category: %s", args.harness, model, args.category)
     if enable_scoring:
         logger.info("Scoring: enabled")
     else:
         logger.info("Scoring: disabled")
 
-    tasks = _load_tasks(TASKS_DIR, args.category)
+    tasks = _load_tasks(TASKS_DIR, args.category, task_timeout)
     if not tasks:
         logger.error("No tasks found for category '%s' in %s", args.category, TASKS_DIR)
         logger.info("Create task files in tasks/ directory (YAML or JSON).")

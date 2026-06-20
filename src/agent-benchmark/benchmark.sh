@@ -490,6 +490,7 @@ do_run() {
   local category="all"
   local agent=""
   local parallel=1
+  local timeout=""
   
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -498,6 +499,7 @@ do_run() {
       --parallel) parallel="$2"; shift 2 ;;
       --model)    PROVIDER_MODEL="$2"; shift 2 ;;
       --api-base) PROVIDER_API_BASE="$2"; shift 2 ;;
+      --timeout)  timeout="$2"; shift 2 ;;
       *) shift ;;
     esac
   done
@@ -550,15 +552,17 @@ do_run() {
     log_info "Running ${harness}..."
     echo "────────────────────────────────────────"
     
+    # Build command with optional timeout
+    local cmd="uv run python3 eval/run_batch.py --harness ${harness} --category ${category} --parallel ${parallel} --model ${PROVIDER_MODEL}"
+    if [[ -n "$timeout" ]]; then
+      cmd="${cmd} --timeout ${timeout}"
+    fi
+    
     # Run and capture output to display progress
     local output_file=$(mktemp)
     local exit_code=0
     
-    uv run python3 eval/run_batch.py \
-      --harness "${harness}" \
-      --category "${category}" \
-      --parallel "${parallel}" \
-      --model "${PROVIDER_MODEL}" 2>&1 | tee "$output_file" || exit_code=$?
+    eval "$cmd" 2>&1 | tee "$output_file" || exit_code=$?
     
     # Extract final summary from output
     if [[ -f "$output_file" ]]; then
@@ -650,6 +654,7 @@ Options:
   --model MODEL   Override model name
   --api-base URL  Override API base URL
   --parallel N    Parallel tasks per agent (default: 1)
+  --timeout N     Task timeout in seconds (default: 600, 0=unlimited)
 
 Examples:
   bash benchmark.sh                    # First time: setup wizard

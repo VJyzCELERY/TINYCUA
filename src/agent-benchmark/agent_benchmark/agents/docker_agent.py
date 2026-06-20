@@ -94,7 +94,8 @@ class DockerAgent(BaseAgent):
             proc = subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, text=True
             )
-            stdout, stderr = proc.communicate(timeout=spec.timeout_seconds)
+            # timeout=None means unlimited
+            stdout, stderr = proc.communicate(timeout=spec.timeout_seconds if spec.timeout_seconds else None)
             elapsed = time.monotonic() - start_time
 
             if proc.returncode != 0:
