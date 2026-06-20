@@ -152,11 +152,12 @@ do_setup_wizard() {
   echo "  2) Ollama (local)        - http://localhost:11434/v1"
   echo "  3) vLLM (local/remote)   - http://localhost:8000/v1"
   echo "  4) OpenRouter (cloud)    - https://openrouter.ai/api/v1"
-  echo "  5) Custom API            - Your own endpoint"
+  echo "  5) Custom local server   - Your own localhost port"
+  echo "  6) Custom remote API     - Full URL endpoint"
   echo ""
   
   local choice
-  read -p "  Enter choice [1-5] (default: 1): " choice
+  read -p "  Enter choice [1-6] (default: 1): " choice
   choice="${choice:-1}"
   
   local provider_name="lm-studio"
@@ -185,6 +186,23 @@ do_setup_wizard() {
       api_key_env="OPENROUTER_API_KEY"
       ;;
     5)
+      provider_name="local-custom"
+      echo ""
+      echo "  Enter your local server port or URL:"
+      echo "  Examples: 8080, 5000, http://localhost:9090/v1"
+      echo ""
+      read -p "  Port or URL: " custom_input
+      custom_input="${custom_input:-8080}"
+      
+      # If just a port number, build the URL
+      if [[ "$custom_input" =~ ^[0-9]+$ ]]; then
+        api_base="http://localhost:${custom_input}/v1"
+      else
+        api_base="${custom_input}"
+      fi
+      api_key_env="LOCAL_CUSTOM_API_KEY"
+      ;;
+    6)
       provider_name="custom"
       read -p "  Enter API base URL: " api_base
       api_base="${api_base:-http://localhost:8000/v1}"
@@ -203,7 +221,7 @@ do_setup_wizard() {
   echo ""
   
   # Check if local server is running
-  if [[ "$provider_name" == "lm-studio" || "$provider_name" == "ollama" || "$provider_name" == "vllm" ]]; then
+  if [[ "$provider_name" == "lm-studio" || "$provider_name" == "ollama" || "$provider_name" == "vllm" || "$provider_name" == "local-custom" ]]; then
     check_local_server "$provider_name" "$api_base"
   fi
   
@@ -233,7 +251,7 @@ check_local_server() {
   local provider="$1"
   local api_base="$2"
   
-  log_info "Checking if ${provider} server is running..."
+  log_info "Checking if ${provider} server is running at ${api_base}..."
   
   # Check if server is responding
   if curl -s --connect-timeout 2 "${api_base}/models" > /dev/null 2>&1; then
@@ -243,23 +261,30 @@ check_local_server() {
   
   log_warn "${provider} server is not running"
   echo ""
-  echo "  Would you like me to start ${provider}?"
-  echo ""
   
-  local start_choice
-  read -p "  Start ${provider}? [Y/n]: " start_choice
-  start_choice="${start_choice:-Y}"
-  
-  if [[ "$start_choice" == "Y" || "$start_choice" == "y" ]]; then
-    start_local_server "$provider"
-  else
-    echo ""
-    log_warn "Please start ${provider} manually before running benchmarks"
-    echo "  LM Studio: /Users/jonaja29/.lmstudio/bin/lms server start"
-    echo "  Ollama: ollama serve"
-    echo "  vLLM: vllm serve <model>"
+  if [[ "$provider" == "local-custom" ]]; then
+    echo "  Please start your server at ${api_base} before running benchmarks."
     echo ""
     read -p "  Press Enter when server is ready..."
+  else
+    echo "  Would you like me to start ${provider}?"
+    echo ""
+    
+    local start_choice
+    read -p "  Start ${provider}? [Y/n]: " start_choice
+    start_choice="${start_choice:-Y}"
+    
+    if [[ "$start_choice" == "Y" || "$start_choice" == "y" ]]; then
+      start_local_server "$provider"
+    else
+      echo ""
+      log_warn "Please start ${provider} manually before running benchmarks"
+      echo "  LM Studio: /Users/jonaja29/.lmstudio/bin/lms server start"
+      echo "  Ollama: ollama serve"
+      echo "  vLLM: vllm serve <model>"
+      echo ""
+      read -p "  Press Enter when server is ready..."
+    fi
   fi
 }
 
@@ -641,7 +666,8 @@ Supported Providers:
   - Ollama (local): http://localhost:11434/v1
   - vLLM (local/remote): http://localhost:8000/v1
   - OpenRouter (cloud): https://openrouter.ai/api/v1
-  - Custom: Any OpenAI-compatible API
+  - Custom local: Your own localhost server (just type port number)
+  - Custom remote: Any OpenAI-compatible API (full URL)
 
 SearXNG (Local Search):
   SearXNG provides web search capabilities without API keys.
