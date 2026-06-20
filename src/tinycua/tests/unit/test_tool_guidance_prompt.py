@@ -11,9 +11,10 @@ Covers:
 from __future__ import annotations
 
 from tinycua.agent.tools.native import (
-    edit_file,
+    append_file,
     read_file,
     run_shell,
+    str_replace,
     write_file,
 )
 from tinycua.config.node_config import create_node_config
@@ -34,7 +35,7 @@ from tinycua.tools.task_tools import (
 
 
 def test_task_executor_tool_guidance_prefers_narrowest_tool() -> None:
-    """Executor guidance prefers edit_file over write_file."""
+    """Executor guidance prefers str_replace over write_file."""
     node = TinyCUATaskExecutorNode(
         node_id="task_executor", config=create_node_config("task_executor")
     )
@@ -42,13 +43,15 @@ def test_task_executor_tool_guidance_prefers_narrowest_tool() -> None:
         TaskResultUpdateTool(),
         read_file,
         write_file,
-        edit_file,
+        str_replace,
+        append_file,
         run_shell,
     ]
 
     guidance = node.build_tool_system_prompt(tools)
 
-    assert "edit_file" in guidance
+    assert "str_replace" in guidance
+    assert "append_file" in guidance
     assert "write_file" in guidance
     assert "task_result_update" in guidance
 

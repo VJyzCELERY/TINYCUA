@@ -167,10 +167,10 @@ def test_convert_external_string() -> None:
 
 
 def test_convert_internal_string() -> None:
-    """convert_node_input_to_messages() with internal string produces assistant-role message."""
+    """convert_node_input_to_messages() with internal string produces user-role message."""
     result = convert_node_input_to_messages("I will analyze the task.")
 
-    assert result == [{"role": "assistant", "content": "I will analyze the task."}]
+    assert result == [{"role": "user", "content": "I will analyze the task."}]
 
 
 def test_convert_node_input() -> None:
@@ -214,10 +214,10 @@ def test_convert_empty_payloads_returns_empty() -> None:
 
 
 def test_convert_default_source_is_internal() -> None:
-    """convert_node_input_to_messages() defaults source to 'internal'."""
+    """convert_node_input_to_messages() defaults source to 'internal' (user role)."""
     result = convert_node_input_to_messages("Hello")
 
-    assert result == [{"role": "assistant", "content": "Hello"}]
+    assert result == [{"role": "user", "content": "Hello"}]
 
 
 def test_convert_invalid_type_raises() -> None:

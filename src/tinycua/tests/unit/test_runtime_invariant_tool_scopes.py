@@ -7,7 +7,7 @@ Source: src/tinycua/docs/design/tools/task.md:5-18,
         src/tinycua/docs/design/loops/response.md:31-58
 
 Only TaskExecutor and ResponseNode may receive arbitrary workspace/action
-tools (write_file, edit_file, run_shell, run_python). Every other node is
+tools (write_file, str_replace, append_file, run_shell, run_python). Every other node is
 read-only plus its scoped structural tools. These assertions are negative
 gates: they fail if a forbidden tool leaks into a non-action node.
 """
@@ -42,7 +42,7 @@ from tinycua.config.tool_scopes import response_tool_scope
 # verification (test -f, grep, pytest, git diff) — the gate is the safety net,
 # not tool selection.
 _ARBITRARY_ACTION_AGENT_TOOLS = frozenset(
-    {"write_file", "edit_file", "run_python"}
+    {"write_file", "str_replace", "append_file", "run_python"}
 )
 
 # (node_id, scope_factory) pairs for every internal node that is NOT
@@ -95,7 +95,8 @@ def test_information_digester_has_only_digest_read_tools() -> None:
     # gated exploratory shell (hardline blocks unrecoverable commands; recoverable
     # destructive warns but executes). The digester uses it for read-only research.
     assert "write_file" not in names
-    assert "edit_file" not in names
+    assert "str_replace" not in names
+    assert "append_file" not in names
     assert "run_python" not in names
 
 
@@ -168,5 +169,6 @@ def test_result_reviewer_is_read_only_no_write_or_execute() -> None:
     # reviewer verifies via exit_code/exit_code_meaning.
     assert "run_shell" in names
     assert "write_file" not in names
-    assert "edit_file" not in names
+    assert "str_replace" not in names
+    assert "append_file" not in names
     assert "run_python" not in names

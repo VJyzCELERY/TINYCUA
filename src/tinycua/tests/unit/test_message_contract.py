@@ -57,7 +57,7 @@ def test_build_node_messages_filters_blank_messages_and_preserves_roles() -> Non
     messages = loop._build_node_messages(node)
 
     assert all(str(message.get("content", "")).strip() for message in messages)
-    assert {message["role"] for message in messages} >= {"assistant", "user"}
+    assert {message["role"] for message in messages} >= {"user"}
     assert not any(message.get("content") == "Prior answer" for message in messages)
 
 
@@ -112,8 +112,10 @@ def test_downstream_nodes_do_not_replay_raw_user_input() -> None:
             message["role"] == "user" and message["content"] == raw_request
             for message in messages
         )
+        # Continuations are now [System: ...] user messages (not assistant).
         assert any(
-            message["role"] == "assistant" and "Based on" in str(message["content"])
+            message["role"] == "user" and "[System:" in str(message["content"])
+            and "Based on" in str(message["content"])
             for message in messages
         )
 
@@ -235,8 +237,13 @@ def test_internal_output_context_uses_assistant_role_not_user() -> None:
     )
 
 
-def test_decision_node_classification_continuation_uses_assistant_role() -> None:
-    """The second decision-node call is internal control flow, not user input."""
+def test_decision_node_classification_continuation_uses_system_user_role() -> None:
+    """The second decision-node call is internal control flow, not user input.
+
+    Internal continuations use ``user`` role with a ``[System: ...]`` prefix
+    (not ``assistant``) to prevent llama.cpp from "continuing" from the
+    pre-filled text instead of generating a fresh response.
+    """
     node = DecisionNode(
         node_id="decision",
         config=create_node_config("response"),
@@ -255,8 +262,35 @@ def test_decision_node_classification_continuation_uses_assistant_role() -> None
 
     assert captured.content == "ok"
     assert messages[-1] == {"role": "user", "content": "External user request"}
-    assert captured_messages[-1]["role"] == "assistant"
+    assert captured_messages[-1]["role"] == "user"
     assert "Internal continuation" in captured_messages[-1]["content"]
+    assert "[System:" in captured_messages[-1]["content"]
+
+
+def test_response_node_continuation_is_not_assistant_role() -> None:
+    """Response node continuation must not be assistant role.
+
+    llama.cpp/LM Studio continues from the last assistant message. If the
+    continuation is assistant, the model 'continues' the continuation text
+    instead of generating a fresh response (output_tokens=1, continuation
+    text echoed as output). The continuation must be a [System: ...] user
+    message so the model generates a fresh response.
+    """
+    loop = TinyCUALoop()
+    node = ResponseNode(config=create_node_config("response"))
+    node.ensure_session(loop.root_session)
+
+    messages = node.build_messages(loop.root_session, {})
+
+    # No assistant message should contain the continuation text.
+    assistant_msgs = [m for m in messages if m["role"] == "assistant"]
+    assert not any("Summarize" in m.get("content", "") for m in assistant_msgs)
+    # The continuation should be a [System: ...] user message.
+    system_user_msgs = [
+        m for m in messages
+        if m["role"] == "user" and "[System:" in m.get("content", "")
+    ]
+    assert any("Summarize" in m.get("content", "") for m in system_user_msgs)
 
 
 def test_structured_internal_context_is_rendered_as_markdown_not_python_repr() -> None:

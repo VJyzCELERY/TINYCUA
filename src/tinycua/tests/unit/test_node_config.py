@@ -22,7 +22,7 @@ class TestNodeMessagePolicy:
         assert policy.include_session_context is True
         assert policy.max_context_messages is None
         assert policy.dedupe_by_origin_record_id is True
-        assert policy.continuation_role == "assistant"
+        assert policy.continuation_role == "user"
 
     def test_custom_values(self) -> None:
         """Test custom values."""

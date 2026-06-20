@@ -47,12 +47,12 @@ class TestInputDispatchString:
         result = convert_node_input_to_messages("Hello", source="external")
         assert result == [{"role": "user", "content": "Hello"}]
 
-    def test_internal_string_becomes_assistant_role(self) -> None:
-        """String with source='internal' becomes assistant-role message."""
+    def test_internal_string_becomes_user_role(self) -> None:
+        """String with source='internal' becomes user-role message."""
         from tinycua.models.node_input import convert_node_input_to_messages
 
         result = convert_node_input_to_messages("Internal handoff")
-        assert result == [{"role": "assistant", "content": "Internal handoff"}]
+        assert result == [{"role": "user", "content": "Internal handoff"}]
 
 
 class TestInputDispatchNodeInput:

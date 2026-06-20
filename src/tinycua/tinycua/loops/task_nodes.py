@@ -557,14 +557,14 @@ class TinyCUATaskExecutorNode(ProcessNode):
         artifacts = []
         for item in tool_results:
             output = item.get("output") if isinstance(item, dict) else None
-            if item.get("name") != "write_file" or not isinstance(output, dict):
+            if item.get("name") not in {"write_file", "str_replace", "append_file"} or not isinstance(output, dict):
                 continue
             if output.get("success") and output.get("path"):
                 artifacts.append(
                     {
                         "path": output["path"],
                         "kind": "file",
-                        "metadata": {"tool_name": "write_file"},
+                        "metadata": {"tool_name": item.get("name", "write_file")},
                     }
                 )
         return artifacts
@@ -573,8 +573,11 @@ class TinyCUATaskExecutorNode(ProcessNode):
         """Behavioral guidance keyed on present executor tools (FR-005)."""
         names = {getattr(tool, "name", "") for tool in (resolved_tools or [])}
         lines: list[str] = []
-        if "edit_file" in names and "write_file" in names:
-            lines.append("Prefer the narrowest tool: edit_file over write_file for partial changes.")
+        if "str_replace" in names and "write_file" in names:
+            lines.append(
+                "Prefer str_replace for targeted edits, append_file for additions. "
+                "Use write_file only for new files or full rewrites."
+            )
         if "task_result_update" in names:
             lines.append("Your final action MUST call task_result_update with the outcome report.")
         if not lines:

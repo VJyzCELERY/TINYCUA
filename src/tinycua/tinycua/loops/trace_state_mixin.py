@@ -38,7 +38,7 @@ class TraceStateMixin:
         for item in tool_results:
             name = item.get("name")
             # File path artifacts from write_file / edit_file
-            if name in {"write_file", "edit_file"}:
+            if name in {"write_file", "str_replace", "append_file"}:
                 output = item.get("output")
                 if isinstance(output, dict) and output.get("success") is True and output.get("path"):
                     artifacts.append(
@@ -200,7 +200,7 @@ class TraceStateMixin:
     ) -> list[dict[str, Any]]:
         """Return successful non-state tool results that can guide continuation."""
         action_or_research_tools = {
-            "write_file", "edit_file", "run_shell", "run_python",
+            "write_file", "str_replace", "append_file", "run_shell", "run_python",
             "fetch_url", "web_search",
         }
         useful = []

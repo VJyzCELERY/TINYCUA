@@ -250,7 +250,7 @@ class TestProcessNodeBuildMessages:
         messages = node.build_messages(session, "Internal continuation")
 
         continuation_msgs = [
-            m for m in messages if m.get("content") == "Internal continuation"
+            m for m in messages if "[System: Internal continuation]" in m.get("content", "")
         ]
         assert len(continuation_msgs) == 1
-        assert continuation_msgs[0]["role"] == "assistant"
+        assert continuation_msgs[0]["role"] == "user"

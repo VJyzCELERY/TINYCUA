@@ -148,50 +148,168 @@ def test_write_file_binary_content():
         assert Path(filepath).read_bytes() == content.encode("utf-8")
 
 
-# --- edit_file edge cases ---
+# --- str_replace edge cases ---
 
 
-def test_edit_file_with_newline_content():
-    """Editing with content that ends with newline is handled."""
+def test_str_replace_exact_match():
+    """str_replace replaces exact text match."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        filepath = os.path.join(tmpdir, "edit_nl.txt")
+        filepath = os.path.join(tmpdir, "exact.txt")
         Path(filepath).write_text("line 1\nline 2\nline 3\n")
-        from tinycua.agent.tools.native.files import edit_file
+        from tinycua.agent.tools.native.files import str_replace
 
-        result = edit_file(filepath, start=2, content="A\nB\n", offset=2)
+        result = str_replace(filepath, old_string="line 2", new_string="REPLACED")
         assert result["success"] is True
-        assert result["lines_replaced"] == 2
+        assert result["replacements_made"] == 1
         content = Path(filepath).read_text()
-        # The replacement content's trailing newline should be respected
-        assert "A\nB\n" in content
+        assert content == "line 1\nREPLACED\nline 3\n"
 
 
-def test_edit_file_start_zero_returns_error():
-    """edit_file with start=0 (invalid, must be >= 1) returns error."""
+def test_str_replace_multiple_matches_error():
+    """str_replace with multiple matches and replace_all=False returns error."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        filepath = os.path.join(tmpdir, "edit_start_zero.txt")
-        Path(filepath).write_text("line 1\nline 2\n")
-        from tinycua.agent.tools.native.files import edit_file
+        filepath = os.path.join(tmpdir, "multi.txt")
+        Path(filepath).write_text("foo\nbar\nfoo\n")
+        from tinycua.agent.tools.native.files import str_replace
 
-        result = edit_file(filepath, start=0, content="new")
+        result = str_replace(filepath, old_string="foo", new_string="baz")
         assert result["success"] is False
-        assert "Invalid start line" in result["error"]
 
 
-def test_edit_file_single_line_no_trailing_newline():
-    """edit_file on a file without trailing newline."""
+def test_str_replace_replace_all():
+    """str_replace with replace_all=True replaces all occurrences."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "all.txt")
+        Path(filepath).write_text("foo\nbar\nfoo\n")
+        from tinycua.agent.tools.native.files import str_replace
+
+        result = str_replace(filepath, old_string="foo", new_string="baz", replace_all=True)
+        assert result["success"] is True
+        assert result["replacements_made"] == 2
+        assert Path(filepath).read_text() == "baz\nbar\nbaz\n"
+
+
+def test_str_replace_empty_old_string_creates_file():
+    """str_replace with empty old_string creates a new file."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "new.txt")
+        from tinycua.agent.tools.native.files import str_replace
+
+        result = str_replace(filepath, old_string="", new_string="hello world")
+        assert result["success"] is True
+        assert Path(filepath).read_text() == "hello world"
+
+
+def test_str_replace_empty_old_string_existing_file_errors():
+    """str_replace with empty old_string on existing file returns error."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "exists.txt")
+        Path(filepath).write_text("existing content")
+        from tinycua.agent.tools.native.files import str_replace
+
+        result = str_replace(filepath, old_string="", new_string="new")
+        assert result["success"] is False
+        assert "write_file" in result["error"]
+
+
+def test_str_replace_not_found_returns_error():
+    """str_replace with old_string not in file returns error."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "notfound.txt")
+        Path(filepath).write_text("hello world")
+        from tinycua.agent.tools.native.files import str_replace
+
+        result = str_replace(filepath, old_string="nonexistent", new_string="x")
+        assert result["success"] is False
+        assert "Could not find" in result["error"]
+
+
+def test_str_replace_identical_strings_error():
+    """str_replace with identical old and new returns error."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "identical.txt")
+        Path(filepath).write_text("hello")
+        from tinycua.agent.tools.native.files import str_replace
+
+        result = str_replace(filepath, old_string="hello", new_string="hello")
+        assert result["success"] is False
+        assert "identical" in result["error"]
+
+
+def test_str_replace_fuzzy_line_trimmed():
+    """str_replace matches with trailing whitespace differences (line-trimmed strategy)."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "fuzzy.txt")
+        Path(filepath).write_text("def foo():\n    pass  \n")
+        from tinycua.agent.tools.native.files import str_replace
+
+        # old_string has no trailing spaces, file has trailing spaces on "pass" line
+        result = str_replace(filepath, old_string="def foo():\n    pass\n", new_string="def bar():\n    pass\n")
+        assert result["success"] is True
+        assert "def bar" in Path(filepath).read_text()
+
+
+def test_str_replace_diff_preview():
+    """str_replace returns a diff_preview of the replaced content."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "preview.txt")
+        Path(filepath).write_text("old text here")
+        from tinycua.agent.tools.native.files import str_replace
+
+        result = str_replace(filepath, old_string="old", new_string="new")
+        assert result["success"] is True
+        assert result["diff_preview"] == "new"
+        assert "new text here" in Path(filepath).read_text()
+
+
+# --- append_file edge cases ---
+
+
+def test_append_file_to_existing():
+    """append_file appends content to an existing file."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "append.txt")
+        Path(filepath).write_text("line 1\nline 2\n")
+        from tinycua.agent.tools.native.files import append_file
+
+        result = append_file(filepath, content="line 3\n")
+        assert result["success"] is True
+        assert Path(filepath).read_text() == "line 1\nline 2\nline 3\n"
+
+
+def test_append_file_creates_new():
+    """append_file creates a new file if it doesn't exist."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "new_append.txt")
+        from tinycua.agent.tools.native.files import append_file
+
+        result = append_file(filepath, content="new content")
+        assert result["success"] is True
+        assert Path(filepath).read_text() == "new content"
+
+
+def test_append_file_adds_newline_separator():
+    """append_file adds a newline if the file doesn't end with one."""
     with tempfile.TemporaryDirectory() as tmpdir:
         filepath = os.path.join(tmpdir, "no_nl.txt")
-        Path(filepath).write_text("line 1\nline 2")  # no trailing newline
-        from tinycua.agent.tools.native.files import edit_file
+        Path(filepath).write_text("no newline here")
+        from tinycua.agent.tools.native.files import append_file
 
-        result = edit_file(filepath, start=2, content="REPLACED")
+        result = append_file(filepath, content="appended")
         assert result["success"] is True
-        result_text = Path(filepath).read_text()
-        assert result_text == "line 1\nREPLACED"
+        content = Path(filepath).read_text()
+        assert content == "no newline here\nappended"
 
 
-# --- list_files edge cases ---
+def test_append_file_creates_parent_dirs():
+    """append_file creates parent directories."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "subdir", "nested", "file.txt")
+        from tinycua.agent.tools.native.files import append_file
+
+        result = append_file(filepath, content="nested content")
+        assert result["success"] is True
+        assert Path(filepath).read_text() == "nested content"
 
 
 def test_list_files_no_match():
@@ -256,19 +374,6 @@ def test_list_files_absolute_paths():
 # --- defensive int() coercion for string line args (local models) -------
 
 
-def test_edit_file_accepts_string_start_and_offset():
-    """edit_file must coerce string line args (local models emit "7")."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        filepath = os.path.join(tmpdir, "coerce.txt")
-        Path(filepath).write_text("line 1\nline 2\nline 3\n")
-        from tinycua.agent.tools.native.files import edit_file
-
-        result = edit_file(filepath, start="2", content="replaced\n", offset="1")
-        assert result["success"] is True
-        assert result["lines_replaced"] == 1
-        assert Path(filepath).read_text() == "line 1\nreplaced\nline 3\n"
-
-
 def test_read_file_accepts_string_start_and_offset():
     """read_file must coerce string line args (local models emit "7")."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -278,15 +383,3 @@ def test_read_file_accepts_string_start_and_offset():
 
         result = read_file(filepath, start="2", offset="2")
         assert result == "two\nthree\n"
-
-
-def test_edit_file_rejects_non_integer_string_start():
-    """A non-numeric start returns a clear error, not a TypeError."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        filepath = os.path.join(tmpdir, "bad.txt")
-        Path(filepath).write_text("x\n")
-        from tinycua.agent.tools.native.files import edit_file
-
-        result = edit_file(filepath, start="abc", content="y")
-        assert result["success"] is False
-        assert "integer" in result["error"]

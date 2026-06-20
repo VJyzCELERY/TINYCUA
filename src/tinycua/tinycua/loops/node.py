@@ -336,15 +336,23 @@ class Node(ABC):
         if system_msg["content"]:
             messages.append(system_msg)
 
-        # Add continuation messages from input
+        # Add continuation messages from input.
+        # Internal inputs use the continuation_role (default "user") with a
+        # [System: ...] prefix to mark them as internal runtime directives.
+        # Using "assistant" causes llama.cpp to "continue" from the pre-filled
+        # text instead of generating a fresh response.
+        cont_role = self.config.message_policy.continuation_role
         continuation = convert_node_input_to_messages(input, source="internal")
         for message in continuation:
             content = str(message.get("content", ""))
             if not content.strip():
                 continue
-            role = message.get("role", "assistant")
+            role = message.get("role", cont_role)
             if role == "user" and not self.config.message_policy.include_input_context:
-                role = "assistant"
+                # Internal input — mark as [System: ...] so it's not confused
+                # with a genuine external user turn. Role stays "user" for
+                # provider role alternation; the prefix distinguishes it.
+                content = f"[System: {content}]"
             messages.append({"role": role, "content": content})
 
         # Current date/time as a small USER message in the volatile suffix —
@@ -365,7 +373,10 @@ class Node(ABC):
 
         node_continuation = self.build_continuation(session)
         if node_continuation.strip():
-            messages.append({"role": "assistant", "content": node_continuation})
+            if cont_role == "user":
+                messages.append({"role": "user", "content": f"[System: {node_continuation}]"})
+            else:
+                messages.append({"role": cont_role, "content": node_continuation})
 
         return messages
 
@@ -788,7 +799,7 @@ class ProcessNode(Node):
                 error = ValidationError("; ".join(validation.errors))
                 retry_text = self._build_retry_text(error, attempt)
                 messages.append(
-                    {"role": "assistant", "content": retry_text}  # type: ignore[misc]
+                    {"role": "user", "content": f"[System: {retry_text}]"}  # type: ignore[misc]
                 )
             else:
                 # Exhausted — handle per policy
@@ -880,11 +891,11 @@ class DecisionNode(ProcessNode):
         labels_str = ", ".join(self.classification_labels)
         classification_messages.append(
             {
-                "role": "assistant",
+                "role": "user",
                 "content": (
-                    "Internal continuation: classify the prior analysis into "
-                    f"one of these categories: {labels_str}. Respond with "
-                    "only the category label."
+                    "[System: Internal continuation: classify the prior analysis "
+                    f"into one of these categories: {labels_str}. Respond with "
+                    "only the category label.]"
                 ),
             }
         )
@@ -996,7 +1007,7 @@ class DecisionNode(ProcessNode):
                 error = ValidationError("; ".join(validation.errors))
                 retry_text = self._build_retry_text(error, attempt)
                 messages.append(
-                    {"role": "assistant", "content": retry_text}  # type: ignore[misc]
+                    {"role": "user", "content": f"[System: {retry_text}]"}  # type: ignore[misc]
                 )
             else:
                 # Exhausted

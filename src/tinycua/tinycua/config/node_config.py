@@ -22,7 +22,12 @@ class NodeMessagePolicy:
         include_input_context: Whether to include SDK/root input context.
         max_context_messages: Maximum number of context messages (None = unlimited).
         dedupe_by_origin_record_id: Deduplicate messages by origin record ID.
-        continuation_role: Role for internal node handoff messages.
+        continuation_role: Role for internal node continuation/handoff messages.
+            Defaults to ``"user"`` — internal continuations are instructions
+            to the model, not model output. Using ``"assistant"`` causes
+            llama.cpp to "continue" from the pre-filled text instead of
+            generating a fresh response. The ``[System: ...]`` prefix is
+            added by ``Node.build_messages`` to mark internal origin.
     """
 
     include_chat_history: bool = False
@@ -30,7 +35,7 @@ class NodeMessagePolicy:
     include_input_context: bool = False
     max_context_messages: int | None = None
     dedupe_by_origin_record_id: bool = True
-    continuation_role: str = "assistant"
+    continuation_role: str = "user"
 
 
 @dataclass

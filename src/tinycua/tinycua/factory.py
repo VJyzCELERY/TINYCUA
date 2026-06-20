@@ -108,12 +108,13 @@ def _apply_tinycua_model_defaults(agent_kwargs: dict[str, Any]) -> None:
 def _native_tools(policy: NativeToolPolicy | None = None) -> list[Any]:
     """Return optional native tools filtered by policy."""
     from tinycua.agent.tools.native import (
-        edit_file,
+        append_file,
         fetch_url,
         list_files,
         read_file,
         run_python,
         run_shell,
+        str_replace,
         web_search,
         write_file,
     )
@@ -122,7 +123,8 @@ def _native_tools(policy: NativeToolPolicy | None = None) -> list[Any]:
     tools = [
         read_file,
         write_file,
-        edit_file,
+        str_replace,
+        append_file,
         list_files,
         run_shell,
         run_python,

@@ -64,7 +64,9 @@ def convert_node_input_to_messages(
 
     Conversion rules:
     - str + source="external" -> [{"role": "user", "content": text}]
-    - str + source="internal" -> [{"role": "assistant", "content": text}]
+    - str + source="internal" -> [{"role": "user", "content": text}]
+      (internal strings get a ``[System: ...]`` prefix in ``Node.build_messages``
+      to mark them as internal runtime directives, not genuine user turns)
     - NodeInput -> node_input.to_messages()
     - NodePayload -> node_payload.to_messages()
     - list[dict] -> passed through directly
@@ -81,8 +83,7 @@ def convert_node_input_to_messages(
         if not node_input.strip():
             msg = "Empty input"
             raise ValueError(msg)
-        role = "user" if source == "external" else "assistant"
-        return [{"role": role, "content": node_input}]
+        return [{"role": "user", "content": node_input}]
     if isinstance(node_input, NodeInput):
         return node_input.to_messages()
     if isinstance(node_input, NodePayload):

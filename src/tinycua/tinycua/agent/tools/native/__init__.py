@@ -5,9 +5,10 @@ shell execution, file I/O, web fetching, and Python code execution.
 """
 
 from tinycua.agent.tools.native.files import (
-    edit_file,
+    append_file,
     list_files,
     read_file,
+    str_replace,
     write_file,
 )
 from tinycua.agent.tools.native.python_exec import run_python
@@ -19,7 +20,8 @@ __all__ = [
     "run_shell",
     "read_file",
     "write_file",
-    "edit_file",
+    "str_replace",
+    "append_file",
     "list_files",
     "fetch_url",
     "web_search",
