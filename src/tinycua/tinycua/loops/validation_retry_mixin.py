@@ -1077,6 +1077,7 @@ class ValidationRetryMixin:
                 resolved_tools,
             )
         except Exception:
+            logger.warning("node=%s recovery_retry failed", node.node_id, exc_info=True)
             return None
         recovery_result = LLMResult(
             content=sanitize_internal_reprs(raw_response.get("content") or ""),

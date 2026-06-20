@@ -810,19 +810,38 @@ async def test_stream_task_executor_receives_injected_active_task_context():
     agent = MagicMock()
     agent.instructions = "test"
     agent.skills = []
+    agent.tool_permissions = {}
 
     async def mock_stream(messages, tools, *, stream=False):
         del tools, stream
         captured_messages.extend(messages)
         yield {"type": "response.output_text.delta", "delta": "working"}
+        yield {
+            "type": "tool_call.ready",
+            "id": "call_1",
+            "name": "task_result_update",
+            "arguments": '{"content":"done","success":true}',
+        }
+        yield {
+            "type": "tool_call.ready",
+            "id": "call_2",
+            "name": "terminate",
+            "arguments": "{}",
+        }
 
     agent._call_llm = mock_stream
 
-    # No crash — the recovery pipeline handles the validation failure.
+    # Provide real tools so validation passes and the unbounded recovery loop
+    # doesn't spin forever.
+    from tinycua.tools.task_tools import TaskResultUpdateTool, TerminateTool
+    task_result_tool = TaskResultUpdateTool()
+    task_result_tool.bind_task_store(loop.root_session.task_store)
+    terminate_tool = TerminateTool()
+
     async for _event in loop._stream_node_events(
         executor,
         agent,
-        [],
+        [task_result_tool, terminate_tool],
         None,
         loop.queue.input_for_current(),
     ):
@@ -852,15 +871,28 @@ async def test_stream_retry_prompt_replaces_prior_retry_prompt() -> None:
         del tools, stream
         captured_messages.append(list(messages))
         yield {"type": "response.output_text.delta", "delta": "passthrough"}
+        # After 3 retries, produce a select_query_route tool call so the
+        # unbounded recovery loop succeeds and the test doesn't spin forever.
+        if len(captured_messages) > 3:
+            yield {
+                "type": "tool_call.ready",
+                "id": "call_route",
+                "name": "select_query_route",
+                "arguments": '{"route":"passthrough","reason":"test"}',
+            }
         yield {"type": "response.completed", "finish_reason": "completed"}
 
     agent._call_llm = mock_stream
 
-    # No crash — the recovery pipeline handles the validation failure.
+    # Provide a mock select_query_route tool that returns success.
+    from tinycua.config.types import Tool as SimpleTool
+    route_tool = SimpleTool(name="select_query_route")
+    route_tool.__call__ = lambda **kw: {"success": True, "route": "passthrough"}  # type: ignore[method-assign]
+
     async for _event in loop._stream_node_events(
         query,
         agent,
-        [],
+        [route_tool],
         None,
         loop.queue.input_for_current(),
     ):

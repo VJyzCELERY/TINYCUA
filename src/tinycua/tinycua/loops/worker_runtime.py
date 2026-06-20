@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from tinycua.config.node_config import create_node_config
 from tinycua.loops.node_queue import NodeQueue
-from tinycua.loops.response_node import ResponseNode
+from tinycua.loops.response_node import ResponseNode  # noqa: F401 — used if OPEN_QUESTION re-enabled
 from tinycua.loops.task_nodes import (
     TinyCUAAnalysisEffortNode,
     TinyCUAResultAggregationNode,
@@ -92,14 +92,17 @@ class WorkerRuntimeController:
         if decision == ReviewerDecision.REPLAN.value:
             self.schedule_replan(queue)
             return
-        if decision == ReviewerDecision.OPEN_QUESTION.value:
-            queue.items.append(
-                ResponseNode(
-                    node_id="response",
-                    config=create_node_config("response"),
-                )
-            )
-            return
+        # OPEN_QUESTION disabled for prototype — never bail to ResponseNode
+        # while tasks remain. Fall through to schedule_next, which only
+        # reaches result_aggregation (and then response) when all tasks done.
+        # if decision == ReviewerDecision.OPEN_QUESTION.value:
+        #     queue.items.append(
+        #         ResponseNode(
+        #             node_id="response",
+        #             config=create_node_config("response"),
+        #         )
+        #     )
+        #     return
         self.schedule_next(queue)
 
     def schedule_next(self, queue: NodeQueue) -> None:

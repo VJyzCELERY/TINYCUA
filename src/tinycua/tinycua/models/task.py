@@ -25,7 +25,9 @@ class ReviewerDecision(StrEnum):
     NEEDS_REVISION = "needs_revision"
     REJECTED = "rejected"
     REPLAN = "replan"
-    OPEN_QUESTION = "open_question"
+    # OPEN_QUESTION = "open_question"  # disabled for prototype — reviewer
+    #   must not bail to ResponseNode while tasks remain unfinished. The
+    #   routing branch is also commented out in worker_runtime.schedule_after_review.
 
 
 @dataclass

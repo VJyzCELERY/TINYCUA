@@ -273,49 +273,28 @@ class OrchestrationMixin:
                 validation,
                 llm_result,
             ):
-                # Recovery step: one focused minimal-context retry before
-                # giving up. Strips accumulated tool history so a model stuck in
-                # a verification loop can see clearly and make the missing call.
-                # The LLM freely decides — not forced behavior, just a quieter room.
-                recovery = await self._recovery_retry(
+                # Unbounded tightened-retry loop — never exits until validation
+                # passes. No graceful continue, no exit-0 escape hatch.
+                recovered_result, _ = await self._unbounded_recovery(
                     node, agent, resolved_tools, llm_result, validation
                 )
-                if recovery is not None:
-                    recovery_result, recovery_validation = recovery
-                    trace_entry = self._trace_entry(
-                        node,
-                        attempt,
-                        resolved_tools,
-                        recovery_result.content,
-                        recovery_result,
-                    )
-                    trace_entry["validation_errors"] = []
-                    trace_entry["recovery"] = "focused_retry"
-                    self._execution_trace.append(trace_entry)
-                    llm_result = self._record_node_output(
-                        node, recovery_result.content, recovery_result.tool_calls
-                    )
-                    llm_result.metadata.update(dict(recovery_result.metadata))
-                    if recovery_result.content:
-                        self._record_node_content_transcript(node, recovery_result.content)
-                    return recovery_result.content, recovery_result.tool_calls
-                # All recovery exhausted — do NOT crash. Record a graceful
-                # failure response and continue so the run completes with exit
-                # 0 instead of exit 1. The agent's work so far is preserved.
-                failure_content = self._validation_failure_content(node, validation)
-                self._record_node_output(node, failure_content, [])
-                self._record_node_content_transcript(node, failure_content)
                 trace_entry = self._trace_entry(
                     node,
                     attempt,
                     resolved_tools,
-                    failure_content,
-                    llm_result,
+                    recovered_result.content,
+                    recovered_result,
                 )
-                trace_entry["validation_errors"] = list(validation.errors)
-                trace_entry["recovery"] = "exhausted_graceful_fail"
+                trace_entry["validation_errors"] = []
+                trace_entry["recovery"] = "unbounded_recovery"
                 self._execution_trace.append(trace_entry)
-                return failure_content, []
+                llm_result = self._record_node_output(
+                    node, recovered_result.content, recovered_result.tool_calls
+                )
+                llm_result.metadata.update(dict(recovered_result.metadata))
+                if recovered_result.content:
+                    self._record_node_content_transcript(node, recovered_result.content)
+                return recovered_result.content, recovered_result.tool_calls
             on_complete_response = self._build_on_complete_response(node, llm_result)
             trace_entry = self._trace_entry(
                 node,
@@ -933,6 +912,99 @@ class OrchestrationMixin:
         ):
             yield event
 
+    def _log_recovery_cycle(
+        self,
+        node: Node,
+        validation: ValidationResult,
+        cycle: int,
+        stage_results: dict[str, bool],
+    ) -> None:
+        """Log system state to stderr on every recovery cycle for traceability.
+
+        Emits a structured block showing the node, validation errors, task
+        store state, queue contents, and which recovery stages failed. This
+        makes stuck loops visible in stderr.log without decoding stdout.
+        """
+        store = self.root_session.task_store
+        total = len(store.tasks)
+        completed = sum(1 for t in store.tasks.values() if t.status.value == "completed")
+        pending = sum(1 for t in store.tasks.values() if t.status.value == "pending")
+        in_progress = sum(1 for t in store.tasks.values() if t.status.value == "in_progress")
+        active_id = store.active_task_id or "none"
+        root_id = store.root_task_id or "none"
+        queue_ids = [n.node_id for n in self.queue.items]
+        errors = "; ".join(validation.errors) or "unknown"
+        stages = ", ".join(f"{k}={'OK' if v else 'FAIL'}" for k, v in stage_results.items())
+        import sys
+        print(
+            f"[tinycua] node={node.node_id} stuck — recovery cycle {cycle}\n"
+            f"  validation errors: {errors}\n"
+            f"  task_store: root={root_id}, active={active_id}, "
+            f"completed={completed}/{total}, pending={pending}, "
+            f"in_progress={in_progress}\n"
+            f"  stages: {stages}\n"
+            f"  queue: {queue_ids}\n"
+            f"  retrying with tightened context...",
+            file=sys.stderr,
+            flush=True,
+        )
+
+    async def _unbounded_recovery(
+        self,
+        node: Node,
+        agent: Agent,
+        resolved_tools: list[Tool],
+        llm_result: LLMResult,
+        validation: ValidationResult,
+    ) -> tuple[LLMResult, ValidationResult]:
+        """Unbounded tightened-retry loop — never exits until validation passes.
+
+        Cycles through three stages repeatedly:
+        1. Focused retry (all tools, clean context)
+        2. Tightening retry (single required tool, tool_choice=required)
+        3. Judge retry (LLM judge injects the tool call with no context)
+
+        If all three fail in a cycle, logs system state to stderr and loops
+        back to stage 1. There is no graceful exit — the loop only returns
+        when validation passes. The experiment harness timeout is the only
+        ceiling (and that lives in the experiment layer, not tinycua).
+        """
+        cycle = 0
+        current_result = llm_result
+        current_validation = validation
+        while not current_validation.is_valid:
+            cycle += 1
+            stage_results: dict[str, bool] = {}
+            # Stage 1: focused retry
+            recovery = await self._recovery_retry(
+                node, agent, resolved_tools, current_result, current_validation
+            )
+            stage_results["focused_retry"] = recovery is not None
+            if recovery is not None:
+                current_result, current_validation = recovery
+                if current_validation.is_valid:
+                    return current_result, current_validation
+            # Stage 2: tightening retry
+            tightening = await self._tightening_retry(
+                node, agent, resolved_tools, current_result, current_validation
+            )
+            stage_results["tightening_retry"] = tightening is not None
+            if tightening is not None:
+                current_result, current_validation = tightening
+                if current_validation.is_valid:
+                    return current_result, current_validation
+            # Stage 3: judge retry
+            judge = await self._judge_retry(
+                node, agent, resolved_tools, current_result, current_validation
+            )
+            stage_results["judge_retry"] = judge is not None
+            if judge is not None:
+                current_result, current_validation = judge
+                if current_validation.is_valid:
+                    return current_result, current_validation
+            # All stages failed — log state and loop back.
+            self._log_recovery_cycle(node, current_validation, cycle, stage_results)
+
     async def _stream_exhausted_node_events(
         self,
         node: Node,
@@ -1039,51 +1111,35 @@ class OrchestrationMixin:
             validation,
             llm_result,
         ):
-            # Active recovery pipeline — never crash. Three stages:
-            # 1. Focused retry: all tools, clean context, "make the missing call"
-            # 2. Tightening retry: single required tool only, tool_choice=required
-            # 3. Graceful continue: record failure, emit node.completed, move on
-            recovery = await self._recovery_retry(
+            # Unbounded tightened-retry loop — never exits until validation
+            # passes. Cycles through focused → tightening → judge stages,
+            # logging state to stderr each cycle. No graceful continue, no
+            # exit-0 escape hatch. The node must produce valid output before
+            # the queue can advance past it (queue integrity invariant).
+            recovered_result, _ = await self._unbounded_recovery(
                 node, agent, resolved_tools, llm_result, validation
             )
-            if recovery is not None:
-                recovery_result, _ = recovery
-                async for event in self._stream_node_completed(
-                    node,
-                    recovery_result.content or combined,
-                    emit_lifecycle,
-                    include_meta,
-                    final_only,
-                    node_type,
-                    max_attempts,
-                ):
-                    yield event
-                return
-            # Stage 2: tightening retry — only the required tool.
-            tightening = await self._tightening_retry(
-                node, agent, resolved_tools, llm_result, validation
+            recovery_content = recovered_result.content or combined
+            # Record the recovered output and fire on_complete so the queue
+            # gets the next nodes (schedule_after_review / schedule_next).
+            self._record_node_output(node, recovery_content, recovered_result.tool_calls)
+            recovered_result.metadata = dict(recovered_result.metadata)
+            if recovery_content:
+                self._record_node_content_transcript(node, recovery_content)
+            self._record_tool_result_transcripts(
+                node,
+                recovered_result.metadata.get("tool_results", []),
             )
-            if tightening is not None:
-                tightening_result, _ = tightening
-                async for event in self._stream_node_completed(
-                    node,
-                    tightening_result.content or combined,
-                    emit_lifecycle,
-                    include_meta,
-                    final_only,
-                    node_type,
-                    max_attempts,
-                ):
-                    yield event
-                return
-            # Stage 3: graceful continue — record the failure and move on.
-            # The agent's work so far is preserved; the run doesn't crash.
-            failure_content = self._validation_failure_content(node, validation)
-            self._record_node_output(node, failure_content, [])
-            self._record_node_content_transcript(node, failure_content)
+            self._apply_loop_result_hook(node, recovered_result, None)
+            self._publish_structured_outputs_to_root(node)
+            self._maybe_populate_root_mission(node)
+            self._maybe_warn_reviewer_no_verification(node, recovered_result)
+            self._apply_task_lifecycle_marker(node, recovery_content)
+            on_complete_response = self._build_on_complete_response(node, recovered_result)
+            node.on_complete(self.queue, on_complete_response)
             async for event in self._stream_node_completed(
                 node,
-                failure_content,
+                recovery_content,
                 emit_lifecycle,
                 include_meta,
                 final_only,

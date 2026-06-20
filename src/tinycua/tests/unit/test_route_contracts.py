@@ -14,22 +14,24 @@ from tinycua.loops.worker import TinyCUAWorkerNode
 async def test_query_route_does_not_use_keyword_inference_without_tool_call() -> None:
     """Worker-looking keywords are not enough to override model route failure.
 
-    The system no longer crashes on route failure — it recovers via the
-    pipeline. The trace still records the missing tool call.
+    The query_analyst validation gate rejects a response with no
+    select_query_route tool call, regardless of keyword content. With the
+    unbounded recovery loop, this validation failure would trigger retries
+    forever in production. This test verifies the validation gate itself.
     """
-    agent = create_tinycua_agent()
+    from tinycua.config.types import LLMResult
+    from tinycua.loops.tinycua_loop import TinyCUALoop
 
-    async def invalid_route_response(messages, tools, stream=False):
-        return {"content": "I will plan and execute this task", "tool_calls": []}
+    loop = TinyCUALoop()
+    node = TinyCUAQueryAnalystNode(
+        node_id="query_analyst",
+        config=create_node_config("query_analyst"),
+    )
+    result = LLMResult(content="I will plan and execute this task")
+    validation = loop._validate_node_result(node, result)
 
-    agent._call_llm = invalid_route_response  # type: ignore[method-assign]
-    # No crash — the recovery pipeline handles the validation failure.
-    await agent.run("Plan and execute a migration task.")
-
-    first_trace = agent.loop.get_execution_trace()[0]
-    assert first_trace["node_id"] == "query_analyst"
-    assert first_trace["route_label"] == ""
-    assert first_trace["route_source"] == "missing_tool_call"
+    assert not validation.is_valid
+    assert any("select_query_route" in error for error in validation.errors)
 
 
 async def test_query_route_accepts_strict_structured_tool_protocol() -> None:

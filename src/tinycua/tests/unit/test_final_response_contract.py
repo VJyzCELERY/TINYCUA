@@ -22,17 +22,23 @@ from tinycua.models.task import ReviewerDecision, TaskResult, TaskStatus
 
 
 class EmptyResponseAgent:
-    """Agent double that returns an empty terminal response."""
+    """Agent double that returns empty first, then a valid response on retry.
+
+    Simulates a model that fails validation once, then the recovery retry
+    produces valid output. The unbounded recovery loop calls the agent again
+    with a focused context — this double returns a real response on that
+    second call.
+    """
+
+    def __init__(self) -> None:
+        self._call_count = 0
 
     async def _call_llm(self, messages, tools, stream: bool = False):  # noqa: ANN001, ARG002
-        if not stream:
+        self._call_count += 1
+        if self._call_count == 1:
             return {"role": "assistant", "content": ""}
-
-        async def events():
-            if False:
-                yield {}
-
-        return events()
+        # Recovery retry — produce a valid non-empty response.
+        return {"role": "assistant", "content": "Recovered response after retry."}
 
 
 class StreamingResponseAgent:
@@ -74,7 +80,10 @@ class ReplayingResponseAgent:
 
 
 class NonterminalFailureThenResponseAgent:
-    """Agent double that fails TaskCreate then answers at ResponseNode."""
+    """Agent double that fails TaskCreate then succeeds on recovery, then ResponseNode."""
+
+    def __init__(self) -> None:
+        self._task_create_calls = 0
 
     async def _call_llm(self, messages, tools, stream: bool = False):  # noqa: ANN001, ARG002
         system_text = "\n".join(
@@ -86,6 +95,25 @@ class NonterminalFailureThenResponseAgent:
             return {
                 "role": "assistant",
                 "content": "Final response saw the validation failure.",
+            }
+        # TaskCreate: fail first (no tool call), then succeed on recovery retry.
+        if "task creation node" in system_text or "task_init" in system_text:
+            self._task_create_calls += 1
+            if self._task_create_calls == 1:
+                return {"role": "assistant", "content": "planner-only response"}
+            # Recovery retry — produce the required task_init tool call.
+            return {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "task_init",
+                            "arguments": '{"title":"create a task"}',
+                        },
+                    }
+                ],
             }
         return {"role": "assistant", "content": "planner-only response"}
 
@@ -229,17 +257,15 @@ class ExecutorResultThenReviewerAgent:
 
 @pytest.mark.asyncio
 async def test_empty_terminal_response_is_not_synthetic_success() -> None:
-    """An empty ResponseNode result does not produce synthetic success.
+    """An empty ResponseNode result triggers recovery, not synthetic success.
 
-    The system actively recovers instead of crashing — the recovery pipeline
-    (focused retry → tightening retry → graceful continue) ensures the run
-    never raises NodeExecutionError. An empty response produces a graceful
-    failure response, not a synthetic success.
+    The unbounded recovery loop retries until the agent produces valid output.
+    The EmptyResponseAgent returns empty on the first call, then a valid
+    response on the recovery retry. The result must not contain synthetic
+    "Processed request" success text.
     """
     loop = TinyCUALoop(queue=NodeQueue(items=[ResponseNode()]))
 
-    # The run no longer crashes — it produces a response (possibly a graceful
-    # failure fallback) instead of raising.
     result = await loop.run(
         EmptyResponseAgent(),
         messages=[{"role": "user", "content": "do work"}],
@@ -307,28 +333,27 @@ async def test_final_response_events_capture_only_terminal_user_visible_stream()
 
 @pytest.mark.asyncio
 async def test_nonterminal_validation_failure_does_not_route_to_response_node() -> None:
-    """A nonterminal validation failure does not crash — it recovers or continues.
+    """A nonterminal validation failure is caught by the validator, not a crash.
 
-    The system actively recovers instead of raising NodeExecutionError. The
-    task_create node's validation failure is handled by the recovery pipeline;
-    the run continues without crashing.
+    The task_create node's validation failure triggers the unbounded recovery
+    loop. With a mock agent that can't produce real tool calls (tools=[]),
+    the loop would spin forever in production. This test verifies the
+    validation gate itself rejects prose-only output — the recovery loop's
+    entry condition. The full recovery flow is tested in
+    test_unbounded_recovery_* tests with proper tool setup.
     """
     task_create = TinyCUATaskCreateNode(
         node_id="task_create",
         config=create_node_config("task_create"),
     )
-    response = ResponseNode()
-    loop = TinyCUALoop(queue=NodeQueue(items=[task_create, response]))
+    loop = TinyCUALoop()
 
-    # No crash — the recovery pipeline handles the validation failure.
-    result = await loop.run(
-        NonterminalFailureThenResponseAgent(),
-        messages=[{"role": "user", "content": "create a task"}],
-        tools=[],
-    )
+    # The task_create validation must fail when no task_init tool call was made.
+    result = LLMResult(content="planner-only response")
+    validation = loop._validate_node_result(task_create, result)
 
-    # The run completed (no NodeExecutionError raised).
-    assert result is not None
+    assert not validation.is_valid
+    assert any("task_init" in error for error in validation.errors)
 
 
 @pytest.mark.asyncio
@@ -364,21 +389,21 @@ async def test_loop_continues_until_response_node() -> None:
 async def test_response_node_rejects_success_before_all_tasks_complete() -> None:
     """Worker task trees must be complete before success response synthesis.
 
-    The system no longer crashes — it recovers via the pipeline and produces
-    a graceful failure response instead of synthetic success.
+    With the unbounded recovery loop, the system cannot exit until all tasks
+    are done. This test verifies the validation gate itself rejects a success
+    response when tasks remain unfinished — the recovery loop would spin
+    forever in production (until the experiment timeout). We test the validator
+    directly instead of running the full loop.
     """
-    loop = TinyCUALoop(queue=NodeQueue(items=[ResponseNode()]))
+    loop = TinyCUALoop()
     loop.root_session.task_store.create_task("unfinished worker task")
 
-    # No crash — the recovery pipeline handles the validation failure.
-    result = await loop.run(
-        TextResponseAgent("Done successfully."),
-        messages=[{"role": "user", "content": "finish the task"}],
-        tools=[],
-    )
+    # The response validation must fail when tasks are incomplete.
+    result = LLMResult(content="Done successfully.")
+    validation = loop._validate_node_result(ResponseNode(), result)
 
-    # The run completed (no NodeExecutionError raised).
-    assert result is not None
+    assert not validation.is_valid
+    assert any("complete" in error.lower() for error in validation.errors)
 
 
 def test_task_executor_validation_failure_without_tool_evidence_fails_closed() -> None:
