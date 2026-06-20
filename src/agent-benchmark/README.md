@@ -11,11 +11,51 @@ ollama serve              # Ollama (port 11434)
 vllm serve <model>        # vLLM (port 8000)
 # ...or any server on any port
 
-# 2. Run benchmark (first time: setup wizard + auto-build images)
+# 2. Run benchmark
 bash benchmark.sh
 ```
 
-> Agent Docker images are built automatically on first run if not present.
+## What Happens When You Run `bash benchmark.sh`
+
+### First Time
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Step 1: Setup Wizard                                   │
+│  - Choose agent provider (name, URL, model, API key)    │
+│  - Choose judge provider (for grading)                  │
+│  - Set timeout                                          │
+│  → Saved to .env                                        │
+├─────────────────────────────────────────────────────────┤
+│  Step 2: Auto-Build Images                              │
+│  - Builds hermes, opencode, openclaw Docker images      │
+│  - Skipped if images already exist                      │
+├─────────────────────────────────────────────────────────┤
+│  Step 3: Start SearXNG                                  │
+│  - Local search engine for web search tasks             │
+├─────────────────────────────────────────────────────────┤
+│  Step 4: Run Benchmark                                  │
+│  - Runs tasks for each agent sequentially               │
+│  - Scores results                                       │
+│  - Saves to output/                                     │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Subsequent Runs
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Step 1: Load Config                                    │
+│  - Reads .env file                                      │
+├─────────────────────────────────────────────────────────┤
+│  Step 2: Check Images                                   │
+│  - Images exist → skip build                            │
+├─────────────────────────────────────────────────────────┤
+│  Step 3: Start SearXNG (if not running)                 │
+├─────────────────────────────────────────────────────────┤
+│  Step 4: Run Benchmark                                  │
+└─────────────────────────────────────────────────────────┘
+```
 
 ## Commands
 
