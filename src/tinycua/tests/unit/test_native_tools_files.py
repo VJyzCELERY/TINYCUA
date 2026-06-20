@@ -383,3 +383,95 @@ def test_read_file_accepts_string_start_and_offset():
 
         result = read_file(filepath, start="2", offset="2")
         assert result == "two\nthree\n"
+
+
+# --- _normalize_newlines: unescape literal \n/\t/\r from local models ---
+
+
+def test_normalize_newlines_unescapes_literal_backslash_n():
+    """Literal \\n (two chars) without real newlines → real newline."""
+    from tinycua.agent.tools.native.files import _normalize_newlines
+
+    assert _normalize_newlines("hello\\nworld") == "hello\nworld"
+
+
+def test_normalize_newlines_preserves_real_newlines():
+    """Content with real newlines is not changed."""
+    from tinycua.agent.tools.native.files import _normalize_newlines
+
+    assert _normalize_newlines("hello\nworld") == "hello\nworld"
+
+
+def test_normalize_newlines_does_not_mangle_source_code():
+    """Source code with literal \\n string AND real newlines is preserved."""
+    from tinycua.agent.tools.native.files import _normalize_newlines
+
+    src = 'sep = "\\n"\nprint("hi")'
+    assert _normalize_newlines(src) == src
+
+
+def test_normalize_newlines_unescapes_literal_backslash_t():
+    """Literal \\t without real tabs → real tab."""
+    from tinycua.agent.tools.native.files import _normalize_newlines
+
+    assert _normalize_newlines("col1\\tcol2") == "col1\tcol2"
+
+
+# --- str_replace with literal \n from local models ---
+
+
+def test_str_replace_unescapes_literal_newline_in_new_string():
+    """str_replace writes real newlines when model sends literal \\n."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "literal_nl.txt")
+        Path(filepath).write_text("old text\n")
+        from tinycua.agent.tools.native.files import str_replace
+
+        # Model sends \\n as two literal characters in new_string
+        result = str_replace(filepath, old_string="old text", new_string="line 1\\nline 2")
+        assert result["success"] is True
+        content = Path(filepath).read_text()
+        # The literal \\n should have been unescaped to real newlines
+        # Original file was "old text\n", replacing "old text" leaves trailing \n
+        assert content == "line 1\nline 2\n"
+
+
+def test_write_file_unescapes_literal_newline_in_content():
+    """write_file writes real newlines when model sends literal \\n."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "write_literal_nl.txt")
+        from tinycua.agent.tools.native.files import write_file
+
+        # Model sends \\n as two literal characters in content
+        result = write_file(filepath, content="line 1\\nline 2\\n")
+        assert result["success"] is True
+        content = Path(filepath).read_text()
+        assert content == "line 1\nline 2\n"
+
+
+# --- read_file literal \\n warning ---
+
+
+def test_read_file_warns_about_literal_backslash_n_on_long_lines():
+    """read_file appends a warning when a long line has literal \\n."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "malformed.txt")
+        # Write a file with a long line containing literal \n (backslash + n)
+        long_content = "x" * 600 + "\\n" + "y" * 100
+        Path(filepath).write_text(long_content)
+        from tinycua.agent.tools.native.files import read_file
+
+        result = read_file(filepath)
+        assert "Warning" in result
+        assert "literal" in result.lower()
+
+
+def test_read_file_no_warning_for_short_literal_backslash_n():
+    """read_file does not warn for short lines with literal \\n."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "short.txt")
+        Path(filepath).write_text('sep = "\\n"')
+        from tinycua.agent.tools.native.files import read_file
+
+        result = read_file(filepath)
+        assert "Warning" not in result

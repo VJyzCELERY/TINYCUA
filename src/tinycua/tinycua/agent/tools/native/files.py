@@ -21,6 +21,35 @@ from tinycua.agent.tools.native.context import (
 _FULL_FILE_TRUNCATION_BYTES = 100 * 1024
 
 
+def _normalize_newlines(text: str) -> str:
+    """Unescape literal backslash-n/t/r to real control characters.
+
+    Local models (qwen3.5-9b on llama.cpp/LM Studio) sometimes send ``\\n``
+    (backslash + n as two literal characters) in JSON tool-call arguments
+    instead of an actual newline byte. Cloud APIs (GPT-4, Claude) handle
+    this correctly, but local inference servers don't always deserialize
+    the escape properly. Writing the literal two-character sequence to a
+    file produces one giant line instead of properly formatted content.
+
+    This function unescapes ``\\n``, ``\\t``, and ``\\r`` to their real
+    control-character equivalents, but ONLY when:
+    - The text contains the literal two-character sequence (``\\n`` etc.)
+    - The text does NOT already contain the corresponding real character
+
+    This avoids mangling source code that legitimately contains ``\\n`` as
+    a string literal (e.g. Python ``sep = "\\n"``) — in those cases, the
+    content already has real newlines elsewhere, so the heuristic leaves
+    the literal ``\\n`` alone.
+    """
+    if "\\n" in text and "\n" not in text:
+        text = text.replace("\\n", "\n")
+    if "\\t" in text and "\t" not in text:
+        text = text.replace("\\t", "\t")
+    if "\\r" in text and "\r" not in text:
+        text = text.replace("\\r", "\r")
+    return text
+
+
 def _resolve_path(path: str) -> Path:
     """Resolve a path to an absolute Path.
 
@@ -31,6 +60,28 @@ def _resolve_path(path: str) -> Path:
 
 
 # --- Helper functions for read_file ---
+
+
+def _detect_literal_newline_warning(content: str) -> str:
+    """Detect literal backslash-n on long lines and return a warning string.
+
+    Local models sometimes write ``\\n`` (two literal characters) instead of
+    real newlines, producing one giant line. This detects that pattern and
+    returns a warning the model can see in the read_file output, so the
+    reviewer can catch the malformation.
+
+    Returns an empty string if no issue is detected.
+    """
+    lines = content.split("\n")
+    for line in lines:
+        if len(line) > 500 and "\\n" in line:
+            return (
+                "\n[Warning: this line contains literal \\n characters "
+                "(backslash-n), not actual newlines. The file may be "
+                "malformed — use str_replace to fix the literal \\n to "
+                "real newlines.]"
+            )
+    return ""
 
 
 def _truncate_content(content_bytes: bytes, max_bytes: int, start_line: int = 1) -> str:
@@ -165,15 +216,17 @@ def read_file(
         result_str = "\n".join(lines[start - 1 :])
         if trailing_newline:
             result_str += "\n"
+        result_str += _detect_literal_newline_warning(result_str)
         result_bytes = result_str.encode("utf-8")
         if len(result_bytes) <= _FULL_FILE_TRUNCATION_BYTES:
             return result_str
         return _truncate_content(result_bytes, _FULL_FILE_TRUNCATION_BYTES, start)
 
     # --- Full-file mode: no start, no offset ---
-    if len(content_bytes) <= _FULL_FILE_TRUNCATION_BYTES:
+    content += _detect_literal_newline_warning(content)
+    if len(content.encode("utf-8")) <= _FULL_FILE_TRUNCATION_BYTES:
         return content
-    return _truncate_content(content_bytes, _FULL_FILE_TRUNCATION_BYTES)
+    return _truncate_content(content.encode("utf-8"), _FULL_FILE_TRUNCATION_BYTES)
 
 
 # --- write_file ---
@@ -213,6 +266,7 @@ def write_file(path: str, content: str) -> dict[str, Any]:
         }
 
     try:
+        content = _normalize_newlines(content)
         chars_written = resolved.write_text(content, encoding="utf-8")
         return {
             "success": True,
@@ -540,6 +594,11 @@ def str_replace(
             "diff_preview": None,
             "error": "old_string and new_string are identical.",
         }
+    # Unescape literal \n, \t, \r that local models send as two-character
+    # sequences in JSON tool-call arguments. This prevents malformed files
+    # where the entire content is on one line with literal backslash-n.
+    new_string = _normalize_newlines(new_string)
+    old_string = _normalize_newlines(old_string)
     try:
         resolved = _resolve_path(path)
     except ValueError as exc:
@@ -678,6 +737,7 @@ def append_file(path: str, content: str) -> dict[str, Any]:
             "error": f"Permission denied creating directory: {resolved.parent}",
         }
     try:
+        content = _normalize_newlines(content)
         if resolved.exists():
             existing = resolved.read_text(encoding="utf-8")
             # Ensure newline separator between existing and appended content.

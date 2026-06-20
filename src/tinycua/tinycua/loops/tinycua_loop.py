@@ -492,6 +492,7 @@ class TinyCUALoop(
                 )
                 continue
             arguments = self._normalize_tool_call_arguments(allowed_tools[name], arguments)
+            self._log_tool_call_args(name, arguments)
             try:
                 output = await ToolExecutor.execute(allowed_tools[name], arguments, agent)  # type: ignore[arg-type]
             except Exception as exc:  # noqa: BLE001 - recorded for trace/debugging.
@@ -505,6 +506,52 @@ class TinyCUALoop(
             self._record_tool_chat_result(tool_result)
             results.append(tool_result)
         return results
+
+    def _log_tool_call_args(self, name: str, arguments: dict[str, Any]) -> None:
+        """Log a truncated preview of tool call arguments to stderr for debugging.
+
+        File tools (str_replace, write_file, append_file) get path + content
+        preview. Other tools get a truncated JSON preview. This makes it
+        possible to diagnose issues like literal \\n in content by inspecting
+        the stderr log.
+        """
+        import sys
+
+        if name in {"str_replace", "write_file", "append_file"}:
+            path = arguments.get("path", "?")
+            if name == "str_replace":
+                old = str(arguments.get("old_string", ""))[:100]
+                new = str(arguments.get("new_string", ""))[:100]
+                has_literal_n = "\\n" in str(arguments.get("new_string", ""))
+                print(
+                    f"[tinycua] tool={name} path={path}\n"
+                    f"  old_string[:100]={old!r}\n"
+                    f"  new_string[:100]={new!r}"
+                    + (" [WARNING: literal \\n detected]" if has_literal_n else ""),
+                    file=sys.stderr,
+                    flush=True,
+                )
+            else:
+                content = str(arguments.get("content", ""))[:100]
+                has_literal_n = "\\n" in str(arguments.get("content", ""))
+                print(
+                    f"[tinycua] tool={name} path={path}\n"
+                    f"  content[:100]={content!r}"
+                    + (" [WARNING: literal \\n detected]" if has_literal_n else ""),
+                    file=sys.stderr,
+                    flush=True,
+                )
+        else:
+            # Truncated JSON preview for non-file tools.
+            try:
+                preview = json.dumps(arguments, default=str)[:200]
+            except Exception:
+                preview = str(arguments)[:200]
+            print(
+                f"[tinycua] tool={name} args={preview}",
+                file=sys.stderr,
+                flush=True,
+            )
 
     def _normalize_tool_call_arguments(
         self,
