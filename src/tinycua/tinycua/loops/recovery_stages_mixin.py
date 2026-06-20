@@ -32,21 +32,24 @@ class RecoveryStagesMixin:
         resolved_tools: list[Tool],
         last_result: LLMResult,
         validation: ValidationResult,
+        *,
+        missing_tools: list[str] | None = None,
     ) -> tuple[LLMResult, ValidationResult] | None:
-        """Tightest recovery: an LLM judge decides the tool call with no context.
+        """Tightest recovery: an LLM judge injects the first missing tool call.
 
-        When the focused retry and tightening retry both fail, the model is
-        stuck and cannot produce the required tool call on its own. This stage
-        bypasses the stuck model: a separate LLM call sees only the validation
-        error, the required tool name, and the model's last response — no node
-        context, no tool history, no session state. The judge produces the
-        exact tool call (name + arguments), which we inject directly and
-        execute. The stuck model never gets to decide again.
+        The judge sees only the validation error, the required tool name, and
+        the model's last response. It produces the exact tool call, which we
+        inject and execute. The stuck model never gets to decide again.
 
         Returns (result, validation) if the injected call passes validation,
         otherwise None (caller logs state and loops back to stage 1).
         """
-        required_tool = self._required_tool_for_recovery(node, validation)
+        # Determine the tool to inject: the first missing prerequisite.
+        if missing_tools:
+            tool_name = missing_tools[0]
+            required_tool = self._resolve_recovery_tool(node, tool_name, resolved_tools)
+        else:
+            required_tool = self._required_tool_for_recovery(node, validation)
         if required_tool is None:
             return None  # no single tool can fix this — judge cannot help
 

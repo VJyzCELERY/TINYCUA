@@ -1007,26 +1007,38 @@ class ValidationRetryMixin:
         resolved_tools: list[Tool],
         last_result: LLMResult,
         validation: ValidationResult,
+        *,
+        missing_tools: list[str] | None = None,
     ) -> tuple[LLMResult, ValidationResult] | None:
-        """One focused minimal-context retry after normal retries exhaust.
+        """Focused retry exposing only the missing prerequisite tools.
 
-        Strips all accumulated tool history / continuations and gives the model
-        a quiet room: just the node instruction, its last response, and the
-        validation requirement. The LLM freely decides the correct call — this
-        is NOT forced behavior, just a cleaner context so a model stuck in a
-        verification loop can see clearly.
+        Strips accumulated tool history and gives the model a quiet room with
+        only the tools it still needs to call. If some prerequisites were
+        already called, they are NOT re-exposed — the model sees only what's
+        missing. The LLM freely decides the arguments.
 
-        Returns (new_llm_result, new_validation) if the recovery call produces
-        a valid result, otherwise None (caller proceeds to raise/record).
+        Returns (new_llm_result, new_validation) if valid, else None.
         """
         from datetime import datetime
 
+        # Build the tool list: only the missing prerequisites.
+        # If missing_tools is None, fall back to all resolved_tools (legacy).
+        if missing_tools is not None and missing_tools:
+            recovery_tools: list[Tool] = []
+            for name in missing_tools:
+                tool = self._resolve_recovery_tool(node, name, resolved_tools)
+                if tool is not None:
+                    recovery_tools.append(tool)
+            if not recovery_tools:
+                return None  # can't resolve any missing tools — skip
+        else:
+            recovery_tools = list(resolved_tools)
+
         # Build a minimal message list: system instruction + last response + ask.
-        system_msg = node.build_system_message(resolved_tools)
+        system_msg = node.build_system_message(recovery_tools)
         recovery_messages: list[dict[str, Any]] = []
         if system_msg.get("content"):
             recovery_messages.append(system_msg)
-        # Current time (same volatile-suffix pattern as Node.build_messages).
         now = datetime.now().astimezone()
         recovery_messages.append(
             {
@@ -1037,7 +1049,6 @@ class ValidationRetryMixin:
                 ),
             }
         )
-        # The model's last response (what it did that failed validation).
         last_content = (last_result.content or "").strip()
         tool_call_summary = ""
         if last_result.tool_calls:
@@ -1053,8 +1064,8 @@ class ValidationRetryMixin:
                 "content": f"[My last response]{tool_call_summary}: {last_content}",
             }
         )
-        # The focused ask: based on that, what's the correct call?
         errors = "; ".join(validation.errors)
+        missing_str = ", ".join(missing_tools) if missing_tools else "the required tools"
         node_continuation = node.build_continuation(node.session) if node.session else ""
         recovery_messages.append(
             {
@@ -1062,9 +1073,8 @@ class ValidationRetryMixin:
                 "content": (
                     f"The above response did not satisfy the node's requirement: "
                     f"{errors}\n\n"
-                    f"Based on your last response and the node instruction below, "
-                    f"call the correct tool(s) now to satisfy the requirement. "
-                    f"Do not repeat what you already did — make the missing call.\n\n"
+                    f"You still need to call: {missing_str}. "
+                    f"Call {missing_str} now — do not repeat what you already did.\n\n"
                     f"{node_continuation}"
                 ),
             }
@@ -1074,7 +1084,7 @@ class ValidationRetryMixin:
                 agent,
                 node,
                 recovery_messages,
-                resolved_tools,
+                recovery_tools,
             )
         except Exception:
             logger.warning("node=%s recovery_retry failed", node.node_id, exc_info=True)
@@ -1087,15 +1097,14 @@ class ValidationRetryMixin:
             reasoning=raw_response.get("reasoning", ""),
         )
         if not node.is_terminal and node.node_id != "result_aggregation":
-            self._coerce_structured_tool_calls(recovery_result, resolved_tools)
-        self._coerce_terminate_only_response(resolved_tools, recovery_result)
-        # Execute any tool calls the recovery produced.
+            self._coerce_structured_tool_calls(recovery_result, recovery_tools)
+        self._coerce_terminate_only_response(recovery_tools, recovery_result)
         all_tool_results: list[dict[str, Any]] = []
         if recovery_result.tool_calls:
             tool_results = await self._execute_tool_calls(
                 agent,
                 recovery_result.tool_calls,
-                resolved_tools,
+                recovery_tools,
             )
             if tool_results:
                 all_tool_results.extend(tool_results)
@@ -1106,8 +1115,8 @@ class ValidationRetryMixin:
         if recovery_validation.is_valid:
             self._record_node_content_transcript(
                 node,
-                "Recovery retry succeeded after normal retries exhausted; "
-                "the model made the correct call with a focused context.",
+                "Recovery retry succeeded — the model called the missing "
+                f"tool(s) ({missing_str}) with a focused context.",
             )
             return recovery_result, recovery_validation
         return None
@@ -1151,25 +1160,26 @@ class ValidationRetryMixin:
         resolved_tools: list[Tool],
         last_result: LLMResult,
         validation: ValidationResult,
+        *,
+        missing_tools: list[str] | None = None,
     ) -> tuple[LLMResult, ValidationResult] | None:
-        """Last-chance retry with only the single required tool available.
+        """Narrow to the first missing prerequisite tool with tool_choice=required.
 
-        If the focused recovery retry (all tools, clean context) failed, this
-        narrows the model to ONLY the one tool that satisfies the validator.
-        The model still decides the arguments — we're not hardcoding the answer,
-        just narrowing the choice space so the model can't pick a wrong tool.
-
-        Uses tool_choice="required" so the model MUST call a tool, and there's
-        only one tool to call. Returns (result, validation) if it works, else None.
+        The model gets only one tool — the next missing prerequisite in the
+        chain. It must call that tool (tool_choice=required). The model still
+        decides the arguments.
         """
         from datetime import datetime
 
-        required_tool = self._required_tool_for_recovery(node, validation)
+        # Determine the single tool to force: the first missing prerequisite.
+        if missing_tools:
+            tool_name = missing_tools[0]
+            required_tool = self._resolve_recovery_tool(node, tool_name, resolved_tools)
+        else:
+            required_tool = self._required_tool_for_recovery(node, validation)
         if required_tool is None:
             return None  # no single tool can fix this — skip tightening
 
-        # Build minimal context — same as recovery retry but with a specific
-        # message naming the exact tool to call.
         system_msg = node.build_system_message([required_tool])
         tightening_messages: list[dict[str, Any]] = []
         if system_msg.get("content"):
@@ -1186,7 +1196,6 @@ class ValidationRetryMixin:
         )
         errors = "; ".join(validation.errors)
         tool_name = getattr(required_tool, "name", "the required tool")
-        # Specific guidance per tool.
         specific_guidance = {
             "task_inspect": "Call task_inspect (no task_id) to see the compact task list.",
             "terminate": "Call terminate to end this node.",
@@ -1209,7 +1218,6 @@ class ValidationRetryMixin:
             }
         )
         try:
-            # Force tool_choice=required with only the single tool.
             raw_response = await self._call_agent_llm(
                 agent,
                 node,
@@ -1228,7 +1236,6 @@ class ValidationRetryMixin:
         )
         self._coerce_structured_tool_calls(tightening_result, [required_tool])
         self._coerce_terminate_only_response([required_tool], tightening_result)
-        # Execute any tool calls.
         all_tool_results: list[dict[str, Any]] = []
         if tightening_result.tool_calls:
             tool_results = await self._execute_tool_calls(

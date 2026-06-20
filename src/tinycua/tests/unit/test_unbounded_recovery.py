@@ -178,6 +178,72 @@ class TestOnCompleteFiresAfterRecovery:
     """Tests that on_complete fires after recovery, enqueuing next nodes."""
 
     @pytest.mark.asyncio
+    async def test_direct_terminate_when_only_missing(self) -> None:
+        """When terminate is the only missing prerequisite, call it directly.
+
+        terminate has no meaningful parameters — there is nothing for the
+        model to decide. The recovery loop calls it without an LLM round-trip.
+        """
+        loop = TinyCUALoop()
+        task = loop.root_session.task_store.create_task("test task")
+        loop.root_session.task_store.record_result(
+            task.task_id,
+            TaskResult(content="done", success=True),
+        )
+        loop.root_session.task_store.active_task_id = task.task_id
+
+        reviewer = TinyCUAResultReviewerNode(
+            node_id="result_reviewer",
+            config=create_node_config("result_reviewer"),
+        )
+        reviewer.ensure_session(loop.root_session)
+
+        agent = MagicMock()
+        agent.tool_permissions = {}
+
+        # The original result already has task_review_decision + task_inspect
+        # successful — only terminate is missing.
+        original_result = LLMResult(
+            content="reviewed",
+            metadata={
+                "tool_results": [
+                    {
+                        "name": "task_review_decision",
+                        "allowed": True,
+                        "output": {
+                            "success": True,
+                            "decision": "approved",
+                            "task_id": task.task_id,
+                        },
+                    },
+                    {
+                        "name": "task_inspect",
+                        "allowed": True,
+                        "output": {"success": True},
+                    },
+                ]
+            },
+        )
+
+        result, validation = await loop._unbounded_recovery(
+            reviewer,
+            agent,
+            [],
+            original_result,
+            ValidationResult(
+                is_valid=False,
+                errors=["result_reviewer completed its required work; call terminate."],
+            ),
+        )
+
+        # The direct terminate shortcut should have fired — no LLM call needed.
+        assert validation.is_valid
+        assert any(
+            tc.get("function", {}).get("name") == "terminate"
+            for tc in result.tool_calls
+        )
+
+    @pytest.mark.asyncio
     async def test_reviewer_on_complete_enqueues_next_after_recovery(self) -> None:
         """After recovery, the reviewer's on_complete enqueues executor+reviewer."""
         loop = TinyCUALoop()

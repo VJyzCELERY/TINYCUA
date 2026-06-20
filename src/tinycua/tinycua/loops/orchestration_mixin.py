@@ -912,6 +912,45 @@ class OrchestrationMixin:
         ):
             yield event
 
+    # Prerequisite chains: the ordered sequence of tools each node must call
+    # before it can terminate. Recovery tracks which have been called and only
+    # asks for the missing ones in order. ``terminate`` is always last.
+    _RECOVERY_CHAINS: dict[str, tuple[str, ...]] = {
+        "result_reviewer": ("task_review_decision", "task_inspect", "terminate"),
+        "task_executor": ("task_result_update", "terminate"),
+        "task_create": ("task_init", "terminate"),
+        "task_analyzer": ("task_decompose", "terminate"),
+        "task_assessor": ("node_handoff", "terminate"),
+    }
+
+    def _resolve_recovery_tool(
+        self,
+        node: Node,
+        tool_name: str,
+        resolved_tools: list[Tool],
+    ) -> Tool | None:
+        """Resolve a Tool object by name — from scope or constructed on demand.
+
+        ``terminate`` is a universal lifecycle tool not in any node's static
+        scope. It is constructed on demand. Other tools are found in the
+        node's resolved tools or its tool policy scope.
+        """
+        if tool_name == "terminate":
+            from tinycua.tools.task_tools import TerminateTool
+            return TerminateTool()
+        # Check resolved_tools first (passed from the caller).
+        for tool in resolved_tools:
+            if getattr(tool, "name", "") == tool_name:
+                return tool
+        # Fall back to the node's tool policy scope.
+        resolved = getattr(node.config, "tool_policy", None)
+        if resolved is not None:
+            tools = resolved.resolve_tools([])
+            for tool in tools:
+                if getattr(tool, "name", "") == tool_name:
+                    return tool
+        return None
+
     def _log_recovery_cycle(
         self,
         node: Node,
@@ -957,53 +996,210 @@ class OrchestrationMixin:
         llm_result: LLMResult,
         validation: ValidationResult,
     ) -> tuple[LLMResult, ValidationResult]:
-        """Unbounded tightened-retry loop — never exits until validation passes.
+        """Unbounded sequential recovery — never exits until validation passes.
 
-        Cycles through three stages repeatedly:
-        1. Focused retry (all tools, clean context)
-        2. Tightening retry (single required tool, tool_choice=required)
-        3. Judge retry (LLM judge injects the tool call with no context)
+        Tracks which prerequisite tools the agent already called successfully
+        across the entire recovery (accumulated, not just the latest batch).
+        Each recovery cycle exposes only the MISSING prerequisites in order:
+        1. Focused retry: all missing prerequisite tools, clean context.
+        2. Tightening retry: first missing tool only, tool_choice=required.
+        3. Judge retry: first missing tool injected directly by the judge.
 
-        If all three fail in a cycle, logs system state to stderr and loops
-        back to stage 1. There is no graceful exit — the loop only returns
-        when validation passes. The experiment harness timeout is the only
-        ceiling (and that lives in the experiment layer, not tinycua).
+        After each stage, accumulates any newly-called tools and re-checks
+        what's still missing. Tool results from prior stages are merged into
+        the current result before validation so the validator sees the full
+        accumulated state.
+
+        No graceful exit — the loop only returns when validation passes.
         """
         cycle = 0
         current_result = llm_result
         current_validation = validation
+        # Accumulate successful tool results (dicts) across the entire recovery.
+        # Keyed by tool name — last successful result wins. This lets the
+        # validator see the full accumulated state even when a stage only
+        # produced one tool call.
+        accumulated_results: dict[str, dict[str, Any]] = {}
+        # Seed with successful tools from the original failed result.
+        for item in llm_result.metadata.get("tool_results", []):
+            if (
+                isinstance(item, dict)
+                and isinstance(item.get("output"), dict)
+                and item["output"].get("success") is True
+            ):
+                accumulated_results[str(item.get("name"))] = item
         while not current_validation.is_valid:
             cycle += 1
             stage_results: dict[str, bool] = {}
-            # Stage 1: focused retry
+            accumulated_successful = set(accumulated_results.keys())
+            # Determine which prerequisite tools are still missing.
+            missing = self._missing_recovery_tools_from_set(
+                node, accumulated_successful
+            )
+            # Shortcut: if the ONLY missing prerequisite is terminate, call
+            # it directly without an LLM round-trip. terminate has no
+            # meaningful parameters — there is nothing for the model to
+            # decide. This skips all three stages and exits immediately.
+            if missing == ["terminate"]:
+                terminated = await self._direct_terminate(node, agent)
+                if terminated is not None:
+                    current_result, current_validation = terminated
+                    self._accumulate_results(current_result, accumulated_results)
+                    current_validation = self._revalidate_with_accumulated(
+                        node, current_result, accumulated_results
+                    )
+                    if current_validation.is_valid:
+                        return current_result, current_validation
+                stage_results["direct_terminate"] = terminated is not None
+            # Stage 1: focused retry with only the missing tools exposed.
             recovery = await self._recovery_retry(
-                node, agent, resolved_tools, current_result, current_validation
+                node, agent, resolved_tools, current_result, current_validation,
+                missing_tools=missing,
             )
             stage_results["focused_retry"] = recovery is not None
             if recovery is not None:
                 current_result, current_validation = recovery
+                self._accumulate_results(current_result, accumulated_results)
+                current_validation = self._revalidate_with_accumulated(
+                    node, current_result, accumulated_results
+                )
                 if current_validation.is_valid:
                     return current_result, current_validation
-            # Stage 2: tightening retry
+            # Re-check missing after focused retry.
+            missing = self._missing_recovery_tools_from_set(
+                node, set(accumulated_results.keys())
+            )
+            # Stage 2: tightening retry — first missing tool, forced.
             tightening = await self._tightening_retry(
-                node, agent, resolved_tools, current_result, current_validation
+                node, agent, resolved_tools, current_result, current_validation,
+                missing_tools=missing,
             )
             stage_results["tightening_retry"] = tightening is not None
             if tightening is not None:
                 current_result, current_validation = tightening
+                self._accumulate_results(current_result, accumulated_results)
+                current_validation = self._revalidate_with_accumulated(
+                    node, current_result, accumulated_results
+                )
                 if current_validation.is_valid:
                     return current_result, current_validation
-            # Stage 3: judge retry
+            # Re-check missing after tightening retry.
+            missing = self._missing_recovery_tools_from_set(
+                node, set(accumulated_results.keys())
+            )
+            # Stage 3: judge retry — inject the first missing tool call.
             judge = await self._judge_retry(
-                node, agent, resolved_tools, current_result, current_validation
+                node, agent, resolved_tools, current_result, current_validation,
+                missing_tools=missing,
             )
             stage_results["judge_retry"] = judge is not None
             if judge is not None:
                 current_result, current_validation = judge
+                self._accumulate_results(current_result, accumulated_results)
+                current_validation = self._revalidate_with_accumulated(
+                    node, current_result, accumulated_results
+                )
                 if current_validation.is_valid:
                     return current_result, current_validation
             # All stages failed — log state and loop back.
             self._log_recovery_cycle(node, current_validation, cycle, stage_results)
+
+    async def _direct_terminate(
+        self,
+        node: Node,
+        agent: Agent,
+    ) -> tuple[LLMResult, ValidationResult] | None:
+        """Call terminate directly without an LLM round-trip.
+
+        ``terminate`` has no meaningful parameters — there is nothing for the
+        model to decide. During recovery, if terminate is the only missing
+        prerequisite, we call it directly. This builds a synthetic tool call,
+        executes it via the normal tool executor, and returns the result.
+
+        Returns (result, validation) if the terminate call succeeds, else None.
+        """
+        from tinycua.tools.task_tools import TerminateTool
+
+        terminate_tool = TerminateTool()
+        terminate_call: dict[str, Any] = {
+            "id": "call_direct_terminate",
+            "type": "function",
+            "function": {
+                "name": "terminate",
+                "arguments": "{}",
+            },
+        }
+        try:
+            tool_results = await self._execute_tool_calls(
+                agent, [terminate_call], [terminate_tool]
+            )
+        except Exception:
+            logger.debug("node=%s direct_terminate failed", node.node_id, exc_info=True)
+            return None
+        result = LLMResult(
+            content="[Direct terminate — no LLM call needed]",
+            role="assistant",
+            tool_calls=[terminate_call],
+            metadata={"tool_results": tool_results},
+        )
+        self._record_node_content_transcript(
+            node,
+            "Direct terminate: terminate called without LLM (no parameters to decide).",
+        )
+        return result, self._validate_node_result(node, result)
+
+    @staticmethod
+    def _accumulate_results(
+        llm_result: LLMResult,
+        accumulated: dict[str, dict[str, Any]],
+    ) -> None:
+        """Add successful tool results from a result to the accumulated dict."""
+        for item in llm_result.metadata.get("tool_results", []):
+            if (
+                isinstance(item, dict)
+                and isinstance(item.get("output"), dict)
+                and item["output"].get("success") is True
+            ):
+                accumulated[str(item.get("name"))] = item
+
+    def _revalidate_with_accumulated(
+        self,
+        node: Node,
+        llm_result: LLMResult,
+        accumulated: dict[str, dict[str, Any]],
+    ) -> ValidationResult:
+        """Re-validate with accumulated tool results merged into the result.
+
+        The recovery stages produce results with only the latest tool calls.
+        But the validator checks for ALL required tools in a single result.
+        This merges accumulated prior tool results into the result's
+        metadata before validating, so the validator sees the full state.
+        """
+        existing = llm_result.metadata.get("tool_results", [])
+        existing_names = {
+            str(item.get("name"))
+            for item in existing
+            if isinstance(item, dict)
+        }
+        merged = list(existing)
+        for name, item in accumulated.items():
+            if name not in existing_names:
+                merged.append(item)
+        if len(merged) != len(existing):
+            llm_result.metadata = dict(llm_result.metadata)
+            llm_result.metadata["tool_results"] = merged
+        return self._validate_node_result(node, llm_result)
+
+    def _missing_recovery_tools_from_set(
+        self,
+        node: Node,
+        accumulated_successful: set[str],
+    ) -> list[str]:
+        """Return prerequisite tools not yet called, using the accumulated set."""
+        chain = self._RECOVERY_CHAINS.get(node.node_id, ())
+        if not chain:
+            return []
+        return [name for name in chain if name not in accumulated_successful]
 
     async def _stream_exhausted_node_events(
         self,
