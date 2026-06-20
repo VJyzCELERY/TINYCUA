@@ -11,16 +11,11 @@ ollama serve              # Ollama (port 11434)
 vllm serve <model>        # vLLM (port 8000)
 # ...or any server on any port
 
-# 2. Build agent Docker images (first time only)
-bash benchmark.sh build
-# OR download pre-built images:
-bash scripts/download_images.sh --all
-
-# 3. Run benchmark (first time shows setup wizard)
+# 2. Run benchmark (first time: setup wizard + auto-build images)
 bash benchmark.sh
 ```
 
-> Docker and SearXNG are started automatically when running benchmarks.
+> Agent Docker images are built automatically on first run if not present.
 
 ## Commands
 

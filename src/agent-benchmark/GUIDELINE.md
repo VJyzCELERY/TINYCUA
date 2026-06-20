@@ -86,27 +86,17 @@ Choose one:
 | Custom local | Your own server | `http://localhost:<port>/v1` |
 | Custom remote | Any API endpoint | User-specified URL |
 
-### 2. Build Agent Docker Images
+### 2. Run Benchmark
 
 ```bash
-# Build all agent images (required first time)
-bash benchmark.sh build
-
-# OR download pre-built images instead:
-bash scripts/download_images.sh --all
-```
-
-### 3. Run Benchmark
-
-```bash
-# First time: interactive setup wizard
+# First time: interactive setup wizard + auto-build images
 bash benchmark.sh
 
 # Subsequent runs: uses saved config
 bash benchmark.sh run
 ```
 
-> Docker and SearXNG are started automatically when running benchmarks.
+> Agent Docker images are built automatically on first run if not present.
 
 ### First Time Setup Wizard
 

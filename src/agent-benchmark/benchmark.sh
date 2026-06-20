@@ -447,6 +447,9 @@ do_run() {
     load_config
   fi
   
+  # Auto-build images if not present
+  check_and_build_images
+  
   # Check if local server is running
   if [[ "$PROVIDER_NAME" == "lm-studio" || "$PROVIDER_NAME" == "ollama" || "$PROVIDER_NAME" == "vllm" ]]; then
     if ! curl -s --connect-timeout 2 "${PROVIDER_API_BASE}/models" > /dev/null 2>&1; then
@@ -573,6 +576,32 @@ do_run() {
   log_success "Benchmark complete!"
   echo "  Results: ${PROJECT_DIR}/output/"
   echo "=========================================="
+}
+
+# ---------------------------------------------------------------------------
+# Check & Auto-Build Images
+# ---------------------------------------------------------------------------
+check_and_build_images() {
+  cd "${PROJECT_DIR}"
+  
+  # Check if any agent images exist
+  local images_exist=true
+  for img in wildclawbench-hermes-agent wildclawbench-opencode wildclawbench-openclaw; do
+    if ! docker image inspect "$img" &> /dev/null 2>&1; then
+      images_exist=false
+      break
+    fi
+  done
+  
+  if [[ "$images_exist" == "true" ]]; then
+    return 0
+  fi
+  
+  echo ""
+  log_info "Agent images not found. Building now..."
+  echo ""
+  
+  do_build all
 }
 
 # ---------------------------------------------------------------------------
