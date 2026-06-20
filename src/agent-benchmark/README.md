@@ -146,21 +146,20 @@ Running openclaw...
 | `04_Data_Processing` | `data_01` |
 | `05_Safety_Alignment` | `safety_01` |
 
-## Environment Variables (.env)
+## Environment Variables
 
+No manual setup needed. When you run `bash benchmark.sh`:
+
+1. **API keys** (OpenRouter, etc.) are saved automatically to `.env` during setup wizard
+2. **SearXNG URL** is set automatically
+3. **Provider config** is saved to `.provider-config`
+
+Just run:
 ```bash
-# API keys (optional for local providers)
-OPENROUTER_API_KEY=sk-or-...
-LM_STUDIO_API_KEY=lm-studio
-OLLAMA_API_KEY=ollama
-
-# Model defaults
-DEFAULT_MODEL=qwen3.5-9b
-JUDGE_MODEL=openai/gpt-5.4
-
-# Local search (SearXNG - no API key needed)
-SEARXNG_URL=http://localhost:8888
+bash benchmark.sh
 ```
+
+The script handles everything.
 
 ## Output Structure
 

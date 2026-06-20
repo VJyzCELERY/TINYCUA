@@ -196,32 +196,24 @@ bash setup.sh --step 3
 4. Extracts `dot_git.tar.gz` for Safety Alignment tasks
 5. Downloads SAM3 model weights for Code Intelligence tasks
 
-### Step 4: Setup Environment
+### Step 4: Run Benchmark
+
+No manual `.env` setup needed. When you run `benchmark.sh`:
 
 ```bash
-# Create .env file from template
-cp .env.example .env
+# First time: interactive setup wizard
+bash benchmark.sh
 
-# Edit with your API keys
-nano .env
-
-# Or use the setup script
-bash setup.sh --step 4
+# Subsequent runs: uses saved config
+bash benchmark.sh run
 ```
 
-**Environment Variables:**
+The script automatically:
+- Saves API keys to `.env` during setup wizard
+- Sets SearXNG URL
+- Saves provider config to `.provider-config`
 
-```bash
-# Required (for OpenRouter/cloud providers)
-OPENROUTER_API_KEY=your_api_key_here
-
-# Optional
-JUDGE_MODEL=openai/gpt-5.4
-DEFAULT_MODEL=qwen3.5-9b
-
-# Local search (SearXNG - starts automatically)
-SEARXNG_URL=http://localhost:8888
-```
+> Docker and SearXNG are started automatically when running benchmarks.
 
 ---
 
