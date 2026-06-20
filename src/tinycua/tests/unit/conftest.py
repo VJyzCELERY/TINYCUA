@@ -106,7 +106,7 @@ class MockLLM:
                 content = msg.get("content", "").lower()
                 if "query analyst" in content:
                     return "qa"
-                if "information digester" in content:
+                if "information digester" in content or "informationdigester" in content:
                     return "digester"
                 if "worker node" in content:
                     return "worker"

@@ -262,16 +262,16 @@ def create_node_config(
         retry_policy = replace(retry_policy, max_attempts=25)
     retry_guidance = {
         "digester": (
-            "If prior context is available, consider using "
-            "enhanced_context_retrieval to inspect it before calling "
-            "digest_information. Do not force retrieval when the provided "
-            "context is already sufficient."
+            "Use enhanced_context_retrieval to inspect existing session "
+            "context, then web_search if external research is needed. "
+            "Call digest_information with your findings. Do NOT attempt "
+            "to solve or write the task — you are gathering context only."
         ),
         "information_digester": (
-            "If prior context is available, consider using "
-            "enhanced_context_retrieval to inspect it before calling "
-            "digest_information. Do not force retrieval when the provided "
-            "context is already sufficient."
+            "Use enhanced_context_retrieval to inspect existing session "
+            "context, then web_search if external research is needed. "
+            "Call digest_information with your findings. Do NOT attempt "
+            "to solve or write the task — you are gathering context only."
         ),
         "query_analyst": (
             "Use select_query_route with exactly one route. Do not answer with "
