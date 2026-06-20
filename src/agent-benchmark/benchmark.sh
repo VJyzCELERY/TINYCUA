@@ -328,6 +328,46 @@ start_local_server() {
 }
 
 # ---------------------------------------------------------------------------
+# Ensure Model Context Length
+# ---------------------------------------------------------------------------
+ensure_model_context() {
+  local model="${PROVIDER_MODEL:-qwen/qwen3.5-9b}"
+  local min_context=16384
+  
+  # Check if lms CLI is available
+  local lms_cmd=""
+  if command -v lms &> /dev/null; then
+    lms_cmd="lms"
+  elif [[ -f "/Users/jonaja29/.lmstudio/bin/lms" ]]; then
+    lms_cmd="/Users/jonaja29/.lmstudio/bin/lms"
+  else
+    return 0
+  fi
+  
+  # Check if model is loaded with adequate context
+  local loaded_info
+  loaded_info=$($lms_cmd status 2>/dev/null || echo "")
+  
+  if echo "$loaded_info" | grep -q "$model"; then
+    # Model is loaded, check context length via API
+    local models_response
+    models_response=$(curl -s --connect-timeout 2 "${PROVIDER_API_BASE}/models" 2>/dev/null || echo "")
+    
+    if [[ -n "$models_response" ]]; then
+      log_info "Model ${model} is loaded. Hermes requires 16K+ context."
+      log_info "Reloading with ${min_context} context to ensure compatibility..."
+      
+      $lms_cmd unload "$model" 2>/dev/null
+      sleep 2
+      $lms_cmd load "$model" -c "$min_context" 2>/dev/null
+      sleep 3
+      
+      log_success "Model reloaded with ${min_context} context"
+    fi
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # Save Configuration
 # ---------------------------------------------------------------------------
 save_env_config() {
@@ -466,6 +506,11 @@ do_run() {
         exit 1
       fi
     fi
+  fi
+  
+  # Ensure LM Studio model has adequate context length (hermes needs 16K+)
+  if [[ "$PROVIDER_NAME" == "lm-studio" ]]; then
+    ensure_model_context
   fi
   
   # Parse command line overrides
