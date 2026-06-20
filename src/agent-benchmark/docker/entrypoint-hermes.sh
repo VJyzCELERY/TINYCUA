@@ -67,7 +67,9 @@ sys.path.insert(0, '/opt/hermes')
 
 # Patch minimum context length to allow 4K models
 import agent.model_metadata as _mm
+import agent.agent_init as _ai
 _mm.MINIMUM_CONTEXT_LENGTH = 2048
+_ai.MINIMUM_CONTEXT_LENGTH = 2048
 
 from run_agent import AIAgent
 
@@ -92,7 +94,7 @@ print(result)
 # Find and convert trajectory transcript
 TRAJ_DIR="/root/.hermes/logs"
 if [ -d "${TRAJ_DIR}" ]; then
-    LATEST=$(ls -t "${TRAJ_DIR}"/session_*.json 2>/dev/null | head -1)
+    LATEST=$(ls -t "${TRAJ_DIR}"/session_*.json 2>/dev/null | head -1 || true)
     if [ -n "${LATEST}" ]; then
         python3 -c "
 import json
