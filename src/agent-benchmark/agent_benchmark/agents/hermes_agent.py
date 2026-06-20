@@ -1,155 +1,100 @@
 """HermesAgent — WildClawBench adapter for Hermes agent via Docker.
 
-Extends DockerAgent with YAML config, auto-build from source, and
-custom volume mounts matching upstream WildClawBench conventions.
+Extends DockerAgent with auto-build from source. The agent (hermes-agent)
+is installed from pip inside the Docker image. Entrypoint is baked into
+the image at /app/entrypoint.sh.
 """
 
 from __future__ import annotations
 
 import logging
 import os
+import platform
 import subprocess
-from dataclasses import dataclass
 from pathlib import Path
-
-import yaml
+from typing import Any
 
 from agent_benchmark.agents.docker_agent import DockerAgent
 from agent_benchmark.base_agent import AgentTaskSpec
+from agent_benchmark.providers.base import Provider
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class HermesConfig:
-    """Configuration for Hermes agent runs.
-
-    Attributes:
-        model: Model name/path (e.g., "gpt-4", "qwen3.5-9b").
-        api_base: API endpoint URL.
-        api_key_env: Env var name for API key (not the key itself).
-        temperature: Sampling temperature (default: 0.0).
-        max_tokens: Max tokens per response (default: 4096).
-        timeout: Request timeout in seconds (default: 120).
-        cost_per_token: Cost per token in USD (default: 0.0000025).
-    """
-
-    model: str
-    api_base: str
-    api_key_env: str
-    temperature: float = 0.0
-    max_tokens: int = 4096
-    timeout: int = 120
-    cost_per_token: float = 0.0000025
-
-
-_REQUIRED_FIELDS = {"model", "api_base", "api_key_env"}
-
-
-def load_hermes_config(path: str) -> HermesConfig:
-    """Load and validate Hermes configuration from a YAML file."""
-    config_path = Path(path)
-    if not config_path.exists():
-        raise FileNotFoundError(f"Hermes config not found: {path}")
-
-    with open(config_path) as f:
-        data = yaml.safe_load(f)
-
-    if not isinstance(data, dict):
-        raise ValueError("Hermes config must be a YAML mapping")
-
-    missing = _REQUIRED_FIELDS - set(data.keys())
-    if missing:
-        raise ValueError(
-            f"Hermes config missing required fields: {', '.join(sorted(missing))}"
-        )
-
-    return HermesConfig(
-        model=str(data["model"]),
-        api_base=str(data["api_base"]),
-        api_key_env=str(data["api_key_env"]),
-        temperature=float(data.get("temperature", 0.0)),
-        max_tokens=int(data.get("max_tokens", 4096)),
-        timeout=int(data.get("timeout", 120)),
-        cost_per_token=float(data.get("cost_per_token", 0.0000025)),
-    )
-
-
 class HermesAgent(DockerAgent):
-    """Hermes agent harness. Extends DockerAgent with YAML config + auto-build.
+    """Hermes agent harness.
+
+    Installs hermes-agent from pip inside the container. Runs in one-shot
+    mode: receives TASK_PROMPT via env var, executes agent, saves
+    transcript, exits.
 
     Args:
-        config_path: Path to the Hermes agent YAML config file.
+        provider: LLM provider instance for model access.
     """
 
-    image_name = "wildclawbench-hermes-agent:v0.5"
-    transcript_path = "/workspace/transcript.jsonl"
+    image_name = "wildclawbench-hermes-agent:latest"
+    transcript_path = "/tmp_workspace/results/transcript.jsonl"
 
-    def __init__(self, config_path: str) -> None:
-        self._config = load_hermes_config(config_path)
-        self.api_key_env = self._config.api_key_env
-        self.default_cost_per_token = self._config.cost_per_token
+    def __init__(self, provider: Provider | None = None, **kwargs: Any) -> None:
+        super().__init__(provider=provider, **kwargs)
 
     def _build_docker_command(self, spec: AgentTaskSpec) -> list[str]:
-        """Build docker run command with Hermes-specific volume mounts."""
-        # Get the project directory to mount the entrypoint script
-        project_dir = Path(__file__).parent.parent.parent
-        entrypoint_script = project_dir / "scripts" / "entrypoint_lmstudio.sh"
+        """Build docker run command. Entrypoint is baked into the image."""
+        if self._provider:
+            provider_env = self._provider.get_entrypoint_env()
+            api_base = self._provider.config.api_base.replace(
+                "localhost", "host.docker.internal"
+            )
+            provider_env["LLM_API_BASE"] = api_base
+        else:
+            api_base = os.environ.get(
+                "LM_STUDIO_API_BASE", "http://host.docker.internal:1234/v1"
+            )
+            provider_env = {
+                "LLM_API_BASE": api_base,
+                "LLM_API_KEY": os.environ.get(self.api_key_env, "lm-studio"),
+                "LLM_MODEL": spec.model,
+                "LLM_TEMPERATURE": "0.0",
+                "LLM_MAX_TOKENS": "4096",
+            }
 
-        # Determine API base - use host.docker.internal for Docker containers
-        api_base = self._config.api_base.replace("localhost", "host.docker.internal")
+        # Detect host architecture for Docker platform
+        host_arch = platform.machine()
+        docker_platform = "linux/arm64" if host_arch == "arm64" else "linux/amd64"
 
-        return [
+        cmd = [
             "docker",
             "run",
             "--rm",
             "--platform",
-            "linux/amd64",
+            docker_platform,
             "-v",
-            f"{spec.output_dir}:/workspace/output",
+            f"{spec.output_dir}:/tmp_workspace/results",
             "-v",
-            f"{spec.workspace_path}:/workspace/workspace",
-            "-v",
-            f"{entrypoint_script}:/tmp_workspace/entrypoint.sh:ro",
-            "-e",
-            f"{self.api_key_env}={os.environ.get(self.api_key_env, 'lm-studio')}",
-            "-e",
-            f"HERMES_MODEL={spec.model}",
-            "-e",
-            f"HERMES_BASE_URL={api_base}",
-            "-e",
-            f"HERMES_API_KEY={os.environ.get(self.api_key_env, 'lm-studio')}",
-            "-e",
-            f"HERMES_TEMPERATURE={self._config.temperature}",
-            "-e",
-            f"HERMES_MAX_TOKENS={self._config.max_tokens}",
-            "-e",
-            f"TASK_PROMPT={spec.prompt}",
-            "-e",
-            f"DEFAULT_MODEL={spec.model}",
-            "-e",
-            f"LM_STUDIO_API_BASE={api_base}",
-            "-e",
-            f"LM_STUDIO_API_KEY={os.environ.get(self.api_key_env, 'lm-studio')}",
-            "-e",
-            "LM_STUDIO_MAX_TOKENS=4096",
-            "-e",
-            "LM_STUDIO_TEMPERATURE=0.0",
-            "--network",
-            "host",
+            f"{spec.workspace_path}:/tmp_workspace/workspace",
+        ]
+
+        # Add provider environment variables
+        for key, value in provider_env.items():
+            cmd.extend(["-e", f"{key}={value}"])
+
+        # Add Hermes-specific environment variables
+        cmd.extend([
+            "-e", f"HERMES_MODEL={spec.model}",
+            "-e", f"LLM_BASE_URL={api_base}",
+            "-e", f"TASK_PROMPT={spec.prompt}",
+            "-e", f"DEFAULT_MODEL={spec.model}",
             "--add-host=host.docker.internal:host-gateway",
             self.image_name,
-            "bash",
-            "/tmp_workspace/entrypoint.sh",
-        ]
+        ])
+
+        return cmd
 
     def _ensure_image(self) -> None:
         """Ensure the Hermes Docker image exists. Builds from source if missing."""
         result = subprocess.run(
             ["docker", "images", "-q", self.image_name],
-            capture_output=True,
-            text=True,
-            check=False,
+            capture_output=True, text=True, check=False,
         )
         if not result.stdout.strip():
             logger.info("Hermes Docker image not found — building from source...")
@@ -160,20 +105,12 @@ class HermesAgent(DockerAgent):
             ]:
                 if Path(dockerfile_path).exists():
                     subprocess.run(
-                        [
-                            "docker",
-                            "build",
-                            "-f",
-                            dockerfile_path,
-                            "-t",
-                            self.image_name,
-                            ".",
-                        ],
+                        ["docker", "build", "-f", dockerfile_path,
+                         "-t", self.image_name, "."],
                         check=True,
                     )
                     return
             raise subprocess.CalledProcessError(
-                1,
-                ["docker", "build"],
+                1, ["docker", "build"],
                 stderr="Dockerfile.hermes not found in any expected location",
             )

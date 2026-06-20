@@ -1,20 +1,23 @@
 #!/bin/bash
-# Hermes Benchmark Container Entry Point
-# Validates environment, configures Hermes, and executes the benchmark task.
+# WildClawBench Container Entry Point
+# Validates environment, calls LLM API, and executes the benchmark task.
+#
+# Supports multiple LLM providers via environment variables:
+#   LLM_API_BASE: API endpoint URL
+#   LLM_API_KEY: API key (optional for local providers)
+#   LLM_MODEL: Model name
+#   LLM_TEMPERATURE: Sampling temperature
+#   LLM_MAX_TOKENS: Max tokens per response
 #
 # WildClawBench injects TASK_PROMPT via environment variable before container start.
-# See src/hermes-benchmark/docs/SETUP.md for configuration details.
 
 set -euo pipefail
 
-# --- Environment Validation ---
+# --- Proxy Cleanup ---
+# Unset any proxy settings that might interfere with local API calls
+unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY no_proxy NO_PROXY
 
-# Required: HERMES_BASE_URL must be set for model endpoint
-if [ -z "${HERMES_BASE_URL:-}" ]; then
-    echo "ERROR: HERMES_BASE_URL not set." >&2
-    echo "Set HERMES_BASE_URL to your OpenAI-compatible model endpoint." >&2
-    exit 1
-fi
+# --- Environment Validation ---
 
 # Required: TASK_PROMPT must be set by WildClawBench
 if [ -z "${TASK_PROMPT:-}" ]; then
@@ -22,32 +25,21 @@ if [ -z "${TASK_PROMPT:-}" ]; then
     exit 1
 fi
 
-# Optional: Set defaults for model configuration
-export HERMES_API_KEY="${HERMES_API_KEY:-}"
-export HERMES_MODEL="${HERMES_MODEL:-qwen3.5-9b}"
-export HERMES_LOG_LEVEL="${HERMES_LOG_LEVEL:-INFO}"
-export HERMES_TIMEOUT="${HERMES_TIMEOUT:-300}"
+# Model configuration with defaults (supports any OpenAI-compatible provider)
+MODEL="${LLM_MODEL:-${DEFAULT_MODEL:-qwen3.5-9b}}"
+API_BASE="${LLM_API_BASE:-http://host.docker.internal:1234/v1}"
+API_KEY="${LLM_API_KEY:-}"
+MAX_TOKENS="${LLM_MAX_TOKENS:-4096}"
+TEMPERATURE="${LLM_TEMPERATURE:-0.0}"
 
 # --- Workspace Validation ---
 
-# Ensure /tmp_workspace exists and is writable
-if [ ! -d "/tmp_workspace" ]; then
-    echo "ERROR: /tmp_workspace directory not found." >&2
-    echo "Mount the task workspace at /tmp_workspace." >&2
-    exit 1
-fi
-
-if [ ! -w "/tmp_workspace" ]; then
-    echo "ERROR: /tmp_workspace is not writable." >&2
-    exit 1
-fi
-
-# Create results directory for benchmark artifacts
+# Ensure workspace directories exist
 mkdir -p /tmp_workspace/results
+mkdir -p /tmp_workspace/workspace
 
 # --- Signal Handling ---
 
-# Trap SIGTERM and SIGINT for graceful shutdown
 cleanup() {
     echo "Received shutdown signal, preserving artifacts..." >&2
     exit 0
@@ -56,17 +48,134 @@ trap cleanup SIGTERM SIGINT
 
 # --- Execute Benchmark ---
 
-echo "Hermes Benchmark Container starting..." >&2
-echo "Model endpoint: ${HERMES_BASE_URL}" >&2
-echo "Model: ${HERMES_MODEL}" >&2
+echo "WildClawBench Container starting..." >&2
+echo "Provider: ${API_BASE}" >&2
+echo "Model: ${MODEL}" >&2
 echo "Task prompt length: ${#TASK_PROMPT} chars" >&2
 
-# Pass TASK_PROMPT via environment variable to avoid shell interpretation of
-# special characters (quotes, backticks, $ signs) in the prompt string.
-# The CLI reads from TASK_PROMPT env var when --prompt is not provided.
-export TASK_PROMPT
-exec hermes benchmark run \
-    --workspace /tmp_workspace \
-    --output /tmp_workspace/results \
-    --transcript /tmp_workspace/transcript.jsonl \
-    --timeout "${HERMES_TIMEOUT}"
+# Create a Python script to call the LLM API and execute the task
+cat > /tmp_workspace/run_task.py << 'PYEOF'
+#!/usr/bin/env python3
+"""WildClawBench benchmark task runner."""
+
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+import requests
+
+
+def call_llm(prompt: str, model: str, api_base: str, api_key: str,
+             max_tokens: int = 4096, temperature: float = 0.0) -> str:
+    """Call OpenAI-compatible API."""
+    url = f"{api_base}/chat/completions"
+    headers = {
+        "Content-Type": "application/json",
+    }
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    
+    data = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": max_tokens,
+        "temperature": temperature
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=data, timeout=300)
+        response.raise_for_status()
+        result = response.json()
+        return result["choices"][0]["message"]["content"]
+    except requests.exceptions.RequestException as e:
+        print(f"API call failed: {e}", file=sys.stderr)
+        raise
+
+
+def main():
+    task_prompt = os.environ.get("TASK_PROMPT", "")
+    model = os.environ.get("LLM_MODEL", os.environ.get("DEFAULT_MODEL", "qwen3.5-9b"))
+    api_base = os.environ.get("LLM_API_BASE", "http://host.docker.internal:1234/v1")
+    api_key = os.environ.get("LLM_API_KEY", "")
+    max_tokens = int(os.environ.get("LLM_MAX_TOKENS", "4096"))
+    temperature = float(os.environ.get("LLM_TEMPERATURE", "0.0"))
+
+    workspace = Path("/tmp_workspace/workspace")
+    results = Path("/tmp_workspace/results")
+
+    print(f"Processing task with model {model}...", file=sys.stderr)
+
+    # Call the LLM with the task prompt
+    start_time = time.time()
+    try:
+        response = call_llm(task_prompt, model, api_base, api_key, max_tokens, temperature)
+        elapsed = time.time() - start_time
+
+        # Save the response
+        response_file = results / "llm_response.txt"
+        response_file.write_text(response)
+
+        # Parse and execute code blocks from the response
+        code_blocks = re.findall(r'```python\n(.*?)```', response, re.DOTALL)
+
+        if code_blocks:
+            for i, code in enumerate(code_blocks):
+                script_name = workspace / f"script_{i}.py"
+                script_name.write_text(code)
+                print(f"Extracted script: {script_name}", file=sys.stderr)
+
+                # Try to run the script
+                try:
+                    result = subprocess.run(
+                        [sys.executable, str(script_name)],
+                        cwd=str(workspace),
+                        capture_output=True,
+                        text=True,
+                        timeout=60
+                    )
+                    if result.returncode == 0:
+                        print(f"Script {script_name} executed successfully", file=sys.stderr)
+                    else:
+                        print(f"Script {script_name} failed: {result.stderr}", file=sys.stderr)
+                except subprocess.TimeoutExpired:
+                    print(f"Script {script_name} timed out", file=sys.stderr)
+
+        # Save transcript
+        transcript = results / "transcript.jsonl"
+        with open(transcript, "w") as f:
+            event = {
+                "type": "llm_response",
+                "model": model,
+                "provider": api_base,
+                "prompt_length": len(task_prompt),
+                "response_length": len(response),
+                "elapsed_time": elapsed,
+                "usage": {
+                    "total_tokens": len(response.split())  # rough estimate
+                }
+            }
+            f.write(json.dumps(event) + "\n")
+
+        print(f"Task completed in {elapsed:.1f}s", file=sys.stderr)
+
+    except Exception as e:
+        print(f"Task failed: {e}", file=sys.stderr)
+        # Save error
+        error_file = results / "error.txt"
+        error_file.write_text(str(e))
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
+PYEOF
+
+# Install requests if not available
+pip install requests -q 2>/dev/null || true
+
+# Run the task
+python3 /tmp_workspace/run_task.py

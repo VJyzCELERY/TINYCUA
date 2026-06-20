@@ -1,5 +1,6 @@
 """Unit tests for DockerAgent base class and agent registry."""
 
+import json
 import os
 import subprocess
 from pathlib import Path
@@ -9,6 +10,8 @@ import pytest
 from agent_benchmark.base_agent import AgentExecution, AgentTaskSpec
 from agent_benchmark.agents.docker_agent import DockerAgent
 from agent_benchmark.agents import get_agent, list_agents
+from agent_benchmark.providers.base import ProviderConfig
+from agent_benchmark.providers.registry import get_provider
 
 
 # ---------------------------------------------------------------------------
@@ -71,7 +74,6 @@ class TestDockerAgentCollectUsage:
         assert usage["cost"] == 0.0
 
     def test_parses_transcript(self, tmp_path):
-        import json
         transcript = tmp_path / "transcript.jsonl"
         events = [
             {"type": "llm.request", "usage": {"total_tokens": 100}},
@@ -91,6 +93,18 @@ class TestDockerAgentCollectUsage:
 # Agent registry tests
 # ---------------------------------------------------------------------------
 
+@pytest.fixture
+def test_provider():
+    """Create a test provider for agent tests."""
+    config = ProviderConfig(
+        name="lm-studio",
+        model="test-model",
+        api_base="http://localhost:1234/v1",
+        api_key_env="TEST_API_KEY",
+    )
+    return get_provider("lm-studio", config)
+
+
 class TestAgentRegistry:
     def test_list_agents(self):
         agents = list_agents()
@@ -98,38 +112,20 @@ class TestAgentRegistry:
         assert "opencode" in agents
         assert "hermesagent" in agents
 
-    def test_get_agent_openclaw(self):
-        agent = get_agent("openclaw")
-        assert agent.image_name == "wildclawbench-ubuntu:v1.3"
-        assert agent.api_key_env == "OPENROUTER_API_KEY"
+    def test_get_agent_openclaw(self, test_provider):
+        agent = get_agent("openclaw", provider=test_provider)
+        assert agent.image_name == "wildclawbench-openclaw:latest"
+        assert agent.api_key_env == "TEST_API_KEY"
 
-    def test_get_agent_opencode(self, tmp_path):
-        import yaml
-        config = {
-            "model": "qwen3.5-9b",
-            "api_base": "http://localhost:8000/v1",
-            "api_key_env": "OPENCODE_API_KEY",
-        }
-        config_path = tmp_path / "config.yaml"
-        with open(config_path, "w") as f:
-            yaml.dump(config, f)
+    def test_get_agent_opencode(self, test_provider):
+        agent = get_agent("opencode", provider=test_provider)
+        assert agent.image_name == "wildclawbench-opencode:latest"
+        assert agent.api_key_env == "TEST_API_KEY"
 
-        agent = get_agent("opencode", config_path=str(config_path))
-        assert agent.image_name == "wildclawbench-ubuntu:v1.3"
-
-    def test_get_agent_hermesagent(self, tmp_path):
-        import yaml
-        config = {
-            "model": "gpt-4",
-            "api_base": "https://api.openai.com/v1",
-            "api_key_env": "HERMES_API_KEY",
-        }
-        config_path = tmp_path / "config.yaml"
-        with open(config_path, "w") as f:
-            yaml.dump(config, f)
-
-        agent = get_agent("hermesagent", config_path=str(config_path))
-        assert agent.image_name == "wildclawbench-hermes-agent:v0.5"
+    def test_get_agent_hermesagent(self, test_provider):
+        agent = get_agent("hermesagent", provider=test_provider)
+        assert agent.image_name == "wildclawbench-hermes-agent:latest"
+        assert agent.api_key_env == "TEST_API_KEY"
 
     def test_get_agent_invalid_raises(self):
         with pytest.raises(ValueError, match="Unknown agent"):

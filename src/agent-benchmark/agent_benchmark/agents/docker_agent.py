@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import platform
 import subprocess
 import time
 from pathlib import Path
@@ -192,13 +193,17 @@ class DockerAgent(BaseAgent):
                 "LLM_MAX_TOKENS": "4096",
             }
 
+        # Detect host architecture for Docker platform
+        host_arch = platform.machine()
+        docker_platform = "linux/arm64" if host_arch == "arm64" else "linux/amd64"
+
         # Build base command
         cmd = [
             "docker",
             "run",
             "--rm",
             "--platform",
-            "linux/amd64",
+            docker_platform,
             "-v",
             f"{spec.output_dir}:/tmp_workspace/results",
             "-v",

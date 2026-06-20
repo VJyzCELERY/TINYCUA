@@ -47,6 +47,9 @@ class BaseAgent(ABC):
     for benchmark task execution.
     """
 
+    def __init__(self, **kwargs: Any) -> None:
+        """Initialize BaseAgent. Subclasses should call super().__init__(**kwargs)."""
+
     @property
     @abstractmethod
     def expects_gateway(self) -> bool:
