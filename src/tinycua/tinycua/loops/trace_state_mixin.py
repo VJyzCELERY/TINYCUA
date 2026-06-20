@@ -227,7 +227,7 @@ class TraceStateMixin:
         for item in tool_results:
             if not isinstance(item, dict) or item.get("allowed") is False:
                 continue
-            if item.get("name") not in {"read_file", "list_files", "task_inspect"}:
+            if item.get("name") not in {"read_file", "list_files", "task_inspect", "search_files"}:
                 continue
             output = item.get("output")
             if isinstance(output, dict) and (

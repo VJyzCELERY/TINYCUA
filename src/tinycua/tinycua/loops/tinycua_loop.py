@@ -177,6 +177,7 @@ class TinyCUALoop(
         self.workspace_dir = getattr(session_config, "workspace_dir", None)
         self.artifact_dir = getattr(session_config, "artifact_dir", None)
         self.session_dir = getattr(session_config, "session_dir", None)
+        self._disable_tool_audit = getattr(session_config, "disable_tool_audit", False)
         self._tool_artifact_seq = 0
         self._pending_handoffs: list[NodeHandoff] = []
         self._resolved_tools_for_prompt: list[Tool] | None = None
@@ -575,9 +576,9 @@ class TinyCUALoop(
         output: Any,
     ) -> str | None:
         """Write a durable audit JSON for action/research tool calls."""
-        if self.artifact_dir is None:
+        if self.artifact_dir is None or self._disable_tool_audit:
             return None
-        if name not in {"run_shell", "run_python", "web_search", "fetch_url"}:
+        if name not in {"run_shell", "run_python", "web_search", "fetch_url", "search_files"}:
             return None
         self._tool_artifact_seq += 1
         audit_dir = self.artifact_dir / "tool-calls"

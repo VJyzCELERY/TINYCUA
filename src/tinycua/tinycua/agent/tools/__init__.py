@@ -11,6 +11,7 @@ from tinycua.agent.tools.native import (
     read_file,
     run_python,
     run_shell,
+    search_files,
     str_replace,
     write_file,
 )
@@ -22,6 +23,7 @@ __all__ = [
     "str_replace",
     "append_file",
     "list_files",
+    "search_files",
     "fetch_url",
     "run_python",
 ]

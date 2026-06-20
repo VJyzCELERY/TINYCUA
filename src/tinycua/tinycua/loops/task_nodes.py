@@ -578,6 +578,8 @@ class TinyCUATaskExecutorNode(ProcessNode):
                 "Prefer str_replace for targeted edits, append_file for additions. "
                 "Use write_file only for new files or full rewrites."
             )
+        if "search_files" in names:
+            lines.append("Use search_files instead of run_shell grep for content search.")
         if "task_result_update" in names:
             lines.append("Your final action MUST call task_result_update with the outcome report.")
         if not lines:

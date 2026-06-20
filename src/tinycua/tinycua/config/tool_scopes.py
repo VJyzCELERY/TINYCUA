@@ -36,6 +36,7 @@ from tinycua.tools.todo_tools import TodoReadTool, TodoWriteTool
 EXPLORATORY_AGENT_TOOLS: list[str] = [
     "read_file",
     "list_files",
+    "search_files",
     "run_shell",
     "web_search",
     "fetch_url",

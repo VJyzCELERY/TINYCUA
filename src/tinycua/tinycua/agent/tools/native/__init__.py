@@ -8,6 +8,7 @@ from tinycua.agent.tools.native.files import (
     append_file,
     list_files,
     read_file,
+    search_files,
     str_replace,
     write_file,
 )
@@ -23,6 +24,7 @@ __all__ = [
     "str_replace",
     "append_file",
     "list_files",
+    "search_files",
     "fetch_url",
     "web_search",
     "run_python",

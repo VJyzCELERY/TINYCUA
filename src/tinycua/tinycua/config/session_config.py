@@ -62,6 +62,10 @@ class SessionConfig:
     session_dir: Path | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
     worker_effort: Literal["none", "low", "medium", "high"] = "medium"
+    # When True, suppress per-tool-call audit JSON files (the tool-calls/
+    # subdirectory under artifact_dir). Trace/transcript/logs are still
+    # written. Set via CLI --no-tool-audit.
+    disable_tool_audit: bool = False
 
     def __post_init__(self) -> None:
         """Normalize filesystem paths supplied through the public API."""

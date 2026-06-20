@@ -41,7 +41,7 @@ _TURN_SAFETY_NET = 200_000
 # Tools that operate on a file path and whose older results are superseded by
 # a newer result for the same path. read_file/edit_file/write_file on path X
 # are stale once a newer read/edit/write of X exists — the file changed.
-_FILE_PATH_TOOLS = frozenset({"read_file", "str_replace", "append_file", "write_file"})
+_FILE_PATH_TOOLS = frozenset({"read_file", "str_replace", "append_file", "write_file", "search_files"})
 
 # ponytail: write to ./tmp/tool-results/ (gitignored, repo-local). Per-session
 # subdirectory would isolate runs; upgrade path if concurrent runs collide.

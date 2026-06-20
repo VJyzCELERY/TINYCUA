@@ -1341,7 +1341,7 @@ class ValidationRetryMixin:
 
     # FR-009: soft verification nudge — NEVER a validation crash.
     _READONLY_VERIFICATION_TOOLS = frozenset(
-        {"read_file", "run_shell", "list_files"}
+        {"read_file", "run_shell", "list_files", "search_files"}
     )
 
     def _maybe_warn_reviewer_no_verification(

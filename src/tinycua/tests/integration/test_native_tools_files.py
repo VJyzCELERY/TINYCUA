@@ -419,3 +419,42 @@ def test_list_files_default_pattern_still_filters_by_extension():
         result = list_files(tmpdir, "*.py")
         names = [Path(entry).name for entry in result]
         assert "b.py" in names
+
+
+# --- search_files ---
+
+
+def test_search_files_multiple_files():
+    """Search across multiple files in a directory."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        Path(tmpdir, "a.py").write_text("def hello():\n    pass\n")
+        Path(tmpdir, "b.py").write_text("hello = 'world'\n")
+        Path(tmpdir, "c.txt").write_text("not a match\n")
+        import tinycua.agent.tools.native.files as files_mod
+        files_mod._last_search_key = None
+        files_mod._search_repeat_count = 0
+        from tinycua.agent.tools.native.files import search_files
+
+        result = search_files("hello", path=tmpdir, file_glob="*.py")
+        assert isinstance(result, list)
+        assert len(result) >= 2
+        assert any("a.py" in r for r in result)
+        assert any("b.py" in r for r in result)
+
+
+def test_search_files_recursive():
+    """Search recursively through subdirectories."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        Path(tmpdir, "top.py").write_text("target_function\n")
+        Path(tmpdir, "subdir").mkdir()
+        Path(tmpdir, "subdir", "nested.py").write_text("target_function\n")
+        import tinycua.agent.tools.native.files as files_mod
+        files_mod._last_search_key = None
+        files_mod._search_repeat_count = 0
+        from tinycua.agent.tools.native.files import search_files
+
+        result = search_files("target_function", path=tmpdir)
+        assert isinstance(result, list)
+        assert len(result) >= 2
+        assert any("top.py" in r for r in result)
+        assert any("nested.py" in r for r in result)

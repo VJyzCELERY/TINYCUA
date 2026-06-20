@@ -475,3 +475,162 @@ def test_read_file_no_warning_for_short_literal_backslash_n():
 
         result = read_file(filepath)
         assert "Warning" not in result
+
+
+# --- search_files ---
+
+
+def test_search_files_content_exact():
+    """search_files finds exact string in file content."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "test.py")
+        Path(filepath).write_text("def foo():\n    return 42\n")
+        from tinycua.agent.tools.native.files import _last_search_key, _search_repeat_count
+        import tinycua.agent.tools.native.files as files_mod
+        files_mod._last_search_key = None
+        files_mod._search_repeat_count = 0
+        from tinycua.agent.tools.native.files import search_files
+
+        result = search_files("foo", path=tmpdir)
+        assert isinstance(result, list)
+        assert len(result) >= 1
+        assert any("foo" in r for r in result)
+
+
+def test_search_files_content_regex():
+    """search_files finds regex pattern."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "test.py")
+        Path(filepath).write_text("val = 12345\n")
+        import tinycua.agent.tools.native.files as files_mod
+        files_mod._last_search_key = None
+        files_mod._search_repeat_count = 0
+        from tinycua.agent.tools.native.files import search_files
+
+        result = search_files(r"\d+", path=tmpdir)
+        assert isinstance(result, list)
+        assert any("12345" in r for r in result)
+
+
+def test_search_files_files_only():
+    """search_files target='files' finds files by glob."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        Path(tmpdir, "a.py").touch()
+        Path(tmpdir, "b.txt").touch()
+        import tinycua.agent.tools.native.files as files_mod
+        files_mod._last_search_key = None
+        files_mod._search_repeat_count = 0
+        from tinycua.agent.tools.native.files import search_files
+
+        result = search_files("*.py", target="files", path=tmpdir)
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0].endswith("a.py")
+
+
+def test_search_files_file_glob_filter():
+    """search_files filters by file_glob in content mode."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        Path(tmpdir, "match.py").write_text("target_string\n")
+        Path(tmpdir, "skip.txt").write_text("target_string\n")
+        import tinycua.agent.tools.native.files as files_mod
+        files_mod._last_search_key = None
+        files_mod._search_repeat_count = 0
+        from tinycua.agent.tools.native.files import search_files
+
+        result = search_files("target_string", path=tmpdir, file_glob="*.py")
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert "match.py" in result[0]
+
+
+def test_search_files_context_lines():
+    """search_files returns context lines around matches."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "ctx.py")
+        Path(filepath).write_text("line1\nline2\nMATCH\nline4\nline5\n")
+        import tinycua.agent.tools.native.files as files_mod
+        files_mod._last_search_key = None
+        files_mod._search_repeat_count = 0
+        from tinycua.agent.tools.native.files import search_files
+
+        result = search_files("MATCH", path=tmpdir, context=1)
+        assert isinstance(result, list)
+        # Should include line before, match, and line after
+        assert any("line2" in r for r in result)
+        assert any("MATCH" in r for r in result)
+        assert any("line4" in r for r in result)
+
+
+def test_search_files_output_mode_count():
+    """search_files count mode returns match counts."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        Path(tmpdir, "multi.py").write_text("foo\nfoo\nbar\n")
+        import tinycua.agent.tools.native.files as files_mod
+        files_mod._last_search_key = None
+        files_mod._search_repeat_count = 0
+        from tinycua.agent.tools.native.files import search_files
+
+        result = search_files("foo", path=tmpdir, output_mode="count")
+        assert isinstance(result, list)
+        assert any("2 matches" in r for r in result)
+
+
+def test_search_files_no_matches():
+    """search_files returns 'No matches found' for no matches."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        Path(tmpdir, "empty.py").write_text("nothing here\n")
+        import tinycua.agent.tools.native.files as files_mod
+        files_mod._last_search_key = None
+        files_mod._search_repeat_count = 0
+        from tinycua.agent.tools.native.files import search_files
+
+        result = search_files("nonexistent_pattern", path=tmpdir)
+        assert isinstance(result, list)
+        assert result == ["No matches found."]
+
+
+def test_search_files_nonexistent_path():
+    """search_files returns error for nonexistent path."""
+    import tinycua.agent.tools.native.files as files_mod
+    files_mod._last_search_key = None
+    files_mod._search_repeat_count = 0
+    from tinycua.agent.tools.native.files import search_files
+
+    result = search_files("test", path="/nonexistent/path/xyz")
+    assert isinstance(result, dict)
+    assert "error" in result
+
+
+def test_search_files_loop_detection():
+    """search_files blocks after 4 identical consecutive searches."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        Path(tmpdir, "loop.py").write_text("test content\n")
+        import tinycua.agent.tools.native.files as files_mod
+        files_mod._last_search_key = None
+        files_mod._search_repeat_count = 0
+        from tinycua.agent.tools.native.files import search_files
+
+        # First 3 calls should succeed
+        for _ in range(3):
+            result = search_files("test", path=tmpdir)
+            assert isinstance(result, list)
+
+        # 4th call should be blocked
+        result = search_files("test", path=tmpdir)
+        assert isinstance(result, dict)
+        assert result.get("blocked") is True
+
+
+def test_search_files_pagination():
+    """search_files pagination via offset and limit."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        Path(tmpdir, "page.py").write_text("\n".join(f"match_{i}" for i in range(10)) + "\n")
+        import tinycua.agent.tools.native.files as files_mod
+        files_mod._last_search_key = None
+        files_mod._search_repeat_count = 0
+        from tinycua.agent.tools.native.files import search_files
+
+        result = search_files("match_", path=tmpdir, limit=3, offset=0)
+        assert isinstance(result, list)
+        assert len(result) <= 4  # 3 results + possibly truncation notice

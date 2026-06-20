@@ -128,6 +128,13 @@ def _add_run_arguments(parser: argparse.ArgumentParser) -> None:
         default=False,
         help="Save trace JSON, transcript, and logs to <dir>/.tinycua-artifacts/.",
     )
+    parser.add_argument(
+        "--no-tool-audit",
+        action="store_true",
+        default=False,
+        help="Suppress per-tool-call audit JSON files (use with --save-artifacts "
+        "when you want trace/transcript but not tool-call audit spam).",
+    )
 
 
 def _normalise_run_args(args: argparse.Namespace) -> None:
@@ -217,6 +224,7 @@ def main() -> None:
             trace=args.trace,
             task_tree=args.task_tree,
             save_artifacts=args.save_artifacts,
+            no_tool_audit=args.no_tool_audit,
         )
         raise SystemExit(exit_code)
 

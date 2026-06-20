@@ -105,6 +105,7 @@ def run_command(
     trace: bool = False,
     task_tree: bool = False,
     save_artifacts: bool = False,
+    no_tool_audit: bool = False,
 ) -> int:
     """Execute the tinycua run command (always streaming).
 
@@ -191,6 +192,7 @@ def run_command(
                 workspace_dir=workspace,
                 artifact_dir=artifact_dir,
                 worker_effort=worker_effort,
+                disable_tool_audit=no_tool_audit,
             ),
             llm_model=build_language_model(config),
         )

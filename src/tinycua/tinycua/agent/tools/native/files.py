@@ -827,5 +827,235 @@ def list_files(
         return {"error": str(exc)}
 
 
-for _native_file_tool in (read_file, write_file, str_replace, append_file, list_files):
+# --- search_files ---
+
+
+_MAX_SEARCH_FILE_SIZE = 1_048_576  # 1 MB — skip larger files to avoid OOM.
+
+# Module-level loop detection state. tinycua executes one node at a time
+# (no concurrency), so module-level state naturally resets between nodes
+# because different nodes search for different things. If a node repeats
+# the same search 4+ times, that's a genuine loop.
+_last_search_key: tuple | None = None
+_search_repeat_count: int = 0
+
+
+def _check_search_loop(
+    pattern: str,
+    target: str,
+    path: str,
+    file_glob: str | None,
+) -> str | None:
+    """Return a block message if the same search is repeated 4+ times."""
+    global _last_search_key, _search_repeat_count
+    key = (pattern, target, path, file_glob or "")
+    if key == _last_search_key:
+        _search_repeat_count += 1
+    else:
+        _last_search_key = key
+        _search_repeat_count = 1
+    if _search_repeat_count >= 4:
+        return (
+            f"BLOCKED: You have run this exact search {_search_repeat_count} "
+            "times. The results have not changed. Stop re-searching and "
+            "proceed with your task."
+        )
+    return None
+
+
+def _iter_searchable_files(
+    root: Path,
+    file_glob: str | None,
+) -> list[Path]:
+    """Yield files under root, optionally filtered by glob pattern."""
+    if root.is_file():
+        return [root]
+    results: list[Path] = []
+    for entry in sorted(root.rglob("*")):
+        if not entry.is_file():
+            continue
+        if file_glob:
+            import fnmatch
+            if not fnmatch.fnmatch(entry.name, file_glob):
+                continue
+        results.append(entry)
+    return results
+
+
+def _search_content(
+    files: list[Path],
+    pattern: str,
+    context: int,
+    output_mode: str,
+    limit: int,
+    offset: int,
+) -> list[str]:
+    """Search file contents for regex pattern. Returns formatted result lines."""
+    try:
+        regex = re.compile(pattern)
+    except re.error as exc:
+        return [f"[Invalid regex: {exc}]"]
+
+    all_matches: list[tuple[Path, int, str, list[str]]] = []
+    file_counts: dict[str, int] = {}
+    file_paths: list[str] = []
+
+    for filepath in files:
+        try:
+            if filepath.stat().st_size > _MAX_SEARCH_FILE_SIZE:
+                continue
+        except OSError:
+            continue
+        try:
+            content = filepath.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            continue
+        content = content.replace("\r\n", "\n")
+        lines = content.split("\n")
+        for i, line in enumerate(lines):
+            if regex.search(line):
+                if output_mode == "files_only":
+                    fp = str(filepath)
+                    if fp not in file_paths:
+                        file_paths.append(fp)
+                elif output_mode == "count":
+                    file_counts[str(filepath)] = file_counts.get(str(filepath), 0) + 1
+                else:
+                    # content mode — collect match + context
+                    ctx_start = max(0, i - context)
+                    ctx_end = min(len(lines), i + context + 1)
+                    ctx_lines = lines[ctx_start:ctx_end]
+                    all_matches.append((filepath, i + 1, line, ctx_lines))
+
+    if output_mode == "files_only":
+        return file_paths[offset : offset + limit]
+    if output_mode == "count":
+        result = [f"{fp}: {cnt} match{'es' if cnt != 1 else ''}" for fp, cnt in file_counts.items()]
+        return result[offset : offset + limit]
+
+    # content mode
+    result: list[str] = []
+    for filepath, line_num, line, ctx_lines in all_matches:
+        if context > 0:
+            match_start = max(0, len(ctx_lines) // 2 - context)
+            for ci, ctx_line in enumerate(ctx_lines):
+                ctx_line_num = line_num - context + ci
+                if ctx_line_num < 1:
+                    continue
+                prefix = ">" if ctx_line == line else " "
+                result.append(f"{filepath}:{ctx_line_num}:{prefix} {ctx_line}")
+            result.append("")  # blank line between matches
+        else:
+            result.append(f"{filepath}:{line_num}: {line}")
+
+    total = len(result)
+    paged = result[offset : offset + limit]
+    if total > limit:
+        paged.append(
+            f"[Showing {offset + 1}-{min(offset + limit, total)} of {total} total matches. "
+            f"Use offset={offset + limit} to see more.]"
+        )
+    return paged
+
+
+def _search_files_by_name(
+    root: Path,
+    pattern: str,
+    limit: int,
+    offset: int,
+) -> list[str]:
+    """Find files by glob pattern under root."""
+    import fnmatch
+
+    results: list[str] = []
+    if root.is_file():
+        if fnmatch.fnmatch(root.name, pattern):
+            results.append(str(root))
+    else:
+        for entry in sorted(root.rglob("*")):
+            if entry.is_file() and fnmatch.fnmatch(entry.name, pattern):
+                results.append(str(entry))
+
+    total = len(results)
+    paged = results[offset : offset + limit]
+    if total > limit:
+        paged.append(
+            f"[Showing {offset + 1}-{min(offset + limit, total)} of {total} total files. "
+            f"Use offset={offset + limit} to see more.]"
+        )
+    return paged
+
+
+@tool
+def search_files(
+    pattern: str,
+    target: str = "content",
+    path: str = ".",
+    file_glob: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    output_mode: str = "content",
+    context: int = 0,
+) -> list[str] | dict[str, Any]:
+    """Search file contents (grep) or find files by name (glob).
+
+    Uses regex for content search and glob patterns for file search.
+    Prefer this over run_shell grep — it gives structured output with
+    line numbers, context lines, and pagination.
+
+    Args:
+        pattern: Regex pattern (for target='content') or glob pattern
+            (e.g. '*.py' for target='files').
+        target: 'content' to search inside files, 'files' to find by name.
+        path: Directory or file to search. Relative to workspace root.
+        file_glob: Filter files by pattern (e.g. '*.py'). Content mode only.
+        limit: Max results to return (default 50).
+        offset: Skip first N results for pagination (default 0).
+        output_mode: 'content' (matches with line numbers), 'files_only'
+            (paths only), 'count' (match counts per file). Default 'content'.
+        context: Lines of context before/after each match (default 0).
+
+    Returns:
+        List of formatted result strings, or an error dict on failure.
+    """
+    # Defensive int coercion (local models emit "7").
+    try:
+        limit = int(limit) if limit is not None else 50
+        offset = int(offset) if offset is not None else 0
+        context = int(context) if context is not None else 0
+    except (TypeError, ValueError) as exc:
+        return {"error": f"Invalid integer argument: {exc}"}
+
+    # Loop detection.
+    loop_msg = _check_search_loop(pattern, target, path, file_glob)
+    if loop_msg:
+        return {"error": loop_msg, "pattern": pattern, "blocked": True}
+
+    try:
+        resolved = _resolve_path(path)
+    except ValueError as exc:
+        return {"error": str(exc)}
+
+    if not resolved.exists():
+        return {"error": f"Path not found: {path}"}
+
+    try:
+        limit = max(1, min(limit, 500))
+        offset = max(0, offset)
+        context = max(0, min(context, 10))
+
+        if target == "files":
+            results = _search_files_by_name(resolved, pattern, limit, offset)
+        else:
+            files = _iter_searchable_files(resolved, file_glob)
+            results = _search_content(files, pattern, context, output_mode, limit, offset)
+
+        if not results:
+            return ["No matches found."]
+        return results
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+for _native_file_tool in (read_file, write_file, str_replace, append_file, list_files, search_files):
     bind_workspace_to_tool(_native_file_tool)
