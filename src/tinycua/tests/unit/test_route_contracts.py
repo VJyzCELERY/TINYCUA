@@ -12,15 +12,19 @@ from tinycua.loops.worker import TinyCUAWorkerNode
 
 
 async def test_query_route_does_not_use_keyword_inference_without_tool_call() -> None:
-    """Worker-looking keywords are not enough to override model route failure."""
+    """Worker-looking keywords are not enough to override model route failure.
+
+    The system no longer crashes on route failure — it recovers via the
+    pipeline. The trace still records the missing tool call.
+    """
     agent = create_tinycua_agent()
 
     async def invalid_route_response(messages, tools, stream=False):
         return {"content": "I will plan and execute this task", "tool_calls": []}
 
     agent._call_llm = invalid_route_response  # type: ignore[method-assign]
-    with pytest.raises(NodeExecutionError, match="select_query_route"):
-        await agent.run("Plan and execute a migration task.")
+    # No crash — the recovery pipeline handles the validation failure.
+    await agent.run("Plan and execute a migration task.")
 
     first_trace = agent.loop.get_execution_trace()[0]
     assert first_trace["node_id"] == "query_analyst"

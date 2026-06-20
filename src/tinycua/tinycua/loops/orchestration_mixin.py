@@ -920,6 +920,8 @@ class OrchestrationMixin:
 
         async for event in self._stream_exhausted_node_events(
             node,
+            agent,
+            resolved_tools,
             last_combined,
             last_validation,
             last_result,
@@ -934,6 +936,8 @@ class OrchestrationMixin:
     async def _stream_exhausted_node_events(
         self,
         node: Node,
+        agent: Agent,
+        resolved_tools: list[Tool],
         combined: str,
         validation: ValidationResult,
         llm_result: LLMResult,
@@ -1035,7 +1039,59 @@ class OrchestrationMixin:
             validation,
             llm_result,
         ):
-            raise NodeExecutionError(self._validation_failure_content(node, validation))
+            # Active recovery pipeline — never crash. Three stages:
+            # 1. Focused retry: all tools, clean context, "make the missing call"
+            # 2. Tightening retry: single required tool only, tool_choice=required
+            # 3. Graceful continue: record failure, emit node.completed, move on
+            recovery = await self._recovery_retry(
+                node, agent, resolved_tools, llm_result, validation
+            )
+            if recovery is not None:
+                recovery_result, _ = recovery
+                async for event in self._stream_node_completed(
+                    node,
+                    recovery_result.content or combined,
+                    emit_lifecycle,
+                    include_meta,
+                    final_only,
+                    node_type,
+                    max_attempts,
+                ):
+                    yield event
+                return
+            # Stage 2: tightening retry — only the required tool.
+            tightening = await self._tightening_retry(
+                node, agent, resolved_tools, llm_result, validation
+            )
+            if tightening is not None:
+                tightening_result, _ = tightening
+                async for event in self._stream_node_completed(
+                    node,
+                    tightening_result.content or combined,
+                    emit_lifecycle,
+                    include_meta,
+                    final_only,
+                    node_type,
+                    max_attempts,
+                ):
+                    yield event
+                return
+            # Stage 3: graceful continue — record the failure and move on.
+            # The agent's work so far is preserved; the run doesn't crash.
+            failure_content = self._validation_failure_content(node, validation)
+            self._record_node_output(node, failure_content, [])
+            self._record_node_content_transcript(node, failure_content)
+            async for event in self._stream_node_completed(
+                node,
+                failure_content,
+                emit_lifecycle,
+                include_meta,
+                final_only,
+                node_type,
+                max_attempts,
+            ):
+                yield event
+            return
         async for event in self._stream_node_completed(
             node,
             combined,

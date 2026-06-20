@@ -1111,6 +1111,145 @@ class ValidationRetryMixin:
             return recovery_result, recovery_validation
         return None
 
+    def _required_tool_for_recovery(self, node: Node, validation: ValidationResult) -> Tool | None:
+        """Determine the single tool the model needs to call to satisfy validation.
+
+        Returns the Tool object from resolved_tools that the model is missing,
+        or None if no single tool can fix the validation failure. This drives
+        the tightening retry — the model gets only this one tool so it can't
+        pick a wrong one.
+        """
+        errors = "; ".join(validation.errors).lower()
+        node_id = node.node_id
+        # Map validation failures to the specific tool that would satisfy them.
+        recovery_tool_map: dict[str, tuple[str, ...]] = {
+            "result_reviewer": ("task_inspect", "terminate", "task_review_decision"),
+            "task_executor": ("task_result_update", "terminate"),
+            "task_analyzer": ("task_decompose", "task_update", "task_inspect", "terminate"),
+            "task_assessor": ("node_handoff", "terminate"),
+            "task_create": ("task_init", "terminate"),
+        }
+        candidates = recovery_tool_map.get(node_id, ())
+        # Find which candidate is mentioned in the validation errors.
+        for name in candidates:
+            if name in errors:
+                # Find the actual tool object in the node's resolved tools.
+                resolved = getattr(node.config, "tool_policy", None)
+                if resolved is not None:
+                    tools = resolved.resolve_tools([])
+                    for tool in tools:
+                        if getattr(tool, "name", "") == name:
+                            return tool
+                break
+        return None
+
+    async def _tightening_retry(
+        self,
+        node: Node,
+        agent: Agent,
+        resolved_tools: list[Tool],
+        last_result: LLMResult,
+        validation: ValidationResult,
+    ) -> tuple[LLMResult, ValidationResult] | None:
+        """Last-chance retry with only the single required tool available.
+
+        If the focused recovery retry (all tools, clean context) failed, this
+        narrows the model to ONLY the one tool that satisfies the validator.
+        The model still decides the arguments — we're not hardcoding the answer,
+        just narrowing the choice space so the model can't pick a wrong tool.
+
+        Uses tool_choice="required" so the model MUST call a tool, and there's
+        only one tool to call. Returns (result, validation) if it works, else None.
+        """
+        from datetime import datetime
+
+        required_tool = self._required_tool_for_recovery(node, validation)
+        if required_tool is None:
+            return None  # no single tool can fix this — skip tightening
+
+        # Build minimal context — same as recovery retry but with a specific
+        # message naming the exact tool to call.
+        system_msg = node.build_system_message([required_tool])
+        tightening_messages: list[dict[str, Any]] = []
+        if system_msg.get("content"):
+            tightening_messages.append(system_msg)
+        now = datetime.now().astimezone()
+        tightening_messages.append(
+            {
+                "role": "user",
+                "content": (
+                    f"<context>Current date/time: {now:%Y-%m-%d %H:%M:%S %z}, "
+                    f"timezone: {now.tzname() or 'local'}</context>"
+                ),
+            }
+        )
+        errors = "; ".join(validation.errors)
+        tool_name = getattr(required_tool, "name", "the required tool")
+        # Specific guidance per tool.
+        specific_guidance = {
+            "task_inspect": "Call task_inspect (no task_id) to see the compact task list.",
+            "terminate": "Call terminate to end this node.",
+            "task_result_update": "Call task_result_update with a concise summary of what you did and whether it succeeded.",
+            "task_review_decision": "Call task_review_decision with your decision (approved, needs_revision, rejected, or replan).",
+            "task_decompose": "Call task_decompose with the task_id and concrete subtasks.",
+            "task_update": "Call task_update with the task_id and updated description.",
+            "node_handoff": "Call node_handoff with your assessment instructions for the TaskAnalyzer.",
+            "task_init": "Call task_init with a root task title derived from the request.",
+        }
+        guidance = specific_guidance.get(tool_name, f"Call {tool_name} now.")
+        tightening_messages.append(
+            {
+                "role": "user",
+                "content": (
+                    f"The previous response did not satisfy: {errors}\n\n"
+                    f"You have one tool available: {tool_name}. {guidance}\n\n"
+                    f"Do not write prose — call {tool_name} now."
+                ),
+            }
+        )
+        try:
+            # Force tool_choice=required with only the single tool.
+            raw_response = await self._call_agent_llm(
+                agent,
+                node,
+                tightening_messages,
+                [required_tool],
+                force_required_tool=True,
+            )
+        except Exception:
+            return None
+        tightening_result = LLMResult(
+            content=sanitize_internal_reprs(raw_response.get("content") or ""),
+            role=raw_response.get("role", "assistant"),
+            tool_calls=raw_response.get("tool_calls") or [],
+            metadata=raw_response.get("metadata", {}),
+            reasoning=raw_response.get("reasoning", ""),
+        )
+        self._coerce_structured_tool_calls(tightening_result, [required_tool])
+        self._coerce_terminate_only_response([required_tool], tightening_result)
+        # Execute any tool calls.
+        all_tool_results: list[dict[str, Any]] = []
+        if tightening_result.tool_calls:
+            tool_results = await self._execute_tool_calls(
+                agent,
+                tightening_result.tool_calls,
+                [required_tool],
+            )
+            if tool_results:
+                all_tool_results.extend(tool_results)
+        if all_tool_results:
+            tightening_result.metadata = dict(tightening_result.metadata)
+            tightening_result.metadata["tool_results"] = list(all_tool_results)
+        tightening_validation = self._validate_node_result(node, tightening_result)
+        if tightening_validation.is_valid:
+            self._record_node_content_transcript(
+                node,
+                f"Tightening retry succeeded — the model called {tool_name} "
+                f"with only that tool available.",
+            )
+            return tightening_result, tightening_validation
+        return None
+
     def _stream_retry_message(
         self,
         agent: Agent,

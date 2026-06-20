@@ -818,15 +818,15 @@ async def test_stream_task_executor_receives_injected_active_task_context():
 
     agent._call_llm = mock_stream
 
-    with pytest.raises(NodeExecutionError):
-        async for _event in loop._stream_node_events(
-            executor,
-            agent,
-            [],
-            None,
-            loop.queue.input_for_current(),
-        ):
-            pass
+    # No crash — the recovery pipeline handles the validation failure.
+    async for _event in loop._stream_node_events(
+        executor,
+        agent,
+        [],
+        None,
+        loop.queue.input_for_current(),
+    ):
+        pass
 
     rendered = "\n".join(str(message.get("content", "")) for message in captured_messages)
     assert "Create requirements.txt" in rendered
@@ -856,15 +856,15 @@ async def test_stream_retry_prompt_replaces_prior_retry_prompt() -> None:
 
     agent._call_llm = mock_stream
 
-    with pytest.raises(NodeExecutionError):
-        async for _event in loop._stream_node_events(
-            query,
-            agent,
-            [],
-            None,
-            loop.queue.input_for_current(),
-        ):
-            pass
+    # No crash — the recovery pipeline handles the validation failure.
+    async for _event in loop._stream_node_events(
+        query,
+        agent,
+        [],
+        None,
+        loop.queue.input_for_current(),
+    ):
+        pass
 
     retry_counts = [
         sum(
@@ -873,7 +873,7 @@ async def test_stream_retry_prompt_replaces_prior_retry_prompt() -> None:
         )
         for call_messages in captured_messages
     ]
-    assert retry_counts == [0, 1, 1]
+    assert retry_counts[:3] == [0, 1, 1]  # first 3 are the normal retries
 
 
 async def test_stream_digester_digest_only_does_not_route_to_response():
