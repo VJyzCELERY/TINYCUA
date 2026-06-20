@@ -45,6 +45,16 @@ tools:
     search:
       enabled: true
       provider: brave
+model:
+  context_length: 65536
+auxiliary:
+  compression:
+    context_length: 65536
+compression:
+  enabled: true
+  threshold: 0.9
+memory:
+  memory_enabled: false
 YAMLEOF
 
 # Symlink workspace
@@ -54,6 +64,11 @@ ln -sfn "${WORKSPACE}" /root/.hermes/workspace 2>/dev/null || true
 python3 -c "
 import os, json, sys
 sys.path.insert(0, '/opt/hermes')
+
+# Patch minimum context length to allow 4K models
+import agent.model_metadata as _mm
+_mm.MINIMUM_CONTEXT_LENGTH = 2048
+
 from run_agent import AIAgent
 
 task_prompt = '''${TASK_PROMPT}'''
