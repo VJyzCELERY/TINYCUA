@@ -515,8 +515,29 @@ class TinyCUATaskExecutorNode(ProcessNode):
             workspace_dir = str(session.session_config.workspace_dir)
         mission = _render_mission_block(session)
         mission_prefix = f"{mission}\n\n" if mission else ""
+        # When the active task is a parent (has children, all completed), this
+        # is a verification pass — the executor verifies the children's work
+        # achieves the parent's goal, makes adjustments if needed, then reports
+        # the outcome via task_result_update. Not new execution.
+        verification_note = ""
+        if active.children:
+            child_statuses = []
+            for child_id in active.children:
+                child = session.task_store.tasks.get(child_id)
+                if child:
+                    child_statuses.append(f"  - [{child.status.value}] {child.title}")
+            verification_note = (
+                "\n## Verification Pass\n"
+                "All child tasks are complete. This is a PARENT task — verify "
+                "that the children's combined work achieves this task's goal. "
+                "Run tests, check integration, verify the app starts. Fix "
+                "issues if needed. Then call task_result_update with the "
+                "verification outcome.\n\n"
+                "Child tasks:\n" + "\n".join(child_statuses) + "\n"
+            )
         return (
             f"{mission_prefix}{_render_active_task_work_order(session)}\n"
+            f"{verification_note}"
             f"Workspace root: {workspace_dir or 'not configured'}\n"
             "Path discipline: use paths inside the workspace root. Prefer "
             "relative paths such as 'templates/index.html' or "

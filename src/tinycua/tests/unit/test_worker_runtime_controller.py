@@ -57,6 +57,15 @@ def test_worker_runtime_completed_task_advances_until_aggregation_ready() -> Non
     store.record_reviewer_decision(second.task_id, ReviewerDecision.APPROVED)
     queue = NodeQueue()
     WorkerRuntimeController(store).schedule_next(queue)
+    # Parent tasks now get a verification pass (executor verifies, reviewer
+    # approves) — not auto-completed. So the root is scheduled for execution.
+    assert [node.node_id for node in queue.items] == ["task_executor", "result_reviewer"]
+
+    # Complete the root verification pass → aggregation fires.
+    store.record_result(root.task_id, TaskResult(content="root verified"))
+    store.record_reviewer_decision(root.task_id, ReviewerDecision.APPROVED)
+    queue = NodeQueue()
+    WorkerRuntimeController(store).schedule_next(queue)
     assert [node.node_id for node in queue.items] == ["result_aggregation"]
 
 

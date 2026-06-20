@@ -524,11 +524,13 @@ class ValidationRetryMixin:
         task = self.root_session.task_store.tasks[task_id]
         if task.result is not None and task.result.content.strip():
             return validation
-        # Parent tasks (root, phases) have no executor-provided result — they
-        # complete when all children are done. Don't block their approval with
-        # "no outcome report"; the synthetic aggregated result is set by
-        # record_reviewer_decision. Without this exemption, the reviewer gets
-        # stuck in an unrecoverable crash loop trying to approve the root.
+        # Parent tasks (root, phases) are verified by the executor after all
+        # children complete — the executor calls task_result_update with the
+        # verification report. But if the executor didn't record a result (e.g.
+        # it verified via tools but forgot task_result_update), don't block the
+        # approval with "no outcome report" — the children's results are the
+        # evidence. Without this exemption, the reviewer crashes in an
+        # unrecoverable loop trying to approve a parent with no result.
         if task.children:
             return validation
         self._rollback_invalid_reviewer_approval(task_id)

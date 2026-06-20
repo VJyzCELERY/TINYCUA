@@ -112,6 +112,10 @@ def test_result_aggregation_publishes_aggregated_result_context() -> None:
     child = session.task_store.create_task("child", parent_id=root.task_id)
     session.task_store.record_result(child.task_id, TaskResult(content="child output"))
     session.task_store.record_reviewer_decision(child.task_id, ReviewerDecision.APPROVED)
+    # Parent tasks now get a verification pass (executor verifies, reviewer
+    # approves). Complete the root so all_done() is true and aggregation fires.
+    session.task_store.record_result(root.task_id, TaskResult(content="root verified"))
+    session.task_store.record_reviewer_decision(root.task_id, ReviewerDecision.APPROVED)
     node = TinyCUAResultAggregationNode(
         node_id="result_aggregation",
         config=create_node_config("result_aggregation"),

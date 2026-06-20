@@ -315,31 +315,34 @@ class TaskStateStore:
             self.active_task_id = task.task_id
             self._bump_version()
         elif reviewer_decision == ReviewerDecision.APPROVED:
-            # Parent tasks (root, phases) never get a task_result_update from
-            # the executor — they complete when all children are done. Auto-
-            # generate a synthetic result so the approval can proceed. Without
-            # this, the reviewer gets stuck: it approves the root task, but
-            # the approval is silently skipped (task.result is None), and the
-            # validator crashes with "cannot approve a task with no outcome
-            # report" — an unrecoverable hard failure.
+            # Fallback for parent tasks: the executor runs a verification pass
+            # on parent tasks (post-order traversal — all children done first).
+            # If the executor forgot to call task_result_update, auto-generate
+            # a synthetic "all children completed" result so the approval can
+            # proceed instead of crashing. The executor gets its chance first
+            # (via the Verification Pass continuation); this is the safety net.
             if task.result is None and task.children:
-                task.result = TaskResult(
-                    content="Completed from child task results",
-                    success=True,
-                    metadata={"aggregated": True},
+                all_children_done = all(
+                    self.tasks[cid].status == TaskStatus.COMPLETED
+                    for cid in task.children
+                    if cid in self.tasks
                 )
+                if all_children_done:
+                    task.result = TaskResult(
+                        content="All child tasks completed — parent goal achieved.",
+                        success=True,
+                        metadata={"aggregated": True},
+                    )
             if task.result is not None:
                 target = TaskStatus.COMPLETED if task.result.success else TaskStatus.FAILED
                 if task.status != target:
-                    # Parent tasks may be PENDING (no executor worked on them
-                    # directly). Transition through IN_PROGRESS first since
-                    # PENDING→COMPLETED is not an allowed edge.
+                    # Parent tasks may be IN_PROGRESS (from _complete_ready_parents)
+                    # or PENDING. IN_PROGRESS→COMPLETED is allowed; PENDING is not.
                     if task.status == TaskStatus.PENDING:
                         task.status = TaskStatus.IN_PROGRESS
+                        self._bump_version()
                     if task.status != target:
                         self.transition(task_id, target)  # transition bumps version
-                    else:
-                        self._bump_version()
                 self._complete_ready_parents()
                 self._refresh_active_task()
                 self._bump_version()
@@ -480,23 +483,27 @@ class TaskStateStore:
             current = parent
 
     def _complete_ready_parents(self) -> None:
-        """Mark parent tasks complete when all descendants have finished."""
-        changed = True
-        while changed:
-            changed = False
-            for task in self.tasks.values():
-                if not task.children or task.status == TaskStatus.COMPLETED:
-                    continue
-                children = [self.tasks[child_id] for child_id in task.children]
-                if all(child.status == TaskStatus.COMPLETED for child in children):
-                    if task.status == TaskStatus.PENDING:
-                        task.status = TaskStatus.IN_PROGRESS
-                    task.result = task.result or TaskResult(
-                        content="Completed from child task results",
-                        metadata={"aggregated": True},
-                    )
-                    task.status = TaskStatus.COMPLETED
-                    changed = True
+        """Auto-transition parent tasks to IN_PROGRESS when all children complete.
+
+        Parent tasks (root, phases) are NOT auto-completed here — they need
+        a real verification pass by the TaskExecutor (does all the child work
+        actually achieve the parent's goal?). The executor calls
+        task_result_update with the verification result, then the reviewer
+        reviews it, and THEN the parent completes via record_reviewer_decision.
+
+        This method only transitions PENDING parents to IN_PROGRESS so they
+        become the active task and get scheduled for execution. The synthetic
+        result + completion happens in record_reviewer_decision when the
+        reviewer approves the executor's verification report.
+        """
+        for task in self.tasks.values():
+            if not task.children or task.status == TaskStatus.COMPLETED:
+                continue
+            children = [self.tasks[child_id] for child_id in task.children]
+            if all(child.status == TaskStatus.COMPLETED for child in children):
+                if task.status == TaskStatus.PENDING:
+                    task.status = TaskStatus.IN_PROGRESS
+                    self._bump_version()
 
     def _json_safe(self, value: Any) -> Any:
         """Convert dataclass fields to JSON-compatible primitives."""
