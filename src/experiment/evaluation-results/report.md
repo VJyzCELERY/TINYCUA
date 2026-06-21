@@ -167,6 +167,8 @@ Interpretation:
 
 > TinyCUA runtime depends heavily on early task-tree granularity. When initial task analysis expands a request into many subtasks, each leaf tends to incur executor and reviewer work, increasing latency and token usage.
 
+Experiment 4 needs an additional qualification: its runtime was amplified by prototype retry and verification-tooling weaknesses, not only by task-tree size. The detailed failure mode is discussed in the verification-gate analysis below.
+
 ### 2. Decomposition does not guarantee correctness
 
 Experiment 4 is the clearest failure case. TinyCUA decomposed the app into backend, database, auth, pages, users, and frontend pieces, but the final product was still not runnable. The task tree improved coverage, not integration correctness.
@@ -180,6 +182,55 @@ Experiment 5 shows TinyCUA's tendency to produce many separate files. This impro
 TinyCUA is more consistent at self-review than the other harnesses, but the current prototype's verification system is not yet strong enough. The Result Reviewer often checks local task claims, such as whether a file exists or whether a command ran, but this does not guarantee that all accepted tasks integrate into a working final system.
 
 Experiment 4 demonstrates this limitation: TinyCUA performed repeated review and revision, but the final app still failed integration-level correctness checks.
+
+### 5. Experiment 4 runtime and verification-gate analysis
+
+Experiment 4 should not be interpreted only as evidence that TinyCUA's architecture is inherently slow. The logs show that a large part of the slowdown came from prototype implementation weaknesses in task-state enforcement, path handling, shell execution, and review-decision control.
+
+TinyCUA reported 18 TaskExecutor starts but only 14 ResultReviewer starts. This mismatch is explainable from the logs: four TaskExecutor sessions never produced a successful `task_result_update`, so there was no task result for the ResultReviewer to review. Those sessions ended with retry exhaustion and the runtime warning:
+
+> `TaskExecutor must call task_result_update with an outcome report before finishing. Task state cannot be inferred from prose.`
+
+Therefore, the extra executor calls were not normal task work. They were failed executor sessions where the runtime repeatedly tried to force the executor to satisfy the task-state contract.
+
+| Area | Observed behavior | Interpretation |
+|---|---|---|
+| Frontend-backend integration | Multiple TaskExecutor sessions reached 25 model/tool-call attempts without `task_result_update`. | Runtime overhead came from contract/retry failure, not only decomposition. |
+| Final parent verification | Executor attempted integration fixes and verification, then also reached retry exhaustion before a later executor produced a result. | Parent-level verification lacked a deterministic bounded recipe. |
+| ResultReviewer | Repeated `needs_revision` / `rejected` decisions were sometimes overwritten by later `approved` decisions in the same review session. | Review decisions were not treated as single authoritative outcomes. |
+
+The logs also show a path-normalization problem. For example, the TaskExecutor successfully wrote authentication files under the experiment workspace:
+
+- `/workspace/experiment-4/backend/api/auth/auth.py`
+- `/workspace/experiment-4/backend/api/auth/__init__.py`
+
+However, the ResultReviewer initially checked absolute paths outside that workspace:
+
+- `/backend/api/auth/auth.py`
+- `/backend/api/auth/__init__.py`
+
+Those checks reported the files as missing, causing rejection or revision decisions. Later, when the reviewer used `/workspace/experiment-4/...` or relative paths, it found the files and approved the task. The same pattern appeared earlier for backend API files: the executor wrote files under `/workspace/experiment-4/backend/api/...`, while the reviewer checked `/backend/api/...` and reported them missing.
+
+This means some Experiment 4 review failures were caused by weak verification tooling and inconsistent workspace path handling, not necessarily by the executor failing to create files.
+
+A similar issue appeared with shell environment handling. Some reviewer checks used `source`, but the shell execution context behaved like `/bin/sh`, producing `exit_code=127`. The reviewer then interpreted dependency imports such as `ModuleNotFoundError: No module named 'fastapi'` as evidence that dependencies were missing, even though part of the issue was inconsistent activation or command context.
+
+These details change the interpretation of TinyCUA's slowness:
+
+> Experiment 4's runtime cost was not caused only by TinyCUA's architecture. The architecture created more checkpoints, but the largest overhead came from prototype implementation weaknesses: retry exhaustion when executor nodes failed to update task state, non-canonical workspace paths, shell-context mismatch, and review decisions that could be repeated or overwritten.
+
+The architectural idea remains useful: task execution is explicit, reviewed, and observable. The problem is that the current prototype needs stronger deterministic gates before those reviews can reliably improve final correctness.
+
+Recommended implementation improvements:
+
+- enforce one canonical workspace root for all tools and reviewer checks;
+- normalize task-reported paths before verification;
+- make `task_review_decision` single-final per review session, or require explicit supersession metadata;
+- replace ad hoc shell checks with deterministic verifier helpers such as `file_exists(path)`, `python_import(module, cwd, venv)`, and `command_ok(command, cwd)`;
+- fail fast when TaskExecutor does not call `task_result_update` instead of allowing long retry loops;
+- add bounded parent-task verification recipes for app tasks: dependency install, import check, backend startup check, and frontend/API route consistency check.
+
+In short, Experiment 4 shows that TinyCUA's verification gate is promising but immature. The prototype can detect local false claims, but weak tooling caused false negatives, repeated decisions, and excessive runtime. The next improvement should focus less on reducing decomposition and more on making verification deterministic, path-aware, and bounded.
 
 ## Interpretation
 
