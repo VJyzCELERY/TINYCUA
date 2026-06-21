@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -16,6 +17,8 @@ from tinycua.loops.task_nodes import (
     TinyCUATaskExecutorNode,
 )
 from tinycua.models.task import ReviewerDecision, TaskStateStore
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -110,6 +113,14 @@ class WorkerRuntimeController:
             # route to TaskAnalyzer instead of retrying the executor.
             if active and active.consecutive_failures >= self.replan_threshold:
                 reason = self._build_replan_reason(active)
+                logger.info(
+                    "replan_triggered task_id=%s consecutive_failures=%d threshold=%d "
+                    "decision=%s — routing to TaskAnalyzer for replan",
+                    active.task_id,
+                    active.consecutive_failures,
+                    self.replan_threshold,
+                    decision,
+                )
                 self.schedule_replan(queue, replan_reason=reason)
                 return
             queue.items.extend(

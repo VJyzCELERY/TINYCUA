@@ -6,11 +6,13 @@ TaskInit, TaskCreate, TaskInspect, TaskUpdate, TaskDecompose, TaskResultUpdate.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
-
 
 from tinycua.config.types import Tool
 from tinycua.models.task import ReviewerDecision, TaskResult, TaskStateStore, TaskStatus
+
+logger = logging.getLogger(__name__)
 
 
 _DEFAULT_STORE = TaskStateStore()
@@ -404,6 +406,8 @@ class TaskShrinkTool(SessionTaskToolMixin, Tool):
         try:
             if action == "delete":
                 self._store.delete_task(resolved)
+                logger.info("task_tree_shrink action=delete task_id=%s rationale=%s new_tree_size=%d",
+                            resolved, rationale[:100], len(self._store.tasks))
                 return {"success": True, "action": "delete", "task_id": resolved, "rationale": rationale}
             elif action == "merge":
                 if parent_id is None:
@@ -412,6 +416,8 @@ class TaskShrinkTool(SessionTaskToolMixin, Tool):
                 if resolved_parent is None:
                     return {"success": False, "error": f"Parent {parent_id} not found."}
                 self._store.merge_tasks(resolved, resolved_parent)
+                logger.info("task_tree_shrink action=merge task_id=%s parent_id=%s rationale=%s new_tree_size=%d",
+                            resolved, resolved_parent, rationale[:100], len(self._store.tasks))
                 return {"success": True, "action": "merge", "task_id": resolved, "parent_id": resolved_parent, "rationale": rationale}
             else:
                 return {"success": False, "error": f"Unknown action: {action}. Use 'delete' or 'merge'."}
