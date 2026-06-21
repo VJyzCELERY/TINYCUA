@@ -154,6 +154,17 @@ TinyCUA was much slower than the other harnesses on non-trivial tasks.
 | 4 | 1985.0s |
 | 5 | 4456.9s |
 
+The full runtime comparison shows that TinyCUA was consistently slower than the other harnesses, especially on broad research/documentation tasks.
+
+| Harness | Exp1 | Exp2 | Exp3 | Exp4 | Exp5 | Average |
+|---|---:|---:|---:|---:|---:|---:|
+| opencode | 3.5s | 44.7s | 59.2s | 1635.2s | 95.6s | 367.6s |
+| hermes | 3.9s | 105.4s | 62.7s | 569.0s | 182.0s | 184.6s |
+| openclaw | 4.7s | 292.7s | 58.5s | 1094.0s | 322.1s | 354.4s |
+| tinycua | 5.1s | 1127.9s | 311.8s | 1985.0s | 4456.9s | 1577.4s |
+
+Compared with the fastest non-TinyCUA harness per experiment, TinyCUA was about 1.5× slower on the greeting task, 25.2× slower on the LLM report task, 5.3× slower on the clock app, 3.5× slower on the Notion-like app, and 46.6× slower on the neural-network documentation task.
+
 The better explanation is not simply “TinyCUA runs many planning loops.” In Experiments 2–5, the early loop shape was similar: about three task-analysis starts and two assessor starts. Runtime instead tracked how large the task tree became and how many executor/reviewer cycles followed.
 
 | Experiment | Early task-tree growth observed in logs | Task executor starts | Result reviewer starts | Duration |
