@@ -811,6 +811,7 @@ class TinyCUALoop(
         *,
         stream: bool = False,
         force_required_tool: bool = True,
+        response_format: dict[str, Any] | None = None,
     ) -> Any:
         """Call the SDK agent, optionally forcing a node-required route tool.
 
@@ -818,6 +819,17 @@ class TinyCUALoop(
         bound to the agent/client. TinyCUA keeps this reliability hook outside
         SDK source by temporarily swapping the model value and cached client for
         only this call, then restoring both immediately afterward.
+
+        Args:
+            agent: The SDK agent instance.
+            node: The node being executed.
+            messages: The message list for the LLM call.
+            resolved_tools: Tools allowed for this node.
+            stream: Whether to stream the response.
+            force_required_tool: Whether to force tool_choice="required".
+            response_format: Optional structured-output schema
+                (``{"type": "json_schema", "schema": {...}}``). When set, the
+                model is constrained to produce JSON (Milestone 3).
         """
         tool_choice = None
         if force_required_tool:
@@ -835,6 +847,8 @@ class TinyCUALoop(
             model_overrides["max_tokens"] = max_tokens
         if tool_choice is not None:
             model_overrides["tool_choice"] = tool_choice
+        if response_format is not None:
+            model_overrides["response_format"] = response_format
 
         if not model_overrides:
             return await self._invoke_agent_llm(

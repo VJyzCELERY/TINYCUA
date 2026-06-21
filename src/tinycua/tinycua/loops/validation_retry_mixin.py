@@ -990,6 +990,148 @@ class ValidationRetryMixin:
         )
         return True
 
+    async def _structured_output_retry(
+        self,
+        node: Node,
+        agent: Agent,
+        resolved_tools: list[Tool],
+        last_result: LLMResult,
+        validation: ValidationResult,
+        *,
+        missing_tools: list[str] | None = None,
+    ) -> tuple[LLMResult, ValidationResult] | None:
+        """Structured-output retry: constrain the LLM to produce valid tool-call JSON.
+
+        Replaces the 3-stage escalation with a single stage: the LLM is called
+        with ``response_format: json_schema`` from the missing tool's params.
+        The LLM stays the decider — the runtime never synthesizes the call.
+        """
+        if not missing_tools:
+            return None
+        # Skip for mock agents (tests) — only real LanguageModel supports
+        # response_format. MagicMock auto-creates model_copy, so check type.
+        from tinycua_sdk.agent.llm_model import LanguageModel
+        model = getattr(getattr(agent, "config", None), "llm_model", None)
+        if not isinstance(model, LanguageModel):
+            return None
+        # Build the json_schema from the first missing tool's parameters.
+        tool_name = missing_tools[0]
+        required_tool = self._resolve_recovery_tool(node, tool_name, resolved_tools)
+        if required_tool is None:
+            return None
+        tool_params = getattr(required_tool, "parameters", {})
+        # Construct the response_format json_schema. The schema wraps the
+        # tool's parameters so the LLM produces the arguments object directly.
+        response_format = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": tool_name,
+                "schema": {
+                    "type": "object",
+                    "properties": tool_params.get("properties", {}),
+                    "required": tool_params.get("required", []),
+                    "additionalProperties": tool_params.get(
+                        "additionalProperties", False
+                    ),
+                },
+                "strict": False,
+            },
+        }
+        # Build a minimal context: the model's last response + the missing
+        # tool directive. No tool history — the model sees only what's missing.
+        errors = "; ".join(validation.errors)
+        last_content = (last_result.content or "").strip()[:2000]
+        retry_messages: list[dict[str, Any]] = [
+            {
+                "role": "user",
+                "content": (
+                    f"The previous response did not satisfy the requirement: "
+                    f"{errors}\n\n"
+                    f"Your last response was:\n{last_content}\n\n"
+                    f"Call '{tool_name}' now with the correct arguments. "
+                    f"Output ONLY the JSON arguments object — no prose, no "
+                    f"explanation, no markdown fences."
+                ),
+            }
+        ]
+        try:
+            raw_response = await self._call_agent_llm(
+                agent,
+                node,
+                retry_messages,
+                [required_tool],
+                force_required_tool=False,
+                response_format=response_format,
+            )
+        except Exception:
+            logger.debug(
+                "node=%s structured_output_retry llm_call failed",
+                node.node_id,
+                exc_info=True,
+            )
+            return None
+
+        # The LLM produced JSON arguments — wrap as a tool call and execute.
+        raw_content = raw_response.get("content") or ""
+        if not raw_content.strip():
+            return None
+        import json
+
+        try:
+            arguments = json.loads(raw_content)
+        except json.JSONDecodeError:
+            logger.debug(
+                "node=%s structured_output_retry invalid JSON",
+                node.node_id,
+            )
+            return None
+        if not isinstance(arguments, dict):
+            return None
+
+        injected_tool_call = {
+            "id": f"call_structured_{tool_name}",
+            "type": "function",
+            "function": {
+                "name": tool_name,
+                "arguments": json.dumps(arguments, default=str),
+            },
+        }
+        all_tool_results: list[dict[str, Any]] = []
+        try:
+            tool_results = await self._execute_tool_calls(
+                agent,
+                [injected_tool_call],
+                [required_tool],
+            )
+            if tool_results:
+                all_tool_results.extend(tool_results)
+        except Exception:
+            logger.debug(
+                "node=%s structured_output_retry tool exec failed",
+                node.node_id,
+                exc_info=True,
+            )
+            return None
+
+        result = LLMResult(
+            content=f"[Structured-output {tool_name} call]",
+            role="assistant",
+            tool_calls=[injected_tool_call],
+            metadata={},
+        )
+        if all_tool_results:
+            result.metadata = dict(result.metadata)
+            result.metadata["tool_results"] = list(all_tool_results)
+        result_validation = self._validate_node_result(node, result)
+        if result_validation.is_valid:
+            self._record_node_content_transcript(
+                node,
+                f"Structured-output retry succeeded — the LLM produced a valid "
+                f"{tool_name} call via json_schema constraint.",
+            )
+            return result, result_validation
+        return None
+
     async def _recovery_retry(
         self,
         node: Node,
@@ -1002,17 +1144,12 @@ class ValidationRetryMixin:
     ) -> tuple[LLMResult, ValidationResult] | None:
         """Focused retry exposing only the missing prerequisite tools.
 
-        Strips accumulated tool history and gives the model a quiet room with
-        only the tools it still needs to call. If some prerequisites were
-        already called, they are NOT re-exposed — the model sees only what's
-        missing. The LLM freely decides the arguments.
-
-        Returns (new_llm_result, new_validation) if valid, else None.
+        Fallback for the structured-output track: exposes the missing tools
+        without response_format, letting the LLM freely decide arguments.
+        Returns (result, validation) if valid, else None.
         """
         from datetime import datetime
 
-        # Build the tool list: only the missing prerequisites.
-        # If missing_tools is None, fall back to all resolved_tools (legacy).
         if missing_tools is not None and missing_tools:
             recovery_tools: list[Tool] = []
             for name in missing_tools:
@@ -1020,64 +1157,33 @@ class ValidationRetryMixin:
                 if tool is not None:
                     recovery_tools.append(tool)
             if not recovery_tools:
-                return None  # can't resolve any missing tools — skip
+                return None
         else:
             recovery_tools = list(resolved_tools)
-
-        # Build a minimal message list: system instruction + last response + ask.
         system_msg = node.build_system_message(recovery_tools)
         recovery_messages: list[dict[str, Any]] = []
         if system_msg.get("content"):
             recovery_messages.append(system_msg)
         now = datetime.now().astimezone()
         recovery_messages.append(
-            {
-                "role": "user",
-                "content": (
-                    f"<context>Current date/time: {now:%Y-%m-%d %H:%M:%S %z}, "
-                    f"timezone: {now.tzname() or 'local'}</context>"
-                ),
-            }
+            {"role": "user", "content": f"<context>Current date/time: {now:%Y-%m-%d %H:%M:%S %z}, timezone: {now.tzname() or 'local'}</context>"}
         )
         last_content = (last_result.content or "").strip()
         tool_call_summary = ""
         if last_result.tool_calls:
-            names = [
-                tc.get("function", {}).get("name", "?")
-                for tc in last_result.tool_calls
-                if isinstance(tc, dict)
-            ]
+            names = [tc.get("function", {}).get("name", "?") for tc in last_result.tool_calls if isinstance(tc, dict)]
             tool_call_summary = f" (called: {', '.join(names)})"
-        recovery_messages.append(
-            {
-                "role": "assistant",
-                "content": f"[My last response]{tool_call_summary}: {last_content}",
-            }
-        )
+        recovery_messages.append({"role": "assistant", "content": f"[My last response]{tool_call_summary}: {last_content}"})
         errors = "; ".join(validation.errors)
         missing_str = ", ".join(missing_tools) if missing_tools else "the required tools"
         node_continuation = node.build_continuation(node.session) if node.session else ""
         recovery_messages.append(
-            {
-                "role": "user",
-                "content": (
-                    f"The above response did not satisfy the node's requirement: "
-                    f"{errors}\n\n"
-                    f"You still need to call: {missing_str}. "
-                    f"Call {missing_str} now — do not repeat what you already did.\n\n"
-                    f"{node_continuation}"
-                ),
-            }
+            {"role": "user", "content": f"The above response did not satisfy the node's requirement: {errors}\n\nYou still need to call: {missing_str}. Call {missing_str} now — do not repeat what you already did.\n\n{node_continuation}"}
         )
         try:
-            raw_response = await self._call_agent_llm(
-                agent,
-                node,
-                recovery_messages,
-                recovery_tools,
-            )
+            raw_response = await self._call_agent_llm(agent, node, recovery_messages, recovery_tools)
         except Exception:
-            logger.warning("node=%s recovery_retry failed", node.node_id, exc_info=True)
+            logger.debug("node=%s recovery_retry failed", node.node_id, exc_info=True)
             return None
         recovery_result = LLMResult(
             content=sanitize_internal_reprs(raw_response.get("content") or ""),
@@ -1091,11 +1197,7 @@ class ValidationRetryMixin:
         self._coerce_terminate_only_response(recovery_tools, recovery_result)
         all_tool_results: list[dict[str, Any]] = []
         if recovery_result.tool_calls:
-            tool_results = await self._execute_tool_calls(
-                agent,
-                recovery_result.tool_calls,
-                recovery_tools,
-            )
+            tool_results = await self._execute_tool_calls(agent, recovery_result.tool_calls, recovery_tools)
             if tool_results:
                 all_tool_results.extend(tool_results)
         if all_tool_results:
@@ -1103,11 +1205,7 @@ class ValidationRetryMixin:
             recovery_result.metadata["tool_results"] = list(all_tool_results)
         recovery_validation = self._validate_node_result(node, recovery_result)
         if recovery_validation.is_valid:
-            self._record_node_content_transcript(
-                node,
-                "Recovery retry succeeded — the model called the missing "
-                f"tool(s) ({missing_str}) with a focused context.",
-            )
+            self._record_node_content_transcript(node, f"Recovery retry succeeded — the model called the missing tool(s) ({missing_str}) with a focused context.")
             return recovery_result, recovery_validation
         return None
 

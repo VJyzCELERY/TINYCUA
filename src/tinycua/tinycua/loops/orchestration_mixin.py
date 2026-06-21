@@ -980,19 +980,26 @@ class OrchestrationMixin:
         llm_result: LLMResult,
         validation: ValidationResult,
     ) -> tuple[LLMResult, ValidationResult]:
-        """Unbounded sequential recovery — never exits until validation passes.
+        """Unbounded 2-track recovery — never exits until validation passes.
 
-        Tracks which prerequisite tools the agent already called successfully
-        across the entire recovery (accumulated, not just the latest batch).
-        Each recovery cycle exposes only the MISSING prerequisites in order:
-        1. Focused retry: all missing prerequisite tools, clean context.
-        2. Tightening retry: first missing tool only, tool_choice=required.
-        3. Judge retry: first missing tool injected directly by the judge.
+        Milestone 3 redesign: replaces the 5-stage forcing escalation with a
+        2-track system:
 
-        After each stage, accumulates any newly-called tools and re-checks
-        what's still missing. Tool results from prior stages are merged into
-        the current result before validation so the validator sees the full
-        accumulated state.
+        1. **Deterministic track**: if the only missing prerequisite is
+           ``terminate`` (a no-arg tool), call it directly without an LLM
+           round-trip. This is not stealing an LLM decision — terminate takes
+           no parameters (FR-011).
+
+        2. **Structured-output track**: the LLM is called with
+           ``response_format: json_schema`` built from the missing tool's
+           parameters, constraining it to produce valid JSON. The LLM stays
+           the decider — the runtime never synthesizes the call (unlike the
+           removed ``_judge_retry`` stage). If the output is invalid, the
+           loop retries with the schema error (unbounded).
+
+        FR-015: after 10 consecutive structured-output failures, a stuck-model
+        diagnostic is logged (observability only — the loop continues to
+        preserve the zero-exit, one-shot, no-HITL guarantee).
 
         No graceful exit — the loop only returns when validation passes.
         """
@@ -1012,6 +1019,10 @@ class OrchestrationMixin:
                 and item["output"].get("success") is True
             ):
                 accumulated_results[str(item.get("name"))] = item
+        # Track consecutive structured-output failures for the stuck-model
+        # diagnostic (FR-015). The loop is still unbounded — this is for
+        # observability only, not a bound.
+        consecutive_schema_failures = 0
         while not current_validation.is_valid:
             cycle += 1
             stage_results: dict[str, bool] = {}
@@ -1020,10 +1031,10 @@ class OrchestrationMixin:
             missing = self._missing_recovery_tools_from_set(
                 node, accumulated_successful
             )
-            # Shortcut: if the ONLY missing prerequisite is terminate, call
-            # it directly without an LLM round-trip. terminate has no
-            # meaningful parameters — there is nothing for the model to
-            # decide. This skips all three stages and exits immediately.
+            # Deterministic track: if the ONLY missing prerequisite is
+            # terminate, call it directly without an LLM round-trip. terminate
+            # has no meaningful parameters — there is nothing for the model to
+            # decide. This is not stealing an LLM decision (FR-011).
             if missing == ["terminate"]:
                 terminated = await self._direct_terminate(node, agent)
                 if terminated is not None:
@@ -1035,12 +1046,16 @@ class OrchestrationMixin:
                     if current_validation.is_valid:
                         return current_result, current_validation
                 stage_results["direct_terminate"] = terminated is not None
-            # Stage 1: focused retry with only the missing tools exposed.
-            recovery = await self._recovery_retry(
+            # Structured-output track (Milestone 3): the LLM is constrained via
+            # response_format: json_schema to produce valid tool-call JSON.
+            # The LLM stays the decider — the runtime never synthesizes the
+            # call (unlike the removed _judge_retry stage). Replaces the
+            # 3-stage escalation (focused → tightening → judge).
+            recovery = await self._structured_output_retry(
                 node, agent, resolved_tools, current_result, current_validation,
                 missing_tools=missing,
             )
-            stage_results["focused_retry"] = recovery is not None
+            stage_results["structured_output_retry"] = recovery is not None
             if recovery is not None:
                 current_result, current_validation = recovery
                 self._accumulate_results(current_result, accumulated_results)
@@ -1049,42 +1064,38 @@ class OrchestrationMixin:
                 )
                 if current_validation.is_valid:
                     return current_result, current_validation
-            # Re-check missing after focused retry.
-            missing = self._missing_recovery_tools_from_set(
-                node, set(accumulated_results.keys())
-            )
-            # Stage 2: tightening retry — first missing tool, forced.
-            tightening = await self._tightening_retry(
-                node, agent, resolved_tools, current_result, current_validation,
-                missing_tools=missing,
-            )
-            stage_results["tightening_retry"] = tightening is not None
-            if tightening is not None:
-                current_result, current_validation = tightening
-                self._accumulate_results(current_result, accumulated_results)
-                current_validation = self._revalidate_with_accumulated(
-                    node, current_result, accumulated_results
+                consecutive_schema_failures = 0
+            else:
+                # Fallback: focused retry (expose missing tools, no response_format).
+                # This handles LLMs that don't support json_schema and mock LLMs
+                # in tests. The LLM freely decides the arguments via normal
+                # tool calls — still LLM-decided, just not schema-constrained.
+                focused = await self._recovery_retry(
+                    node, agent, resolved_tools, current_result, current_validation,
+                    missing_tools=missing,
                 )
-                if current_validation.is_valid:
-                    return current_result, current_validation
-            # Re-check missing after tightening retry.
-            missing = self._missing_recovery_tools_from_set(
-                node, set(accumulated_results.keys())
-            )
-            # Stage 3: judge retry — inject the first missing tool call.
-            judge = await self._judge_retry(
-                node, agent, resolved_tools, current_result, current_validation,
-                missing_tools=missing,
-            )
-            stage_results["judge_retry"] = judge is not None
-            if judge is not None:
-                current_result, current_validation = judge
-                self._accumulate_results(current_result, accumulated_results)
-                current_validation = self._revalidate_with_accumulated(
-                    node, current_result, accumulated_results
-                )
-                if current_validation.is_valid:
-                    return current_result, current_validation
+                stage_results["focused_retry"] = focused is not None
+                if focused is not None:
+                    current_result, current_validation = focused
+                    self._accumulate_results(current_result, accumulated_results)
+                    current_validation = self._revalidate_with_accumulated(
+                        node, current_result, accumulated_results
+                    )
+                    if current_validation.is_valid:
+                        return current_result, current_validation
+                    consecutive_schema_failures = 0
+                else:
+                    consecutive_schema_failures += 1
+                # FR-015: stuck-model diagnostic (observability, not a bound).
+                if consecutive_schema_failures >= 10:
+                    logger.warning(
+                        "node=%s stuck-model — %d consecutive structured-output "
+                        "failures. The loop continues (zero-exit guarantee) but "
+                        "this model may be unable to produce the required output.",
+                        node.node_id,
+                        consecutive_schema_failures,
+                    )
+                    consecutive_schema_failures = 0  # reset to avoid log spam
             # All stages failed — log state and loop back.
             self._log_recovery_cycle(node, current_validation, cycle, stage_results)
 
