@@ -195,45 +195,6 @@ def print_new_transcript_events(loop: Any, seen_count: int) -> int:
     return len(events)
 
 
-def write_artifacts(loop: Any, artifact_dir: Path) -> None:
-    """Write JSON/text runtime artifacts for debugging."""
-    state_snapshot = safe_loop_call(loop, "get_state_snapshot", default={})
-    artifacts = {
-        "execution_trace.json": safe_loop_call(loop, "get_execution_trace", default=[]),
-        "state_snapshot.json": state_snapshot,
-        "task_tree.json": state_snapshot.get("task_tree", {})
-        if isinstance(state_snapshot, dict)
-        else {},
-        "transcript_events.json": safe_loop_call(
-            loop,
-            "get_transcript_events",
-            default=[],
-        ),
-        "final_response_events.json": safe_loop_call(
-            loop,
-            "get_final_response_events",
-            default=[],
-        ),
-    }
-    for filename, payload in artifacts.items():
-        (artifact_dir / filename).write_text(
-            json.dumps(payload, indent=2, default=str),
-            encoding="utf-8",
-        )
-    if isinstance(state_snapshot, dict):
-        (artifact_dir / "task_tree.txt").write_text(
-            str(state_snapshot.get("task_tree_text", "No tasks.")),
-            encoding="utf-8",
-        )
-    transcript_text = safe_loop_call(
-        loop,
-        "get_transcript_text",
-        default="",
-        include_node_calls=True,
-    )
-    (artifact_dir / "transcript.txt").write_text(str(transcript_text), encoding="utf-8")
-
-
 def print_summary(loop: Any, workspace_dir: Path, artifact_dir: Path | None, result: str, *, trace: bool = False, task_tree: bool = False) -> None:
     """Print a concise session summary after a live run.
 

@@ -505,18 +505,6 @@ class SmokeRunOrchestrator:
 
         return report
 
-    def select_tasks(self) -> list[SmokeTask]:
-        """Select representative tasks from each category.
-
-        Returns:
-            List of SmokeTask objects.
-        """
-        selector = SmokeTaskSelector(
-            available_capabilities=self._available_capabilities,
-            output_base=self._output_base,
-        )
-        return selector.select()
-
     def _execute_task(self, task: SmokeTask) -> SmokeResult:
         """Execute a single smoke task and collect results.
 

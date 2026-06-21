@@ -491,20 +491,6 @@ class TaskStateStore:
                 self._bump_version()
         return task
 
-    def add_artifact(
-        self,
-        task_id: str,
-        *,
-        path: str,
-        kind: str = "file",
-        metadata: dict[str, Any] | None = None,
-    ) -> Task:
-        """Attach an artifact reference to a task."""
-        task = self.get_task(task_id)
-        task.artifacts.append({"path": path, "kind": kind, "metadata": metadata or {}})
-        self._bump_version()
-        return task
-
     def next_unfinished_leaf(self) -> Task | None:
         """Return the first leaf that still needs work.
 

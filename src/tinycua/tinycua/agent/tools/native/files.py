@@ -180,7 +180,6 @@ def read_file(
     lines, content, trailing_newline = result
 
     total_lines = len(lines)
-    content_bytes = content.encode("utf-8")
 
     # --- Bounded range mode: offset is explicitly set ---
     # Only bounded ranges (start + offset) bypass the truncation limit.
@@ -479,7 +478,6 @@ def _map_line_matches(
             # Find the position within the line.
             line_content = content_lines[start_line]
             line_norm = content_norm_lines[start_line]
-            rel_start = norm_start - (len(norm_content[:norm_start]) - len(before)) if before else norm_start
             # Simpler: just find old[0] in the stripped line.
             stripped_old = old_lines[0]
             pos_in_stripped = line_norm.find(stripped_old)
@@ -937,7 +935,6 @@ def _search_content(
     result: list[str] = []
     for filepath, line_num, line, ctx_lines in all_matches:
         if context > 0:
-            match_start = max(0, len(ctx_lines) // 2 - context)
             for ci, ctx_line in enumerate(ctx_lines):
                 ctx_line_num = line_num - context + ci
                 if ctx_line_num < 1:

@@ -65,13 +65,6 @@ class OrchestrationMixin:
             stream_executor=stream_executor,
         )
 
-    def _next_terminal_node(self) -> Node | None:
-        """Return an existing or configured terminal node for forced routing."""
-        for item in self.queue.items:
-            if item.is_terminal:
-                return item
-        return self.default_terminal_node
-
     def _maybe_populate_root_mission(self, node: Node) -> None:
         """Populate the canonical mission on the root task after TaskCreate.
 
@@ -211,7 +204,6 @@ class OrchestrationMixin:
         # Wire queue on QueryAnalystNode before execution
         if isinstance(node, TinyCUAQueryAnalystNode):
             node._queue = self.queue
-        self._inject_active_task_input(node)
 
         # Milestone 8 Stream B: cross-node compaction trigger. Compact
         # session_context before building messages when the previous call
@@ -584,7 +576,6 @@ class OrchestrationMixin:
         """Stream one node through its lifecycle and runtime services."""
         if isinstance(node, TinyCUAQueryAnalystNode):
             node._queue = self.queue
-        self._inject_active_task_input(node)
         messages, resolved_tools = self._prepare_node(
             node,
             tools,

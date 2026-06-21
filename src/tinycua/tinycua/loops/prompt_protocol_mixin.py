@@ -10,10 +10,6 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any
 
-from tinycua.loops.context_rendering import render_llm_content, should_include_chat_record
-from tinycua.loops.node import build_messages_with_dedupe
-from tinycua.models.node_input import convert_node_input_to_messages
-from tinycua.models.session import Session
 
 if TYPE_CHECKING:
     from tinycua.config.types import LLMResult
@@ -25,14 +21,6 @@ logger = logging.getLogger(__name__)
 
 class PromptProtocolMixin:
     """Mixin extracted from TinyCUALoop for modularity."""
-
-    # Deterministic controller messages that are internal bookkeeping,
-    # not useful context for downstream LLM nodes.
-    _SKIP_SESSION_CONTEXT_PREFIXES = ("Scheduled analysis effort", "Analysis effort complete")
-
-    def _inject_active_task_input(self, node: Node) -> None:
-        """No-op: TaskExecutor renders markdown context in build_continuation."""
-        return
 
     def _latest_user_text(self) -> str:
         """Return the latest external user input text."""
@@ -84,147 +72,6 @@ class PromptProtocolMixin:
         finally:
             if original_instruction is not None:
                 node._instruction = original_instruction  # noqa: SLF001
-
-    def _append_session_context_messages(
-        self,
-        messages: list[dict[str, Any]],
-        node: Node,
-        context_session: Session,
-        skip_record_ids: set[str],
-    ) -> None:
-        """Append reusable session context as assistant-role messages."""
-        policy = node.config.message_policy
-        if not policy.include_session_context or not context_session.session_context:
-            return
-        # Filter out deterministic controller noise before any path
-        filtered_context = [
-            entry for entry in context_session.session_context
-            if not (
-                isinstance(
-                    entry.get("content", "") if isinstance(entry, dict) else entry.content,
-                    str,
-                )
-                and (
-                    entry.get("content", "") if isinstance(entry, dict) else entry.content
-                ).startswith(self._SKIP_SESSION_CONTEXT_PREFIXES)
-            )
-        ]
-        if not filtered_context:
-            return
-        if policy.dedupe_by_origin_record_id:
-            messages.extend(
-                build_messages_with_dedupe(
-                    Session(session_context=filtered_context),
-                    dedupe_by_origin_record_id=True,
-                    skip_record_ids=skip_record_ids,
-                )
-            )
-            return
-        for entry in filtered_context:
-            if self._session_entry_is_skipped(entry, skip_record_ids):
-                continue
-            content = (
-                entry.get("content", "") if isinstance(entry, dict) else entry.content
-            )
-            self._append_nonblank_message(messages, "assistant", content)
-
-    def _append_chat_history_messages(
-        self,
-        messages: list[dict[str, Any]],
-        node: Node,
-    ) -> None:
-        """Append eligible chat-history messages for nodes that request them."""
-        if not node.config.message_policy.include_chat_history:
-            return
-        for record in self.root_session.chat_history:
-            if should_include_chat_record(record):
-                self._append_nonblank_message(messages, record.role, record.content)
-
-    def _append_input_context_messages(
-        self,
-        messages: list[dict[str, Any]],
-        node: Node,
-    ) -> None:
-        """Append SDK/root input only for explicit entry-boundary nodes."""
-        if not node.config.message_policy.include_input_context:
-            return
-        for message in self.root_session.input_context:
-            role = message["role"]
-            if role == "user" and node.node_id != "query_analyst":
-                role = "assistant"
-            self._append_nonblank_message(
-                messages,
-                role,
-                message["content"],
-            )
-
-    def _append_node_input_messages(
-        self,
-        messages: list[dict[str, Any]],
-        node: Node,
-        node_input: Any,
-    ) -> None:
-        """Append direct queue handoff messages for the active node."""
-        if node_input is None:
-            return
-        try:
-            for message in convert_node_input_to_messages(node_input):
-                role = message.get("role", "assistant")
-                if (
-                    role == "user"
-                    and not node.config.message_policy.include_input_context
-                ):
-                    role = "assistant"
-                self._append_nonblank_message(
-                    messages,
-                    role,
-                    message.get("content", ""),
-                )
-        except (TypeError, ValueError):
-            logger.debug("node=%s invalid_node_input_ignored", node.node_id)
-
-    def _source_record_ids_from_node_input(self, node_input: Any) -> set[str]:
-        """Return source record IDs represented by direct node input."""
-        metadata = getattr(node_input, "metadata", None)
-        if not isinstance(metadata, dict):
-            return set()
-        record_ids = metadata.get("source_record_ids", [])
-        if isinstance(record_ids, str):
-            return {record_ids}
-        if isinstance(record_ids, list):
-            return {str(record_id) for record_id in record_ids}
-        return set()
-
-    def _session_entry_is_skipped(
-        self,
-        entry: Any,
-        skip_record_ids: set[str],
-    ) -> bool:
-        """Return whether a session-context entry is already in NodeInput."""
-        if not skip_record_ids or isinstance(entry, dict):
-            return False
-        return entry.record_id in skip_record_ids or (
-            entry.origin_record_id is not None
-            and entry.origin_record_id in skip_record_ids
-        )
-
-    def _append_nonblank_message(
-        self,
-        messages: list[dict[str, Any]],
-        role: str,
-        content: Any,
-    ) -> None:
-        """Append a message only when content is non-whitespace."""
-        content = render_llm_content(content)
-        if not content.strip():
-            return
-        key = (role, content)
-        if any(
-            existing.get("role") == key[0] and existing.get("content") == key[1]
-            for existing in messages
-        ):
-            return
-        messages.append({"role": role, "content": content})
 
     def _normalize_tool_calls(
         self,

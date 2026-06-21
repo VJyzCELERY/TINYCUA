@@ -9,7 +9,6 @@ from typing import Any
 from tinycua.config.node_config import create_node_config
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.task_nodes import (
-    TinyCUAAnalysisEffortNode,
     TinyCUAResultAggregationNode,
     TinyCUAResultReviewerNode,
     TinyCUATaskAnalyzerNode,
@@ -40,29 +39,6 @@ class WorkerRuntimeController:
     store: TaskStateStore
     enable_open_question_review: bool = False
     replan_threshold: int = 5
-
-    def schedule_initial(self, queue: NodeQueue) -> None:
-        """Schedule the initial analysis-through-review lifecycle."""
-        queue.items.extend(
-            [
-                TinyCUATaskAnalyzerNode(
-                    node_id="task_analyzer",
-                    config=create_node_config("task_analyzer", mode="initial_analysis"),
-                ),
-                TinyCUAAnalysisEffortNode(
-                    node_id="analysis_effort",
-                    config=create_node_config("analysis_effort"),
-                ),
-                TinyCUATaskExecutorNode(
-                    node_id="task_executor",
-                    config=create_node_config("task_executor"),
-                ),
-                TinyCUAResultReviewerNode(
-                    node_id="result_reviewer",
-                    config=create_node_config("result_reviewer"),
-                ),
-            ]
-        )
 
     def schedule_replan(self, queue: NodeQueue, replan_reason: str = "") -> None:
         """Schedule local assessor/analyzer replan before execution.

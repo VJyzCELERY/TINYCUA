@@ -204,17 +204,6 @@ class TinyCUAInformationDigesterNode(ProcessNode):
         self.session.task_store = root_or_parent_session.task_store
         return self.session
 
-    def _produce_fallback(self, original_query: str) -> DigestedInformation:
-        """Produce fallback DigestedInformation when no useful context.
-
-        Args:
-            original_query: The original user query to preserve.
-
-        Returns:
-            A fallback DigestedInformation instance.
-        """
-        return DigestedInformation.fallback(original_query)
-
     def propagate(self) -> None:
         """Propagate DigestedInformation to session_context.
 

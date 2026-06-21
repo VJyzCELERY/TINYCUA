@@ -325,18 +325,6 @@ class ValidationRetryMixin:
                 existing_terminal_ids.add(terminal.node_id)
         return True
 
-    def _validation_failure_content(
-        self,
-        node: Node,
-        validation: ValidationResult,
-    ) -> str:
-        """Build a visible failure response from runtime validation errors."""
-        errors = "; ".join(validation.errors) or "unknown validation failure"
-        return (
-            f"TinyCUA could not complete the request because {node.node_id} "
-            f"failed runtime validation: {errors}"
-        )
-
     def _effective_max_attempts(self, node: Node) -> int:
         """Return bounded retry attempts for the loop-owned call path."""
         retry_policy = node.config.retry_policy
@@ -1358,14 +1346,6 @@ class ValidationRetryMixin:
         """Build retry guidance for the canonical streaming path."""
         del agent, attempt
         return self._retry_message_for_validation(error, node, resolved_tools, llm_result)
-
-    def _append_tool_feedback_messages(
-        self,
-        messages: list[dict[str, Any]],
-        llm_result: LLMResult,
-    ) -> None:
-        """Append assistant tool calls and tool results for streamed retries."""
-        messages.extend(self._tool_feedback_messages(llm_result))
 
     def _tool_feedback_messages(self, llm_result: LLMResult) -> list[dict[str, Any]]:
         """Return latest tool-call feedback messages for a retry attempt."""

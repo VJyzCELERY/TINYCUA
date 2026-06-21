@@ -197,19 +197,6 @@ class TinyCUALoop(
         self._pending_handoffs: list[NodeHandoff] = []
         self._resolved_tools_for_prompt: list[Tool] | None = None
 
-    def get_working_messages(self) -> list[dict[str, Any]]:
-        """Return the working messages captured during the last run.
-
-        The working messages include system prompts, user messages,
-        assistant responses, and tool calls from the most recent
-        ``run()`` invocation. This is used by the transcript writer
-        to produce JSONL output.
-
-        Returns:
-            List of message dicts from the last execution.
-        """
-        return list(self._working_messages)
-
     def get_usage_events(self) -> list[dict[str, Any]]:
         """Return the usage events captured during the last streaming run.
 
@@ -279,14 +266,6 @@ class TinyCUALoop(
     def render_task_tree(self, store=None) -> str:
         """Render the current or provided task tree as readable text."""
         return render_task_tree(store or self.root_session.task_store)
-
-    def get_task_trace(self) -> list[dict[str, Any]]:
-        """Return task-state snapshots captured in execution trace entries."""
-        return [
-            entry["task_tree"]
-            for entry in self._execution_trace
-            if "task_tree" in entry
-        ]
 
     def get_state_snapshot(self) -> dict[str, Any]:
         """Return a JSON-safe snapshot of runtime-visible state."""

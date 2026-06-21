@@ -35,15 +35,6 @@ class Tool:
             "additionalProperties": True,
         }
 
-    def to_config(self) -> dict[str, Any]:
-        """Return OpenAI-compatible tool schema config."""
-        return {
-            "type": "function",
-            "name": self.name,
-            "description": self.description,
-            "parameters": self.parameters,
-        }
-
     def invoke(self, **kwargs: Any) -> Any:
         """Invoke SDK-style tools through the callable interface."""
         return self(**kwargs)  # type: ignore[misc,operator]

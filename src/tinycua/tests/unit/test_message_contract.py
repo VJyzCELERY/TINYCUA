@@ -395,7 +395,6 @@ def test_task_executor_prompt_is_limited_to_active_task_context() -> None:
         config=create_node_config("task_executor"),
     )
     loop.queue = NodeQueue(items=[executor])
-    loop._inject_active_task_input(executor)
 
     messages, _ = loop._prepare_node(executor, [Tool(name="write_file")])
     rendered = "\n".join(str(message.get("content", "")) for message in messages)

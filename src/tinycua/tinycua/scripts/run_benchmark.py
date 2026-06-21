@@ -27,7 +27,6 @@ DEFAULT_TASKS = [f"task_{i:03d}" for i in range(1, 61)]
 
 # Task-to-category mapping for WildClawBench
 # Pinned to WildClawBench v1.0 task list — update when upstream reorganizes categories.
-WILDCRAWLBENCH_CATEGORY_VERSION = "1.0"
 
 _TASK_CATEGORIES: dict[str, str] = {
     f"task_{i:03d}": cat
