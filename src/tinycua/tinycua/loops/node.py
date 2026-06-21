@@ -21,6 +21,7 @@ from tinycua.models.session import Session
 
 if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
+    from tinycua.loops.node_contract import NodeContract
     from tinycua.loops.node_queue import NodeQueue
 
 logger = logging.getLogger(__name__)
@@ -196,6 +197,22 @@ class Node(ABC):
         # caching). Invalidated only when the resolved tools list changes.
         self._cached_system_message: dict[str, str] | None = None
         self._cached_system_key: tuple[int, ...] | None = None
+        # Stateful node tracking (Milestone 2): per-node observable state.
+        from tinycua.loops.node_contract import NodeProgress
+
+        self.progress = NodeProgress()
+
+    @property
+    def contract(self) -> NodeContract:
+        """Return the NodeContract for this node (single source of truth).
+
+        Looks up the contract from the registry by ``node_id``. The contract
+        declares required_tools, any_of_tools, deterministic_tools,
+        requires_terminate, early_stop_tool, and (later) structured_output_schema.
+        """
+        from tinycua.loops.node_contract import get_node_contract
+
+        return get_node_contract(self.node_id)
 
     def ensure_session(self, root_or_parent_session: Session) -> Session:
         """Create or return an isolated node session.

@@ -15,6 +15,7 @@ from tinycua_sdk.agent.loop import BaseLoop
 from tinycua.config.types import LLMResult, ValidationError, ValidationResult
 from tinycua.loops._loop_constants import _MAX_TOOL_CONTINUATIONS
 from tinycua.loops.context_rendering import render_llm_content, sanitize_internal_reprs
+from tinycua.loops.node_contract import NodeState
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.models.node_handoff import NodeHandoff
 from tinycua.agent.tools.native.output_persist import (
@@ -620,6 +621,18 @@ class TinyCUALoop(
                 task.result.metadata["tool_results"] = evidence
                 task.metadata.pop("executor_partial_tool_results", None)
 
+    def _track_tool_calls_in_progress(
+        self, node: Node, tool_results: list[dict[str, Any]]
+    ) -> None:
+        """Record visited + satisfied tools in node.progress (Milestone 2)."""
+        for tr in tool_results:
+            if isinstance(tr, dict) and tr.get("name"):
+                success = (
+                    isinstance(tr.get("output"), dict)
+                    and tr["output"].get("success") is not False
+                )
+                node.progress.mark_tool_called(tr["name"], success=success)
+
     async def _call_node_with_retry(
         self,
         node: Node,
@@ -637,6 +650,12 @@ class TinyCUALoop(
         retry_tool_results: list[dict[str, Any]] = []
 
         for attempt in range(1, max_attempts + 1):
+            # Milestone 2: track per-node state transitions.
+            node.progress.attempt_count = attempt
+            node.progress.transition(
+                NodeState.EXECUTING if attempt == 1 else NodeState.RETRYING,
+                reason="attempt" if attempt == 1 else "retry",
+            )
             attempt_messages = self._messages_with_retry_prompt(
                 base_messages,
                 retry_feedback,
@@ -674,6 +693,8 @@ class TinyCUALoop(
                 if not tool_results:
                     break
                 all_tool_results.extend(tool_results)
+                # Milestone 2: track visited + satisfied tools in node progress.
+                self._track_tool_calls_in_progress(node, tool_results)
                 self._enrich_task_results_from_tool_batch(node, all_tool_results)
                 normalized_tool_calls = self._normalize_tool_calls(
                     last_result.tool_calls

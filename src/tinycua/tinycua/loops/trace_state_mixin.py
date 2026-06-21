@@ -302,6 +302,14 @@ class TraceStateMixin:
             "attempt": attempt,
             "resolved_tool_names": [tool.name for tool in resolved_tools],
         }
+        # Milestone 2: emit observable node state in the trace.
+        progress = getattr(node, "progress", None)
+        if progress is not None:
+            trace_entry["node_state"] = progress.phase.value
+            trace_entry["node_visited_tools"] = sorted(progress.visited_tools)
+            trace_entry["node_satisfied_requirements"] = sorted(
+                progress.satisfied_requirements
+            )
         if isinstance(on_complete_response, DecisionResult):
             trace_entry["route_label"] = on_complete_response.route_label
             trace_entry["route_source"] = (
