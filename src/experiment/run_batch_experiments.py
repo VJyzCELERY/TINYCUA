@@ -1,4 +1,7 @@
-"""Run prompt-list experiments sequentially, judge them, then archive results."""
+"""Run prompt-list experiments sequentially, then judge them individually.
+
+Results stay in the results/ directory — the user archives manually.
+"""
 
 from __future__ import annotations
 
@@ -219,17 +222,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.dry_run:
         return 1 if failures else 0
 
-    archive_dir = archive_results(
-        output_root,
-        archive_root,
-        experiments,
-        manifest,
-        agents=args.agents,
-    )
-    (archive_dir / "summary.json").write_text(
-        json.dumps({"failures": failures}, indent=2) + "\n"
-    )
-    print(f"\narchived: {archive_dir}", flush=True)
+    # Results stay in place — user archives manually.
+    print(f"\nbatch complete. Results in: {output_root}", flush=True)
     return 1 if failures else 0
 
 
