@@ -81,8 +81,12 @@ def build_judge_prompt(task_prompt: str, criteria: str, *, workdir_empty: bool) 
         f"{criteria}\n\n"
         "## Your Job\n"
         f"{source_note}\n\n"
-        "Evaluate the submission against every criterion. Write your verdict as markdown.\n"
-        "Be concise, fair, and objective. Do not speculate about which tool produced the work."
+        "Evaluate the submission against every criterion. You may test code "
+        "using Docker containers (e.g. `docker run --rm -v \"$(pwd):/work\" "
+        "-w /work python:3.12-slim python app.py`) to verify correctness — "
+        "do not run code directly on the host. Write your verdict as markdown.\n"
+        "Be concise, fair, and objective. Do not speculate about which tool "
+        "produced the work."
     )
 
 
@@ -154,7 +158,13 @@ def build_cross_judge_prompt(
         "- Judge only what is in each submission directory.\n"
         "- Do not speculate about which tool or agent produced each submission.\n"
         "- Be fair and consistent. Rank based on the criteria scores.\n"
-        "- Do not run code or execute files. Inspect by reading.\n"
+        "- You may test code using Docker containers (e.g. "
+        "`docker run --rm -v \"$(pwd):/work\" -w /work python:3.12-slim "
+        "python app.py`) to verify correctness. Do not run code directly "
+        "on the host. Each submission is in a subdirectory — cd into it "
+        "before testing.\n"
+        "- Do not modify the submission files. Test in a container, then "
+        "discard the container.\n"
     )
 
 

@@ -26,8 +26,27 @@ the task asked for an answer, is it given?
 ### 2. Correctness
 Is the output functionally correct? For code: does it run and produce the
 right result? For text: is the information accurate? For data: is it valid
-and well-formed? Verify by inspection — open files, check logic, trace
-execution mentally.
+and well-formed? Verify by inspection and, where practical, by testing.
+
+**You may test code inside a Docker container.** Docker is available on the
+host. Use it to run the submission's code in an isolated sandbox — for
+example:
+
+```bash
+# Run a Python file in a throwaway container:
+docker run --rm -v "$(pwd):/work" -w /work python:3.12-slim python app.py
+
+# Run tests:
+docker run --rm -v "$(pwd):/work" -w /work python:3.12-slim sh -c "pip install -r requirements.txt && python -m pytest"
+
+# Open an HTML file in a headless browser to check structure:
+docker run --rm -v "$(pwd):/work" -w /work python:3.12-slim python -c "..."
+```
+
+Use Docker for any execution — do not run code directly on the host. Keep
+test commands short and focused on verifying correctness, not re-implementing
+the task. If a submission cannot be tested (missing dependencies, broken
+imports, etc.), note the failure and score accordingly.
 
 ### 3. Quality & Craftsmanship
 Is the output well-made? For code: readable, structured, not brittle. For
@@ -74,4 +93,10 @@ Write your verdict as markdown:
 - Be fair and consistent. A simple task done well deserves a high score;
   a complex task done poorly deserves a low one. Do not penalize
   simplicity when the task was simple.
-- Do not run code or execute files. Inspect by reading.
+- **You may test code using Docker containers** as described in the
+  Correctness section above. This is encouraged for code submissions —
+  running the code gives a more accurate correctness score than
+  reading alone. Use `docker run --rm` with an appropriate base image
+  and mount the submission directory read-only when possible.
+- Do not modify the submission files. Test in a container, then discard
+  the container.
