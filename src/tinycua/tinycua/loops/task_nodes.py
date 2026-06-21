@@ -742,26 +742,8 @@ class TinyCUAResultReviewerNode(ProcessNode):
             is_terminal=is_terminal,
         )
 
-    def build_continuation(self, session: Session | None = None) -> str:
-        """Build reviewer continuation with latest result and unified context."""
-        base = super().build_continuation(session)
-        if session is None:
-            return base
-        task = self._task_to_review()
-        if task is None:
-            return base
-        # Primary review target: the executor's outcome report
-        result_content = task.result.content if task.result is not None else ""
-        if not result_content.strip():
-            # Failsafe: if no result report, include the tool-call transcript
-            # so the reviewer can still assess what happened
-            transcript_lines = []
-            for entry in session.session_context:
-                content = entry_content(entry)
-                role = entry.get("role", "") if isinstance(entry, dict) else getattr(entry, "role", "")
-                if role and content:
-                    transcript_lines.append(f"[{role}] {content}")
-            result_content = "(No result report from executor)\n\nExecutor transcript:\n" + "\n".join(transcript_lines[-10:])
+    def _reviewer_context_blocks(self, task: Task, session: Session) -> str:
+        """Assemble the reviewer's context blocks (unfinished, child gate, failure note)."""
         # Highlight unfinished tasks for context curation
         unfinished = []
         for t in session.task_store.tasks.values():
@@ -770,8 +752,6 @@ class TinyCUAResultReviewerNode(ProcessNode):
         unfinished_block = ""
         if unfinished:
             unfinished_block = "\nUnfinished tasks to curate context for:\n" + "\n".join(unfinished) + "\n"
-        mission = _render_mission_block(session)
-        mission_prefix = f"{mission}\n\n" if mission else ""
         # FR-021: surface the failure count as SOFT context so the reviewer —
         # which still LLM-decides — can weigh replan over retry when a task has
         # bounced many times. Not a forced decision; just visible signal.
@@ -808,13 +788,40 @@ class TinyCUAResultReviewerNode(ProcessNode):
                 + "\n".join(child_lines)
                 + "\n"
             )
+        return f"{unfinished_block}{child_gate}{failure_note}"
+
+    def _failsafe_result_content(self, task: Task, session: Session) -> str:
+        """Failsafe transcript when the executor left no result report."""
+        transcript_lines = []
+        for entry in session.session_context:
+            content = entry_content(entry)
+            role = entry.get("role", "") if isinstance(entry, dict) else getattr(entry, "role", "")
+            if role and content:
+                transcript_lines.append(f"[{role}] {content}")
+        return "(No result report from executor)\n\nExecutor transcript:\n" + "\n".join(transcript_lines[-10:])
+
+    def build_continuation(self, session: Session | None = None) -> str:
+        """Build reviewer continuation with latest result and unified context."""
+        base = super().build_continuation(session)
+        if session is None:
+            return base
+        task = self._task_to_review()
+        if task is None:
+            return base
+        # Primary review target: the executor's outcome report
+        result_content = task.result.content if task.result is not None else ""
+        if not result_content.strip():
+            result_content = self._failsafe_result_content(task, session)
+        mission = _render_mission_block(session)
+        mission_prefix = f"{mission}\n\n" if mission else ""
+        context_blocks = self._reviewer_context_blocks(task, session)
         return (
             f"{mission_prefix}Task under review: {task.task_id} — {task.title}\n"
             f"Task status: {task.status.value}\n"
             f"Outcome report: {result_content}\n"
             f"{_render_request_contract(session)}\n"
             f"Unified task context:\n{session.task_store.render_markdown()}\n"
-            f"{unfinished_block}{child_gate}{failure_note}\n{base}"
+            f"{context_blocks}\n{base}"
         )
 
     def _task_to_review(self):

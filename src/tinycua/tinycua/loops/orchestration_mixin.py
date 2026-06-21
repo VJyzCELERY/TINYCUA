@@ -169,6 +169,98 @@ class OrchestrationMixin:
         )
         return content, llm_result.tool_calls
 
+    async def _handle_validation_failure(
+        self,
+        node: Node,
+        agent: Agent,
+        resolved_tools: list[Tool],
+        llm_result: LLMResult,
+        validation: ValidationResult,
+        attempt: int,
+    ) -> tuple[str, list[dict[str, Any]]] | None:
+        """Handle a validation failure via the 3-way recovery path.
+
+        Returns (content, tool_calls) when a recovery path succeeds, or None
+        when the caller should fall through to unbounded recovery.
+        """
+        if self._recover_task_analyzer_validation_failure(node, validation):
+            on_complete_response = self._build_on_complete_response(node, llm_result)
+            trace_entry = self._trace_entry(
+                node, attempt, resolved_tools, on_complete_response, llm_result,
+            )
+            trace_entry["validation_errors"] = list(validation.errors)
+            self._execution_trace.append(trace_entry)
+            return llm_result.content, llm_result.tool_calls
+        if self._recover_task_executor_validation_failure(node, validation, llm_result):
+            on_complete_response = self._build_on_complete_response(node, llm_result)
+            trace_entry = self._trace_entry(
+                node, attempt, resolved_tools, on_complete_response, llm_result,
+            )
+            trace_entry["validation_errors"] = list(validation.errors)
+            self._execution_trace.append(trace_entry)
+            return llm_result.content, llm_result.tool_calls
+        return None
+
+    async def _finalize_node_success(
+        self,
+        node: Node,
+        llm_result: LLMResult,
+        validation: ValidationResult,
+        attempt: int,
+        node_input: NodeInputLike | None,
+        resolved_tools: list[Tool],
+        content: str,
+    ) -> tuple[str, list[dict[str, Any]]]:
+        """Record output, fire hooks, on_complete, propagation. Returns (content, tool_calls)."""
+        llm_result = self._record_node_output(node, content, llm_result.tool_calls)
+        if content:
+            self._record_node_content_transcript(node, content)
+        self._record_tool_result_transcripts(
+            node, llm_result.metadata.get("tool_results", []),
+        )
+        self._apply_loop_result_hook(node, llm_result, node_input)
+        self._publish_structured_outputs_to_root(node)
+        self._maybe_populate_root_mission(node)
+        self._maybe_warn_reviewer_no_verification(node, llm_result)
+        self._apply_task_lifecycle_marker(node, content)
+
+        # Fire agent_monitor after-hook (if configured)
+        if self.agent_monitor is not None:
+            try:
+                self.agent_monitor.on_after_node_call(
+                    node.node_id,
+                    self.root_session.session_id,
+                    attempt,
+                    llm_result,
+                    validation,
+                )
+            except Exception:
+                logger.debug(
+                    "node=%s agent_monitor_after_hook_exception",
+                    node.node_id,
+                    exc_info=True,
+                )
+
+        on_complete_response = self._build_on_complete_response(node, llm_result)
+        node.on_complete(self.queue, on_complete_response)
+
+        trace_entry = self._trace_entry(
+            node, attempt, resolved_tools, on_complete_response, llm_result,
+        )
+        self._execution_trace.append(trace_entry)
+
+        # Propagate context on node termination (ISSUE-601): use the
+        # propagation engine instead of legacy _transfer_session_context().
+        rule = node.config.propagation or PropagationRule()
+        parent_session = self._find_parent_session(node)
+        await propagate_on_termination(
+            node.session or self.root_session,
+            parent_session,
+            self.root_session,
+            rule,
+        )
+        return content, llm_result.tool_calls
+
     async def _execute_node(
         self,
         node: Node,
@@ -243,47 +335,20 @@ class OrchestrationMixin:
             resolved_tools,
         )
         content = llm_result.content
-        result_metadata = dict(llm_result.metadata)
         if not validation.is_valid:
-            if self._recover_task_analyzer_validation_failure(node, validation):
-                on_complete_response = self._build_on_complete_response(node, llm_result)
-                trace_entry = self._trace_entry(
-                    node,
-                    attempt,
-                    resolved_tools,
-                    on_complete_response,
-                    llm_result,
-                )
-                trace_entry["validation_errors"] = list(validation.errors)
-                self._execution_trace.append(trace_entry)
-                return content, llm_result.tool_calls
-            if self._recover_task_executor_validation_failure(
-                node,
-                validation,
-                llm_result,
-            ):
-                on_complete_response = self._build_on_complete_response(node, llm_result)
-                trace_entry = self._trace_entry(
-                    node,
-                    attempt,
-                    resolved_tools,
-                    on_complete_response,
-                    llm_result,
-                )
-                trace_entry["validation_errors"] = list(validation.errors)
-                self._execution_trace.append(trace_entry)
-                return content, llm_result.tool_calls
+            recovered = await self._handle_validation_failure(
+                node, agent, resolved_tools, llm_result, validation, attempt,
+            )
+            if recovered is not None:
+                return recovered
             # Unbounded tightened-retry loop — never exits until validation
             # passes. No graceful continue, no exit-0 escape hatch.
             recovered_result, _ = await self._unbounded_recovery(
                 node, agent, resolved_tools, llm_result, validation
             )
             trace_entry = self._trace_entry(
-                node,
-                attempt,
-                resolved_tools,
-                recovered_result.content,
-                recovered_result,
+                node, attempt, resolved_tools,
+                recovered_result.content, recovered_result,
             )
             trace_entry["validation_errors"] = []
             trace_entry["recovery"] = "unbounded_recovery"
@@ -295,61 +360,9 @@ class OrchestrationMixin:
             if recovered_result.content:
                 self._record_node_content_transcript(node, recovered_result.content)
             return recovered_result.content, recovered_result.tool_calls
-        llm_result = self._record_node_output(node, content, llm_result.tool_calls)
-        llm_result.metadata.update(result_metadata)
-        if content:
-            self._record_node_content_transcript(node, content)
-        self._record_tool_result_transcripts(
-            node,
-            llm_result.metadata.get("tool_results", []),
+        return await self._finalize_node_success(
+            node, llm_result, validation, attempt, node_input, resolved_tools, content,
         )
-        self._apply_loop_result_hook(node, llm_result, node_input)
-        self._publish_structured_outputs_to_root(node)
-        self._maybe_populate_root_mission(node)
-        self._maybe_warn_reviewer_no_verification(node, llm_result)
-        self._apply_task_lifecycle_marker(node, content)
-
-        # Fire agent_monitor after-hook (if configured)
-        if self.agent_monitor is not None:
-            try:
-                self.agent_monitor.on_after_node_call(
-                    node.node_id,
-                    self.root_session.session_id,
-                    attempt,
-                    llm_result,
-                    validation,
-                )
-            except Exception:
-                logger.debug(
-                    "node=%s agent_monitor_after_hook_exception",
-                    node.node_id,
-                    exc_info=True,
-                )
-
-        on_complete_response = self._build_on_complete_response(node, llm_result)
-        node.on_complete(self.queue, on_complete_response)
-
-        trace_entry = self._trace_entry(
-            node,
-            attempt,
-            resolved_tools,
-            on_complete_response,
-            llm_result,
-        )
-        self._execution_trace.append(trace_entry)
-
-        # Propagate context on node termination (ISSUE-601): use the
-        # propagation engine instead of legacy _transfer_session_context().
-        rule = node.config.propagation or PropagationRule()
-        parent_session = self._find_parent_session(node)
-        await propagate_on_termination(
-            node.session or self.root_session,
-            parent_session,
-            self.root_session,
-            rule,
-        )
-
-        return content, llm_result.tool_calls
 
     async def _finalize_streamed_node(
         self,
@@ -742,6 +755,53 @@ class OrchestrationMixin:
                 attempt,
             )
 
+    async def _stream_valid_node_completion(
+        self,
+        node: Node,
+        combined: str,
+        collected_tool_calls: list[dict[str, Any]],
+        stream_messages: list[dict[str, Any]] | None,
+        include_meta: bool,
+        node_type: str,
+        attempt_number: int,
+        final_only: bool,
+        emit_lifecycle: bool,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Emit the valid-completion event stream for a streamed node.
+
+        Handles the 3-branch valid block: transcript/terminal-text streaming,
+        stream_messages append, and the node-completed lifecycle event.
+        """
+        if combined and not node.is_terminal:
+            self._record_node_content_transcript(node, combined)
+        if combined and node.is_terminal:
+            async for event in self._stream_terminal_text(
+                combined,
+                include_meta,
+                node.node_id,
+                node_type,
+                attempt_number,
+                final_only,
+            ):
+                yield event
+        if stream_messages is not None:
+            if combined:
+                stream_messages.append({"role": "assistant", "content": combined})
+            for tool_call in collected_tool_calls:
+                stream_messages.append(
+                    {"role": "assistant", "tool_calls": [tool_call]}
+                )
+        async for event in self._stream_node_completed(
+            node,
+            combined,
+            emit_lifecycle,
+            include_meta,
+            final_only,
+            node_type,
+            attempt_number,
+        ):
+            yield event
+
     async def _stream_llm_node_events(
         self,
         node: Node,
@@ -838,33 +898,10 @@ class OrchestrationMixin:
             last_validation = validation
             last_result = llm_result
             if validation.is_valid:
-                if combined and not node.is_terminal:
-                    self._record_node_content_transcript(node, combined)
-                if combined and node.is_terminal:
-                    async for event in self._stream_terminal_text(
-                        combined,
-                        include_meta,
-                        node.node_id,
-                        node_type,
-                        attempt_number,
-                        final_only,
-                    ):
-                        yield event
-                if stream_messages is not None:
-                    if combined:
-                        stream_messages.append({"role": "assistant", "content": combined})
-                    for tool_call in collected_tool_calls:
-                        stream_messages.append(
-                            {"role": "assistant", "tool_calls": [tool_call]}
-                        )
-                async for event in self._stream_node_completed(
-                    node,
-                    combined,
+                async for event in self._stream_valid_node_completion(
+                    node, combined, collected_tool_calls, stream_messages,
+                    include_meta, node_type, attempt_number, final_only,
                     emit_lifecycle,
-                    include_meta,
-                    final_only,
-                    node_type,
-                    attempt_number,
                 ):
                     yield event
                 return

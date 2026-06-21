@@ -10,9 +10,12 @@ import time
 import threading
 from collections.abc import Coroutine
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from dotenv import load_dotenv
+
+if TYPE_CHECKING:
+    from tinycua_sdk.agent.agent import Agent
 
 from tinycua.cli.config import build_language_model
 from tinycua.cli.config import load_config
@@ -90,6 +93,141 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return args
 
 
+def _prepare_run_workspace(
+    dir: Path, save_artifacts: bool, prompt: str, timeout: int,
+) -> tuple[Path, Path | None, Path | None, Path | None] | int:
+    """Resolve workspace + artifact dirs. Returns (workspace, artifact_dir, log_path, transcript_path) or 1 on error."""
+    workspace = Path(dir).expanduser().resolve()
+    workspace.mkdir(parents=True, exist_ok=True)
+
+    artifact_dir: Path | None = None
+    log_path: Path | None = None
+    transcript_path: Path | None = None
+
+    if save_artifacts:
+        artifact_dir = workspace / ".tinycua-artifacts"
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        _test_file = artifact_dir / ".write_test"
+        try:
+            _test_file.touch()
+            _test_file.unlink()
+        except OSError:
+            print(f"Artifact directory not writable: {artifact_dir}", flush=True)
+            return 1
+        log_path = artifact_dir / "agent.log"
+        transcript_path = artifact_dir / "transcript.jsonl"
+        write_log_entry(log_path, "start", "info", {"prompt": prompt, "timeout": timeout})
+
+    return workspace, artifact_dir, log_path, transcript_path
+
+
+def _load_run_config(
+    provider_url: str | None, api_key: str | None, model: str | None,
+    provider_type: str | None, log_path: Path | None,
+) -> dict | int:
+    """Load run config. Returns config dict or 1 on error."""
+    try:
+        config = load_config(provider_url, api_key, model, provider_type)
+    except ValueError as e:
+        if log_path:
+            write_log_entry(log_path, "config", "error", {"error": str(e)})
+        print(f"Configuration error: {e}", flush=True)
+        return 1
+    if log_path:
+        write_log_entry(log_path, "config", "info", {
+            "base_url": config["base_url"],
+            "model": config["model"],
+            "provider_type": config["provider_type"],
+        })
+    return config
+
+
+def _build_run_agent(
+    config: dict, workspace: Path, artifact_dir: Path | None,
+    worker_effort: str, no_tool_audit: bool,
+    allow_open_question: bool, replan_threshold: int | None,
+    log_path: Path | None,
+) -> Agent | int:
+    """Build the tinycua agent. Returns the agent or 1 on error."""
+    try:
+        agent = create_tinycua_agent(
+            session_config=SessionConfig(
+                workspace_dir=workspace,
+                artifact_dir=artifact_dir,
+                worker_effort=worker_effort,
+                disable_tool_audit=no_tool_audit,
+                enable_open_question_review=allow_open_question,
+                replan_threshold=replan_threshold if replan_threshold is not None else 5,
+            ),
+            llm_model=build_language_model(config),
+        )
+    except Exception as e:
+        if log_path:
+            write_log_entry(log_path, "error", "error", {"error": str(e), "phase": "agent_creation"})
+        print(f"Failed to create agent: {e}", flush=True)
+        return 1
+    return agent
+
+
+def _write_run_transcripts(
+    loop: Any, artifact_dir: Path, transcript_path: Path, elapsed: float,
+) -> None:
+    """Write transcript + usage + runtime exports when --save-artifacts is set."""
+    working_messages = getattr(loop, "_working_messages", [])
+    usage_events = loop.get_usage_events()
+    openclaw_records = convert_working_messages_to_openclaw(working_messages, usage_events)
+    write_openclaw_jsonl(openclaw_records, transcript_path)
+    raw_transcript_path = artifact_dir / "transcript.raw.jsonl"
+    write_transcript(working_messages, raw_transcript_path)
+    usage_path = artifact_dir / "usage.json"
+    write_usage_summary(usage_path, usage_events, elapsed)
+    _write_runtime_exports(loop, artifact_dir)
+
+
+def _finalize_run_success(
+    agent: Agent, result: str, elapsed: float, timeout: int,
+    timeout_event: threading.Event, save_artifacts: bool,
+    artifact_dir: Path | None, transcript_path: Path | None,
+    log_path: Path | None, workspace: Path, trace: bool, task_tree: bool,
+) -> int:
+    """Handle a completed run: timeout check, artifacts, summary. Returns exit code."""
+    if timeout_event.is_set():
+        if log_path:
+            write_log_entry(log_path, "timeout", "warning", {"timeout": timeout, "elapsed": elapsed})
+        print(f"Agent timed out after {timeout}s", flush=True)
+        return 124
+
+    if log_path:
+        write_log_entry(log_path, "complete", "info", {
+            "elapsed": elapsed,
+            "result_length": len(result) if result else 0,
+        })
+
+    loop = agent.loop
+    if save_artifacts and artifact_dir is not None and transcript_path is not None and log_path is not None:
+        _write_run_transcripts(loop, artifact_dir, transcript_path, elapsed)
+
+    print(f"Agent completed in {elapsed:.1f}s", flush=True)
+    if result and not trace:
+        print(result, flush=True)
+    print_live_summary(loop, workspace, artifact_dir, result, trace=trace, task_tree=task_tree)
+    return 0
+
+
+def _handle_run_exception(
+    exc: BaseException, elapsed: float, timeout: int, log_path: Path | None,
+) -> int:
+    """Handle a run exception (CancelledError→124, other→1). Returns exit code."""
+    if isinstance(exc, asyncio.CancelledError):
+        if log_path:
+            write_log_entry(log_path, "timeout", "warning", {"timeout": timeout, "elapsed": elapsed})
+        return 124
+    if log_path:
+        write_log_entry(log_path, "error", "error", {"error": str(exc), "elapsed": elapsed})
+    print(f"Agent error: {exc}", flush=True)
+    return 1
+
+
 def run_command(
     prompt: str,
     dir: Path,
@@ -149,66 +287,21 @@ def run_command(
     else:
         logging.basicConfig(level=logging.INFO)
 
-    # Resolve workspace to an absolute path. ``dir`` arrives already
-    # absolute from ``_normalise_run_args`` but we ensure it here too so
-    # that ``run_command`` is safe when called directly (e.g. scripts).
-    workspace = Path(dir).expanduser().resolve()
-    workspace.mkdir(parents=True, exist_ok=True)
+    ws_result = _prepare_run_workspace(dir, save_artifacts, prompt, timeout)
+    if isinstance(ws_result, int):
+        return ws_result
+    workspace, artifact_dir, log_path, transcript_path = ws_result
 
-    artifact_dir: Path | None = None
-    log_path: Path | None = None
-    transcript_path: Path | None = None
+    config = _load_run_config(provider_url, api_key, model, provider_type, log_path)
+    if isinstance(config, int):
+        return config
 
-    if save_artifacts:
-        artifact_dir = workspace / ".tinycua-artifacts"
-        artifact_dir.mkdir(parents=True, exist_ok=True)
-
-        # Ensure artifact directory is writable
-        _test_file = artifact_dir / ".write_test"
-        try:
-            _test_file.touch()
-            _test_file.unlink()
-        except OSError:
-            print(f"Artifact directory not writable: {artifact_dir}", flush=True)
-            return 1
-
-        log_path = artifact_dir / "agent.log"
-        transcript_path = artifact_dir / "transcript.jsonl"
-
-        write_log_entry(log_path, "start", "info", {"prompt": prompt, "timeout": timeout})
-
-    try:
-        config = load_config(provider_url, api_key, model, provider_type)
-    except ValueError as e:
-        if log_path:
-            write_log_entry(log_path, "config", "error", {"error": str(e)})
-        print(f"Configuration error: {e}", flush=True)
-        return 1
-
-    if log_path:
-        write_log_entry(log_path, "config", "info", {
-            "base_url": config["base_url"],
-            "model": config["model"],
-            "provider_type": config["provider_type"],
-        })
-
-    try:
-        agent = create_tinycua_agent(
-            session_config=SessionConfig(
-                workspace_dir=workspace,
-                artifact_dir=artifact_dir,
-                worker_effort=worker_effort,
-                disable_tool_audit=no_tool_audit,
-                enable_open_question_review=allow_open_question,
-                replan_threshold=replan_threshold if replan_threshold is not None else 5,
-            ),
-            llm_model=build_language_model(config),
-        )
-    except Exception as e:
-        if log_path:
-            write_log_entry(log_path, "error", "error", {"error": str(e), "phase": "agent_creation"})
-        print(f"Failed to create agent: {e}", flush=True)
-        return 1
+    agent = _build_run_agent(
+        config, workspace, artifact_dir, worker_effort, no_tool_audit,
+        allow_open_question, replan_threshold, log_path,
+    )
+    if isinstance(agent, int):
+        return agent
 
     # Timeout watchdog: set an event after timeout seconds
     timeout_event = threading.Event()
@@ -229,62 +322,17 @@ def run_command(
         # and returns the final response text.
         result = _run_async_safely(run_streaming(agent, prompt))
         elapsed = time.monotonic() - start_time
-
-        if timeout_event.is_set():
-            if log_path:
-                write_log_entry(log_path, "timeout", "warning", {"timeout": timeout, "elapsed": elapsed})
-            print(f"Agent timed out after {timeout}s", flush=True)
-            return 124
-
-        if log_path:
-            write_log_entry(log_path, "complete", "info", {
-                "elapsed": elapsed,
-                "result_length": len(result) if result else 0,
-            })
-
-        # Write transcript and runtime exports only when --save-artifacts is set
-        loop = agent.loop
-
-        if save_artifacts and artifact_dir is not None and transcript_path is not None and log_path is not None:
-            working_messages = getattr(loop, "_working_messages", [])
-            usage_events = loop.get_usage_events()
-
-            # Primary transcript: OpenClaw-compatible format
-            openclaw_records = convert_working_messages_to_openclaw(
-                working_messages, usage_events,
-            )
-            write_openclaw_jsonl(openclaw_records, transcript_path)
-
-            # Backward-compatible raw transcript
-            raw_transcript_path = artifact_dir / "transcript.raw.jsonl"
-            write_transcript(working_messages, raw_transcript_path)
-
-            # Usage summary
-            usage_path = artifact_dir / "usage.json"
-            write_usage_summary(usage_path, usage_events, elapsed)
-
-            _write_runtime_exports(loop, artifact_dir)
-
-        print(f"Agent completed in {elapsed:.1f}s", flush=True)
-        # In trace mode the final response is printed under the
-        # === FINAL RESPONSE === header by print_summary; otherwise print it
-        # bare as the default user-facing output.
-        if result and not trace:
-            print(result, flush=True)
-        print_live_summary(loop, workspace, artifact_dir, result, trace=trace, task_tree=task_tree)
-
-        return 0
-    except asyncio.CancelledError:
-        elapsed = time.monotonic() - start_time
-        if log_path:
-            write_log_entry(log_path, "timeout", "warning", {"timeout": timeout, "elapsed": elapsed})
-        return 124
+        return _finalize_run_success(
+            agent, result, elapsed, timeout, timeout_event,
+            save_artifacts, artifact_dir, transcript_path, log_path,
+            workspace, trace, task_tree,
+        )
     except Exception as e:
         elapsed = time.monotonic() - start_time
-        if log_path:
-            write_log_entry(log_path, "error", "error", {"error": str(e), "elapsed": elapsed})
-        print(f"Agent error: {e}", flush=True)
-        return 1
+        return _handle_run_exception(e, elapsed, timeout, log_path)
+    except asyncio.CancelledError as e:
+        elapsed = time.monotonic() - start_time
+        return _handle_run_exception(e, elapsed, timeout, log_path)
     finally:
         timer.cancel()
 

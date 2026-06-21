@@ -1105,34 +1105,17 @@ class ValidationRetryMixin:
             return result, result_validation
         return None
 
-    async def _recovery_retry(
+    def _build_recovery_messages(
         self,
         node: Node,
-        agent: Agent,
-        resolved_tools: list[Tool],
+        recovery_tools: list[Tool],
         last_result: LLMResult,
         validation: ValidationResult,
-        *,
-        missing_tools: list[str] | None = None,
-    ) -> tuple[LLMResult, ValidationResult] | None:
-        """Focused retry exposing only the missing prerequisite tools.
-
-        Fallback for the structured-output track: exposes the missing tools
-        without response_format, letting the LLM freely decide arguments.
-        Returns (result, validation) if valid, else None.
-        """
+        missing_tools: list[str] | None,
+    ) -> list[dict[str, Any]]:
+        """Build the recovery retry message list (system + time + last response + directive)."""
         from datetime import datetime
 
-        if missing_tools is not None and missing_tools:
-            recovery_tools: list[Tool] = []
-            for name in missing_tools:
-                tool = self._resolve_recovery_tool(node, name, resolved_tools)
-                if tool is not None:
-                    recovery_tools.append(tool)
-            if not recovery_tools:
-                return None
-        else:
-            recovery_tools = list(resolved_tools)
         system_msg = node.build_system_message(recovery_tools)
         recovery_messages: list[dict[str, Any]] = []
         if system_msg.get("content"):
@@ -1152,6 +1135,38 @@ class ValidationRetryMixin:
         node_continuation = node.build_continuation(node.session) if node.session else ""
         recovery_messages.append(
             {"role": "user", "content": f"The above response did not satisfy the node's requirement: {errors}\n\nYou still need to call: {missing_str}. Call {missing_str} now — do not repeat what you already did.\n\n{node_continuation}"}
+        )
+        return recovery_messages
+
+    async def _recovery_retry(
+        self,
+        node: Node,
+        agent: Agent,
+        resolved_tools: list[Tool],
+        last_result: LLMResult,
+        validation: ValidationResult,
+        *,
+        missing_tools: list[str] | None = None,
+    ) -> tuple[LLMResult, ValidationResult] | None:
+        """Focused retry exposing only the missing prerequisite tools.
+
+        Fallback for the structured-output track: exposes the missing tools
+        without response_format, letting the LLM freely decide arguments.
+        Returns (result, validation) if valid, else None.
+        """
+        if missing_tools is not None and missing_tools:
+            recovery_tools: list[Tool] = []
+            for name in missing_tools:
+                tool = self._resolve_recovery_tool(node, name, resolved_tools)
+                if tool is not None:
+                    recovery_tools.append(tool)
+            if not recovery_tools:
+                return None
+        else:
+            recovery_tools = list(resolved_tools)
+        missing_str = ", ".join(missing_tools) if missing_tools else "the required tools"
+        recovery_messages = self._build_recovery_messages(
+            node, recovery_tools, last_result, validation, missing_tools,
         )
         try:
             raw_response = await self._call_agent_llm(agent, node, recovery_messages, recovery_tools)

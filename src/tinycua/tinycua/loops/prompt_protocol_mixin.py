@@ -207,6 +207,23 @@ class PromptProtocolMixin:
                     start = None
         return candidates
 
+    @staticmethod
+    def _coerce_arguments(arguments: Any) -> dict[str, Any] | None:
+        """Coerce a tool-call arguments value to a dict.
+
+        Handles the str→json→dict dance repeated across payload shapes.
+        Returns the dict on success, or None when the value can't be coerced
+        to a dict (unparseable JSON string, or a non-dict JSON value).
+        """
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments, strict=False) if arguments else {}
+            except json.JSONDecodeError:
+                return None
+        if not isinstance(arguments, dict):
+            return None
+        return arguments
+
     def _normalize_structured_tool_payload(
         self,
         parsed: Any,
@@ -219,26 +236,16 @@ class PromptProtocolMixin:
             return parsed
         name = parsed.get("name")
         if isinstance(name, str) and name in allowed:
-            arguments = parsed.get("arguments", {})
-            if isinstance(arguments, str):
-                try:
-                    arguments = json.loads(arguments, strict=False) if arguments else {}
-                except json.JSONDecodeError:
-                    return None
-            if not isinstance(arguments, dict):
+            arguments = self._coerce_arguments(parsed.get("arguments", {}))
+            if arguments is None:
                 return None
             return {"tool_calls": [{"name": name, "arguments": arguments}]}
         function = parsed.get("function")
         if isinstance(function, dict):
             name = function.get("name")
             if isinstance(name, str) and name in allowed:
-                arguments = function.get("arguments", {})
-                if isinstance(arguments, str):
-                    try:
-                        arguments = json.loads(arguments, strict=False) if arguments else {}
-                    except json.JSONDecodeError:
-                        return None
-                if not isinstance(arguments, dict):
+                arguments = self._coerce_arguments(function.get("arguments", {}))
+                if arguments is None:
                     return None
                 return {"tool_calls": [{"name": name, "arguments": arguments}]}
         allowed_keys = [key for key in parsed if key in allowed]

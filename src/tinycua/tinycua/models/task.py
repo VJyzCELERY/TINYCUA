@@ -208,6 +208,14 @@ class TaskStateStore:
                 child_ids.append(self.create_task(title, parent_id=task_id).task_id)
         return child_ids
 
+    def _reparent_completed_child(
+        self, child: Task, child_id: str, new_parent_id: str | None
+    ) -> None:
+        """Re-parent a completed child to ``new_parent_id`` (completed tasks are immutable history)."""
+        if new_parent_id and new_parent_id in self.tasks:
+            self.tasks[new_parent_id].children.append(child_id)
+            child.parent_id = new_parent_id
+
     def delete_task(self, task_id: str) -> None:
         """Remove a task and its pending subtree, re-linking siblings.
 
@@ -253,10 +261,7 @@ class TaskStateStore:
                 if child and child.status != TaskStatus.COMPLETED:
                     collect(child_id)
                 elif child_id in self.tasks:
-                    # Completed child stays — re-parent to the deleted task's parent.
-                    if task.parent_id and task.parent_id in self.tasks:
-                        self.tasks[task.parent_id].children.append(child_id)
-                        child.parent_id = task.parent_id
+                    self._reparent_completed_child(child, child_id, task.parent_id)
             to_remove.append(tid)
 
         collect(task_id)

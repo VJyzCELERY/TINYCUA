@@ -60,6 +60,21 @@ class Session:
         default_factory=lambda: datetime.now().strftime("%Y-%m-%d (%A)")
     )
 
+    @staticmethod
+    def _summary_to_entry(summary: Any) -> SessionContextEntry:
+        """Convert a compaction summary (dict or entry) to a SessionContextEntry."""
+        from tinycua.models.session_context_entry import SessionContextEntry
+
+        if isinstance(summary, dict):
+            if "record_id" in summary or "segment" in summary:
+                return SessionContextEntry.from_dict(summary)
+            return SessionContextEntry(
+                content=summary.get("content", ""),
+                segment="prior",
+                created_seq=0,
+            )
+        return summary
+
     async def compact_context(
         self, window: list[SessionContextEntry] | list[dict[str, Any]] | None = None
     ) -> dict[str, Any] | None:
@@ -104,50 +119,18 @@ class Session:
         summary = await strategy.compact(messages)
 
         if window is None:
-            # Convert summary dict back to SessionContextEntry if needed
-            from tinycua.models.session_context_entry import SessionContextEntry
-
-            if isinstance(summary, dict):
-                # Check if the summary dict has SessionContextEntry fields
-                if "record_id" in summary or "segment" in summary:
-                    self.session_context = [SessionContextEntry.from_dict(summary)]
-                else:
-                    # Legacy format: wrap in SessionContextEntry
-                    self.session_context = [
-                        SessionContextEntry(
-                            content=summary.get("content", ""),
-                            segment="prior",
-                            created_seq=0,
-                        )
-                    ]
-            else:
-                self.session_context = [summary]
+            self.session_context = [self._summary_to_entry(summary)]
         elif len(window) > 0:
             # Remove the compacted window entries and append the summary.
             # Find the window by comparing expected sequence within session_context.
             # Assumes window is a contiguous subset of session_context.
-            from tinycua.models.session_context_entry import SessionContextEntry
-
             window_len = len(window)
             for i in range(len(self.session_context) - window_len + 1):
-                # Compare by converting both to dicts for comparison
                 current_slice = self.session_context[i : i + window_len]
                 current_dicts = [_to_dict(entry) for entry in current_slice]
                 window_dicts = [_to_dict(entry) for entry in window]
                 if current_dicts == window_dicts:
-                    if isinstance(summary, dict):
-                        # Check if the summary dict has SessionContextEntry fields
-                        if "record_id" in summary or "segment" in summary:
-                            summary_entry = SessionContextEntry.from_dict(summary)
-                        else:
-                            # Legacy format: wrap in SessionContextEntry
-                            summary_entry = SessionContextEntry(
-                                content=summary.get("content", ""),
-                                segment="prior",
-                                created_seq=0,
-                            )
-                    else:
-                        summary_entry = summary
+                    summary_entry = self._summary_to_entry(summary)
                     self.session_context = (
                         self.session_context[:i]
                         + [summary_entry]

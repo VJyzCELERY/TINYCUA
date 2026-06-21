@@ -144,6 +144,65 @@ def _read_lines(path: str) -> tuple[list[str], str, bool] | dict[str, Any]:
 # --- read_file ---
 
 
+def _read_bounded_range(
+    lines: list[str],
+    trailing_newline: bool,
+    start: int | None,
+    offset: int,
+    total_lines: int,
+) -> str | dict[str, Any]:
+    """Read a bounded [start, start+offset) range. Bypasses truncation."""
+    actual_start = start if start is not None else 1
+    if actual_start < 1:
+        return {"error": f"Invalid start line: {actual_start}. Must be >= 1."}
+    if actual_start > total_lines:
+        return {
+            "error": f"Start line {actual_start} exceeds file length ({total_lines} lines). Range out of bounds."
+        }
+    start_idx = actual_start - 1
+    if start_idx + offset > total_lines:
+        return {
+            "error": f"Start line {actual_start} + offset {offset} exceeds file length "
+            f"({total_lines} lines). Range out of bounds."
+        }
+    selected = lines[start_idx : start_idx + offset]
+    result_str = "\n".join(selected)
+    if trailing_newline:
+        result_str += "\n"
+    return result_str
+
+
+def _read_start_only(
+    lines: list[str],
+    trailing_newline: bool,
+    start: int,
+    total_lines: int,
+) -> str:
+    """Read from start to end of file. Subject to truncation."""
+    if start < 1:
+        return {"error": f"Invalid start line: {start}. Must be >= 1."}
+    if start > total_lines:
+        return {
+            "error": f"Start line {start} exceeds file length ({total_lines} lines). Range out of bounds."
+        }
+    result_str = "\n".join(lines[start - 1 :])
+    if trailing_newline:
+        result_str += "\n"
+    result_str += _detect_literal_newline_warning(result_str)
+    result_bytes = result_str.encode("utf-8")
+    if len(result_bytes) <= _FULL_FILE_TRUNCATION_BYTES:
+        return result_str
+    return _truncate_content(result_bytes, _FULL_FILE_TRUNCATION_BYTES, start)
+
+
+def _read_full_file(content: str) -> str:
+    """Read the entire file. Subject to truncation."""
+    content += _detect_literal_newline_warning(content)
+    if len(content.encode("utf-8")) <= _FULL_FILE_TRUNCATION_BYTES:
+        return content
+    return _truncate_content(content.encode("utf-8"), _FULL_FILE_TRUNCATION_BYTES)
+
+
 @tool
 def read_file(
     path: str, start: int | None = None, offset: int | None = None
@@ -184,48 +243,15 @@ def read_file(
     # --- Bounded range mode: offset is explicitly set ---
     # Only bounded ranges (start + offset) bypass the truncation limit.
     if offset is not None:
-        actual_start = start if start is not None else 1
-        if actual_start < 1:
-            return {"error": f"Invalid start line: {actual_start}. Must be >= 1."}
-        if actual_start > total_lines:
-            return {
-                "error": f"Start line {actual_start} exceeds file length ({total_lines} lines). Range out of bounds."
-            }
-        start_idx = actual_start - 1
-        if start_idx + offset > total_lines:
-            return {
-                "error": f"Start line {actual_start} + offset {offset} exceeds file length "
-                f"({total_lines} lines). Range out of bounds."
-            }
-        selected = lines[start_idx : start_idx + offset]
-        result_str = "\n".join(selected)
-        if trailing_newline:
-            result_str += "\n"
-        return result_str
+        return _read_bounded_range(lines, trailing_newline, start, offset, total_lines)
 
     # --- Start-only mode: unbounded read from N to end ---
     # This is still subject to truncation since the range is open-ended.
     if start is not None:
-        if start < 1:
-            return {"error": f"Invalid start line: {start}. Must be >= 1."}
-        if start > total_lines:
-            return {
-                "error": f"Start line {start} exceeds file length ({total_lines} lines). Range out of bounds."
-            }
-        result_str = "\n".join(lines[start - 1 :])
-        if trailing_newline:
-            result_str += "\n"
-        result_str += _detect_literal_newline_warning(result_str)
-        result_bytes = result_str.encode("utf-8")
-        if len(result_bytes) <= _FULL_FILE_TRUNCATION_BYTES:
-            return result_str
-        return _truncate_content(result_bytes, _FULL_FILE_TRUNCATION_BYTES, start)
+        return _read_start_only(lines, trailing_newline, start, total_lines)
 
     # --- Full-file mode: no start, no offset ---
-    content += _detect_literal_newline_warning(content)
-    if len(content.encode("utf-8")) <= _FULL_FILE_TRUNCATION_BYTES:
-        return content
-    return _truncate_content(content.encode("utf-8"), _FULL_FILE_TRUNCATION_BYTES)
+    return _read_full_file(content)
 
 
 # --- write_file ---
@@ -880,24 +906,13 @@ def _iter_searchable_files(
     return results
 
 
-def _search_content(
+def _search_collect_matches(
     files: list[Path],
-    pattern: str,
+    regex: re.Pattern,
     context: int,
-    output_mode: str,
-    limit: int,
-    offset: int,
-) -> list[str]:
-    """Search file contents for regex pattern. Returns formatted result lines."""
-    try:
-        regex = re.compile(pattern)
-    except re.error as exc:
-        return [f"[Invalid regex: {exc}]"]
-
+) -> list[tuple[Path, int, str, list[str]]]:
+    """Collect (filepath, line_num, line, ctx_lines) matches for content mode."""
     all_matches: list[tuple[Path, int, str, list[str]]] = []
-    file_counts: dict[str, int] = {}
-    file_paths: list[str] = []
-
     for filepath in files:
         try:
             if filepath.stat().st_size > _MAX_SEARCH_FILE_SIZE:
@@ -912,26 +927,72 @@ def _search_content(
         lines = content.split("\n")
         for i, line in enumerate(lines):
             if regex.search(line):
-                if output_mode == "files_only":
-                    fp = str(filepath)
-                    if fp not in file_paths:
-                        file_paths.append(fp)
-                elif output_mode == "count":
-                    file_counts[str(filepath)] = file_counts.get(str(filepath), 0) + 1
-                else:
-                    # content mode — collect match + context
-                    ctx_start = max(0, i - context)
-                    ctx_end = min(len(lines), i + context + 1)
-                    ctx_lines = lines[ctx_start:ctx_end]
-                    all_matches.append((filepath, i + 1, line, ctx_lines))
+                ctx_start = max(0, i - context)
+                ctx_end = min(len(lines), i + context + 1)
+                ctx_lines = lines[ctx_start:ctx_end]
+                all_matches.append((filepath, i + 1, line, ctx_lines))
+    return all_matches
 
-    if output_mode == "files_only":
-        return file_paths[offset : offset + limit]
-    if output_mode == "count":
-        result = [f"{fp}: {cnt} match{'es' if cnt != 1 else ''}" for fp, cnt in file_counts.items()]
-        return result[offset : offset + limit]
 
-    # content mode
+def _search_counts(
+    files: list[Path],
+    regex: re.Pattern,
+    limit: int,
+    offset: int,
+) -> list[str]:
+    """Count matches per file."""
+    file_counts: dict[str, int] = {}
+    for filepath in files:
+        try:
+            if filepath.stat().st_size > _MAX_SEARCH_FILE_SIZE:
+                continue
+        except OSError:
+            continue
+        try:
+            content = filepath.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            continue
+        content = content.replace("\r\n", "\n")
+        lines = content.split("\n")
+        for line in lines:
+            if regex.search(line):
+                file_counts[str(filepath)] = file_counts.get(str(filepath), 0) + 1
+    result = [f"{fp}: {cnt} match{'es' if cnt != 1 else ''}" for fp, cnt in file_counts.items()]
+    return result[offset : offset + limit]
+
+
+def _search_files_only(
+    files: list[Path],
+    regex: re.Pattern,
+    limit: int,
+    offset: int,
+) -> list[str]:
+    """Return file paths that contain at least one match."""
+    file_paths: list[str] = []
+    for filepath in files:
+        try:
+            if filepath.stat().st_size > _MAX_SEARCH_FILE_SIZE:
+                continue
+        except OSError:
+            continue
+        try:
+            content = filepath.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            continue
+        content = content.replace("\r\n", "\n")
+        lines = content.split("\n")
+        if any(regex.search(line) for line in lines):
+            file_paths.append(str(filepath))
+    return file_paths[offset : offset + limit]
+
+
+def _render_content_matches(
+    all_matches: list[tuple[Path, int, str, list[str]]],
+    context: int,
+    limit: int,
+    offset: int,
+) -> list[str]:
+    """Render content-mode matches with optional context lines + pagination footer."""
     result: list[str] = []
     for filepath, line_num, line, ctx_lines in all_matches:
         if context > 0:
@@ -953,6 +1014,29 @@ def _search_content(
             f"Use offset={offset + limit} to see more.]"
         )
     return paged
+
+
+def _search_content(
+    files: list[Path],
+    pattern: str,
+    context: int,
+    output_mode: str,
+    limit: int,
+    offset: int,
+) -> list[str]:
+    """Search file contents for regex pattern. Returns formatted result lines."""
+    try:
+        regex = re.compile(pattern)
+    except re.error as exc:
+        return [f"[Invalid regex: {exc}]"]
+
+    if output_mode == "files_only":
+        return _search_files_only(files, regex, limit, offset)
+    if output_mode == "count":
+        return _search_counts(files, regex, limit, offset)
+    # content mode
+    all_matches = _search_collect_matches(files, regex, context)
+    return _render_content_matches(all_matches, context, limit, offset)
 
 
 def _search_files_by_name(

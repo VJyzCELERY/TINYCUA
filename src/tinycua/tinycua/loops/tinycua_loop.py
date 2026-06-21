@@ -727,6 +727,41 @@ class TinyCUALoop(
         except Exception:
             logger.debug("compaction_failed node=%s", node.node_id, exc_info=True)
 
+    def _append_tool_result_messages(
+        self,
+        attempt_messages: list[dict[str, Any]],
+        tool_results: list[dict[str, Any]],
+        normalized_tool_calls: list[dict[str, Any]],
+    ) -> None:
+        """Append tool-result messages for the current tool batch.
+
+        Persists oversized results to a temp file so the reviewer's
+        attempt_messages don't balloon (experiment-4 peaked at 257K input
+        tokens this way). Under the threshold this is a passthrough.
+        """
+        for index, tool_result in enumerate(tool_results):
+            tool_call = (
+                normalized_tool_calls[index]
+                if index < len(normalized_tool_calls)
+                else {}
+            )
+            raw_content = json.dumps(tool_result, default=str)
+            tool_call_id = (
+                tool_call.get("id") or tool_result.get("name", "")
+            )
+            tool_name = tool_result.get("name", "")
+            content = persist_if_oversized(
+                raw_content, tool_call_id, tool_name=tool_name
+            )
+            attempt_messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call_id,
+                    "name": tool_name,
+                    "content": content,
+                }
+            )
+
     async def _call_node_with_retry(
         self,
         node: Node,
@@ -821,32 +856,7 @@ class TinyCUALoop(
                 if last_result.reasoning:
                     assistant_msg["reasoning_content"] = last_result.reasoning
                 attempt_messages.append(assistant_msg)
-                for index, tool_result in enumerate(tool_results):
-                    tool_call = (
-                        normalized_tool_calls[index]
-                        if index < len(normalized_tool_calls)
-                        else {}
-                    )
-                    raw_content = json.dumps(tool_result, default=str)
-                    tool_call_id = (
-                        tool_call.get("id") or tool_result.get("name", "")
-                    )
-                    tool_name = tool_result.get("name", "")
-                    # ponytail: persist oversized results to a temp file so the
-                    # reviewer's attempt_messages don't balloon (experiment-4
-                    # peaked at 257K input tokens this way). Under the threshold
-                    # this is a passthrough.
-                    content = persist_if_oversized(
-                        raw_content, tool_call_id, tool_name=tool_name
-                    )
-                    attempt_messages.append(
-                        {
-                            "role": "tool",
-                            "tool_call_id": tool_call_id,
-                            "name": tool_name,
-                            "content": content,
-                        }
-                    )
+                self._append_tool_result_messages(attempt_messages, tool_results, normalized_tool_calls)
                 # Evict superseded file reads: when the model re-reads a file
                 # it just edited, the older reads are stale (the file changed).
                 # Stub them so the prompt stops growing from redundant re-reads
