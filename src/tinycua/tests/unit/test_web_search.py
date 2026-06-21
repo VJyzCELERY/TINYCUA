@@ -144,3 +144,43 @@ def test_web_search_coerces_string_params(httpx_mock) -> None:
     result = web_search("test", max_results="3", timeout="15")
     assert result["success"] is True
     assert len(result["results"]) == 3
+
+
+def test_web_search_empty_results_with_degraded_engines(httpx_mock) -> None:
+    """Empty results + unresponsive_engines → distinct backend-degraded error.
+
+    The model must distinguish "genuinely no hits" from "search backend is
+    degraded" so it retries/waits instead of concluding the topic is absent.
+    """
+    httpx_mock.add_response(
+        method="GET",
+        url="http://localhost:8080/search?q=niche+topic&format=json",
+        json={
+            "results": [],
+            "unresponsive_engines": [
+                ["brave", "Suspended: too many requests"],
+                ["google", "Suspended: CAPTCHA"],
+            ],
+        },
+    )
+    from tinycua.agent.tools.native.web_search import web_search
+
+    result = web_search("niche topic")
+    assert result["success"] is False
+    assert "degraded" in result["error"]
+    assert result["results"] == []
+    assert result["unresponsive_engines"] == ["brave", "google"]
+
+
+def test_web_search_empty_results_no_unresponsive_field(httpx_mock) -> None:
+    """Empty results with no unresponsive_engines → success=True (genuine no-hits)."""
+    httpx_mock.add_response(
+        method="GET",
+        url="http://localhost:8080/search?q=zzz+no+match&format=json",
+        json={"results": []},
+    )
+    from tinycua.agent.tools.native.web_search import web_search
+
+    result = web_search("zzz no match")
+    assert result["success"] is True
+    assert result["results"] == []

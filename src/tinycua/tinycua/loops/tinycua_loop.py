@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 import json
 import logging
 import re
+import time
 from collections.abc import AsyncIterator, Callable
 from typing import TYPE_CHECKING, Any
 
@@ -40,6 +42,18 @@ if TYPE_CHECKING:
     from tinycua_sdk.tools.decorators import Tool
 
 logger = logging.getLogger(__name__)
+
+# ponytail: per-tool rate-limit gate for shared backends. SearXNG's
+# general-web engines (brave, google, startpage, duckduckgo) suspend under
+# rapid-fire query load — experiment-2 fired ~30 searches in 5 minutes and
+# brave/google hit rate-limit/CAPTCHA within 2 minutes, leaving only
+# duckduckgo which returns 0 results for niche technical queries. A 3s
+# minimum gap between web_search hits keeps the engines below their
+# suspension thresholds. Map: tool name → (min_interval_s, last_call_ts).
+# To add another throttled tool, add an entry here.
+_TOOL_RATE_LIMITS: dict[str, tuple[float, float]] = {
+    "web_search": (3.0, 0.0),
+}
 
 # Regex for inline reasoning blocks: <think>...</think>, <thinking>...</thinking>,
 # <reasoning>...</reasoning> (case-insensitive, DOTALL for multiline blocks).
@@ -460,6 +474,27 @@ class TinyCUALoop(
             if callable(source_binder):
                 source_binder(node.node_id)
 
+    async def _await_tool_rate_limit(self, tool_name: str) -> None:
+        """Async sleep to enforce per-tool minimum call intervals.
+
+        Used for shared backends (e.g. SearXNG) that suspend under
+        rapid-fire load. See ``_TOOL_RATE_LIMITS``. No-op for unlisted
+        tools.
+        """
+        entry = _TOOL_RATE_LIMITS.get(tool_name)
+        if entry is None:
+            return
+        min_interval, last_ts = entry
+        now = time.monotonic()
+        wait = min_interval - (now - last_ts)
+        if wait > 0:
+            logger.debug(
+                "tool_rate_limit name=%s wait=%.2fs",
+                tool_name, wait,
+            )
+            await asyncio.sleep(wait)
+        _TOOL_RATE_LIMITS[tool_name] = (min_interval, time.monotonic())
+
     async def _execute_tool_calls(
         self,
         agent: Agent,
@@ -495,6 +530,9 @@ class TinyCUALoop(
                 continue
             arguments = self._normalize_tool_call_arguments(allowed_tools[name], arguments)
             self._log_tool_call_args(name, arguments)
+            # ponytail: per-tool rate limit for shared backends. See
+            # _TOOL_RATE_LIMITS. Async sleep so the event loop stays free.
+            await self._await_tool_rate_limit(name)
             try:
                 output = await ToolExecutor.execute(allowed_tools[name], arguments, agent)  # type: ignore[arg-type]
             except Exception as exc:  # noqa: BLE001 - recorded for trace/debugging.
