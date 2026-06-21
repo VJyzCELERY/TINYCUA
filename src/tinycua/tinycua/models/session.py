@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from tinycua.models.task import Task, TaskStateStore
@@ -49,6 +50,15 @@ class Session:
     # Updated after each LLM call from response.usage.input_tokens.
     # Used to trigger compaction before the next call when over threshold.
     _last_input_tokens: int = 0
+    # Session-scoped date snapshot for the system prompt (FR-015). Slow-moving
+    # time info (date + weekday) injected into the stable system prefix so the
+    # model sees the authoritative current date without a per-call timestamp
+    # breaking prompt-cache stability. Set once at construction; child sessions
+    # inherit the root's snapshot via ensure_session() so all nodes in one run
+    # share one date. Never mutated during the session.
+    date_snapshot: str = field(
+        default_factory=lambda: datetime.now().strftime("%Y-%m-%d (%A)")
+    )
 
     async def compact_context(
         self, window: list[SessionContextEntry] | list[dict[str, Any]] | None = None

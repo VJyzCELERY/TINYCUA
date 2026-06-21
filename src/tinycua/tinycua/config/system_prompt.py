@@ -114,17 +114,31 @@ class SystemPromptBuilder:
         return {"role": "system", "content": merged_content}
 
 
-def build_runtime_context(now: datetime | None = None) -> str:
+def build_runtime_context(
+    now: datetime | None = None,
+    *,
+    date_snapshot: str | None = None,
+) -> str:
     """Build a STABLE runtime context label for node system prompts.
 
-    Deliberately does NOT include a timestamp: a per-call ``datetime.now()`` in
-    the system message guarantees zero prompt-cache hits on every provider
-    (llama.cpp KV reuse, OpenAI prefix caching). The current date/time is
-    injected into the last USER message instead (see Node.build_messages) so
-    the system prefix stays byte-stable across calls in a session.
+    Deliberately does NOT include a per-call timestamp: a ``datetime.now()``
+    in the system message guarantees zero prompt-cache hits on every provider
+    (llama.cpp KV reuse, OpenAI prefix caching). The current time-of-day moves
+    to the last USER message instead (see Node.build_messages) so the system
+    prefix stays byte-stable across calls in a session.
+
+    When ``date_snapshot`` is provided (a session-scoped ``YYYY-MM-DD (Weekday)``
+    string taken once at session start), it is included in the stable system
+    context as ``Today: <snapshot>``. The snapshot is stable for the session
+    lifetime, so FR-015 prompt-cache stability is preserved within a session
+    while still giving the model an authoritative current date in the system
+    prompt (instead of only in volatile user-context metadata).
 
     The ``now`` arg is accepted for backward-compat/test purposes but ignored
-    — the context is constant.
+    — the context is constant within a session.
     """
     del now  # stability by design; see docstring
-    return "## Runtime Context\nAgent runtime: TinyCUA"
+    parts = ["## Runtime Context", "Agent runtime: TinyCUA"]
+    if date_snapshot:
+        parts.append(f"Today: {date_snapshot}")
+    return "\n".join(parts)

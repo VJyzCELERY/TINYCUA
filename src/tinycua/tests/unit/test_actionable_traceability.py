@@ -122,14 +122,14 @@ def test_llm_messages_dedupe_original_query_for_digester() -> None:
         message
         for message in messages
         if message.get("role") == "user"
-        and "Current date/time:" not in str(message.get("content", ""))
+        and "Current time:" not in str(message.get("content", ""))
     ]
     # With continuation_role="user", internal handoffs and continuations are
     # [System: ...] user messages. The original query text is NOT duplicated
     # as a bare user message — it's wrapped in [System: ...].
     # Both the handoff and the node continuation are [System:] user messages.
     assert all(
-        "[System:" in m.get("content", "") or "Current date/time:" in m.get("content", "")
+        "[System:" in m.get("content", "") or "Current time:" in m.get("content", "")
         for m in user_messages
     )
     # No bare (non-[System:]) user message with the original query text.

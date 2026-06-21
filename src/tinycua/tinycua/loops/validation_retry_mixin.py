@@ -1166,7 +1166,7 @@ class ValidationRetryMixin:
             recovery_messages.append(system_msg)
         now = datetime.now().astimezone()
         recovery_messages.append(
-            {"role": "user", "content": f"<context>Current date/time: {now:%Y-%m-%d %H:%M:%S %z}, timezone: {now.tzname() or 'local'}</context>"}
+            {"role": "user", "content": f"<context>Current time: {now:%H:%M:%S %z}, timezone: {now.tzname() or 'local'}</context>"}
         )
         last_content = (last_result.content or "").strip()
         tool_call_summary = ""
@@ -1277,7 +1277,7 @@ class ValidationRetryMixin:
             {
                 "role": "user",
                 "content": (
-                    f"<context>Current date/time: {now:%Y-%m-%d %H:%M:%S %z}, "
+                    f"<context>Current time: {now:%H:%M:%S %z}, "
                     f"timezone: {now.tzname() or 'local'}</context>"
                 ),
             }

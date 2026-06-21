@@ -241,6 +241,14 @@ class Node(ABC):
         self.session.input_context = list(root_or_parent_session.input_context)
         self.session.task = root_or_parent_session.task
         self.session.task_store = root_or_parent_session.task_store
+        # FR-015: inherit the root's date snapshot so all nodes in one run
+        # share one date in the stable system prefix (prompt-cache friendly).
+        if root_or_parent_session.date_snapshot:
+            self.session.date_snapshot = root_or_parent_session.date_snapshot
+        # Invalidate the cached system message so the next build picks up
+        # the now-attached session's date snapshot.
+        self._cached_system_message = None
+        self._cached_system_key = None
         return self.session
 
     def build_instruction(self, override_instructions: str | None = None) -> str:
@@ -319,7 +327,11 @@ class Node(ABC):
         instruction = self.build_instruction()
         if instruction:
             builder.add_static(instruction)
-        builder.add_dynamic_context(build_runtime_context())
+        # FR-015: pass the session's date snapshot so the stable system
+        # prefix carries the authoritative current date. The snapshot is
+        # stable for the session lifetime, so prompt-cache stability holds.
+        snapshot = self.session.date_snapshot if self.session else None
+        builder.add_dynamic_context(build_runtime_context(date_snapshot=snapshot))
         tool_prompt = self.build_tool_system_prompt(resolved_tools)
         if tool_prompt:
             builder.add_dynamic_context(tool_prompt)
@@ -371,18 +383,20 @@ class Node(ABC):
                 content = f"[System: {content}]"
             messages.append({"role": role, "content": content})
 
-        # Current date/time as a small USER message in the volatile suffix —
-        # NOT in the system prompt, so the system prefix stays byte-stable for
-        # prompt caching (FR-015). Placed right before the node continuation so
-        # the model still sees the time when it responds.
+        # Fast-moving time info (time-of-day + timezone) as a small USER
+        # message in the volatile suffix — NOT in the system prompt, so the
+        # system prefix stays byte-stable for prompt caching (FR-015). The
+        # slow-moving date lives in the system prompt's date snapshot; this
+        # user message only carries the wall-clock time so the model has a
+        # sense of how long the session has been running. Placed right before
+        # the node continuation.
         now = datetime.now().astimezone()
         messages.append(
             {
                 "role": "user",
                 "content": (
-                    f"<context>Current date/time: "
-                    f"{now:%Y-%m-%d %H:%M:%S %z}, timezone: "
-                    f"{now.tzname() or 'local'}</context>"
+                    f"<context>Current time: {now:%H:%M:%S %z}, "
+                    f"timezone: {now.tzname() or 'local'}</context>"
                 ),
             }
         )
