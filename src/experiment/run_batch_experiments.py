@@ -131,23 +131,24 @@ def _run_judge(
     agents: tuple[str, ...],
     *,
     dry_run: bool,
+    cross_judge: bool = False,
 ) -> int:
     """Invoke the existing LLM judge for one experiment."""
-    return _run(
-        [
-            "uv",
-            "run",
-            "python",
-            "judge.py",
-            "--num",
-            str(num),
-            "--output-root",
-            str(output_root),
-            "--agents",
-            ",".join(agents),
-        ],
-        dry_run=dry_run,
-    )
+    command = [
+        "uv",
+        "run",
+        "python",
+        "judge.py",
+        "--num",
+        str(num),
+        "--output-root",
+        str(output_root),
+        "--agents",
+        ",".join(agents),
+    ]
+    if cross_judge:
+        command.append("--cross-judge")
+    return _run(command, dry_run=dry_run)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -160,6 +161,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--skip-setup", action="store_true")
     parser.add_argument("--fail-fast", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--cross-judge",
+        action="store_true",
+        default=False,
+        help="Cross-judge all agents against each other (anonymous comparative ranking) "
+        "instead of individual judging.",
+    )
     parser.add_argument(
         "--agents",
         help="Comma-separated harnesses to run/judge (default: all). Example: tinycua",
@@ -212,8 +220,12 @@ def main(argv: list[str] | None = None) -> int:
                 return code
 
     for num, _ in experiments:
-        print(f"\n=== Experiment {num}: judge ===", flush=True)
-        code = _run_judge(num, output_root, args.agents, dry_run=args.dry_run)
+        mode = "cross-judge" if args.cross_judge else "judge"
+        print(f"\n=== Experiment {num}: {mode} ===", flush=True)
+        code = _run_judge(
+            num, output_root, args.agents,
+            dry_run=args.dry_run, cross_judge=args.cross_judge,
+        )
         if code:
             failures.append({"phase": "judge", "experiment": num, "exit_code": code})
             if args.fail_fast:
