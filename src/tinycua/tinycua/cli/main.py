@@ -144,6 +144,15 @@ def _add_run_arguments(parser: argparse.ArgumentParser) -> None:
         "to ResponseNode for unresolved upstream questions. Disabled by default "
         "— one-shot worker mode must not bail while tasks remain unfinished.",
     )
+    parser.add_argument(
+        "--replan-threshold",
+        dest="replan_threshold",
+        type=int,
+        default=None,
+        help="Consecutive reviewer rejections before auto-replan (default: 5). "
+        "When a task is sent back needs_revision/rejected this many times in a "
+        "row, the runtime routes to TaskAnalyzer for replan instead of retrying.",
+    )
 
 
 def _normalise_run_args(args: argparse.Namespace) -> None:
@@ -235,6 +244,7 @@ def main() -> None:
             save_artifacts=args.save_artifacts,
             no_tool_audit=args.no_tool_audit,
             allow_open_question=args.allow_open_question,
+            replan_threshold=args.replan_threshold,
         )
         raise SystemExit(exit_code)
 

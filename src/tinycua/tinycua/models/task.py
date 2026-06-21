@@ -110,6 +110,28 @@ class Task:
             if d.get("decision") in back_decisions
         )
 
+    @property
+    def consecutive_failures(self) -> int:
+        """Count of consecutive needs_revision/rejected/replan decisions (resets on approve).
+
+        Counts backward from the latest reviewer decision until an ``approved``
+        is hit. This is the deterministic replan trigger: when this count
+        reaches ``replan_threshold`` (default 5), the runtime routes to
+        TaskAnalyzer for replan instead of retrying the executor.
+        """
+        back_decisions = {
+            ReviewerDecision.NEEDS_REVISION.value,
+            ReviewerDecision.REJECTED.value,
+            ReviewerDecision.REPLAN.value,
+        }
+        count = 0
+        for d in reversed(self.reviewer_decisions):
+            if d.get("decision") in back_decisions:
+                count += 1
+            else:
+                break  # approved — breaks the consecutive run
+        return count
+
 
 @dataclass
 class TaskStateStore:

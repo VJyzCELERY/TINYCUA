@@ -172,7 +172,9 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
         mode = str(self.config.metadata.get("task_analyzer_mode", "task_creation"))
         if mode == "local_replan":
             region = _local_task_region(session)
-            return f"Local task region for replan:\n{_render_local_region_markdown(region)}\n\n{base}"
+            replan_reason = str(self.config.metadata.get("replan_reason", ""))
+            reason_prefix = f"{replan_reason}\n\n" if replan_reason else ""
+            return f"{reason_prefix}Local task region for replan:\n{_render_local_region_markdown(region)}\n\n{base}"
         mission = _render_mission_block(session)
         prefix = f"{mission}\n\n" if mission else ""
         return f"{prefix}Roadmap:\n{session.task_store.render_markdown()}\n\n{base}"
@@ -707,12 +709,13 @@ class TinyCUAResultReviewerNode(ProcessNode):
 
         terminal_nodes = [node for node in queue.items[1:] if node.is_terminal]
         queue.clear_after_current()
-        enable_oq = bool(
-            self.session.session_config.enable_open_question_review
-        ) if self.session.session_config is not None else False
+        sc = self.session.session_config
+        enable_oq = bool(sc.enable_open_question_review) if sc is not None else False
+        replan_threshold = sc.replan_threshold if sc is not None else 5
         WorkerRuntimeController(
             self.session.task_store,
             enable_open_question_review=enable_oq,
+            replan_threshold=replan_threshold,
         ).schedule_after_review(queue)
         existing_terminal_ids = {
             node.node_id for node in queue.items if node.is_terminal

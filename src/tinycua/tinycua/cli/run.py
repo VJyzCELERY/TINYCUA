@@ -106,6 +106,7 @@ def run_command(
     save_artifacts: bool = False,
     no_tool_audit: bool = False,
     allow_open_question: bool = False,
+    replan_threshold: int | None = None,
 ) -> int:
     """Execute the tinycua run command (always streaming).
 
@@ -132,6 +133,8 @@ def run_command(
         no_tool_audit: Suppress per-tool-call audit JSON files.
         allow_open_question: Allow OPEN_QUESTION reviewer decisions to bail
             to ResponseNode. Disabled by default for one-shot worker mode.
+        replan_threshold: Consecutive reviewer rejections before auto-replan.
+            Defaults to 5 if not specified.
 
     Returns:
         Exit code: 0 success, 1 error, 124 timeout.
@@ -197,6 +200,7 @@ def run_command(
                 worker_effort=worker_effort,
                 disable_tool_audit=no_tool_audit,
                 enable_open_question_review=allow_open_question,
+                replan_threshold=replan_threshold if replan_threshold is not None else 5,
             ),
             llm_model=build_language_model(config),
         )

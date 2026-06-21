@@ -28,7 +28,9 @@ def test_worker_runtime_repeated_revision_never_routes_to_response() -> None:
     root = store.create_task("Root")
     active = store.create_task("Active", parent_id=root.task_id)
     store.transition(active.task_id, TaskStatus.IN_PROGRESS)
-    for _ in range(5):
+    # Use 3 rejections — below the default replan_threshold of 5, so this
+    # still routes to executor+reviewer (retry), not replan.
+    for _ in range(3):
         store.record_reviewer_decision(active.task_id, ReviewerDecision.NEEDS_REVISION)
     queue = NodeQueue()
 

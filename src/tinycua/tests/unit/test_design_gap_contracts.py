@@ -136,7 +136,9 @@ def test_reviewer_revisions_do_not_escalate_to_response_before_completion() -> N
     root = store.create_task("root")
     active = store.create_task("active", parent_id=root.task_id)
     store.transition(active.task_id, TaskStatus.IN_PROGRESS)
-    for _ in range(5):
+    # Use 3 rejections — below the default replan_threshold of 5, so this
+    # still routes to executor+reviewer (retry), not replan.
+    for _ in range(3):
         store.record_reviewer_decision(active.task_id, ReviewerDecision.NEEDS_REVISION)
     queue = NodeQueue()
 

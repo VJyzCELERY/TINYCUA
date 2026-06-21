@@ -71,6 +71,10 @@ class SessionConfig:
     # False — one-shot worker mode must not bail while tasks remain
     # unfinished. Enable for interactive/exploratory sessions.
     enable_open_question_review: bool = False
+    # Consecutive reviewer rejections (needs_revision/rejected) before the
+    # runtime deterministically routes to TaskAnalyzer for replan instead of
+    # retrying the executor. Resets on reviewer approval. Default 5.
+    replan_threshold: int = 5
 
     def __post_init__(self) -> None:
         """Normalize filesystem paths supplied through the public API."""
