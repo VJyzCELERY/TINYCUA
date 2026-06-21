@@ -355,6 +355,70 @@ class TaskDecomposeTool(SessionTaskToolMixin, Tool):
         return {"success": True, "task_id": resolved, "child_task_ids": child_ids}
 
 
+class TaskShrinkTool(SessionTaskToolMixin, Tool):
+    """Tool for shrinking the task tree (delete or merge) to correct over-decomposition."""
+
+    def __init__(self) -> None:
+        SessionTaskToolMixin.__init__(self)
+        Tool.__init__(
+            self,
+            name="task_shrink",
+            description=(
+                "Shrink the task tree by deleting a pending task (and its "
+                "pending subtree) or merging a child into its parent (preserving "
+                "the child's result). Use when the tree is over-decomposed. "
+                "Completed tasks are immutable and cannot be shrunk. "
+                "task_id may be UUID or roadmap number."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["delete", "merge"]},
+                    "task_id": {"type": "string"},
+                    "parent_id": {"type": "string"},
+                    "rationale": {"type": "string"},
+                },
+                "required": ["action", "task_id", "rationale"],
+                "additionalProperties": False,
+            },
+        )
+
+    def __call__(
+        self,
+        action: str,
+        task_id: str,
+        rationale: str,
+        parent_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Delete or merge a task to shrink the tree.
+
+        Args:
+            action: "delete" or "merge".
+            task_id: The task to delete or the child to merge.
+            rationale: Why this shrink is needed (for audit trail).
+            parent_id: Required for merge — the parent to merge into.
+        """
+        resolved = self._store.resolve_task_id(task_id)
+        if resolved is None:
+            return {"success": False, "error": f"Task {task_id} not found."}
+        try:
+            if action == "delete":
+                self._store.delete_task(resolved)
+                return {"success": True, "action": "delete", "task_id": resolved, "rationale": rationale}
+            elif action == "merge":
+                if parent_id is None:
+                    return {"success": False, "error": "parent_id is required for merge."}
+                resolved_parent = self._store.resolve_task_id(parent_id)
+                if resolved_parent is None:
+                    return {"success": False, "error": f"Parent {parent_id} not found."}
+                self._store.merge_tasks(resolved, resolved_parent)
+                return {"success": True, "action": "merge", "task_id": resolved, "parent_id": resolved_parent, "rationale": rationale}
+            else:
+                return {"success": False, "error": f"Unknown action: {action}. Use 'delete' or 'merge'."}
+        except ValueError as exc:
+            return {"success": False, "error": str(exc)}
+
+
 class TaskExecuteTool(SessionTaskToolMixin, Tool):
     """Tool for marking a task as actively executing."""
 

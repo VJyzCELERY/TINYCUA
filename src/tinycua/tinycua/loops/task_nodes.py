@@ -21,6 +21,32 @@ if TYPE_CHECKING:
     from tinycua.models.session import Session
 
 
+# Effort-profiled shrink thresholds (Milestone 4): higher effort → lower
+# threshold (more aggressive shrink trigger). The LLM still decides what to
+# merge/delete — this just triggers the shrink-prompt.
+_SHRINK_THRESHOLDS: dict[str, int] = {
+    "none": 99,  # never trigger at none effort
+    "low": 15,   # rarely trigger
+    "medium": 12,
+    "high": 8,   # proactively trigger
+}
+
+
+def shrink_threshold_for_effort(effort: str) -> int:
+    """Return the shrink threshold for the given worker effort level.
+
+    Higher effort → lower threshold (more aggressive shrink trigger).
+    The LLM still decides what to merge/delete — no hard pruning.
+
+    Args:
+        effort: Worker effort level (none/low/medium/high).
+
+    Returns:
+        The pending-children threshold above which the shrink-prompt fires.
+    """
+    return _SHRINK_THRESHOLDS.get(effort, 12)
+
+
 _TASK_ANALYZER_INSTRUCTION = (
     "You are the TaskAnalyzer. You only decompose or refine the roadmap; you do "
     "not execute tasks or mutate results. Inspect the roadmap. If the active "

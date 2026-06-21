@@ -24,6 +24,7 @@ from tinycua.tools.task_tools import (
     TaskInspectTool,
     TaskResultUpdateTool,
     TaskReviewDecisionTool,
+    TaskShrinkTool,
     TaskUpdateTool,
 )
 from tinycua.tools.todo_tools import TodoReadTool, TodoWriteTool
@@ -123,7 +124,7 @@ def task_analyzer_tool_scope(
     Returns:
         NodeToolPolicy for TaskAnalyzerNode.
     """
-    base_tools = [TaskInspectTool(), TaskUpdateTool(), TaskDecomposeTool()]
+    base_tools = [TaskInspectTool(), TaskUpdateTool(), TaskDecomposeTool(), TaskShrinkTool()]
     if mode == "task_recreation":
         base_tools.extend([TaskInitTool(), TaskCreateTool()])
     return NodeToolPolicy(

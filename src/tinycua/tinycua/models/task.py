@@ -186,6 +186,120 @@ class TaskStateStore:
                 child_ids.append(self.create_task(title, parent_id=task_id).task_id)
         return child_ids
 
+    def delete_task(self, task_id: str) -> None:
+        """Remove a task and its pending subtree, re-linking siblings.
+
+        Completed tasks are immutable history and cannot be deleted. The root
+        task and the active task cannot be deleted (runtime integrity). Only
+        pending or in-progress tasks (and their pending subtrees) can be
+        removed — this lets the TaskAnalyzer correct over-decomposition mid-run.
+
+        Args:
+            task_id: The task to delete.
+
+        Raises:
+            ValueError: If the task is completed, not found, is the root, or
+                is the active task.
+        """
+        if task_id not in self.tasks:
+            msg = f"Task not found: {task_id}"
+            raise ValueError(msg)
+        task = self.tasks[task_id]
+        if task.status == TaskStatus.COMPLETED:
+            msg = f"Task {task_id} is completed and immutable."
+            raise ValueError(msg)
+        if task_id == self.root_task_id:
+            msg = "Cannot delete the root task."
+            raise ValueError(msg)
+        if task_id == self.active_task_id:
+            msg = "Cannot delete the active task."
+            raise ValueError(msg)
+        # Remove from parent's children list.
+        if task.parent_id and task.parent_id in self.tasks:
+            parent = self.tasks[task.parent_id]
+            parent.children = [c for c in parent.children if c != task_id]
+        # Recursively delete the subtree (only pending/in-progress — skip
+        # completed children, they're immutable history).
+        to_remove: list[str] = []
+
+        def collect(tid: str) -> None:
+            t = self.tasks.get(tid)
+            if t is None:
+                return
+            for child_id in list(t.children):
+                child = self.tasks.get(child_id)
+                if child and child.status != TaskStatus.COMPLETED:
+                    collect(child_id)
+                elif child_id in self.tasks:
+                    # Completed child stays — re-parent to the deleted task's parent.
+                    if task.parent_id and task.parent_id in self.tasks:
+                        self.tasks[task.parent_id].children.append(child_id)
+                        child.parent_id = task.parent_id
+            to_remove.append(tid)
+
+        collect(task_id)
+        for tid in to_remove:
+            self.tasks.pop(tid, None)
+        self._ordered_task_ids = None
+        self._bump_version()
+        self._refresh_active_task()
+
+    def merge_tasks(self, child_id: str, parent_id: str) -> Task:
+        """Collapse a child into its parent, preserving work.
+
+        If the child has a result and the parent does not, the child's result
+        becomes the parent's result (preserve work). If both have results, the
+        child's summary is appended to the parent's. The child's pending subtree
+        is discarded. The child is removed from the parent's children list.
+
+        Args:
+            child_id: The child task to merge into its parent.
+            parent_id: The parent task.
+
+        Returns:
+            The updated parent task.
+
+        Raises:
+            ValueError: If child == parent, either is completed, or not found.
+        """
+        if child_id == parent_id:
+            msg = "Cannot merge a task into itself."
+            raise ValueError(msg)
+        if child_id not in self.tasks or parent_id not in self.tasks:
+            msg = f"Task not found: {child_id if child_id not in self.tasks else parent_id}"
+            raise ValueError(msg)
+        child = self.tasks[child_id]
+        parent = self.tasks[parent_id]
+        if child.status == TaskStatus.COMPLETED or parent.status == TaskStatus.COMPLETED:
+            msg = "Cannot merge — one or both tasks are completed (immutable)."
+            raise ValueError(msg)
+        # Preserve work: child's result → parent's result if parent has none.
+        if child.result is not None:
+            if parent.result is None:
+                parent.result = child.result
+            elif child.result.summary:
+                parent.result.summary = (
+                    f"{parent.result.summary}\n\nMerged from {child.title}: "
+                    f"{child.result.summary}"
+                )
+        # Move child's completed children to parent (preserve immutable history).
+        for cc_id in list(child.children):
+            cc = self.tasks.get(cc_id)
+            if cc is not None and cc.status == TaskStatus.COMPLETED:
+                parent.children.append(cc_id)
+                cc.parent_id = parent_id
+            elif cc is not None:
+                # Pending child — discard (the merge collapses the subtree).
+                pass
+        # Remove child from parent's children.
+        parent.children = [c for c in parent.children if c != child_id]
+        # Delete the child (and its pending subtree).
+        self.tasks.pop(child_id, None)
+        self._ordered_task_ids = None
+        self._bump_version()
+        self._refresh_active_task()
+        return parent
+
     def get_task(self, task_id: str) -> Task:
         """Return a task or raise a clear validation error."""
         try:
