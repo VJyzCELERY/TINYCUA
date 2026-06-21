@@ -75,6 +75,16 @@ class SessionConfig:
     # runtime deterministically routes to TaskAnalyzer for replan instead of
     # retrying the executor. Resets on reviewer approval. Default 5.
     replan_threshold: int = 5
+    # Milestone 8 Stream B: compaction thresholds (ratio of model.max_context).
+    # When session._last_input_tokens exceeds compaction_threshold * max_context,
+    # dynamic context is compacted (keep last N turns, summarize the rest).
+    # Static context (mission, instruction, continuation) is never compacted.
+    compaction_threshold: float = 0.7
+    # Task result summaries are compacted more aggressively (lower threshold)
+    # because they're secondary context, not primary content.
+    task_result_compaction_threshold: float = 0.3
+    # Number of recent dynamic turns to keep during compaction.
+    compaction_keep_recent: int = 5
 
     def __post_init__(self) -> None:
         """Normalize filesystem paths supplied through the public API."""

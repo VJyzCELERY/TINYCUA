@@ -486,6 +486,7 @@ class TaskStateStore:
                     if task.status != target:
                         self.transition(task_id, target)  # transition bumps version
                 self._complete_ready_parents()
+                self._propagate_result_to_next_sibling(task)
                 self._refresh_active_task()
                 self._bump_version()
         return task
@@ -646,6 +647,42 @@ class TaskStateStore:
                 if task.status == TaskStatus.PENDING:
                     task.status = TaskStatus.IN_PROGRESS
                     self._bump_version()
+
+    def _propagate_result_to_next_sibling(self, task: Task) -> None:
+        """Propagate an approved task's result summary to the next pending sibling.
+
+        When a task is approved, its result summary is appended to the
+        ``metadata["context"]`` of the next pending sibling under the same
+        parent. This ensures the downstream task sees the approved result
+        in its "Useful Prior Context" section (Milestone 8 Stream A).
+        """
+        if task.parent_id is None or task.parent_id not in self.tasks:
+            return
+        if task.result is None:
+            return
+        parent = self.tasks[task.parent_id]
+        # Find the next pending sibling (in children order, after this task).
+        found_self = False
+        for child_id in parent.children:
+            if child_id == task.task_id:
+                found_self = True
+                continue
+            if not found_self:
+                continue
+            child = self.tasks.get(child_id)
+            if child and child.status == TaskStatus.PENDING:
+                summary = task.result.summary or task.result.content
+                existing = child.metadata.setdefault("context", "")
+                if existing:
+                    child.metadata["context"] = (
+                        f"{existing}\n\n[From completed sibling '{task.title}']: "
+                        f"{summary}"
+                    )
+                else:
+                    child.metadata["context"] = (
+                        f"[From completed sibling '{task.title}']: {summary}"
+                    )
+                break
 
     def _json_safe(self, value: Any) -> Any:
         """Convert dataclass fields to JSON-compatible primitives."""

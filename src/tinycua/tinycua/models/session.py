@@ -45,8 +45,12 @@ class Session:
     task: Task | None = None
     task_store: TaskStateStore = field(default_factory=TaskStateStore)
     todo: list[dict[str, Any]] = field(default_factory=list)
+    # Milestone 8 Stream B: per-session token tracking from provider usage.
+    # Updated after each LLM call from response.usage.input_tokens.
+    # Used to trigger compaction before the next call when over threshold.
+    _last_input_tokens: int = 0
 
-    def compact_context(
+    async def compact_context(
         self, window: list[SessionContextEntry] | list[dict[str, Any]] | None = None
     ) -> dict[str, Any] | None:
         """Compact context entries using the configured strategy.
@@ -87,7 +91,7 @@ class Session:
         else:
             messages = [_to_dict(entry) for entry in self.session_context]
 
-        summary = strategy.compact(messages)
+        summary = await strategy.compact(messages)
 
         if window is None:
             # Convert summary dict back to SessionContextEntry if needed

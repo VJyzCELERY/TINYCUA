@@ -510,11 +510,11 @@ class TinyCUALoop(
         return results
 
     def _log_tool_call_args(self, name: str, arguments: dict[str, Any]) -> None:
-        """Log a truncated preview of tool call arguments to stderr for debugging.
+        r"""Log a truncated preview of tool call arguments to stderr for debugging.
 
         File tools (str_replace, write_file, append_file) get path + content
         preview. Other tools get a truncated JSON preview. This makes it
-        possible to diagnose issues like literal \\n in content by inspecting
+        possible to diagnose issues like literal \n in content by inspecting
         the stderr log.
         """
         if name in {"str_replace", "write_file", "append_file"}:
@@ -622,6 +622,93 @@ class TinyCUALoop(
                 )
                 node.progress.mark_tool_called(tr["name"], success=success)
 
+    def _track_input_tokens(self, node: Node, last_result: LLMResult) -> None:
+        """Record the latest input-token count on the session for compaction triggers."""
+        usage = last_result.metadata.get("usage") or {}
+        if not isinstance(usage, dict):
+            return
+        input_tokens = usage.get("input_tokens") or usage.get("prompt_tokens")
+        if isinstance(input_tokens, (int, float)):
+            session = node.session or self.root_session
+            session._last_input_tokens = int(input_tokens)
+
+    def _agent_max_context(self, agent: Agent) -> int | None:
+        """Return the bound model's max_context token limit, if available."""
+        config = getattr(agent, "config", None)
+        model = getattr(config, "llm_model", None)
+        max_context = getattr(model, "max_context", None)
+        return max_context if isinstance(max_context, (int, float)) else None
+
+    def _build_compaction_llm_call(self, agent: Agent) -> Callable[[list[dict[str, str]]], Any]:
+        """Build an async LLM callable for the compaction strategy.
+
+        The callable takes a list of messages (system + user) and returns the
+        assistant content string. Uses the same bound model as the worker so
+        compaction doesn't require a separate client/credentials. Tool-less
+        call (no tools passed) since compaction is pure summarization.
+        """
+
+        async def _llm_call(messages: list[dict[str, str]]) -> str:
+            raw = await self._invoke_agent_llm(agent, messages, [], stream=False)
+            content = raw.get("content", "") if isinstance(raw, dict) else ""
+            return str(content).strip()
+
+        return _llm_call
+
+    async def _maybe_compact(self, node: Node, agent: Agent) -> None:
+        """Compact session_context when the last LLM call neared the context window.
+
+        Milestone 8 Stream B runtime trigger. Uses the provider-reported
+        ``input_tokens`` from the previous call (stored on the session) and
+        the bound model's ``max_context`` to decide if compaction is needed.
+        When triggered, older ``session_context`` entries (all but the most
+        recent ``compaction_keep_recent``) are summarized into one entry via
+        the configured ``compaction_strategy``. Static context (mission,
+        instruction, continuation) is never touched — only the audit trail.
+
+        No-op when no strategy is configured, no token data is available, or
+        the chicken-and-egg case (first call, no prior usage).
+        """
+        session = node.session or self.root_session
+        sc = session.session_config
+        if sc is None or sc.compaction_strategy is None:
+            return
+        # Lazy LLM-call wiring: if the strategy is a SimpleCompaction without
+        # an llm_call, inject one built from the agent so compaction uses the
+        # same model as the worker (not a hardcoded fallback). Set once.
+        strategy = sc.compaction_strategy
+        llm_call = getattr(strategy, "_llm_call", None)
+        if llm_call is None and hasattr(strategy, "_llm_call"):
+            strategy._llm_call = self._build_compaction_llm_call(agent)
+        if session._last_input_tokens <= 0:
+            return  # chicken-and-egg: no prior call data yet
+        max_context = self._agent_max_context(agent)
+        if not max_context or max_context <= 0:
+            return
+        threshold_tokens = int(sc.compaction_threshold * max_context)
+        if session._last_input_tokens <= threshold_tokens:
+            return
+        keep_recent = max(0, sc.compaction_keep_recent)
+        entries = list(session.session_context)
+        if len(entries) <= keep_recent:
+            return  # not enough to compact
+        window = entries[:-keep_recent] if keep_recent else entries
+        if not window:
+            return
+        logger.debug(
+            "compaction_trigger node=%s last_tokens=%d threshold=%d max_context=%s entries=%d keep_recent=%d",
+            node.node_id,
+            session._last_input_tokens,
+            threshold_tokens,
+            max_context,
+            len(entries),
+            keep_recent,
+        )
+        try:
+            await session.compact_context(window=window)
+        except Exception:
+            logger.debug("compaction_failed node=%s", node.node_id, exc_info=True)
+
     async def _call_node_with_retry(
         self,
         node: Node,
@@ -645,6 +732,10 @@ class TinyCUALoop(
                 NodeState.EXECUTING if attempt == 1 else NodeState.RETRYING,
                 reason="attempt" if attempt == 1 else "retry",
             )
+            # Milestone 8 Stream B: compact session_context before building
+            # messages when the previous call neared the context window.
+            if attempt > 1:
+                await self._maybe_compact(node, agent)
             attempt_messages = self._messages_with_retry_prompt(
                 base_messages,
                 retry_feedback,
@@ -668,6 +759,8 @@ class TinyCUALoop(
                 metadata=raw_response.get("metadata", {}),
                 reasoning=raw_response.get("reasoning", ""),
             )
+            # Milestone 8 Stream B: track token usage for compaction triggers.
+            self._track_input_tokens(node, last_result)
             if not node.is_terminal and node.node_id != "result_aggregation":
                 self._coerce_structured_tool_calls(last_result, attempt_tools)
             self._coerce_terminate_only_response(attempt_tools, last_result)

@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from tinycua.loops.node_queue import NodeQueue
     from tinycua.models.node_input import NodeInputLike
     from tinycua.models.session import Session
+    from tinycua.models.task import Task, TaskStateStore
 
 
 # Effort-profiled shrink thresholds (Milestone 4): higher effort → lower
@@ -56,7 +57,10 @@ _TASK_ANALYZER_INSTRUCTION = (
 _TASK_ANALYZER_CONTINUATION = (
     "Based on the roadmap above, call task_inspect. Then call task_decompose "
     "for concrete sequential subtasks, or task_update if the task should stay "
-    "as-is. Do not repeatedly decompose a task that already has children."
+    "as-is. Do not repeatedly decompose a task that already has children. "
+    "If previous tasks already write to the report file, do not create a "
+    "final 'write report' task — decompose it as 'review and reorganize "
+    "existing report.md' instead."
 )
 _TASK_ANALYZER_LOCAL_REPLAN_CONTINUATION = (
     "Refine only the active local region. Call task_decompose if it needs "
@@ -304,7 +308,7 @@ def _render_task_tree_markdown(snapshot: dict) -> str:
         lines.append(f"{counter}. [{status}] {title} (id={task_id}){marker}")
         result = task.get("result")
         if isinstance(result, dict) and result.get("summary"):
-            summary = str(result["summary"])[:120]
+            summary = str(result["summary"])
             lines.append(f"   Result: {summary}")
 
     # Post-order traversal from root; root itself is not emitted as a list row.
@@ -331,6 +335,38 @@ def _render_local_region_markdown(region: dict) -> str:
         for sib in siblings:
             lines.append(f"  - [{sib.get('status', '?')}] {sib.get('title', '?')}")
     return "\n".join(lines) if lines else str(region)
+
+
+def _render_completed_sibling_results(store: TaskStateStore, active: Task) -> list[str]:
+    """Render completed sibling result summaries for the executor context.
+
+    Returns the lines for the 'Completed Sibling Results' section, or an
+    empty list if the active task has no completed siblings.
+    """
+    if not active.parent_id or active.parent_id not in store.tasks:
+        return []
+    parent = store.tasks[active.parent_id]
+    completed_siblings = []
+    for child_id in parent.children:
+        if child_id == active.task_id:
+            continue
+        child = store.tasks.get(child_id)
+        if child and child.status == TaskStatus.COMPLETED and child.result:
+            completed_siblings.append(child)
+    if not completed_siblings:
+        return []
+    lines = ["", "## Completed Sibling Results"]
+    lines.append(
+        "Previous tasks under the same parent completed with these "
+        "findings. Use this context — do not re-research what was "
+        "already found."
+    )
+    for sib in completed_siblings:
+        summary = sib.result.summary or sib.result.content
+        lines.append(f"### {sib.title}")
+        lines.append(summary.strip() if summary else "(no summary)")
+        lines.append("")
+    return lines
 
 
 def _render_active_task_work_order(session: Session) -> str:
@@ -368,6 +404,10 @@ def _render_active_task_work_order(session: Session) -> str:
                 f"- {decision.get('decision', 'unknown')}: "
                 f"{decision.get('rationale', '')}"
             )
+    # Completed Sibling Results (Milestone 8 Stream A): surface full result
+    # summaries of completed direct siblings so the executor sees what
+    # previous tasks found.
+    lines.extend(_render_completed_sibling_results(store, active))
     context = str(active.metadata.get("context", "")).strip()
     if context:
         lines.extend(["", "## Useful Prior Context", context])
@@ -380,6 +420,11 @@ def _render_active_task_work_order(session: Session) -> str:
             "## What Needs To Be Done",
             "Complete this active task only. Use workspace, shell, Python, or "
             "research tools when they provide evidence. Do not just plan.",
+            "If writing to a file that previous tasks already wrote to (e.g. "
+            "report.md), use `read_file` first to check existing content, then "
+            "`append_file` or `str_replace` to add your section. Do NOT "
+            "overwrite the entire file unless this is the first task writing "
+            "to it.",
             "",
             "## Success Criteria",
             "- At least one action/research/file/shell tool result supports success.",
@@ -555,7 +600,7 @@ class TinyCUATaskExecutorNode(ProcessNode):
                 if child:
                     line = f"  - [{child.status.value}] {child.title}"
                     if child.result and child.result.summary:
-                        line += f" — {child.result.summary[:120]}"
+                        line += f" — {child.result.summary}"
                     child_lines.append(line)
             verification_note = (
                 "\n## Child Task Verification Gate\n"
@@ -695,7 +740,7 @@ class TinyCUAResultReviewerNode(ProcessNode):
                 if child:
                     line = f"  - [{child.status.value}] {child.title}"
                     if child.result and child.result.summary:
-                        line += f" — {child.result.summary[:120]}"
+                        line += f" — {child.result.summary}"
                     child_lines.append(line)
             child_gate = (
                 "\n## Child Task Verification Gate\n"
@@ -852,7 +897,7 @@ class TinyCUAResultAggregationNode(ProcessNode):
             lines.append(f"- **{task.title}** [{task.status.value}]{status_mark}")
             summary = task.result.summary or task.result.content
             if summary:
-                lines.append(f"  {summary[:300]}")
+                lines.append(f"  {summary}")
             if task.artifacts:
                 paths = [a.get("path", "") for a in task.artifacts if a.get("path")]
                 if paths:

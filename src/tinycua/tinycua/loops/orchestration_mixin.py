@@ -136,7 +136,7 @@ class OrchestrationMixin:
             self._resolved_tools_for_prompt = None
         return messages, resolved_tools
 
-    def _execute_deterministic_node(
+    async def _execute_deterministic_node(
         self,
         node: Node,
         resolved_tools: list[Tool],
@@ -162,7 +162,7 @@ class OrchestrationMixin:
 
         rule = node.config.propagation or PropagationRule()
         parent_session = self._find_parent_session(node)
-        propagate_on_termination(
+        await propagate_on_termination(
             node.session or self.root_session,
             parent_session,
             self.root_session,
@@ -204,6 +204,13 @@ class OrchestrationMixin:
             node._queue = self.queue
         self._inject_active_task_input(node)
 
+        # Milestone 8 Stream B: cross-node compaction trigger. Compact
+        # session_context before building messages when the previous call
+        # (in any prior node) neared the context window. Runs before
+        # _prepare_node so the compacted session_context is what the
+        # continuation renderers see.
+        await self._maybe_compact(node, agent)
+
         messages, resolved_tools = self._prepare_node(
             node,
             tools,
@@ -229,7 +236,7 @@ class OrchestrationMixin:
 
         deterministic_runner = getattr(node, "run_deterministic", None)
         if callable(deterministic_runner):
-            return self._execute_deterministic_node(node, resolved_tools)
+            return await self._execute_deterministic_node(node, resolved_tools)
 
         llm_result, attempt, validation = await self._call_node_with_retry(
             node,
@@ -337,7 +344,7 @@ class OrchestrationMixin:
         # propagation engine instead of legacy _transfer_session_context().
         rule = node.config.propagation or PropagationRule()
         parent_session = self._find_parent_session(node)
-        propagate_on_termination(
+        await propagate_on_termination(
             node.session or self.root_session,
             parent_session,
             self.root_session,
@@ -440,7 +447,7 @@ class OrchestrationMixin:
         # Propagate context on node termination
         rule = node.config.propagation or PropagationRule()
         parent_session = self._find_parent_session(node)
-        propagate_on_termination(
+        await propagate_on_termination(
             node.session or self.root_session,
             parent_session,
             self.root_session,
@@ -714,7 +721,7 @@ class OrchestrationMixin:
         attempt: int,
     ) -> AsyncIterator[dict[str, Any]]:
         """Run a deterministic node and emit completion lifecycle events."""
-        combined, tool_calls = self._execute_deterministic_node(node, resolved_tools)
+        combined, tool_calls = await self._execute_deterministic_node(node, resolved_tools)
         if stream_messages is not None:
             for tool_call in tool_calls:
                 stream_messages.append({"role": "assistant", "tool_calls": [tool_call]})

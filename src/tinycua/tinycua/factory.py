@@ -69,8 +69,16 @@ def create_tinycua_agent(
     if session is None:
         session = Session()
     effective_session_config = session_config or session.session_config
-    if effective_session_config is not None:
-        session.session_config = effective_session_config
+    if effective_session_config is None:
+        # ponytail: default config with compaction enabled. The llm_call is
+        # wired lazily by the loop once the agent is built.
+        from tinycua.compaction.simple import SimpleCompaction
+
+        effective_session_config = SessionConfig(
+            max_context_messages=50,
+            compaction_strategy=SimpleCompaction(),
+        )
+    session.session_config = effective_session_config
     if enable_native_tools:
         existing_tools = list(agent_kwargs.pop("tools", []) or [])
         native_tools = _native_tools(native_tool_policy)

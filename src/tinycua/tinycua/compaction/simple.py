@@ -1,7 +1,14 @@
-"""SimpleCompaction default implementation."""
+"""SimpleCompaction default implementation.
+
+Milestone 8 Stream B: upgraded to support LLM-based compaction via an async
+callable. When ``llm_call`` is provided, ``compact()`` makes an async LLM
+call to summarize the content. When ``llm_call`` is None (tests, offline),
+falls back to the deterministic local summarizer.
+"""
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from tinycua.compaction.errors import CompactionError
@@ -9,17 +16,16 @@ from tinycua.compaction.strategy import CompactionStrategy
 
 
 class SimpleCompaction(CompactionStrategy):
-    """Default tool-less compaction Agent implementation.
-
-    Creates a compaction Agent with no tools and a simple summarization
-    instruction. Inherits model/provider from a parent config snapshot
-    taken at init time, falling back to built-in defaults when no parent
-    config is provided.
+    """Default compaction strategy with optional LLM-based summarization.
 
     Args:
         parent_config: Optional dict with ``model`` and ``provider`` keys
             copied from the parent session config.
         fallback_config: Optional override for the fallback config.
+        llm_call: Optional async callable that takes a list of messages and
+            returns a summary string. When provided, ``compact()`` makes an
+            async LLM call to summarize. When None, falls back to the
+            deterministic local summarizer.
     """
 
     _FALLBACK_CONFIG: dict[str, Any] = {
@@ -27,52 +33,50 @@ class SimpleCompaction(CompactionStrategy):
         "provider": "openai",
     }
 
+    _COMPACTION_SYSTEM_PROMPT = (
+        "You are a context compaction agent. Summarize the following content "
+        "concisely, preserving all key facts, findings, model names, benchmark "
+        "scores, and actionable conclusions. Do not add new information. "
+        "Output only the summary — no preamble, no meta-commentary."
+    )
+
     def __init__(
         self,
         parent_config: dict[str, Any] | None = None,
         fallback_config: dict[str, Any] | None = None,
+        llm_call: Callable[[list[dict[str, str]]], Awaitable[str]] | None = None,
     ) -> None:
         """Initialize SimpleCompaction.
 
         Args:
             parent_config: Optional dict with ``model`` and ``provider`` keys.
             fallback_config: Optional override for the fallback config.
+            llm_call: Optional async LLM callable for summarization.
         """
         self._parent_config = parent_config
         self._fallback_config = fallback_config or self._FALLBACK_CONFIG.copy()
+        self._llm_call = llm_call
 
     @property
     def tools(self) -> list[Any]:
-        """Return the compaction Agent's tool list (empty for SimpleCompaction).
-
-        Returns:
-            An empty list — SimpleCompaction never uses tools.
-        """
+        """Return the compaction Agent's tool list (empty for SimpleCompaction)."""
         return []
 
     @property
     def parent_config(self) -> dict[str, Any] | None:
-        """Return the parent config snapshot.
-
-        Returns:
-            The parent config dict, or None if not provided.
-        """
+        """Return the parent config snapshot."""
         return self._parent_config
 
     @property
     def fallback_config(self) -> dict[str, Any]:
-        """Return the fallback model/provider config.
-
-        Returns:
-            A dict with ``model`` and ``provider`` keys.
-        """
+        """Return the fallback model/provider config."""
         return self._fallback_config
 
-    def compact(self, messages: list[dict]) -> dict:
+    async def compact(self, messages: list[dict]) -> dict:
         """Compact messages into one assistant-role summary.
 
-        Runs a tool-less compaction Agent to produce a summary of the
-        conversation history.
+        When ``llm_call`` is set, makes an async LLM call to summarize.
+        Otherwise, falls back to the deterministic local summarizer.
 
         Args:
             messages: The conversation messages to compact.
@@ -82,39 +86,60 @@ class SimpleCompaction(CompactionStrategy):
             containing the compacted summary.
 
         Raises:
-            CompactionError: If the compaction Agent is unreachable or
-                returns an error.
+            CompactionError: If compaction fails.
         """
         try:
-            summary = self._run_compaction_agent(messages)
+            if self._llm_call is not None:
+                summary = await self._run_llm_compaction(messages)
+            else:
+                summary = self._run_local_compaction(messages)
             return {"role": "assistant", "content": summary}
         except CompactionError:
             raise
         except Exception as exc:
             raise CompactionError(f"Compaction failed: {exc}") from exc
 
-    def _run_compaction_agent(self, messages: list[dict]) -> str:
-        """Create a deterministic tool-less summary of conversation messages.
-
-        This local compactor keeps tests and offline runs deterministic while
-        preserving the strategy contract: one concise assistant-role summary
-        with no tool use.
+    async def _run_llm_compaction(self, messages: list[dict]) -> str:
+        """Run an LLM-based compaction call.
 
         Args:
-            messages: The conversation messages to compact.
+            messages: The messages to summarize.
 
         Returns:
-            The summary string from the compaction Agent.
+            The LLM-generated summary string.
+        """
+        # Build the compaction prompt: system + user with all content.
+        content_parts: list[str] = []
+        for msg in messages:
+            role = msg.get("role", "unknown")
+            content = str(msg.get("content", "")).strip()
+            if content:
+                content_parts.append(f"[{role}] {content}")
+        if not content_parts:
+            return ""
+        user_content = "\n\n".join(content_parts)
+        compaction_messages = [
+            {"role": "system", "content": self._COMPACTION_SYSTEM_PROMPT},
+            {"role": "user", "content": user_content},
+        ]
+        result = await self._llm_call(compaction_messages)
+        return str(result).strip()
 
-        Raises:
-            CompactionError: If the Agent call fails.
+    def _run_local_compaction(self, messages: list[dict]) -> str:
+        """Create a deterministic tool-less summary (fallback for tests/offline).
+
+        Args:
+            messages: The messages to compact.
+
+        Returns:
+            The summary string.
         """
         parts = []
         for msg in messages:
             role = msg.get("role", "unknown")
             content = str(msg.get("content", "")).strip().replace("\n", " ")
             if content:
-                parts.append(f"{role}: {content[:500]}")
+                parts.append(f"{role}: {content}")
         if not parts:
             return ""
         return "Compacted conversation summary:\n" + "\n".join(parts[-20:])
