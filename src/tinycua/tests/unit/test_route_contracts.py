@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
 
 from tinycua.factory import create_tinycua_agent
 from tinycua.config.node_config import create_node_config
-from tinycua.loops.node import NodeExecutionError
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.loops.worker import TinyCUAWorkerNode
 

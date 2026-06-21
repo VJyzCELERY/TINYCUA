@@ -485,7 +485,6 @@ def test_search_files_content_exact():
     with tempfile.TemporaryDirectory() as tmpdir:
         filepath = os.path.join(tmpdir, "test.py")
         Path(filepath).write_text("def foo():\n    return 42\n")
-        from tinycua.agent.tools.native.files import _last_search_key, _search_repeat_count
         import tinycua.agent.tools.native.files as files_mod
         files_mod._last_search_key = None
         files_mod._search_repeat_count = 0

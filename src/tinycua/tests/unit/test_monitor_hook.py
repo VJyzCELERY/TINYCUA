@@ -102,20 +102,16 @@ class ExceptionMonitor:
         raise RuntimeError("exhausted hook crashed")
 
 
-def _make_node(monitor=None, max_attempts=2, **kwargs):
-    """Create a ProcessNode with mock LLM for testing."""
+def _make_node(monitor=None, max_attempts=1, **kwargs):
+    """Create a ProcessNode with mock LLM for testing (single-shot)."""
     config = NodeConfigBase(
         llm_client=MockLLM(
             [
-                LLMResult(content="bad", tool_calls=[]),
-                LLMResult(
-                    content="good", tool_calls=[{"function": {"name": "required_tool"}}]
-                ),
+                LLMResult(content="good", tool_calls=[]),
             ]
         ),
         retry_policy=NodeRetryPolicy(
             max_attempts=max_attempts,
-            required_tool_calls=["required_tool"],
             **kwargs,
         ),
         monitor=monitor,
@@ -126,44 +122,50 @@ def _make_node(monitor=None, max_attempts=2, **kwargs):
 
 
 class TestNodeMonitorHookTriggerPoints:
-    """Tests for NodeMonitor hook call patterns."""
+    """Tests for NodeMonitor hook call patterns (single-shot __call__)."""
 
-    def test_before_hook_called_per_attempt(self):
-        """on_before_node_call is called before each LLM attempt."""
+    def test_before_hook_called_once_per_call(self):
+        """on_before_node_call is called once (single-shot — retry is loop-owned)."""
         monitor = RecordingMonitor()
         node = _make_node(monitor=monitor)
         node("input")
-        assert len(monitor.before_calls) == 2
+        assert len(monitor.before_calls) == 1
         assert monitor.before_calls[0]["attempt"] == 1
-        assert monitor.before_calls[1]["attempt"] == 2
 
-    def test_after_hook_called_on_validation_failure(self):
-        """on_after_node_call is called when validation fails."""
+    def test_after_hook_not_called_on_single_shot_success(self):
+        """on_after_node_call is not called — single-shot __call__ has no validation loop.
+
+        The after-hook fires on validation failure during retry, which is now
+        owned by TinyCUALoop._call_node_with_retry, not by __call__.
+        """
         monitor = RecordingMonitor()
         node = _make_node(monitor=monitor)
         node("input")
-        assert len(monitor.after_calls) == 1
-        assert monitor.after_calls[0]["is_valid"] is False
+        # __call__ is single-shot: no validation loop, no after-hook.
+        assert len(monitor.after_calls) == 0
 
     def test_exhausted_hook_not_called_on_success(self):
-        """on_retry_exhausted is not called when retry succeeds."""
+        """on_retry_exhausted is not called when the call succeeds."""
         monitor = RecordingMonitor()
         node = _make_node(monitor=monitor)
         node("input")
         assert len(monitor.exhausted_calls) == 0
 
-    def test_exhausted_hook_called_on_exhaustion(self):
-        """on_retry_exhausted is called when retries exhausted."""
+    def test_exhausted_hook_not_called_on_single_shot(self):
+        """on_retry_exhausted is not called by single-shot __call__.
+
+        Exhaustion handling is owned by the loop path
+        (TinyCUALoop._call_node_with_retry), not by __call__.
+        """
         monitor = RecordingMonitor()
         config = NodeConfigBase(
             llm_client=MockLLM(
                 [
                     LLMResult(content="bad1", tool_calls=[]),
-                    LLMResult(content="bad2", tool_calls=[]),
                 ]
             ),
             retry_policy=NodeRetryPolicy(
-                max_attempts=2,
+                max_attempts=1,
                 required_tool_calls=["required_tool"],
                 on_retry_exhausted="record_failure",
             ),
@@ -172,8 +174,8 @@ class TestNodeMonitorHookTriggerPoints:
         node = ProcessNode(node_id="test-node", config=config, instruction="Do work")
         node.session = Session()
         node("input")
-        assert len(monitor.exhausted_calls) == 1
-        assert monitor.exhausted_calls[0]["attempts"] == 2
+        # __call__ is single-shot — no validation, no exhaustion handling.
+        assert len(monitor.exhausted_calls) == 0
 
 
 class TestNodeMonitorHookArguments:
@@ -189,15 +191,6 @@ class TestNodeMonitorHookArguments:
         assert call["session_id"] == node.session.session_id
         assert isinstance(call["message_count"], int)
 
-    def test_after_hook_args(self):
-        """on_after_node_call receives correct arguments."""
-        monitor = RecordingMonitor()
-        node = _make_node(monitor=monitor)
-        node("input")
-        call = monitor.after_calls[0]
-        assert call["node_id"] == "test-node"
-        assert call["session_id"] == node.session.session_id
-
 
 class TestNodeMonitorHookException:
     """Tests for NodeMonitor hook exception handling."""
@@ -208,33 +201,7 @@ class TestNodeMonitorHookException:
         node = _make_node(monitor=monitor)
         # Should not raise — exception is swallowed
         result = node("input")
-        assert result.content == "good"
-
-    def test_exception_in_after_hook_logged(self):
-        """Exception in after hook is logged and does not break execution."""
-        monitor = ExceptionMonitor()
-        # Force validation failure on both attempts to trigger after hook
-        config = NodeConfigBase(
-            llm_client=MockLLM(
-                [
-                    LLMResult(content="bad", tool_calls=[]),
-                    LLMResult(
-                        content="bad2",
-                        tool_calls=[{"function": {"name": "required_tool"}}],
-                    ),
-                ]
-            ),
-            retry_policy=NodeRetryPolicy(
-                max_attempts=2,
-                required_tool_calls=["required_tool"],
-            ),
-            monitor=monitor,
-        )
-        node = ProcessNode(node_id="test-node", config=config, instruction="Do work")
-        node.session = Session()
-        # Should not raise
-        result = node("input")
-        assert result.content == "bad2"
+        assert result.content == "good"  # single-shot returns first response
 
 
 class TestNodeMonitorContinuation:
@@ -246,16 +213,11 @@ class TestNodeMonitorContinuation:
         config = NodeConfigBase(
             llm_client=MockLLM(
                 [
-                    LLMResult(content="bad", tool_calls=[]),
-                    LLMResult(
-                        content="good",
-                        tool_calls=[{"function": {"name": "required_tool"}}],
-                    ),
+                    LLMResult(content="good", tool_calls=[]),
                 ]
             ),
             retry_policy=NodeRetryPolicy(
-                max_attempts=2,
-                required_tool_calls=["required_tool"],
+                max_attempts=1,
             ),
             monitor=monitor,
         )
@@ -275,16 +237,11 @@ class TestAgentMonitorIndependence:
         config = NodeConfigBase(
             llm_client=MockLLM(
                 [
-                    LLMResult(content="bad", tool_calls=[]),
-                    LLMResult(
-                        content="good",
-                        tool_calls=[{"function": {"name": "required_tool"}}],
-                    ),
+                    LLMResult(content="good", tool_calls=[]),
                 ]
             ),
             retry_policy=NodeRetryPolicy(
-                max_attempts=2,
-                required_tool_calls=["required_tool"],
+                max_attempts=1,
             ),
             monitor=node_monitor,
         )
@@ -305,8 +262,9 @@ class TestAgentMonitorIndependence:
         # Both monitors should have been called
         assert len(agent_monitor.before_calls) == 1
         assert len(agent_monitor.after_calls) == 1
-        assert len(node_monitor.before_calls) == 2
-        assert len(node_monitor.after_calls) == 1
+        # __call__ is single-shot: one before-hook, no after-hook (no retry)
+        assert len(node_monitor.before_calls) == 1
+        assert len(node_monitor.after_calls) == 0
 
     def test_agent_monitor_attempt_always_one(self):
         """AgentMonitor always receives attempt=1 at agent level."""
@@ -314,16 +272,11 @@ class TestAgentMonitorIndependence:
         config = NodeConfigBase(
             llm_client=MockLLM(
                 [
-                    LLMResult(content="bad", tool_calls=[]),
-                    LLMResult(
-                        content="good",
-                        tool_calls=[{"function": {"name": "required_tool"}}],
-                    ),
+                    LLMResult(content="good", tool_calls=[]),
                 ]
             ),
             retry_policy=NodeRetryPolicy(
-                max_attempts=2,
-                required_tool_calls=["required_tool"],
+                max_attempts=1,
             ),
             monitor=RecordingMonitor(),
         )

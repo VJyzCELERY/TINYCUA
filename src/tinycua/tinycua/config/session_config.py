@@ -66,6 +66,11 @@ class SessionConfig:
     # subdirectory under artifact_dir). Trace/transcript/logs are still
     # written. Set via CLI --no-tool-audit.
     disable_tool_audit: bool = False
+    # When True, allow the ResultReviewer to emit ``OPEN_QUESTION`` decisions
+    # and bail to ResponseNode for unresolved upstream questions. Defaults to
+    # False — one-shot worker mode must not bail while tasks remain
+    # unfinished. Enable for interactive/exploratory sessions.
+    enable_open_question_review: bool = False
 
     def __post_init__(self) -> None:
         """Normalize filesystem paths supplied through the public API."""

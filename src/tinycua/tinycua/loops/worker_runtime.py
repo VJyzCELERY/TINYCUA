@@ -6,7 +6,6 @@ from dataclasses import dataclass
 
 from tinycua.config.node_config import create_node_config
 from tinycua.loops.node_queue import NodeQueue
-from tinycua.loops.response_node import ResponseNode  # noqa: F401 — used if OPEN_QUESTION re-enabled
 from tinycua.loops.task_nodes import (
     TinyCUAAnalysisEffortNode,
     TinyCUAResultAggregationNode,
@@ -20,9 +19,18 @@ from tinycua.models.task import ReviewerDecision, TaskStateStore
 
 @dataclass
 class WorkerRuntimeController:
-    """Mutate worker queues from task state instead of fixed linear chains."""
+    """Mutate worker queues from task state instead of fixed linear chains.
+
+    Attributes:
+        store: The session-owned task tree.
+        enable_open_question_review: When True, allow ``OPEN_QUESTION``
+            reviewer decisions to bail to ResponseNode for unresolved
+            upstream questions. Defaults to False — one-shot worker mode
+            must not bail while tasks remain unfinished.
+    """
 
     store: TaskStateStore
+    enable_open_question_review: bool = False
 
     def schedule_initial(self, queue: NodeQueue) -> None:
         """Schedule the initial analysis-through-review lifecycle."""
@@ -92,17 +100,19 @@ class WorkerRuntimeController:
         if decision == ReviewerDecision.REPLAN.value:
             self.schedule_replan(queue)
             return
-        # OPEN_QUESTION disabled for prototype — never bail to ResponseNode
-        # while tasks remain. Fall through to schedule_next, which only
-        # reaches result_aggregation (and then response) when all tasks done.
-        # if decision == ReviewerDecision.OPEN_QUESTION.value:
-        #     queue.items.append(
-        #         ResponseNode(
-        #             node_id="response",
-        #             config=create_node_config("response"),
-        #         )
-        #     )
-        #     return
+        if (
+            decision == ReviewerDecision.OPEN_QUESTION.value
+            and self.enable_open_question_review
+        ):
+            from tinycua.loops.response_node import ResponseNode
+
+            queue.items.append(
+                ResponseNode(
+                    node_id="response",
+                    config=create_node_config("response"),
+                )
+            )
+            return
         self.schedule_next(queue)
 
     def schedule_next(self, queue: NodeQueue) -> None:

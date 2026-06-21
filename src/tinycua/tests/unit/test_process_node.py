@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from tinycua.config.node_config import NodeConfigBase, NodeRetryPolicy
-from tinycua.config.types import LLMResult, ValidationResult
+from tinycua.config.node_config import NodeConfigBase
+from tinycua.config.types import LLMResult
 from tinycua.loops.node import NodeExecutionError, ProcessNode
 from tinycua.models.node_input import NodeInput, NodePayload
 from tinycua.models.session import Session
@@ -136,59 +136,6 @@ class TestProcessNodeCallLLM:
         assert isinstance(result, LLMResult)
         assert result.content == "test"
         assert result.role == "assistant"
-
-
-class TestProcessNodeRetry:
-    """Tests for ProcessNode retry behavior."""
-
-    def test_retries_on_validation_failure(self) -> None:
-        """ProcessNode retries when validation fails."""
-        mock_llm = MockLLM(response="retry result")
-        config = NodeConfigBase(
-            llm_client=mock_llm,
-            retry_policy=NodeRetryPolicy(max_attempts=3),
-        )
-        node = ProcessNode(node_id="test", config=config, instruction="Inst")
-        node.session = Session()
-
-        call_count = 0
-
-        def patched_validate(response: LLMResult) -> ValidationResult:  # noqa: ARG001
-            nonlocal call_count
-            call_count += 1
-            result = ValidationResult()
-            if call_count < 3:
-                result.is_valid = False
-                result.errors = ["fail"]
-            else:
-                result.is_valid = True
-            return result
-
-        node.validate_output = patched_validate  # type: ignore[method-assign]
-        node("Trigger retry")
-
-        assert mock_llm.call_count == 3
-
-    def test_raises_on_exhaustion(self) -> None:
-        """ProcessNode raises when retry exhausted with policy='raise'."""
-        mock_llm = MockLLM(response="fail")
-        config = NodeConfigBase(
-            llm_client=mock_llm,
-            retry_policy=NodeRetryPolicy(max_attempts=2, on_retry_exhausted="raise"),
-        )
-        node = ProcessNode(node_id="test", config=config, instruction="Inst")
-        node.session = Session()
-
-        def always_invalid(response: LLMResult) -> ValidationResult:  # noqa: ARG001
-            r = ValidationResult()
-            r.is_valid = False
-            r.errors = ["always fail"]
-            return r
-
-        node.validate_output = always_invalid  # type: ignore[method-assign]
-
-        with pytest.raises(NodeExecutionError, match="Retry exhausted"):
-            node("Fail")
 
 
 class TestProcessNodeBuildMessages:

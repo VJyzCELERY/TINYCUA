@@ -135,6 +135,15 @@ def _add_run_arguments(parser: argparse.ArgumentParser) -> None:
         help="Suppress per-tool-call audit JSON files (use with --save-artifacts "
         "when you want trace/transcript but not tool-call audit spam).",
     )
+    parser.add_argument(
+        "--allow-open-question",
+        dest="allow_open_question",
+        action="store_true",
+        default=False,
+        help="Allow the ResultReviewer to emit OPEN_QUESTION decisions and bail "
+        "to ResponseNode for unresolved upstream questions. Disabled by default "
+        "— one-shot worker mode must not bail while tasks remain unfinished.",
+    )
 
 
 def _normalise_run_args(args: argparse.Namespace) -> None:
@@ -225,6 +234,7 @@ def main() -> None:
             task_tree=args.task_tree,
             save_artifacts=args.save_artifacts,
             no_tool_audit=args.no_tool_audit,
+            allow_open_question=args.allow_open_question,
         )
         raise SystemExit(exit_code)
 

@@ -24,7 +24,6 @@ if TYPE_CHECKING:
     from tinycua.loops.node_queue import NodeQueue
 
 logger = logging.getLogger(__name__)
-_UNBOUNDED_RETRY_ATTEMPTS = 1_000_000_000
 
 
 # Internal bookkeeping messages that should never reach the LLM.
@@ -738,10 +737,14 @@ class ProcessNode(Node):
         return raw_response  # type: ignore[return-value]
 
     def __call__(self, input: NodeInputLike) -> LLMResult:
-        """Execute the node with the given input.
+        """Execute the node with a single LLM call (no retry loop).
 
-        Orchestrates: build messages → validate → call LLM → retry loop →
-        record → propagate → on_complete.
+        The loop-owned path (:meth:`TinyCUALoop._call_node_with_retry`) owns
+        retry, validation, and recovery. This method is a thin single-shot
+        entrypoint kept for direct unit tests and the ``node.run`` /
+        ``node.stream`` delegation path. It does NOT retry on validation
+        failure — callers that need retry must go through the loop-owned
+        path or :meth:`Node.run`.
 
         Args:
             input: The node input.
@@ -750,66 +753,27 @@ class ProcessNode(Node):
             The LLM response.
 
         Raises:
-            NodeExecutionError: If retry is exhausted and policy is "raise".
+            NodeExecutionError: If no session or LLM client is configured.
         """
         if self.session is None:
             msg = f"Node {self.node_id} has no session attached"
             raise NodeExecutionError(msg)
 
         messages = self.build_messages(self.session, input)
-        retry_policy = self.config.retry_policy
-        max_attempts = (
-            _UNBOUNDED_RETRY_ATTEMPTS
-            if retry_policy.max_attempts is None
-            else max(retry_policy.max_attempts, 1)
-        )
 
-        last_response: LLMResult | None = None
-        for attempt in range(1, max_attempts + 1):
-            # Fire monitor before-hook
-            if self.config.monitor is not None:
-                self._safe_call(
-                    self.config.monitor.on_before_node_call,
-                    self.node_id,
-                    self.session.session_id,
-                    attempt,
-                    messages,
-                    [],
-                )
+        # Fire monitor before-hook
+        if self.config.monitor is not None:
+            self._safe_call(
+                self.config.monitor.on_before_node_call,
+                self.node_id,
+                self.session.session_id,
+                1,
+                messages,
+                [],
+            )
 
-            last_response = self._call_llm(messages)
-
-            validation = self.validate_output(last_response)
-            if validation.is_valid:
-                break
-
-            # Fire monitor after-hook (validation failed)
-            if self.config.monitor is not None:
-                self._safe_call(
-                    self.config.monitor.on_after_node_call,
-                    self.node_id,
-                    self.session.session_id,
-                    attempt,
-                    last_response,
-                    validation,
-                )
-
-            # Validation failed — retry or exhaust
-            if attempt < max_attempts:
-                error = ValidationError("; ".join(validation.errors))
-                retry_text = self._build_retry_text(error, attempt)
-                messages.append(
-                    {"role": "user", "content": f"[System: {retry_text}]"}  # type: ignore[misc]
-                )
-            else:
-                # Exhausted — handle per policy
-                self._handle_exhaustion(validation, max_attempts)
-
-        assert last_response is not None  # noqa: S101
+        last_response = self._call_llm(messages)
         self.record_output(last_response)
-        self.propagate()
-        # NOTE: on_complete is NOT called here — the orchestrator
-        # (TinyCUALoop._execute_node) calls on_complete with the real queue.
         return last_response
 
 
@@ -937,9 +901,13 @@ class DecisionNode(ProcessNode):
         )
 
     def __call__(self, input: NodeInputLike) -> DecisionResult:  # type: ignore[override]
-        """Execute the decision node with analysis + classification flow.
+        """Execute the decision node with a single analysis + classification.
 
-        Includes retry loop for classification validation.
+        The loop-owned path (:meth:`TinyCUALoop._call_node_with_retry`) owns
+        retry on classification validation failure. This method is a thin
+        single-shot entrypoint kept for direct unit tests. It does NOT retry
+        on invalid classification — callers that need retry must go through
+        the loop-owned path or :meth:`Node.run`.
 
         Args:
             input: The node input.
@@ -948,74 +916,44 @@ class DecisionNode(ProcessNode):
             DecisionResult with route label and LLM responses.
 
         Raises:
-            NodeExecutionError: If no session is attached, LLM fails,
-                or classification retry is exhausted.
+            NodeExecutionError: If no session is attached or LLM fails.
         """
         if self.session is None:
             msg = f"Node {self.node_id} has no session attached"
             raise NodeExecutionError(msg)
 
         messages = self.build_messages(self.session, input)
-        retry_policy = self.config.retry_policy
-        max_attempts = (
-            _UNBOUNDED_RETRY_ATTEMPTS
-            if retry_policy.max_attempts is None
-            else max(retry_policy.max_attempts, 1)
-        )
 
-        last_analysis: LLMResult | None = None
-        last_classification: LLMResult | None = None
+        # Fire monitor before-hook
+        if self.config.monitor is not None:
+            self._safe_call(
+                self.config.monitor.on_before_node_call,
+                self.node_id,
+                self.session.session_id,
+                1,
+                messages,
+                [],
+            )
+
+        # Step 1: Analysis call
+        last_analysis = self._analysis_call(messages)
+
+        # Step 2: Classification call
+        last_classification = self._classification_call(messages, last_analysis)
+
+        # Step 3: Validate + dispatch (single-shot — no retry)
+        validation = self._validate_classification(last_classification)
         route_label = ""
-
-        for attempt in range(1, max_attempts + 1):
-            # Fire monitor before-hook
-            if self.config.monitor is not None:
-                self._safe_call(
-                    self.config.monitor.on_before_node_call,
-                    self.node_id,
-                    self.session.session_id,
-                    attempt,
-                    messages,
-                    [],
-                )
-
-            # Step 1: Analysis call
-            last_analysis = self._analysis_call(messages)
-
-            # Step 2: Classification call
-            last_classification = self._classification_call(messages, last_analysis)
-
-            # Step 3: Validate classification
-            validation = self._validate_classification(last_classification)
-            if validation.is_valid:
-                route_label = self._dispatch_route(last_classification)
-                break
-
-            # Fire monitor after-hook (validation failed)
-            if self.config.monitor is not None:
-                self._safe_call(
-                    self.config.monitor.on_after_node_call,
-                    self.node_id,
-                    self.session.session_id,
-                    attempt,
-                    last_classification,
-                    validation,
-                )
-
-            # Classification failed — retry or exhaust
-            if attempt < max_attempts:
-                error = ValidationError("; ".join(validation.errors))
-                retry_text = self._build_retry_text(error, attempt)
-                messages.append(
-                    {"role": "user", "content": f"[System: {retry_text}]"}  # type: ignore[misc]
-                )
-            else:
-                # Exhausted
-                self._handle_exhaustion(validation, max_attempts)
-                route_label = ""
-
-        assert last_analysis is not None  # noqa: S101
-        assert last_classification is not None  # noqa: S101
+        if validation.is_valid:
+            route_label = self._dispatch_route(last_classification)
+        else:
+            # Single-shot: record exhaustion and return empty route. The
+            # loop-owned path handles retry; direct callers get the empty
+            # route and can inspect validation via the session diagnostics.
+            self._handle_exhaustion(
+                validation,
+                self.config.retry_policy.max_attempts or 1,
+            )
 
         # Record the classification response as output
         record_response = LLMResult(
@@ -1023,7 +961,6 @@ class DecisionNode(ProcessNode):
             role="assistant",
         )
         self.record_output(record_response)
-        self.propagate()
 
         return DecisionResult(
             route_label=route_label,

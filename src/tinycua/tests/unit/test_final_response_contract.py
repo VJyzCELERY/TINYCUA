@@ -10,7 +10,7 @@ from tinycua.config.session_config import SessionConfig
 from tinycua.config.types import LLMResult, ValidationResult
 from tinycua.config.node_config import NodeConfigBase
 from tinycua.loops.node_queue import NodeQueue
-from tinycua.loops.node import NodeExecutionError, ProcessNode
+from tinycua.loops.node import ProcessNode
 from tinycua.loops.response_node import ResponseNode
 from tinycua.loops.task_nodes import TinyCUAResultReviewerNode
 from tinycua.loops.task_nodes import TinyCUATaskAnalyzerNode

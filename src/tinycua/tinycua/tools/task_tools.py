@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from dataclasses import asdict
 
 from tinycua.config.types import Tool
 from tinycua.models.task import ReviewerDecision, TaskResult, TaskStateStore, TaskStatus

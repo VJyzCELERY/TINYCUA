@@ -8,7 +8,7 @@ hallucination-prone UUIDs. The numbering must match the rendered order exactly.
 
 from __future__ import annotations
 
-from tinycua.models.task import TaskStateStore, TaskStatus
+from tinycua.models.task import TaskStateStore
 from tinycua.loops.task_nodes import _render_task_tree_markdown
 from tinycua.tools.task_tools import (
     TaskDecomposeTool,

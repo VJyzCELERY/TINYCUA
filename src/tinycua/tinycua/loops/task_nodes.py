@@ -681,7 +681,13 @@ class TinyCUAResultReviewerNode(ProcessNode):
 
         terminal_nodes = [node for node in queue.items[1:] if node.is_terminal]
         queue.clear_after_current()
-        WorkerRuntimeController(self.session.task_store).schedule_after_review(queue)
+        enable_oq = bool(
+            self.session.session_config.enable_open_question_review
+        ) if self.session.session_config is not None else False
+        WorkerRuntimeController(
+            self.session.task_store,
+            enable_open_question_review=enable_oq,
+        ).schedule_after_review(queue)
         existing_terminal_ids = {
             node.node_id for node in queue.items if node.is_terminal
         }

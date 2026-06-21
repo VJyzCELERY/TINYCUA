@@ -6,7 +6,6 @@ import argparse
 import asyncio
 import json
 import logging
-import os
 import time
 import threading
 from collections.abc import Coroutine
@@ -106,6 +105,7 @@ def run_command(
     task_tree: bool = False,
     save_artifacts: bool = False,
     no_tool_audit: bool = False,
+    allow_open_question: bool = False,
 ) -> int:
     """Execute the tinycua run command (always streaming).
 
@@ -129,6 +129,9 @@ def run_command(
         trace: Print execution trace, task tree, and workspace summary.
         task_tree: Print only the flat task tree after the run.
         save_artifacts: Write trace JSON, transcript, and logs to disk.
+        no_tool_audit: Suppress per-tool-call audit JSON files.
+        allow_open_question: Allow OPEN_QUESTION reviewer decisions to bail
+            to ResponseNode. Disabled by default for one-shot worker mode.
 
     Returns:
         Exit code: 0 success, 1 error, 124 timeout.
@@ -193,6 +196,7 @@ def run_command(
                 artifact_dir=artifact_dir,
                 worker_effort=worker_effort,
                 disable_tool_audit=no_tool_audit,
+                enable_open_question_review=allow_open_question,
             ),
             llm_model=build_language_model(config),
         )

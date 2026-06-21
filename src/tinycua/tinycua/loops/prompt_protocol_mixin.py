@@ -429,11 +429,6 @@ class PromptProtocolMixin:
             return None
         return "required"
 
-    def _requires_any_tool_choice(self, node: Node) -> bool:
-        """Return whether a node must call some tool but not one fixed tool."""
-        del node
-        return False
-
     def _llm_tools_for_required_choice(
         self,
         node: Node,

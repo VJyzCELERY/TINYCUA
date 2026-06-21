@@ -11,7 +11,6 @@ from tinycua.config.node_config import NodeConfigBase, NodeToolPolicy, create_no
 from tinycua.config.types import LLMResult, Tool
 from tinycua.config.types import ValidationError
 from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
-from tinycua.loops.node import NodeExecutionError
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.loops.task_nodes import TinyCUATaskAssessorNode, TinyCUATaskExecutorNode

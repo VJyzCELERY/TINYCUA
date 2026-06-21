@@ -222,16 +222,6 @@ class ValidationRetryMixin:
                 llm_result.content = task.result.content
                 return
 
-    def _route_task_executor_failure_to_reviewer(
-        self,
-        node: Node,
-        validation: ValidationResult,
-        llm_result: LLMResult,
-    ) -> bool:
-        """TaskExecutor validation failures are not reviewer-owned results."""
-        del node, validation, llm_result
-        return False
-
     def _recover_task_executor_validation_failure(
         self,
         node: Node,

@@ -27,7 +27,6 @@ earlier bound).
 from __future__ import annotations
 
 import hashlib
-import os
 from pathlib import Path
 
 _PERSIST_THRESHOLD = 100_000      # persist a single result above this
@@ -334,7 +333,6 @@ def _self_check() -> None:
     enforce_turn_budget(small_msgs)
     assert all(m["content"] == "X" * 1_000 for m in small_msgs)  # untouched
 
-    print("output_persist.py self-check OK")
     print("output_persist.py self-check OK")
 
 

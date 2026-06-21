@@ -19,15 +19,19 @@ class TaskStatus(StrEnum):
 
 
 class ReviewerDecision(StrEnum):
-    """Review decision for a task result."""
+    """Review decision for a task result.
+
+    ``OPEN_QUESTION`` is disabled by default (``enable_open_question_review``
+    in :class:`SessionConfig`). When enabled, the reviewer may bail to the
+    ResponseNode for unresolved upstream questions; when disabled (default),
+    the reviewer must not bail while tasks remain unfinished.
+    """
 
     APPROVED = "approved"
     NEEDS_REVISION = "needs_revision"
     REJECTED = "rejected"
     REPLAN = "replan"
-    # OPEN_QUESTION = "open_question"  # disabled for prototype — reviewer
-    #   must not bail to ResponseNode while tasks remain unfinished. The
-    #   routing branch is also commented out in worker_runtime.schedule_after_review.
+    OPEN_QUESTION = "open_question"
 
 
 @dataclass

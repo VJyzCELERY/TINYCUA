@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from tinycua.config.types import LLMResult, ValidationError, ValidationResult
 from tinycua.loops.context_rendering import sanitize_internal_reprs
-from tinycua.loops.node import NodeExecutionError, NodeRunContext
+from tinycua.loops.node import NodeRunContext
 from tinycua.loops.propagation import PropagationRule, finalize_terminal_output, propagate_on_termination
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.models.node_handoff import NodeHandoff
@@ -268,47 +268,28 @@ class OrchestrationMixin:
                 trace_entry["validation_errors"] = list(validation.errors)
                 self._execution_trace.append(trace_entry)
                 return content, llm_result.tool_calls
-            if not self._route_task_executor_failure_to_reviewer(
-                node,
-                validation,
-                llm_result,
-            ):
-                # Unbounded tightened-retry loop — never exits until validation
-                # passes. No graceful continue, no exit-0 escape hatch.
-                recovered_result, _ = await self._unbounded_recovery(
-                    node, agent, resolved_tools, llm_result, validation
-                )
-                trace_entry = self._trace_entry(
-                    node,
-                    attempt,
-                    resolved_tools,
-                    recovered_result.content,
-                    recovered_result,
-                )
-                trace_entry["validation_errors"] = []
-                trace_entry["recovery"] = "unbounded_recovery"
-                self._execution_trace.append(trace_entry)
-                llm_result = self._record_node_output(
-                    node, recovered_result.content, recovered_result.tool_calls
-                )
-                llm_result.metadata.update(dict(recovered_result.metadata))
-                if recovered_result.content:
-                    self._record_node_content_transcript(node, recovered_result.content)
-                return recovered_result.content, recovered_result.tool_calls
-            on_complete_response = self._build_on_complete_response(node, llm_result)
+            # Unbounded tightened-retry loop — never exits until validation
+            # passes. No graceful continue, no exit-0 escape hatch.
+            recovered_result, _ = await self._unbounded_recovery(
+                node, agent, resolved_tools, llm_result, validation
+            )
             trace_entry = self._trace_entry(
                 node,
                 attempt,
                 resolved_tools,
-                on_complete_response,
-                llm_result,
+                recovered_result.content,
+                recovered_result,
             )
-            trace_entry["validation_errors"] = list(validation.errors)
+            trace_entry["validation_errors"] = []
+            trace_entry["recovery"] = "unbounded_recovery"
             self._execution_trace.append(trace_entry)
-            failure_content = self._validation_failure_content(node, validation)
-            self._record_node_output(node, failure_content, [])
-            self._record_node_content_transcript(node, failure_content)
-            return failure_content, []
+            llm_result = self._record_node_output(
+                node, recovered_result.content, recovered_result.tool_calls
+            )
+            llm_result.metadata.update(dict(recovered_result.metadata))
+            if recovered_result.content:
+                self._record_node_content_transcript(node, recovered_result.content)
+            return recovered_result.content, recovered_result.tool_calls
         llm_result = self._record_node_output(node, content, llm_result.tool_calls)
         llm_result.metadata.update(result_metadata)
         if content:
@@ -958,11 +939,11 @@ class OrchestrationMixin:
         cycle: int,
         stage_results: dict[str, bool],
     ) -> None:
-        """Log system state to stderr on every recovery cycle for traceability.
+        """Log system state on every recovery cycle for traceability.
 
-        Emits a structured block showing the node, validation errors, task
+        Emits a structured log record showing the node, validation errors, task
         store state, queue contents, and which recovery stages failed. This
-        makes stuck loops visible in stderr.log without decoding stdout.
+        makes stuck loops visible in logs without decoding stdout.
         """
         store = self.root_session.task_store
         total = len(store.tasks)
@@ -974,18 +955,21 @@ class OrchestrationMixin:
         queue_ids = [n.node_id for n in self.queue.items]
         errors = "; ".join(validation.errors) or "unknown"
         stages = ", ".join(f"{k}={'OK' if v else 'FAIL'}" for k, v in stage_results.items())
-        import sys
-        print(
-            f"[tinycua] node={node.node_id} stuck — recovery cycle {cycle}\n"
-            f"  validation errors: {errors}\n"
-            f"  task_store: root={root_id}, active={active_id}, "
-            f"completed={completed}/{total}, pending={pending}, "
-            f"in_progress={in_progress}\n"
-            f"  stages: {stages}\n"
-            f"  queue: {queue_ids}\n"
-            f"  retrying with tightened context...",
-            file=sys.stderr,
-            flush=True,
+        logger.warning(
+            "node=%s stuck — recovery cycle=%d errors=%s "
+            "task_store root=%s active=%s completed=%d/%d pending=%d in_progress=%d "
+            "stages=[%s] queue=%s retrying with tightened context",
+            node.node_id,
+            cycle,
+            errors,
+            root_id,
+            active_id,
+            completed,
+            total,
+            pending,
+            in_progress,
+            stages,
+            queue_ids,
         )
 
     async def _unbounded_recovery(
@@ -1302,51 +1286,35 @@ class OrchestrationMixin:
                     max_attempts,
                 )
             return
-        if not self._route_task_executor_failure_to_reviewer(
+        # Unbounded tightened-retry loop — never exits until validation
+        # passes. Cycles through focused → tightening → judge stages,
+        # logging state to stderr each cycle. No graceful continue, no
+        # exit-0 escape hatch. The node must produce valid output before
+        # the queue can advance past it (queue integrity invariant).
+        recovered_result, _ = await self._unbounded_recovery(
+            node, agent, resolved_tools, llm_result, validation
+        )
+        recovery_content = recovered_result.content or combined
+        # Record the recovered output and fire on_complete so the queue
+        # gets the next nodes (schedule_after_review / schedule_next).
+        self._record_node_output(node, recovery_content, recovered_result.tool_calls)
+        recovered_result.metadata = dict(recovered_result.metadata)
+        if recovery_content:
+            self._record_node_content_transcript(node, recovery_content)
+        self._record_tool_result_transcripts(
             node,
-            validation,
-            llm_result,
-        ):
-            # Unbounded tightened-retry loop — never exits until validation
-            # passes. Cycles through focused → tightening → judge stages,
-            # logging state to stderr each cycle. No graceful continue, no
-            # exit-0 escape hatch. The node must produce valid output before
-            # the queue can advance past it (queue integrity invariant).
-            recovered_result, _ = await self._unbounded_recovery(
-                node, agent, resolved_tools, llm_result, validation
-            )
-            recovery_content = recovered_result.content or combined
-            # Record the recovered output and fire on_complete so the queue
-            # gets the next nodes (schedule_after_review / schedule_next).
-            self._record_node_output(node, recovery_content, recovered_result.tool_calls)
-            recovered_result.metadata = dict(recovered_result.metadata)
-            if recovery_content:
-                self._record_node_content_transcript(node, recovery_content)
-            self._record_tool_result_transcripts(
-                node,
-                recovered_result.metadata.get("tool_results", []),
-            )
-            self._apply_loop_result_hook(node, recovered_result, None)
-            self._publish_structured_outputs_to_root(node)
-            self._maybe_populate_root_mission(node)
-            self._maybe_warn_reviewer_no_verification(node, recovered_result)
-            self._apply_task_lifecycle_marker(node, recovery_content)
-            on_complete_response = self._build_on_complete_response(node, recovered_result)
-            node.on_complete(self.queue, on_complete_response)
-            async for event in self._stream_node_completed(
-                node,
-                recovery_content,
-                emit_lifecycle,
-                include_meta,
-                final_only,
-                node_type,
-                max_attempts,
-            ):
-                yield event
-            return
+            recovered_result.metadata.get("tool_results", []),
+        )
+        self._apply_loop_result_hook(node, recovered_result, None)
+        self._publish_structured_outputs_to_root(node)
+        self._maybe_populate_root_mission(node)
+        self._maybe_warn_reviewer_no_verification(node, recovered_result)
+        self._apply_task_lifecycle_marker(node, recovery_content)
+        on_complete_response = self._build_on_complete_response(node, recovered_result)
+        node.on_complete(self.queue, on_complete_response)
         async for event in self._stream_node_completed(
             node,
-            combined,
+            recovery_content,
             emit_lifecycle,
             include_meta,
             final_only,
@@ -1354,6 +1322,7 @@ class OrchestrationMixin:
             max_attempts,
         ):
             yield event
+        return
 
     async def _stream_node_completed(
         self,
