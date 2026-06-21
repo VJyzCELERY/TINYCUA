@@ -543,25 +543,31 @@ class TinyCUATaskExecutorNode(ProcessNode):
             workspace_dir = str(session.session_config.workspace_dir)
         mission = _render_mission_block(session)
         mission_prefix = f"{mission}\n\n" if mission else ""
-        # When the active task is a parent (has children, all completed), this
-        # is a verification pass — the executor verifies the children's work
-        # achieves the parent's goal, makes adjustments if needed, then reports
-        # the outcome via task_result_update. Not new execution.
+        # Child Verification Gate: when the active task is a parent (has
+        # children), the executor must verify that the children's combined
+        # work achieves the parent's goal. Only DIRECT children are listed —
+        # grandchildren were already verified by the child's own gate.
         verification_note = ""
         if active.children:
-            child_statuses = []
+            child_lines = []
             for child_id in active.children:
                 child = session.task_store.tasks.get(child_id)
                 if child:
-                    child_statuses.append(f"  - [{child.status.value}] {child.title}")
+                    line = f"  - [{child.status.value}] {child.title}"
+                    if child.result and child.result.summary:
+                        line += f" — {child.result.summary[:120]}"
+                    child_lines.append(line)
             verification_note = (
-                "\n## Verification Pass\n"
-                "All child tasks are complete. This is a PARENT task — verify "
-                "that the children's combined work achieves this task's goal. "
-                "Run tests, check integration, verify the app starts. Fix "
-                "issues if needed. Then call task_result_update with the "
-                "verification outcome.\n\n"
-                "Child tasks:\n" + "\n".join(child_statuses) + "\n"
+                "\n## Child Task Verification Gate\n"
+                "This is a PARENT task with completed child tasks. For this "
+                "task to be approved, all child tasks below must remain "
+                "completed and their results must still be valid. Verify "
+                "integration — run tests, check the app starts, confirm "
+                "endpoints are wired. Fix issues if needed. Do NOT re-execute "
+                "the children.\n\n"
+                "Child tasks (direct children only):\n"
+                + "\n".join(child_lines)
+                + "\n"
             )
         path_note = (
             f"Workspace root: {workspace_dir or 'not configured'}\n"
@@ -677,13 +683,37 @@ class TinyCUAResultReviewerNode(ProcessNode):
                 f"to succeed; consider replan (the plan may be wrong) rather than "
                 f"another retry.\n"
             )
+        # Child Verification Gate: when reviewing a parent task (has children),
+        # surface the direct children so the reviewer knows it's a verification
+        # review, not a leaf review. Only direct children — grandchildren were
+        # already verified by the child's own gate.
+        child_gate = ""
+        if task.children:
+            child_lines = []
+            for child_id in task.children:
+                child = session.task_store.tasks.get(child_id)
+                if child:
+                    line = f"  - [{child.status.value}] {child.title}"
+                    if child.result and child.result.summary:
+                        line += f" — {child.result.summary[:120]}"
+                    child_lines.append(line)
+            child_gate = (
+                "\n## Child Task Verification Gate\n"
+                "This is a PARENT task. For this task to be approved, all "
+                "child tasks below must remain completed and their results "
+                "must still be valid. Verify integration — do not re-execute "
+                "the children.\n\n"
+                "Child tasks (direct children only):\n"
+                + "\n".join(child_lines)
+                + "\n"
+            )
         return (
             f"{mission_prefix}Task under review: {task.task_id} — {task.title}\n"
             f"Task status: {task.status.value}\n"
             f"Outcome report: {result_content}\n"
             f"{_render_request_contract(session)}\n"
             f"Unified task context:\n{session.task_store.render_markdown()}\n"
-            f"{unfinished_block}{failure_note}\n{base}"
+            f"{unfinished_block}{child_gate}{failure_note}\n{base}"
         )
 
     def _task_to_review(self):
@@ -799,16 +829,24 @@ class TinyCUAResultAggregationNode(ProcessNode):
         )
 
     def build_continuation(self, session: Session | None = None) -> str:
-        """Build aggregation continuation with completed task evidence as markdown."""
+        """Build aggregation continuation with completed task evidence as markdown.
+
+        Tasks are listed in reverse execution order (last-completed leaf first,
+        root goal last) — most relevant context first.
+        """
         base = super().build_continuation(session)
         if session is None:
             return base
-        # Render completed tasks as clean markdown — NOT a Python repr.
-        # The old code did f"Completed task evidence: {task_summaries}" which
-        # emitted a raw list[dict] repr that confused the response node.
+        store = session.task_store
         lines: list[str] = []
-        for task in session.task_store.tasks.values():
-            if task.result is None:
+        # Reverse post-order: last-executed leaf first, root last.
+        ordered_ids = list(reversed(store._ordered_ids()))
+        # Append root last (it's the goal, not in _ordered_ids).
+        if store.root_task_id and store.root_task_id in store.tasks:
+            ordered_ids.append(store.root_task_id)
+        for task_id in ordered_ids:
+            task = store.tasks.get(task_id)
+            if task is None or task.result is None:
                 continue
             status_mark = " ✓" if task.status.value == "completed" else ""
             lines.append(f"- **{task.title}** [{task.status.value}]{status_mark}")
@@ -858,25 +896,32 @@ class TinyCUAResultAggregationNode(ProcessNode):
         )
 
     def _summarize_task_results(self) -> str:
-        """Summarize child task outputs for aggregation content."""
+        """Summarize child task outputs for aggregation content (reverse execution order)."""
         if self.session is None:
             return "Completed worker roadmap."
+        store = self.session.task_store
         parts = []
-        for task in self.session.task_store.tasks.values():
-            if task.result is not None and task.parent_id is not None:
+        for task_id in reversed(store._ordered_ids()):
+            task = store.tasks.get(task_id)
+            if task and task.result is not None and task.parent_id is not None:
                 parts.append(f"{task.title}: {task.result.content}")
         return "\n".join(parts) or "Completed worker roadmap."
 
     def _build_aggregated_result(self, model_context: str) -> AggregatedResult:
-        """Build a response-ready aggregation from roadmap state."""
+        """Build a response-ready aggregation from roadmap state (reverse execution order)."""
         if self.session is None or self.session.task_store.root_task_id is None:
             return AggregatedResult(root_task_id="", final_context=model_context)
         store = self.session.task_store
         task_summaries: list[str] = []
         accepted_results: list[TaskResult] = []
         artifacts: list[dict] = []
-        for task in store.tasks.values():
-            if task.result is None:
+        # Reverse post-order: last-executed leaf first, root last.
+        ordered_ids = list(reversed(store._ordered_ids()))
+        if store.root_task_id and store.root_task_id in store.tasks:
+            ordered_ids.append(store.root_task_id)
+        for task_id in ordered_ids:
+            task = store.tasks.get(task_id)
+            if task is None or task.result is None:
                 continue
             task_summaries.append(f"{task.title}: {task.result.summary}")
             accepted_results.append(task.result)
