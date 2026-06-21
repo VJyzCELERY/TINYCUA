@@ -1,0 +1,5 @@
+Experiment_1: Hello there
+Experiment_2: Can you search the current latest and best frontier LLM model and how good are they? Write your findings down on a report.md
+Experiment_3: Make me a simple analog clock app with animation in a single HTML file
+Experiment_4: Can you make me an app like Notion using python for the backend, intuitive webui for the frontend and SQLite for the primary storage / database
+Experiment_5: Can you do a research on Neural Networks and Transformer for me and write me a comprehensive studying docs using markdown for me to read and learn more about them?
