@@ -185,10 +185,7 @@ class ValidationRetryMixin:
         """Expose latest retry feedback tool results to current validation."""
         if not retry_tool_results:
             return
-        current = [
-            item for item in llm_result.metadata.get("tool_results", [])
-            if isinstance(item, dict)
-        ]
+        current = self._tool_results_from_llm_result(llm_result)
         llm_result.metadata["tool_results"] = [*retry_tool_results, *current]
 
     def _tool_results_from_llm_result(
@@ -445,10 +442,7 @@ class ValidationRetryMixin:
         validation = ValidationResult(is_valid=True, errors=[])
         if node.node_id != "result_reviewer":
             return validation
-        tool_results = [
-            item for item in llm_result.metadata.get("tool_results", [])
-            if isinstance(item, dict)
-        ]
+        tool_results = self._tool_results_from_llm_result(llm_result)
         for item in reversed(tool_results):
             if item.get("name") != "task_review_decision":
                 continue
@@ -483,10 +477,7 @@ class ValidationRetryMixin:
         validation = ValidationResult(is_valid=True, errors=[])
         if node.node_id != "result_reviewer":
             return validation
-        tool_results = [
-            item for item in llm_result.metadata.get("tool_results", [])
-            if isinstance(item, dict)
-        ]
+        tool_results = self._tool_results_from_llm_result(llm_result)
         decision_result = None
         for item in reversed(tool_results):
             if item.get("name") == "task_review_decision":
@@ -539,10 +530,7 @@ class ValidationRetryMixin:
         validation = ValidationResult(is_valid=True, errors=[])
         if node.node_id != "result_reviewer":
             return validation
-        tool_results = [
-            item for item in llm_result.metadata.get("tool_results", [])
-            if isinstance(item, dict)
-        ]
+        tool_results = self._tool_results_from_llm_result(llm_result)
         has_decision = any(
             item.get("name") == "task_review_decision"
             and isinstance(item.get("output"), dict)
@@ -579,10 +567,7 @@ class ValidationRetryMixin:
         validation = ValidationResult(is_valid=True, errors=[])
         if node.node_id not in self._TERMINATED_NODE_IDS:
             return validation
-        tool_results = [
-            item for item in llm_result.metadata.get("tool_results", [])
-            if isinstance(item, dict)
-        ]
+        tool_results = self._tool_results_from_llm_result(llm_result)
         if not self._worker_lifecycle_ready_to_terminate(node.node_id, tool_results):
             return validation
         has_terminate = any(
@@ -801,7 +786,7 @@ class ValidationRetryMixin:
         validation = ValidationResult(is_valid=True, errors=[])
         if node.node_id != "task_executor":
             return validation
-        tool_results = [item for item in llm_result.metadata.get("tool_results", []) if isinstance(item, dict)]
+        tool_results = self._tool_results_from_llm_result(llm_result)
         if not tool_results:
             validation.is_valid = False
             validation.errors.append(
@@ -1427,10 +1412,7 @@ class ValidationRetryMixin:
         """
         if node.node_id != "result_reviewer":
             return
-        tool_results = [
-            item for item in llm_result.metadata.get("tool_results", [])
-            if isinstance(item, dict)
-        ]
+        tool_results = self._tool_results_from_llm_result(llm_result)
         # Find the latest approval.
         approved_task_id: str | None = None
         for item in reversed(tool_results):

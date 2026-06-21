@@ -6,6 +6,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from tinycua.loops.node import ProcessNode
+from tinycua.loops.session_context_query import find_latest_entry
 from tinycua.models.digested_information import DigestedInformation
 
 if TYPE_CHECKING:
@@ -103,37 +104,31 @@ class TinyCUATaskCreateNode(ProcessNode):
         Returns:
             A formatted string of digest context, or None if no digest.
         """
-        for entry in reversed(session.session_context):
-            # Handle both dict and SessionContextEntry
-            if isinstance(entry, dict):
-                content = entry.get("content")
-            else:
-                content = entry.content
-            if isinstance(content, DigestedInformation):
-                parts = [f"Request summary: {content.context_summary}"]
-                if content.original_query:
-                    parts.append(f"User request: {content.original_query}")
+        content = find_latest_entry(session, DigestedInformation)
+        if content is None:
+            return None
+        parts = [f"Request summary: {content.context_summary}"]
+        if content.original_query:
+            parts.append(f"User request: {content.original_query}")
 
-                if content.key_points:
-                    parts.append("Key Points:")
-                    parts.extend(f"  - {point}" for point in content.key_points)
+        if content.key_points:
+            parts.append("Key Points:")
+            parts.extend(f"  - {point}" for point in content.key_points)
 
-                if content.advisory_instructions:
-                    parts.append("Advisory Instructions:")
-                    parts.extend(
-                        f"  - {advice}" for advice in content.advisory_instructions
-                    )
+        if content.advisory_instructions:
+            parts.append("Advisory Instructions:")
+            parts.extend(
+                f"  - {advice}" for advice in content.advisory_instructions
+            )
 
-                if content.constraints:
-                    parts.append("Constraints:")
-                    parts.extend(
-                        f"  - {constraint}" for constraint in content.constraints
-                    )
+        if content.constraints:
+            parts.append("Constraints:")
+            parts.extend(
+                f"  - {constraint}" for constraint in content.constraints
+            )
 
-                if content.known_gaps:
-                    parts.append("Known Gaps:")
-                    parts.extend(f"  - {gap}" for gap in content.known_gaps)
+        if content.known_gaps:
+            parts.append("Known Gaps:")
+            parts.extend(f"  - {gap}" for gap in content.known_gaps)
 
-                return "\n".join(parts)
-
-        return None
+        return "\n".join(parts)

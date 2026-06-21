@@ -12,6 +12,7 @@ from typing import Any
 
 from tinycua_sdk.tools.decorators import tool
 
+from tinycua.agent.tools.native._timeout import bounded_timeout
 from tinycua.agent.tools.native.context import bind_workspace_to_tool, get_workspace_dir
 
 _DEFAULT_TIMEOUT_SECONDS = 30
@@ -21,16 +22,15 @@ _MAX_TIMEOUT_SECONDS = 30
 def _bounded_timeout(timeout: int) -> int | None:
     """Return a safe timeout, or None if the requested timeout exceeds the max.
 
-    Unlike the old silent clamp, this returns None to signal the caller to
-    reject the request with a clear error — consistent with run_shell.
+    Returns None to signal the caller to reject the request with a clear
+    error — consistent with run_shell's overflow handling.
     """
-    try:
-        requested = int(timeout)
-    except (TypeError, ValueError):
-        return _DEFAULT_TIMEOUT_SECONDS
-    if requested > _MAX_TIMEOUT_SECONDS:
-        return None  # signal rejection
-    return max(requested, 1)
+    return bounded_timeout(
+        timeout,
+        default=_DEFAULT_TIMEOUT_SECONDS,
+        max_seconds=_MAX_TIMEOUT_SECONDS,
+        reject_overflow=True,
+    )
 
 
 @tool

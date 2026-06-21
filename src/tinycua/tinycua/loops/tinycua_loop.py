@@ -20,6 +20,7 @@ from tinycua.loops.context_rendering import render_llm_content, sanitize_interna
 from tinycua.loops.node_contract import NodeState
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.models.node_handoff import NodeHandoff
+from tinycua.models.session_context_entry import entry_content
 from tinycua.agent.tools.native.output_persist import (
     enforce_turn_budget,
     evict_superseded_file_reads,
@@ -417,7 +418,7 @@ class TinyCUALoop(
             source = getattr(entry, "source_node_id", None)
             segment = getattr(entry, "segment", None)
             if source == "response" and segment == "output":
-                return render_llm_content(getattr(entry, "content", ""))
+                return render_llm_content(entry_content(entry))
         return ""
 
     def _normalize_system_messages(

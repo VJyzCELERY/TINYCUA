@@ -12,6 +12,8 @@ from tinycua.loops.node import NodeRunContext
 from tinycua.loops.propagation import PropagationRule, finalize_terminal_output, propagate_on_termination
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.models.node_handoff import NodeHandoff
+from tinycua.models.session_context_entry import entry_content
+from tinycua.loops.session_context_query import find_latest_entry
 
 if TYPE_CHECKING:
     from tinycua.loops.node import Node
@@ -87,12 +89,7 @@ class OrchestrationMixin:
             return  # idempotent: do not clobber an existing mission.
         from tinycua.models.digested_information import DigestedInformation
 
-        digest: DigestedInformation | None = None
-        for entry in reversed(self.root_session.session_context):
-            content = getattr(entry, "content", None)
-            if isinstance(content, DigestedInformation):
-                digest = content
-                break
+        digest = find_latest_entry(self.root_session, DigestedInformation)
         if digest is not None:
             root.metadata["mission"] = digest.original_query or ""
             root.metadata["inherited_constraints"] = list(digest.constraints)
@@ -547,7 +544,7 @@ class OrchestrationMixin:
         if node.node_id not in {"digester", "result_aggregation"}:
             return None
         for entry in reversed(node.session.session_context):
-            content = getattr(entry, "content", None)
+            content = entry_content(entry)
             if isinstance(content, DigestedInformation):
                 return NodeHandoff(
                     source_node=node.node_id,

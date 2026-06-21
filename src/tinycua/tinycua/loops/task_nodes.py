@@ -7,7 +7,9 @@ from typing import Any, TYPE_CHECKING
 from tinycua.config.node_config import create_node_config
 from tinycua.config.types import LLMResult
 from tinycua.loops.node import ProcessNode
+from tinycua.loops.session_context_query import find_latest_entry
 from tinycua.models.digested_information import DigestedInformation
+from tinycua.models.session_context_entry import entry_content
 from tinycua.models.task import (
     AggregatedResult,
     TaskResult,
@@ -485,13 +487,10 @@ def _render_request_contract(session: Session) -> str:
     """
     original = ""
     constraints: list[str] = []
-    for entry in reversed(session.session_context):
-        content = entry.get("content") if isinstance(entry, dict) else entry.content
-        if not isinstance(content, DigestedInformation):
-            continue
+    content = find_latest_entry(session, DigestedInformation)
+    if content is not None:
         original = content.original_query or original
-        constraints = [*content.constraints, *constraints]
-        break
+        constraints = list(content.constraints)
     if not original and not constraints:
         return ""
     lines = ["## Original user request"]
@@ -758,7 +757,7 @@ class TinyCUAResultReviewerNode(ProcessNode):
             # so the reviewer can still assess what happened
             transcript_lines = []
             for entry in session.session_context:
-                content = entry.get("content", "") if isinstance(entry, dict) else getattr(entry, "content", "")
+                content = entry_content(entry)
                 role = entry.get("role", "") if isinstance(entry, dict) else getattr(entry, "role", "")
                 if role and content:
                     transcript_lines.append(f"[{role}] {content}")
@@ -979,7 +978,7 @@ class TinyCUAResultAggregationNode(ProcessNode):
     ) -> None:
         """Persist aggregation output on the root task."""
         del node_input
-        if self.session is None or self.session.task_store.root_task_id is None:
+        if not self._has_root_task:
             return
         root_id = self.session.task_store.root_task_id
         store = self.session.task_store
@@ -994,16 +993,9 @@ class TinyCUAResultAggregationNode(ProcessNode):
         root.status = TaskStatus.COMPLETED
         aggregated = self._build_aggregated_result(llm_result.content)
         root.metadata["aggregated_result"] = aggregated.__dict__
-        from tinycua.models.session_context_entry import SessionContextEntry
+        from tinycua.models.session_context_entry import append_output_entry
 
-        self.session.session_context.append(
-            SessionContextEntry(
-                content=aggregated,
-                segment="output",
-                source_node_id=self.node_id,
-                source_session_id=self.session.session_id,
-            )
-        )
+        append_output_entry(self.session, aggregated, self.node_id)
 
     def _summarize_task_results(self) -> str:
         """Summarize child task outputs for aggregation content (reverse execution order)."""
@@ -1019,7 +1011,7 @@ class TinyCUAResultAggregationNode(ProcessNode):
 
     def _build_aggregated_result(self, model_context: str) -> AggregatedResult:
         """Build a response-ready aggregation from roadmap state (reverse execution order)."""
-        if self.session is None or self.session.task_store.root_task_id is None:
+        if not self._has_root_task:
             return AggregatedResult(root_task_id="", final_context=model_context)
         store = self.session.task_store
         task_summaries: list[str] = []

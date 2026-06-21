@@ -7,10 +7,12 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from tinycua.config.node_config import create_node_config
 from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
+from tinycua.loops._input_messages import extract_user_query
 from tinycua.loops.node import DecisionNode, DecisionResult, Node
+from tinycua.loops.session_context_query import has_entry
 from tinycua.loops.worker import TinyCUAWorkerNode
 from tinycua.models.digested_information import DigestedInformation
-from tinycua.models.node_input import NodeInput, convert_node_input_to_messages
+from tinycua.models.node_input import NodeInput
 
 if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
@@ -197,17 +199,7 @@ class TinyCUAQueryAnalystNode(DecisionNode):
         """
         if worker.session is None:
             return False
-
-        for entry in worker.session.session_context:
-            # Handle both dict and SessionContextEntry
-            if isinstance(entry, dict):
-                content = entry.get("content")
-            else:
-                content = entry.content
-            if isinstance(content, DigestedInformation):
-                return True
-
-        return False
+        return has_entry(worker.session, DigestedInformation)
 
     def _extract_user_query(self, input_data: NodeInputLike) -> str:
         """Extract original user query from input data.
@@ -219,27 +211,7 @@ class TinyCUAQueryAnalystNode(DecisionNode):
             The last user message content, or first message if no user role,
             or empty string if no messages.
         """
-        messages: list[dict[str, Any]] = []
-
-        if isinstance(input_data, NodeInput):
-            messages = input_data.messages
-        else:
-            try:
-                messages = convert_node_input_to_messages(input_data)
-            except (ValueError, TypeError):
-                return ""
-
-        if not messages:
-            return ""
-
-        # Try to find the last user message
-        for msg in reversed(messages):
-            if msg.get("role") == "user":
-                return str(msg.get("content", ""))
-
-        # Fallback to first message content
-        first = messages[0]
-        return str(first.get("content", ""))
+        return extract_user_query(input_data)
 
     def on_complete(
         self, queue: NodeQueue, response: LLMResult | DecisionResult

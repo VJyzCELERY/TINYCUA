@@ -9,32 +9,39 @@ from tinycua.config.types import Tool
 from typing import Any
 
 
-class TodoReadTool(Tool):
+class SessionTodoToolMixin:
+    """Mixin providing ``bind_todo_store`` for session-bound todo tools.
+
+    Centralises the identical 2-line ``bind_todo_store`` pattern that was
+    duplicated between ``TodoReadTool`` and ``TodoWriteTool``, mirroring
+    ``SessionTaskToolMixin`` in ``task_tools.py``.
+    """
+
+    _todo_store: list[dict[str, Any]]
+
+    def bind_todo_store(self, todo_store: list[dict[str, Any]]) -> None:
+        """Bind this tool to the active session's todo list."""
+        self._todo_store = todo_store
+
+
+class TodoReadTool(SessionTodoToolMixin, Tool):
     """Tool for reading todo list state."""
 
     def __init__(self) -> None:
         super().__init__(name="todo_read")
         self._todo_store: list[dict[str, Any]] = []
 
-    def bind_todo_store(self, todo_store: list[dict[str, Any]]) -> None:
-        """Bind this tool to the active session's todo list."""
-        self._todo_store = todo_store
-
     def __call__(self) -> list[dict]:
         """Read the current todo list."""
         return [dict(item) for item in self._todo_store]
 
 
-class TodoWriteTool(Tool):
+class TodoWriteTool(SessionTodoToolMixin, Tool):
     """Tool for writing/updating todo list state."""
 
     def __init__(self) -> None:
         super().__init__(name="todo_write")
         self._todo_store: list[dict[str, Any]] = []
-
-    def bind_todo_store(self, todo_store: list[dict[str, Any]]) -> None:
-        """Bind this tool to the active session's todo list."""
-        self._todo_store = todo_store
 
     def __call__(
         self,

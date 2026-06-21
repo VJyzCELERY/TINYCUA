@@ -8,9 +8,9 @@ import uuid
 from typing import TYPE_CHECKING
 
 from tinycua.loops.context_rendering import clean_context_enhanced_query
+from tinycua.loops._input_messages import extract_user_query
 from tinycua.loops.node import ProcessNode
 from tinycua.models.digested_information import DigestedInformation
-from tinycua.models.node_input import NodeInput, convert_node_input_to_messages
 from tinycua.models.session import Session
 
 if TYPE_CHECKING:
@@ -211,22 +211,13 @@ class TinyCUAInformationDigesterNode(ProcessNode):
         for consumption by downstream nodes.
         """
         if self.session is not None and self._current_digest is not None:
-            from tinycua.models.session_context_entry import SessionContextEntry
+            from tinycua.models.session_context_entry import append_output_entry
 
-            if any(
-                entry.content is self._current_digest
-                for entry in self.session.session_context
-                if entry.segment == "output"
-            ):
-                return
-
-            self.session.session_context.append(
-                SessionContextEntry(
-                    content=self._current_digest,
-                    segment="output",
-                    source_node_id=self.node_id,
-                    source_session_id=self.session.session_id,
-                )
+            append_output_entry(
+                self.session,
+                self._current_digest,
+                self.node_id,
+                idempotent_by_identity=True,
             )
 
     def _extract_original_query(self, input_data: NodeInputLike) -> str:
@@ -238,25 +229,4 @@ class TinyCUAInformationDigesterNode(ProcessNode):
         Returns:
             The original user query string, or empty string if not found.
         """
-        if isinstance(input_data, NodeInput):
-            original_query = input_data.metadata.get("original_query")
-            if isinstance(original_query, str) and original_query.strip():
-                return original_query.strip()
-        if isinstance(input_data, NodeInput) and input_data.messages:
-            # Try to find the last user message
-            for msg in reversed(input_data.messages):
-                if msg.get("role") == "user":
-                    return msg.get("content", "")
-            # Fallback to first message content
-            return input_data.messages[0].get("content", "")
-
-        # For other input types, try to extract from messages
-        try:
-            messages = convert_node_input_to_messages(input_data)
-            for msg in reversed(messages):
-                if msg.get("role") == "user":
-                    return msg.get("content", "")
-        except (ValueError, TypeError):
-            pass
-
-        return ""
+        return extract_user_query(input_data, prefer_metadata_original=True)

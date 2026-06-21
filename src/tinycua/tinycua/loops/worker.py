@@ -15,6 +15,7 @@ from tinycua.loops.task_nodes import (
 )
 from tinycua.models.digested_information import DigestedInformation
 from tinycua.models.node_handoff import NodeHandoff
+from tinycua.loops.session_context_query import find_latest_entry
 from tinycua.tools.routing import WorkerRouteSelectionTool
 
 if TYPE_CHECKING:
@@ -97,7 +98,7 @@ class TinyCUAWorkerNode(DecisionNode):
 
     def state_valid_route_labels(self) -> list[str]:
         """Return only worker routes that are valid for current task state."""
-        if self.session is None or self.session.task_store.root_task_id is None:
+        if not self._has_root_task:
             return ["task_creation"]
         return [
             "task_recreation",
@@ -150,17 +151,7 @@ class TinyCUAWorkerNode(DecisionNode):
         """
         if self.session is None:
             return None
-
-        for entry in reversed(self.session.session_context):
-            # Handle both dict and SessionContextEntry
-            if isinstance(entry, dict):
-                content = entry.get("content")
-            else:
-                content = entry.content
-            if isinstance(content, DigestedInformation):
-                return content
-
-        return None
+        return find_latest_entry(self.session, DigestedInformation)
 
     def propagate(self) -> None:
         """Forward DigestedInformation to downstream nodes.
@@ -170,22 +161,13 @@ class TinyCUAWorkerNode(DecisionNode):
         The original query is preserved within DigestedInformation.original_query.
         """
         if self.session is not None and self._current_digest is not None:
-            from tinycua.models.session_context_entry import SessionContextEntry
+            from tinycua.models.session_context_entry import append_output_entry
 
-            if any(
-                entry.content is self._current_digest
-                for entry in self.session.session_context
-                if entry.segment == "output"
-            ):
-                return
-
-            self.session.session_context.append(
-                SessionContextEntry(
-                    content=self._current_digest,
-                    segment="output",
-                    source_node_id=self.node_id,
-                    source_session_id=self.session.session_id,
-                )
+            append_output_entry(
+                self.session,
+                self._current_digest,
+                self.node_id,
+                idempotent_by_identity=True,
             )
 
     def on_complete(

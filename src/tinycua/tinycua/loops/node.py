@@ -251,6 +251,19 @@ class Node(ABC):
         self._cached_system_key = None
         return self.session
 
+    @property
+    def _has_root_task(self) -> bool:
+        """Whether the node's session has a root task in its task store.
+
+        Centralises the repeated ``self.session is None or
+        self.session.task_store.root_task_id is None`` early-return guard
+        used across worker/executor/aggregation nodes.
+        """
+        return (
+            self.session is not None
+            and self.session.task_store.root_task_id is not None
+        )
+
     def build_instruction(self, override_instructions: str | None = None) -> str:
         """Build the complete instruction string.
 
@@ -665,16 +678,9 @@ class Node(ABC):
         if self.session is not None and (
             self.is_terminal or not looks_like_planner_prose(response.content)
         ):
-            from tinycua.models.session_context_entry import SessionContextEntry
+            from tinycua.models.session_context_entry import append_output_entry
 
-            self.session.session_context.append(
-                SessionContextEntry(
-                    content=response.content,
-                    segment="output",
-                    source_node_id=self.node_id,
-                    source_session_id=self.session.session_id,
-                )
-            )
+            append_output_entry(self.session, response.content, self.node_id)
         logger.info(
             "node=%s record_output content_len=%d",
             self.node_id,
