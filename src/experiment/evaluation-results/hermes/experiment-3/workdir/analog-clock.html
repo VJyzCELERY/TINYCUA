@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analog Clock App</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .clock-container {
+            position: relative;
+            text-align: center;
+        }
+
+        .clock-face {
+            width: 350px;
+            height: 350px;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 
+                0 10px 60px rgba(0, 0, 0, 0.3),
+                inset 0 -4px 8px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        .clock-face::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 24px;
+            height: 24px;
+            background: #333;
+            border-radius: 50%;
+            box-shadow: 
+                inset 2px 2px 6px rgba(255, 255, 255, 0.3),
+                inset -1px -1px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .clock-face::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 2px;
+            height: 40px;
+            background: linear-gradient(to bottom, #ddd, transparent);
+        }
+
+        .marker {
+            position: absolute;
+            left: 50%;
+            top: -10px;
+            transform-origin: center 175px;
+            width: 2px;
+            height: 40px;
+            background: #333;
+        }
+
+        .marker.hour {
+            width: 6px;
+            height: 8px;
+            border-radius: 3px;
+            box-shadow: inset -1px -1px 2px rgba(0, 0, 0, 0.5);
+        }
+
+        .minute-marker {
+            position: absolute;
+            left: 50%;
+            top: -4px;
+            transform-origin: center 175px;
+            width: 80%;
+            height: 2px;
+            background: #ccc;
+        }
+
+        .hand {
+            position: absolute;
+            bottom: 50%;
+            left: 50%;
+            transform-origin: center;
+            border-radius: 4px;
+            box-shadow: 
+                inset -2px -2px 4px rgba(0, 0, 0, 0.3),
+                2px 2px 6px rgba(0, 0, 0, 0.2);
+        }
+
+        .hour-hand {
+            width: 12px;
+            height: 75px;
+            background: linear-gradient(to right, #333, transparent);
+            margin-left: -6px;
+            transform-origin: center bottom;
+            z-index: 3;
+        }
+
+        .minute-hand {
+            width: 8px;
+            height: 105px;
+            background: linear-gradient(to right, #444, transparent);
+            margin-left: -4px;
+            transform-origin: center bottom;
+            z-index: 2;
+        }
+
+        .second-hand {
+            width: 3px;
+            height: 130px;
+            background: linear-gradient(to right, #e91e63, transparent);
+            margin-left: -1.5px;
+            transform-origin: center bottom;
+            z-index: 4;
+        }
+
+        .second-hand::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            width: 6px;
+            height: 12px;
+            background: #e91e63;
+            border-radius: 3px;
+            transform: translateX(-50%);
+        }
+
+        .center-dot {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 24px;
+            height: 24px;
+            background: #e91e63;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 5;
+            box-shadow: 
+                inset 1px 1px 3px rgba(255, 255, 255, 0.4),
+                2px 2px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .digital-time {
+            margin-top: 30px;
+            font-size: 28px;
+            color: white;
+            text-shadow: 
+                1px 1px 4px rgba(0, 0, 0, 0.5),
+                -1px -1px 4px rgba(255, 255, 255, 0.3);
+        }
+
+        .date-display {
+            margin-top: 10px;
+            font-size: 16px;
+            color: #e8eaf6;
+            text-shadow: 
+                1px 1px 4px rgba(0, 0, 0, 0.5),
+                -1px -1px 4px rgba(255, 255, 255, 0.3);
+        }
+
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 14px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 
+                0 4px 15px rgba(102, 126, 234, 0.4),
+                inset 0 -2px 4px rgba(0, 0, 0, 0.2);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 
+                0 6px 20px rgba(102, 126, 234, 0.5),
+                inset 0 -2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .speed-control {
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            justify-content: center;
+            color: white;
+        }
+
+        input[type="range"] {
+            width: 200px;
+            cursor: pointer;
+        }
+
+        .theme-toggle {
+            position: absolute;
+            top: -45px;
+            right: 0;
+        }
+
+        @keyframes tick {
+            0% { transform: scale(1); }
+            25% { transform: scale(1.02); }
+            50% { transform: scale(1); }
+            75% { transform: scale(1.03); }
+            100% { transform: scale(1); }
+        }
+
+        .hand.tick-effect {
+            animation: tick 0.2s ease-out;
+        }
+    </style>
+</head>
+<body>
+    <div class="clock-container">
+        <button class="theme-toggle" onclick="toggleTheme()">🌓 Theme</button>
+        
+        <div class="clock-face" id="clockFace"></div>
+        <div class="digital-time" id="digitalTime">12:00:00</div>
+        <div class="date-display" id="dateDisplay">Wednesday, January 1, 2024</div>
+
+        <div class="controls">
+            <button onclick="setMode('realtime')">Real Time</button>
+            <button onclick="toggleSpeed()">⏩ Fast Forward</button>
+            <button onclick="resetClock()">↺ Reset</button>
+        </div>
+
+        <div class="speed-control" id="speedControl">
+            Speed: 
+            <input type="range" id="speedSlider" min="-30" max="180" value="0" onchange="setSpeed(this.value)">
+            <span id="speedValue">Normal</span>
+        </div>
+    </div>
+
+    <script>
+        const clockFace = document.getElementById('clockFace');
+        const digitalTime = document.getElementById('digitalTime');
+        const dateDisplay = document.getElementById('dateDisplay');
+        let currentMode = 'realtime'; // realtime, paused, fastforward
+        let isFastForward = false;
+        
+        // Generate hour markers and minute markers
+        function createMarkers() {
+            for (let i = 0; i < 12; i++) {
+                const marker = document.createElement('div');
+                marker.className = 'marker hour';
+                marker.style.transform = `rotate(${i * 30}deg)`;
+                clockFace.appendChild(marker);
+            }
+
+            for (let i = 0; i < 60; i++) {
+                const marker = document.createElement('div');
+                marker.className = 'minute-marker';
+                if (i % 5 === 0) {
+                    marker.style.width = '4px';
+                    marker.style.height = '12px';
+                    marker.style.background = '#999';
+                } else {
+                    marker.style.opacity = '0.6';
+                }
+                marker.style.transform = `rotate(${i * 6}deg)`;
+                clockFace.appendChild(marker);
+            }
+        }
+
+        function updateClock() {
+            if (currentMode === 'paused') return;
+
+            const now = new Date();
+            
+            // Update digital time
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            digitalTime.textContent = `${hours}:${minutes}:${seconds}`;
+
+            // Update date display
+            const options = { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' };
+            dateDisplay.textContent = now.toLocaleDateString('en-US', options);
+
+            // Calculate hand positions (in degrees)
+            const secondsDeg = now.getSeconds() * 6 + now.getMilliseconds() / 10;
+            const minutesDeg = now.getMinutes() * 6 + now.getSeconds() / 10;
+            const hoursDeg = ((now.getHours() % 12) * 30) + (minutesDeg / 12);
+
+            // Update hands with animation
+            updateHand('.second-hand', secondsDeg, '#e91e63');
+            updateHand('.minute-hand', minutesDeg, null);
+            updateHand('.hour-hand', hoursDeg, null);
+        }
+
+        function updateHand(selector, deg, color) {
+            const hand = clockFace.querySelector(selector);
+            if (hand) {
+                // Remove animation class to reset it
+                hand.classList.remove('tick-effect');
+                
+                // Force reflow
+                void hand.offsetWidth;
+                
+                hand.style.transform = `rotate(${deg}deg)`;
+                
+                // Add tick effect for seconds
+                if (selector.includes('.second-hand') && deg % 6 === 0) {
+                    setTimeout(() => {
+                        hand.classList.add('tick-effect');
+                    }, 50);
+                }
+
+                // Set border color based on type
+                if (color) {
+                    hand.style.border = `2px solid ${color}`;
+                } else {
+                    hand.style.border = 'none';
+                }
+            }
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            
+            // Update button states based on mode
+            const buttons = document.querySelectorAll('.controls button');
+            for (let btn of buttons) {
+                if (btn.textContent === 'Real Time') {
+                    btn.style.background = mode === 'realtime' 
+                        ? 'linear-gradient(135deg, #4CAF50 0%, #45a049 100%)'
+                        : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+                } else if (btn.textContent.includes('Fast Forward')) {
+                    btn.style.background = mode === 'fastforward' 
+                        ? 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)'
+                        : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+                } else if (btn.textContent.includes('Reset')) {
+                    btn.style.background = mode === 'paused' 
+                        ? 'linear-gradient(135deg, #f44336 0%, #e53935 100%)'
+                        : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+                }
+            }
+
+            // Adjust slider visibility based on mode
+            const speedControl = document.getElementById('speedControl');
+            if (mode === 'realtime') {
+                speedControl.style.opacity = '0.5';
+                speedControl.style.pointerEvents = 'none';
+            } else {
+                speedControl.style.opacity = '1';
+                speedControl.style.pointerEvents = 'auto';
+            }
+
+            // For paused mode, show digital clock larger
+            if (mode === 'paused') {
+                digitalTime.classList.add('digital-time');
+                dateDisplay.textContent = now.toLocaleDateString();
+            } else if (mode === 'fastforward') {
+                isFastForward = true;
+            }
+        }
+
+        function toggleSpeed() {
+            setMode(isFastForward ? 'realtime' : 'fastforward');
+        }
+
+        function resetClock() {
+            const now = new Date();
+            updateHand('.second-hand', 0, '#e91e63');
+            updateHand('.minute-hand', (now.getMinutes() * 6 + now.getSeconds() / 10), null);
+            updateHand('.hour-hand', ((now.getHours() % 12) * 30) + (getMinutesDeg(now)), null);
+        }
+
+        function getMinutesDeg(date) {
+            return date.getMinutes() * 6 + date.getSeconds() / 10;
+        }
+
+        // Speed control
+        let speedMultiplier = 1;
+        
+        const speedLabels = ['Slow', 'Normal', 'Fast', 'Very Fast', 'Lightning'];
+        function setSpeed(value) {
+            if (currentMode === 'realtime') return;
+            
+            speedMultiplier = value / -30 + 0.5; // Map slider to multiplier
+            
+            let label = '';
+            const range = [-30, 180];
+            const percentage = (value - range[0]) / (range[1] - range[0]);
+            
+            if (percentage < 0.2) {
+                speedLabels.forEach((lbl, i) => {
+                    if (i * 4 <= percentage * 5) label = lbl;
+                });
+            } else {
+                const fastIndex = Math.min(Math.floor(percentage / 0.19), speedLabels.length - 2);
+                label = speedLabels[fastIndex + 1];
+            }
+            
+            document.getElementById('speedValue').textContent = label || 'Normal';
+        }
+
+        function toggleTheme() {
+            const body = document.body;
+            if (body.style.filter === '-invert(0)') {
+                body.style.filter = '-invert(1); -filter: invert(1);';
+            } else {
+                body.style.filter = 'none';
+            }
+        }
+
+        // Initialize
+        createMarkers();
+        updateClock();
+        
+        // Real-time clock updates every second
+        setInterval(updateClock, 1000);
+    </script>
+</body>
+</html>

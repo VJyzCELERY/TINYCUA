@@ -106,11 +106,11 @@ def prepare_result_dirs(
     paths = {}
     for agent, result_dir in result_dirs.items():
         if result_dir.exists():
-            shutil.rmtree(result_dir)
+            shutil.rmtree(result_dir, ignore_errors=True)
         workdir = result_dir / "workdir"
         logs = result_dir / "logs"
-        workdir.mkdir(parents=True)
-        logs.mkdir()
+        workdir.mkdir(parents=True, exist_ok=True)
+        logs.mkdir(exist_ok=True)
         paths[agent] = {"workdir": workdir, "logs": logs}
     return paths
 

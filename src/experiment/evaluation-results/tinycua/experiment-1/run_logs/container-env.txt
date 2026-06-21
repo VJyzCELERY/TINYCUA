@@ -1,0 +1,28 @@
+EXPERIMENT_LLM_PROVIDER=openai-compatible
+EXPERIMENT_LLM_MODEL=qwen3.5-9b
+EXPERIMENT_LLM_BASE_URL=http://host.docker.internal:1234/v1
+EXPERIMENT_LLM_API_KEY=any-random-string
+EXPERIMENT_TIMEOUT_SECONDS=14400
+EXPERIMENT_TINYCUA_PROVIDER_TYPE=openai-chat-completions
+
+# Running locally without Docker? Use localhost instead:
+# EXPERIMENT_LLM_BASE_URL=http://localhost:1234/v1
+
+# Harness-specific provider prefixes for the same local model.
+# Hermes can hang polling a long-lived background server; 0 disables this guard.
+EXPERIMENT_HERMES_PROCESS_POLL_TIMEOUT_SECONDS=600
+EXPERIMENT_OPENCODE_MODEL=lmstudio/qwen3.5-9b
+EXPERIMENT_HERMES_PROVIDER=lmstudio
+EXPERIMENT_HERMES_MAX_TURNS=90
+EXPERIMENT_OPENCLAW_MODEL=local/qwen3.5-9b
+EXPERIMENT_OPENCLAW_THINKING=off
+
+# Judge configuration (used by judge.py)
+JUDGE_MODEL=openai/gpt-5.5
+JUDGE_VARIANT=high
+
+# SearXNG web search endpoint for tinycua's web_search tool.
+# Tailscale-hosted instance — container needs Tailscale access to reach it.
+EXPERIMENT_SEARXNG_HOST_PORT=18080
+EXPERIMENT_SEARXNG_BASE_URL=http://searxng:8080
+TINYCUA_SEARXNG_URL=http://searxng:8080/search

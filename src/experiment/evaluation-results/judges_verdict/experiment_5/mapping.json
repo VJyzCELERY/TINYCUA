@@ -1,0 +1,15 @@
+{
+  "experiment_num": 5,
+  "judge_harness": "opencode",
+  "judge_model": "openai/gpt-5.5",
+  "judge_variant": "high",
+  "started_at": "2026-06-21T04:29:42.142854+00:00",
+  "duration_seconds": 214.85,
+  "exit_code": 0,
+  "mapping": {
+    "A": "opencode",
+    "B": "hermes",
+    "C": "openclaw",
+    "D": "tinycua"
+  }
+}

@@ -1,0 +1,310 @@
+[plugins] loading browser from /usr/local/lib/node_modules/openclaw/dist/extensions/browser/index.js
+[plugins] loading canvas from /usr/local/lib/node_modules/openclaw/dist/extensions/canvas/index.js
+[plugins] loading device-pair from /usr/local/lib/node_modules/openclaw/dist/extensions/device-pair/index.js
+Registered plugin command: /pair (plugin: device-pair)
+[plugins] loading file-transfer from /usr/local/lib/node_modules/openclaw/dist/extensions/file-transfer/index.js
+[plugins] loading memory-core from /usr/local/lib/node_modules/openclaw/dist/extensions/memory-core/index.js
+Registered plugin command: /dreaming (plugin: memory-core)
+[plugins] loading phone-control from /usr/local/lib/node_modules/openclaw/dist/extensions/phone-control/index.js
+Registered plugin command: /phone (plugin: phone-control)
+[plugins] loading searxng from /usr/local/lib/node_modules/openclaw/dist/extensions/searxng/index.js
+[plugins] loading talk-voice from /usr/local/lib/node_modules/openclaw/dist/extensions/talk-voice/index.js
+Registered plugin command: /voice (plugin: talk-voice)
+[plugins] loaded 8 plugin(s) (8 attempted) in 283.6ms
+[diagnostic] lane enqueue: lane=session:agent:main:experiment-2 queueSize=1
+[diagnostic] lane dequeue: lane=session:agent:main:experiment-2 waitMs=1 queueSize=0
+[diagnostic] lane enqueue: lane=main queueSize=1
+[diagnostic] lane dequeue: lane=main waitMs=1 queueSize=0
+[plugins] loading alibaba from /usr/local/lib/node_modules/openclaw/dist/extensions/alibaba/index.js
+[plugins] loading anthropic from /usr/local/lib/node_modules/openclaw/dist/extensions/anthropic/index.js
+[plugins] loading arcee from /usr/local/lib/node_modules/openclaw/dist/extensions/arcee/index.js
+[plugins] loading azure-speech from /usr/local/lib/node_modules/openclaw/dist/extensions/azure-speech/index.js
+[plugins] loading browser from /usr/local/lib/node_modules/openclaw/dist/extensions/browser/index.js
+[plugins] loading byteplus from /usr/local/lib/node_modules/openclaw/dist/extensions/byteplus/index.js
+[plugins] loading canvas from /usr/local/lib/node_modules/openclaw/dist/extensions/canvas/index.js
+[plugins] loading cerebras from /usr/local/lib/node_modules/openclaw/dist/extensions/cerebras/index.js
+[plugins] loading chutes from /usr/local/lib/node_modules/openclaw/dist/extensions/chutes/index.js
+[plugins] loading cloudflare-ai-gateway from /usr/local/lib/node_modules/openclaw/dist/extensions/cloudflare-ai-gateway/index.js
+[plugins] loading comfy from /usr/local/lib/node_modules/openclaw/dist/extensions/comfy/index.js
+[plugins] loading copilot-proxy from /usr/local/lib/node_modules/openclaw/dist/extensions/copilot-proxy/index.js
+[plugins] loading deepgram from /usr/local/lib/node_modules/openclaw/dist/extensions/deepgram/index.js
+[plugins] loading deepinfra from /usr/local/lib/node_modules/openclaw/dist/extensions/deepinfra/index.js
+[plugins] loading deepseek from /usr/local/lib/node_modules/openclaw/dist/extensions/deepseek/index.js
+[plugins] loading device-pair from /usr/local/lib/node_modules/openclaw/dist/extensions/device-pair/index.js
+Registered plugin command: /pair (plugin: device-pair)
+[plugins] loading document-extract from /usr/local/lib/node_modules/openclaw/dist/extensions/document-extract/index.js
+[plugins] loading elevenlabs from /usr/local/lib/node_modules/openclaw/dist/extensions/elevenlabs/index.js
+[plugins] loading fal from /usr/local/lib/node_modules/openclaw/dist/extensions/fal/index.js
+[plugins] loading file-transfer from /usr/local/lib/node_modules/openclaw/dist/extensions/file-transfer/index.js
+[plugins] loading fireworks from /usr/local/lib/node_modules/openclaw/dist/extensions/fireworks/index.js
+[plugins] loading github-copilot from /usr/local/lib/node_modules/openclaw/dist/extensions/github-copilot/index.js
+[plugins] loading gmi from /usr/local/lib/node_modules/openclaw/dist/extensions/gmi/index.js
+[plugins] loading google from /usr/local/lib/node_modules/openclaw/dist/extensions/google/index.js
+[plugins] loading groq from /usr/local/lib/node_modules/openclaw/dist/extensions/groq/index.js
+[plugins] loading huggingface from /usr/local/lib/node_modules/openclaw/dist/extensions/huggingface/index.js
+[plugins] loading inworld from /usr/local/lib/node_modules/openclaw/dist/extensions/inworld/index.js
+[plugins] loading kilocode from /usr/local/lib/node_modules/openclaw/dist/extensions/kilocode/index.js
+[plugins] loading kimi from /usr/local/lib/node_modules/openclaw/dist/extensions/kimi-coding/index.js
+[plugins] loading litellm from /usr/local/lib/node_modules/openclaw/dist/extensions/litellm/index.js
+[plugins] loading lmstudio from /usr/local/lib/node_modules/openclaw/dist/extensions/lmstudio/index.js
+[plugins] loading memory-core from /usr/local/lib/node_modules/openclaw/dist/extensions/memory-core/index.js
+Registered plugin command: /dreaming (plugin: memory-core)
+[plugins] loading microsoft from /usr/local/lib/node_modules/openclaw/dist/extensions/microsoft/index.js
+[plugins] loading microsoft-foundry from /usr/local/lib/node_modules/openclaw/dist/extensions/microsoft-foundry/index.js
+[plugins] loading minimax from /usr/local/lib/node_modules/openclaw/dist/extensions/minimax/index.js
+[plugins] loading mistral from /usr/local/lib/node_modules/openclaw/dist/extensions/mistral/index.js
+[plugins] loading moonshot from /usr/local/lib/node_modules/openclaw/dist/extensions/moonshot/index.js
+[plugins] loading novita from /usr/local/lib/node_modules/openclaw/dist/extensions/novita/index.js
+[plugins] loading nvidia from /usr/local/lib/node_modules/openclaw/dist/extensions/nvidia/index.js
+[plugins] loading ollama from /usr/local/lib/node_modules/openclaw/dist/extensions/ollama/index.js
+[plugins] loading openai from /usr/local/lib/node_modules/openclaw/dist/extensions/openai/index.js
+[plugins] loading opencode from /usr/local/lib/node_modules/openclaw/dist/extensions/opencode/index.js
+[plugins] loading opencode-go from /usr/local/lib/node_modules/openclaw/dist/extensions/opencode-go/index.js
+[plugins] loading openrouter from /usr/local/lib/node_modules/openclaw/dist/extensions/openrouter/index.js
+[plugins] loading phone-control from /usr/local/lib/node_modules/openclaw/dist/extensions/phone-control/index.js
+Registered plugin command: /phone (plugin: phone-control)
+[plugins] loading qianfan from /usr/local/lib/node_modules/openclaw/dist/extensions/qianfan/index.js
+[plugins] loading qwen from /usr/local/lib/node_modules/openclaw/dist/extensions/qwen/index.js
+[plugins] loading runway from /usr/local/lib/node_modules/openclaw/dist/extensions/runway/index.js
+[plugins] loading searxng from /usr/local/lib/node_modules/openclaw/dist/extensions/searxng/index.js
+[plugins] loading senseaudio from /usr/local/lib/node_modules/openclaw/dist/extensions/senseaudio/index.js
+[plugins] loading sglang from /usr/local/lib/node_modules/openclaw/dist/extensions/sglang/index.js
+[plugins] loading stepfun from /usr/local/lib/node_modules/openclaw/dist/extensions/stepfun/index.js
+[plugins] loading synthetic from /usr/local/lib/node_modules/openclaw/dist/extensions/synthetic/index.js
+[plugins] loading talk-voice from /usr/local/lib/node_modules/openclaw/dist/extensions/talk-voice/index.js
+Registered plugin command: /voice (plugin: talk-voice)
+[plugins] loading tencent from /usr/local/lib/node_modules/openclaw/dist/extensions/tencent/index.js
+[plugins] loading together from /usr/local/lib/node_modules/openclaw/dist/extensions/together/index.js
+[plugins] loading tts-local-cli from /usr/local/lib/node_modules/openclaw/dist/extensions/tts-local-cli/index.js
+[plugins] loading venice from /usr/local/lib/node_modules/openclaw/dist/extensions/venice/index.js
+[plugins] loading vercel-ai-gateway from /usr/local/lib/node_modules/openclaw/dist/extensions/vercel-ai-gateway/index.js
+[plugins] loading vllm from /usr/local/lib/node_modules/openclaw/dist/extensions/vllm/index.js
+[plugins] loading volcengine from /usr/local/lib/node_modules/openclaw/dist/extensions/volcengine/index.js
+[plugins] loading voyage from /usr/local/lib/node_modules/openclaw/dist/extensions/voyage/index.js
+[plugins] loading vydra from /usr/local/lib/node_modules/openclaw/dist/extensions/vydra/index.js
+[plugins] loading web-readability from /usr/local/lib/node_modules/openclaw/dist/extensions/web-readability/index.js
+[plugins] loading xai from /usr/local/lib/node_modules/openclaw/dist/extensions/xai/index.js
+[plugins] loading xiaomi from /usr/local/lib/node_modules/openclaw/dist/extensions/xiaomi/index.js
+[plugins] loading zai from /usr/local/lib/node_modules/openclaw/dist/extensions/zai/index.js
+[plugins] loaded 95 plugin(s) (67 attempted) in 817.4ms
+[agents/harness] agent harness selected
+[agent/embedded] embedded run start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 sessionId=856dac3d-14a8-403f-9d84-cc0b8daf69d8 provider=local model=qwen3.5-9b thinking=off messageChannel=unknown
+[plugins] loading browser from /usr/local/lib/node_modules/openclaw/dist/extensions/browser/index.js
+[plugins] loading canvas from /usr/local/lib/node_modules/openclaw/dist/extensions/canvas/index.js
+[plugins] loading file-transfer from /usr/local/lib/node_modules/openclaw/dist/extensions/file-transfer/index.js
+[plugins] loading memory-core from /usr/local/lib/node_modules/openclaw/dist/extensions/memory-core/index.js
+[plugins] loaded 10 plugin(s) (4 attempted) in 19.6ms
+[plugins] plugin tool factory returned null (memory-core): [memory_search]
+[plugins] plugin tool factory returned null (memory-core): [memory_get]
+[agent/embedded] tool-search: cataloged 29 tools behind compact prompt surface
+[agent/embedded] applying extraParams to agent streamFn for local/qwen3.5-9b
+[diagnostic] session state: sessionId=856dac3d-14a8-403f-9d84-cc0b8daf69d8 sessionKey=agent:main:experiment-2 prev=idle new=processing reason="run_started" queueDepth=0
+[diagnostic] run registered: sessionId=856dac3d-14a8-403f-9d84-cc0b8daf69d8 totalActive=1
+[agent/embedded] embedded run prompt start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 sessionId=856dac3d-14a8-403f-9d84-cc0b8daf69d8 provider=local api=openai-completions endpoint=local route=local policy=none
+[agent/embedded] [context-diag] pre-prompt: sessionKey=agent:main:experiment-2 messages=0 roleCounts=none historyTextChars=0 maxMessageTextChars=0 historyImageBlocks=0 systemPromptChars=25954 promptChars=124 promptImages=0 provider=local/qwen3.5-9b sessionFile=/root/.openclaw/agents/main/sessions/856dac3d-14a8-403f-9d84-cc0b8daf69d8.jsonl
+[agent/embedded] [context-overflow-precheck] pre-prompt check sessionKey=agent:main:experiment-2 provider=local/qwen3.5-9b route=fits estimatedPromptTokens=7862 pressureSource=llm_boundary_normalized_prompt promptBudgetBeforeReserve=100000 overflowTokens=0 toolResultReducibleChars=0 reserveTokens=20000 effectiveReserveTokens=20000 contextTokenBudget=120000 messages=0 unwindowedMessages=0 sessionFile=/root/.openclaw/agents/main/sessions/856dac3d-14a8-403f-9d84-cc0b8daf69d8.jsonl
+[agent/embedded] embedded run agent start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=27 contentType=text/event-stream
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_search toolCallId=k3IY0zLDv8Vq8h2Rd6Pbpp8CtewqPIHr
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_search toolCallId=k3IY0zLDv8Vq8h2Rd6Pbpp8CtewqPIHr
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=12 contentType=text/event-stream
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_search toolCallId=p6mTf7YJYSOkMC1yx3h2YpKqIBquqdzG
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_search toolCallId=p6mTf7YJYSOkMC1yx3h2YpKqIBquqdzG
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=6 contentType=text/event-stream
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=Q1eqzErEqYhgoruyIl0TBHtRWBQnK8sT
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=web_search toolCallId=tool_search_code:Q1eqzErEqYhgoruyIl0TBHtRWBQnK8sT:web_search:1
+[plugins] loading searxng from /usr/local/lib/node_modules/openclaw/dist/extensions/searxng/index.js
+[plugins] loaded 1 plugin(s) (1 attempted) in 4.7ms
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=web_search toolCallId=tool_search_code:Q1eqzErEqYhgoruyIl0TBHtRWBQnK8sT:web_search:1
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=Q1eqzErEqYhgoruyIl0TBHtRWBQnK8sT
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=7 contentType=text/event-stream
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=giR5vxtIJ36GsrQ31V8yXhDMWNLkIsdj
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=web_fetch toolCallId=tool_search_code:giR5vxtIJ36GsrQ31V8yXhDMWNLkIsdj:web_fetch:2
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=web_fetch toolCallId=tool_search_code:giR5vxtIJ36GsrQ31V8yXhDMWNLkIsdj:web_fetch:2
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=giR5vxtIJ36GsrQ31V8yXhDMWNLkIsdj
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=8 contentType=text/event-stream
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=kvnuLOiq4wg4Hf6zRv8SzxxtIlqfxbMO
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=web_fetch toolCallId=tool_search_code:kvnuLOiq4wg4Hf6zRv8SzxxtIlqfxbMO:web_fetch:3
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=web_fetch toolCallId=tool_search_code:kvnuLOiq4wg4Hf6zRv8SzxxtIlqfxbMO:web_fetch:3
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=kvnuLOiq4wg4Hf6zRv8SzxxtIlqfxbMO
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=8 contentType=text/event-stream
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=PUeX3Po7asHyxQKxJrXLDNVoOw3mBYlK
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=web_fetch toolCallId=tool_search_code:PUeX3Po7asHyxQKxJrXLDNVoOw3mBYlK:web_fetch:4
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=web_fetch toolCallId=tool_search_code:PUeX3Po7asHyxQKxJrXLDNVoOw3mBYlK:web_fetch:4
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=PUeX3Po7asHyxQKxJrXLDNVoOw3mBYlK
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=8 contentType=text/event-stream
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=C3wPAaStTNn7MG6cOvcnNns9ooMIw5J3
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=web_fetch toolCallId=tool_search_code:C3wPAaStTNn7MG6cOvcnNns9ooMIw5J3:web_fetch:5
+[plugins] loading firecrawl from /usr/local/lib/node_modules/openclaw/dist/extensions/firecrawl/index.js
+[plugins] loaded 1 plugin(s) (1 attempted) in 14.1ms
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=web_fetch toolCallId=tool_search_code:C3wPAaStTNn7MG6cOvcnNns9ooMIw5J3:web_fetch:5
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=C3wPAaStTNn7MG6cOvcnNns9ooMIw5J3
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=8 contentType=text/event-stream
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=X7Y1ZEn95F71hMtXfAqXwDmVuKwSvDhH
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=edit toolCallId=tool_search_code:X7Y1ZEn95F71hMtXfAqXwDmVuKwSvDhH:edit:6
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=edit toolCallId=tool_search_code:X7Y1ZEn95F71hMtXfAqXwDmVuKwSvDhH:edit:6
+tools: tool_call failed stack:
+Error: Missing required parameter: edits (received: path, edits=<array>). Supply correct parameters before retrying.
+    at parameterValidationError (file:///usr/local/lib/node_modules/openclaw/dist/nodes-utils-BqX7b_Ao.js:10:25)
+    at assertRequiredParams (file:///usr/local/lib/node_modules/openclaw/dist/nodes-utils-BqX7b_Ao.js:106:9)
+    at execute (file:///usr/local/lib/node_modules/openclaw/dist/nodes-utils-BqX7b_Ao.js:117:37)
+    at execute (file:///usr/local/lib/node_modules/openclaw/dist/agent-tools.before-tool-call-CsK6Ldwa.js:1400:26)
+    at async Object.execute (file:///usr/local/lib/node_modules/openclaw/dist/agent-tools-CvzYkYSe.js:95:11)
+    at async Object.execute (file:///usr/local/lib/node_modules/openclaw/dist/selection-kQiC501t.js:13509:28)
+    at async runToolLifecycle (file:///usr/local/lib/node_modules/openclaw/dist/selection-kQiC501t.js:5595:20)
+    at async toolSearchCatalogExecutor (file:///usr/local/lib/node_modules/openclaw/dist/selection-kQiC501t.js:13505:21)
+    at async ToolSearchRuntime.callEntry (file:///usr/local/lib/node_modules/openclaw/dist/agent-tools-CvzYkYSe.js:1977:19)
+    at async ToolSearchRuntime.call (file:///usr/local/lib/node_modules/openclaw/dist/agent-tools-CvzYkYSe.js:1967:11)
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=X7Y1ZEn95F71hMtXfAqXwDmVuKwSvDhH
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=8 contentType=text/event-stream
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_describe toolCallId=oZlfPC6ifrtLPP2XRnKMOBTGS0iStOEB
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_describe toolCallId=oZlfPC6ifrtLPP2XRnKMOBTGS0iStOEB
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=8 contentType=text/event-stream
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=3V4zMvFJxmjtASmL5Z8lkt7ozw9Ihup4
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=edit toolCallId=tool_search_code:3V4zMvFJxmjtASmL5Z8lkt7ozw9Ihup4:edit:7
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=edit toolCallId=tool_search_code:3V4zMvFJxmjtASmL5Z8lkt7ozw9Ihup4:edit:7
+tools: tool_call failed stack:
+Error: Missing required parameter: edits (received: path, edits=<array>). Supply correct parameters before retrying.
+    at parameterValidationError (file:///usr/local/lib/node_modules/openclaw/dist/nodes-utils-BqX7b_Ao.js:10:25)
+    at assertRequiredParams (file:///usr/local/lib/node_modules/openclaw/dist/nodes-utils-BqX7b_Ao.js:106:9)
+    at execute (file:///usr/local/lib/node_modules/openclaw/dist/nodes-utils-BqX7b_Ao.js:117:37)
+    at execute (file:///usr/local/lib/node_modules/openclaw/dist/agent-tools.before-tool-call-CsK6Ldwa.js:1400:26)
+    at async Object.execute (file:///usr/local/lib/node_modules/openclaw/dist/agent-tools-CvzYkYSe.js:95:11)
+    at async Object.execute (file:///usr/local/lib/node_modules/openclaw/dist/selection-kQiC501t.js:13509:28)
+    at async runToolLifecycle (file:///usr/local/lib/node_modules/openclaw/dist/selection-kQiC501t.js:5595:20)
+    at async toolSearchCatalogExecutor (file:///usr/local/lib/node_modules/openclaw/dist/selection-kQiC501t.js:13505:21)
+    at async ToolSearchRuntime.callEntry (file:///usr/local/lib/node_modules/openclaw/dist/agent-tools-CvzYkYSe.js:1977:19)
+    at async ToolSearchRuntime.call (file:///usr/local/lib/node_modules/openclaw/dist/agent-tools-CvzYkYSe.js:1967:11)
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=3V4zMvFJxmjtASmL5Z8lkt7ozw9Ihup4
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=7 contentType=text/event-stream
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=E2wkpmWzyuf5ybjKVt5EUbs6J3Q0oGku
+tools: tool_call failed stack:
+ToolInputError: Unknown tool id: openclaw:core:create
+    at findEntry (file:///usr/local/lib/node_modules/openclaw/dist/agent-tools-CvzYkYSe.js:1883:25)
+    at ToolSearchRuntime.call (file:///usr/local/lib/node_modules/openclaw/dist/agent-tools-CvzYkYSe.js:1966:18)
+    at execute (file:///usr/local/lib/node_modules/openclaw/dist/agent-tools-CvzYkYSe.js:2353:37)
+    at execute (file:///usr/local/lib/node_modules/openclaw/dist/agent-tools.before-tool-call-CsK6Ldwa.js:1400:26)
+    at async Object.execute (file:///usr/local/lib/node_modules/openclaw/dist/agent-tools-CvzYkYSe.js:95:11)
+    at async Object.execute (file:///usr/local/lib/node_modules/openclaw/dist/tool-split-DXB3RqC6.js:256:15)
+    at async executePreparedToolCall (file:///usr/local/lib/node_modules/openclaw/dist/proxy-BR8vW50h.js:561:18)
+    at async file:///usr/local/lib/node_modules/openclaw/dist/proxy-BR8vW50h.js:447:100
+    at async Promise.all (index 0)
+    at async executeToolCallsParallel (file:///usr/local/lib/node_modules/openclaw/dist/proxy-BR8vW50h.js:453:32)
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=E2wkpmWzyuf5ybjKVt5EUbs6J3Q0oGku
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=31 contentType=text/event-stream
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=flLhyNYgosNuGz8d4IlYU410k6i2qnHF
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=exec toolCallId=tool_search_code:flLhyNYgosNuGz8d4IlYU410k6i2qnHF:exec:8
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=exec toolCallId=tool_search_code:flLhyNYgosNuGz8d4IlYU410k6i2qnHF:exec:8
+tools: tool_call failed stack:
+Error: Provide a command to start.
+    at Object.execute (file:///usr/local/lib/node_modules/openclaw/dist/bash-tools-BDlHWekN.js:2650:31)
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=flLhyNYgosNuGz8d4IlYU410k6i2qnHF
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=16 contentType=text/event-stream
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=b9io3gg0yZ9DLWQyFjqQMTIvwGq5YL0u
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=exec toolCallId=tool_search_code:b9io3gg0yZ9DLWQyFjqQMTIvwGq5YL0u:exec:9
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=exec toolCallId=tool_search_code:b9io3gg0yZ9DLWQyFjqQMTIvwGq5YL0u:exec:9
+tools: tool_call failed stack:
+Error: Provide a command to start.
+    at Object.execute (file:///usr/local/lib/node_modules/openclaw/dist/bash-tools-BDlHWekN.js:2650:31)
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=b9io3gg0yZ9DLWQyFjqQMTIvwGq5YL0u
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=9 contentType=text/event-stream
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=DEWOfq7GkhwQsmRBkYwxQLfLpRUGdJ1o
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=exec toolCallId=tool_search_code:DEWOfq7GkhwQsmRBkYwxQLfLpRUGdJ1o:exec:10
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=exec toolCallId=tool_search_code:DEWOfq7GkhwQsmRBkYwxQLfLpRUGdJ1o:exec:10
+tools: tool_call failed stack:
+Error: Provide a command to start.
+    at Object.execute (file:///usr/local/lib/node_modules/openclaw/dist/bash-tools-BDlHWekN.js:2650:31)
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=DEWOfq7GkhwQsmRBkYwxQLfLpRUGdJ1o
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=10 contentType=text/event-stream
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=2W58a1Wx9s9hwiM1lgJPCHM1c1MkjcVd
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=exec toolCallId=tool_search_code:2W58a1Wx9s9hwiM1lgJPCHM1c1MkjcVd:exec:11
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=exec toolCallId=tool_search_code:2W58a1Wx9s9hwiM1lgJPCHM1c1MkjcVd:exec:11
+tools: tool_call failed stack:
+Error: Provide a command to start.
+    at Object.execute (file:///usr/local/lib/node_modules/openclaw/dist/bash-tools-BDlHWekN.js:2650:31)
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=2W58a1Wx9s9hwiM1lgJPCHM1c1MkjcVd
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=9 contentType=text/event-stream
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=qea9e4wxwr6upcXQHJfTJ4zvuvRoaSco
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=exec toolCallId=tool_search_code:qea9e4wxwr6upcXQHJfTJ4zvuvRoaSco:exec:12
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=exec toolCallId=tool_search_code:qea9e4wxwr6upcXQHJfTJ4zvuvRoaSco:exec:12
+tools: tool_call failed stack:
+Error: Provide a command to start.
+    at Object.execute (file:///usr/local/lib/node_modules/openclaw/dist/bash-tools-BDlHWekN.js:2650:31)
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=qea9e4wxwr6upcXQHJfTJ4zvuvRoaSco
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=13 contentType=text/event-stream
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_search toolCallId=eceXfqzMYAgKaULn2VBfTKkhJllLGeuE
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_search toolCallId=eceXfqzMYAgKaULn2VBfTKkhJllLGeuE
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=11 contentType=text/event-stream
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=dlTCs5UoTPi34LicRj2OzQruyNavRiP9
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=write toolCallId=tool_search_code:dlTCs5UoTPi34LicRj2OzQruyNavRiP9:write:13
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=write toolCallId=tool_search_code:dlTCs5UoTPi34LicRj2OzQruyNavRiP9:write:13
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=dlTCs5UoTPi34LicRj2OzQruyNavRiP9
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=11 contentType=text/event-stream
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=qVMaqlgJjJbtRrtYEtMkfIFEqlXkGwOW
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=read toolCallId=tool_search_code:qVMaqlgJjJbtRrtYEtMkfIFEqlXkGwOW:read:14
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=read toolCallId=tool_search_code:qVMaqlgJjJbtRrtYEtMkfIFEqlXkGwOW:read:14
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=qVMaqlgJjJbtRrtYEtMkfIFEqlXkGwOW
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=14 contentType=text/event-stream
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=sriWOGF3Kk59yUVuWgO2lX7WPiz4mCTt
+[agent/embedded] embedded run tool start: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=exec toolCallId=tool_search_code:sriWOGF3Kk59yUVuWgO2lX7WPiz4mCTt:exec:15
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=exec toolCallId=tool_search_code:sriWOGF3Kk59yUVuWgO2lX7WPiz4mCTt:exec:15
+tools: tool_call failed stack:
+Error: Provide a command to start.
+    at Object.execute (file:///usr/local/lib/node_modules/openclaw/dist/bash-tools-BDlHWekN.js:2650:31)
+[agent/embedded] embedded run tool end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 tool=tool_call toolCallId=sriWOGF3Kk59yUVuWgO2lX7WPiz4mCTt
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=10 contentType=text/event-stream
+[agent/embedded] embedded run agent end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 isError=false
+[diagnostic] session state: sessionId=856dac3d-14a8-403f-9d84-cc0b8daf69d8 sessionKey=agent:main:experiment-2 prev=processing new=idle reason="run_completed" queueDepth=0
+[diagnostic] run cleared: sessionId=856dac3d-14a8-403f-9d84-cc0b8daf69d8 totalActive=0
+[agent/embedded] embedded run prompt end: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 sessionId=856dac3d-14a8-403f-9d84-cc0b8daf69d8 durationMs=291104
+[agent/embedded] embedded run done: runId=ec557d44-7e94-4ffe-a77d-213fc071d7c2 sessionId=856dac3d-14a8-403f-9d84-cc0b8daf69d8 durationMs=292390 aborted=false
+[diagnostic] lane task done: lane=main durationMs=292393 active=0 queued=0
+[diagnostic] lane task done: lane=session:agent:main:experiment-2 durationMs=292395 active=0 queued=0
+Report saved! Here's what I found:
+
+## 📊 Quick Summary
+
+**Best Overall Models:**
+
+| Category | Leader Model | Score/Strength |
+|----------|-------------|----------------|
+| **Reasoning (GPQA)** | Claude Mythos Preview | 94.6% |
+| **Math (AIME 2026)** | GPT-5 | 100% perfect score |
+| **Coding** | Claude Opus 4.5 | 80.9% on SWE-Bench |
+| **Overall Intelligence** | Claude Mythos Preview | 64.7% (Humanity's Last Exam) |
+
+## 💰 Best Value Models
+
+- **Cheapest**: Qwen3.5 0.8B at $0.02/M tokens (1/10th frontier cost!)
+- **Fastest**: Llama 4 Scout at 2,600 tokens/sec
+- **Best Budget Alternative**: DeepSeek V3.2 (~$0.28 input) competes with GPT-5
+
+## ⚡ Key Insights
+
+1. **No single model wins everything** - Different leaders dominate different tasks
+2. **Open-source closed the gap** - DeepSeek and Qwen compete near frontier at fraction of cost
+3. **Benchmark saturation** - MMLU is useless now; harder tests (GPQA, Humanity's Last Exam) separate elite models
+4. **Arena Elo clustering** - Frontier models all score 1,450-1,561
+
+The full report with detailed tables and methodology has been saved to `report.md` in your workspace!

@@ -1,0 +1,1356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notion Clone - Your Workspace</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome for icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Monaco Editor (for rich text blocks) -->
+    <script src="https://cdn.jsdelivr.net/npm/@monaco-editor/react@latest"></script>
+    
+    <style>
+        :root {
+            --sidebar-width: 260px;
+            --header-height: 48px;
+            --primary-color: #17a2b8;
+            --bg-light: #f5f5f5;
+            --text-primary: #373e49;
+            --border-color: #e6e6e6;
+        }
+
+        body {
+            background-color: var(--bg-light);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            overflow-x: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: var(--sidebar-width);
+            height: 100vh;
+            position: fixed;
+            left: 0;
+            top: 0;
+            background-color: #f7f8f9;
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            height: var(--header-height);
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+            color: #2c3e50;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding-top: 4px;
+        }
+
+        .page-item, .database-item {
+            padding: 6px 16px;
+            cursor: pointer;
+            color: var(--text-primary);
+            font-size: 13px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .page-item:hover, .database-item:hover {
+            background-color: rgba(23, 162, 184, 0.08);
+        }
+
+        .page-item.active, .database-item.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        /* Main content */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        .header {
+            height: var(--header-height);
+            border-bottom: 1px solid var(--border-color);
+            background-color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+        }
+
+        /* Page editor */
+        .editor-container {
+            flex: 1;
+            overflow-y: auto;
+            background-color: white;
+        }
+
+        .page-title-input {
+            font-size: 36px;
+            font-weight: 700;
+            border: none;
+            outline: none;
+            padding: 24px 48px 12px;
+            color: var(--text-primary);
+            min-height: 56px;
+        }
+
+        .page-title-input::placeholder {
+            color: #a0aaaf;
+        }
+
+        /* Block editor */
+        .monaco-container {
+            border-top: none;
+            font-family: inherit;
+        }
+
+        /* Database/Table view */
+        .database-header {
+            padding: 16px 24px;
+            background-color: white;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .table-container {
+            overflow-x: auto;
+            flex: 1;
+        }
+
+        table.db-table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+        }
+
+        th, td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 13px;
+        }
+
+        /* Sidebar navigation */
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            color: var(--text-primary);
+        }
+
+        .nav-item:hover {
+            background-color: rgba(0,0,0,0.05);
+        }
+
+        /* Welcome screen */
+        .welcome-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            text-align: center;
+            color: #6b7280;
+        }
+
+        /* Sidebar navigation section */
+        .sidebar-nav {
+            padding-bottom: 16px;
+        }
+
+        .nav-section-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #94a3b8;
+            padding: 8px 20px 4px;
+            font-weight: 500;
+        }
+
+        /* Modal for new page */
+        .modal-content {
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        /* Page list in sidebar - expandable tree structure */
+        .page-tree-item {
+            padding-left: 48px !important;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .page-tree-root {
+            padding-left: 12px !important;
+        }
+
+        /* Search input */
+        .search-input-container {
+            position: relative;
+        }
+
+        .search-input {
+            border-radius: 4px;
+            border: none;
+            background-color: #f0f3f5;
+            padding-left: 28px;
+            font-size: 13px;
+            height: 28px;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 6px;
+            top: 4px;
+            color: #9ca3af;
+            z-index: 10;
+        }
+
+        /* User menu */
+        .user-menu-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background-color: var(--primary-color);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        /* Page actions */
+        .page-actions {
+            padding-right: 20px;
+            font-size: 18px;
+        }
+
+        .action-btn:hover {
+            color: var(--primary-color);
+        }
+
+        /* Cover image placeholder */
+        .cover-placeholder {
+            height: 150px;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        /* Property input for databases */
+        .property-input {
+            font-size: 13px !important;
+        }
+
+        /* Block toolbar (for adding blocks) */
+        .block-toolbar {
+            padding: 8px 24px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            gap: 4px;
+        }
+
+        .toolbar-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            background-color: transparent;
+            cursor: pointer;
+            color: var(--text-primary);
+            font-size: 18px;
+        }
+
+        .toolbar-btn:hover {
+            background-color: rgba(23, 162, 184, 0.1);
+        }
+
+        /* Page sidebar (right) */
+        .page-sidebar {
+            position: fixed;
+            right: -350px;
+            top: var(--header-height);
+            bottom: 0;
+            width: 350px;
+            background-color: white;
+            border-left: 1px solid var(--border-color);
+            transition: right 0.2s ease-in-out;
+        }
+
+        .page-sidebar.open {
+            right: 0;
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.2s ease-in-out;
+            }
+
+            .sidebar.show {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: 0;
+            }
+
+            /* Mobile header */
+            .mobile-nav-toggle {
+                display: block !important;
+            }
+        }
+
+        @media (min-width: 769px) {
+            .mobile-nav-toggle {
+                display: none !important;
+            }
+        }
+
+        /* Loading spinner */
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Mobile Navigation Toggle -->
+    <button class="mobile-nav-toggle btn d-none" onclick="toggleSidebar()">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <!-- Search -->
+        <div class="search-input-container px-4 mb-3">
+            <i class="fas fa-search search-icon"></i>
+            <input type="text" class="form-control search-input" placeholder="Search">
+        </div>
+
+        <!-- Sidebar Navigation -->
+        <div class="sidebar-nav">
+            <h6 class="nav-section-title mx-4 mb-2">Workspaces</h6>
+            
+            <div onclick="switchWorkspace('personal')" class="nav-item page-tree-root" style="font-weight: 500; color: var(--primary-color);">
+                <i class="fas fa-user"></i> Personal Workspace
+            </div>
+
+            <!-- Pages List -->
+            <h6 class="nav-section-title mx-4 mb-2 mt-3">Pages</h6>
+            
+            <div onclick="switchPage(1)" id="page-item-1" class="page-item page-tree-root active" data-page-id="1">
+                📄 Home Page
+            </div>
+
+            <div onclick="switchPage(2)" id="page-item-2" class="page-item page-tree-root" data-page-id="2">
+                📝 Project Ideas
+            </div>
+
+            <div onclick="switchPage(3)" id="page-item-3" class="page-item page-tree-root" data-page-id="3">
+                🚀 Startup Plan
+            </div>
+
+            <!-- Databases -->
+            <h6 class="nav-section-title mx-4 mb-2 mt-3">Databases</h6>
+
+            <div onclick="switchDatabase(1)" id="db-item-1" class="database-item database-tree-root active" data-db-id="1">
+                📊 Tasks Database
+            </div>
+
+            <div onclick="switchDatabase(2)" id="db-item-2" class="database-item database-tree-root" data-db-id="2">
+                👥 Team Members
+            </div>
+        </div>
+
+        <!-- Sidebar Footer -->
+        <div style="padding: 16px;">
+            <button onclick="createNewPage()" class="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2">
+                <i class="fas fa-plus"></i> New Page
+            </button>
+            
+            <!-- Create Database Button -->
+            <div style="margin-top: 8px;">
+                <button onclick="createNewDatabase()" class="btn btn-outline-primary w-100 d-flex align-items-center justify-content-center gap-2" 
+                        type="button" data-bs-toggle="modal" data-bs-target="#dbModal">
+                    <i class="fas fa-table"></i> Database
+                </button>
+            </div>
+
+            <!-- Settings -->
+            <div style="margin-top: 16px;">
+                <a href="#" onclick="showSettings()" class="nav-item d-flex align-items-center gap-2">
+                    ⚙️ Settings
+                </a>
+                
+                <a href="#" class="nav-item d-flex align-items-center gap-2 mt-1" style="color: #9ca3af;">
+                    📖 Help Center
+                </a>
+
+                <!-- User Menu -->
+                <div onclick="showUserMenu()" class="user-menu-btn">
+                    👤
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="main-content" id="mainContent">
+        <!-- Header -->
+        <header class="header d-flex justify-content-between align-items-center">
+            <button onclick="toggleSidebar()" class="btn btn-link text-muted d-none d-md-block p-0 ms-2">
+                ← Back to sidebar
+            </button>
+
+            <div id="pageTitleDisplay" style="font-weight: 600; font-size: 18px;">Home Page</div>
+
+            <div class="page-actions">
+                <!-- Share Button -->
+                <i onclick="sharePage()" title="Share page" class="action-btn text-muted me-3"><i class="fas fa-share-alt"></i></i>
+                
+                <!-- Comment Button -->
+                <i onclick="showComments()" title="Add comment" class="action-btn text-muted me-3"><i class="far fa-comment-dots"></i></i>
+                
+                <!-- More Options -->
+                <div style="position: relative;">
+                    <i onclick="togglePageSidebar()" title="More options" class="text-muted action-btn">⋯</i>
+                    
+                    <!-- Page Sidebar (dropdown) -->
+                    <div id="pageSidebarContent" class="page-sidebar">
+                        <button onclick="duplicateCurrentPage()" class="btn btn-link w-100 text-start py-2 d-flex align-items-center gap-2">
+                            📋 Duplicate page
+                        </button>
+                        <button onclick="deleteCurrentPage()" class="btn btn-danger w-100 text-start py-2 d-flex align-items-center gap-2 mt-1">
+                            🗑️ Delete page
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Mobile menu toggle -->
+                <button onclick="toggleSidebar()" class="btn btn-link text-muted mobile-nav-toggle p-0 ms-3 d-md-none">
+                    ☰
+                </button>
+            </div>
+        </header>
+
+        <!-- Content Area -->
+        <div id="contentArea" class="editor-container flex-grow-1 overflow-auto">
+            <!-- Welcome Screen (shown when no page is selected) -->
+            <div id="welcomeScreen" class="welcome-screen">
+                <i style="font-size: 64px; margin-bottom: 20px;" class="fas fa-book"></i>
+                <h3>Welcome to Notion Clone</h3>
+                <p>Create your first page or database by clicking the buttons in sidebar.</p>
+            </div>
+
+            <!-- Page Editor (hidden by default) -->
+            <div id="pageEditor" style="display: none;">
+                <!-- Cover Image -->
+                <div class="cover-placeholder">
+                    Click to change cover image
+                </div>
+
+                <!-- Title Input -->
+                <input type="text" id="pageTitleInput" class="page-title-input" placeholder="">
+
+                <!-- Block Editor (Monaco) -->
+                <div style="height: calc(100% - 214px);">
+                    <div id="monaco-editor-container"></div>
+                </div>
+
+                <!-- Page Sidebar Modal -->
+                <div class="modal fade" id="pageSidebarModal" tabindex="-1">
+                    <div class="modal-dialog modal-fullscreen modal-dialog-scrollable">
+                        <div class="modal-content" style="max-height: 95vh;">
+                            <div class="modal-header border-0 bg-light py-3 px-4 d-flex justify-content-between align-items-center">
+                                <h6 class="m-0"><i class="fas fa-bars me-2"></i>Page Sidebar</h6>
+                                <button type="button" onclick="togglePageSidebar()" class="btn-close"></button>
+                            </div>
+                            <div class="modal-body px-4">
+                                <!-- Page Content -->
+                                <div id="pageContentArea">
+                                    <!-- Content will be loaded here -->
+                                </div>
+
+                                <!-- Table of Contents (if available) -->
+                                <hr style="margin: 20px -16px;">
+                                
+                                <h6 class="nav-section-title mx-4 mb-3">Table of contents</h6>
+                                
+                                <!-- Links/Bookmarks -->
+                                <div id="pageLinks" class="sidebar-nav"></div>
+
+                                <!-- Page Actions at bottom -->
+                                <div style="padding: 12px -16px; border-top: 1px solid var(--border-color);">
+                                    <button onclick="duplicateCurrentPage()" class="btn btn-link w-100 text-start d-flex align-items-center gap-3" style="font-size: 14px;">
+                                        📋 Duplicate page
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Comments Modal -->
+                <div class="modal fade" id="commentsModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header border-0 py-3 px-4 d-flex justify-content-between align-items-center bg-light rounded-top">
+                                <h6 class="m-0"><i class="far fa-comment-dots me-2"></i>Comments</h6>
+                                <button type="button" onclick="document.getElementById('commentsModal').classList.remove('show')" class="btn-close"></button>
+                            </div>
+                            <div class="modal-body px-4">
+                                <!-- Comments list will be loaded here -->
+                                <p class="text-muted text-center py-5">No comments yet. Be the first to comment!</p>
+
+                                <!-- Add Comment Input -->
+                                <div style="margin-top: 16px;">
+                                    <input type="text" id="commentInput" class="form-control mb-2" placeholder="Write a comment...">
+                                    <button onclick="addComment()" class="btn btn-primary w-100">Add Comment</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Share Modal -->
+                <div class="modal fade" id="shareModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header border-0 py-3 px-4 d-flex justify-content-between align-items-center bg-light rounded-top">
+                                <h6 class="m-0"><i class="fas fa-share-alt me-2"></i>Share Page</h6>
+                                <button type="button" onclick="document.getElementById('shareModal').classList.remove('show')" class="btn-close"></button>
+                            </div>
+                            <div class="modal-body px-4">
+                                <p class="text-muted mb-3">Generate a shareable link for this page.</p>
+
+                                <!-- Share Link -->
+                                <input type="text" id="shareLinkInput" readonly class="form-control mb-2" placeholder="">
+                                
+                                <button onclick="copyShareLink()" class="btn btn-primary w-100 mb-3">Copy Link</button>
+
+                                <!-- Permission Settings -->
+                                <div style="margin-top: 24px;">
+                                    <h6 class="mb-3"><i class="fas fa-lock me-2"></i>Permissions</h6>
+                                    
+                                    <label class="form-check-label mb-1">Anyone with the link can:</label>
+                                    <select id="sharePermission" class="form-select mb-3">
+                                        <option value="view">View only</option>
+                                        <option value="comment">Comment and edit own blocks</option>
+                                        <option value="edit">Full editing access</option>
+                                    </select>
+
+                                    <!-- Add People -->
+                                    <div class="input-group mb-3">
+                                        <span class="input-group-text"><i class="fas fa-user-plus"></i></span>
+                                        <input type="email" id="addUserEmail" class="form-control" placeholder="Enter email or username...">
+                                        <button onclick="inviteUser()" class="btn btn-primary">Invite</button>
+                                    </div>
+
+                                    <!-- User List -->
+                                    <h6 class="mb-2"><i class="fas fa-users me-2"></i>People with access (1)</h6>
+                                    <ul id="userAccessList" style="list-style: none; padding-left: 0;">
+                                        <li class="d-flex justify-content-between align-items-center p-2 bg-light rounded mb-2">
+                                            👤 You (Owner)
+                                        </li>
+                                    </ul>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Database View -->
+            <div id="databaseView" style="display: none;">
+                <div class="database-header">
+                    <h5 id="dbTitleDisplay" style="margin-bottom: 8px;"></h5>
+                    
+                    <!-- Add Column Buttons -->
+                    <button onclick="addColumn()" class="btn btn-sm btn-outline-primary me-2"><i class="fas fa-plus"></i></button>
+                    <button onclick="showDbSettings()" class="btn btn-sm btn-link text-muted">⋯</button>
+
+                    <!-- Table View Toggle -->
+                    <div style="margin-left: 16px;">
+                        <select onchange="changeTableView(this.value)" id="tableViewToggle" class="form-select form-select-sm d-inline-block w-auto">
+                            <option value="table">Table view</option>
+                            <option value="board">Board view (coming soon)</option>
+                            <option value="calendar">Calendar view (coming soon)</option>
+                        </select>
+                    </div>
+
+                    <!-- Add Row -->
+                    <button onclick="addDbRow()" class="btn btn-sm btn-outline-primary ms-2"><i class="fas fa-plus"></i></button>
+                </div>
+
+                <div class="table-container">
+                    <table id="dbTable" class="db-table table-striped mb-0 property-input">
+                        <!-- Table content will be generated here -->
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Page Modal -->
+    <div class="modal fade" id="pageModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content p-4">
+                <h6 class="mb-3">Create New Page</h6>
+                
+                <!-- Icon Selection -->
+                <label class="d-flex align-items-center mb-2" style="cursor: pointer;">
+                    <i id="pageIconPreview" style="font-size: 18px; margin-right: 8px;" class="fas fa-file"></i>
+                    Select icon (click to change)
+                </label>
+                
+                <!-- Page Title -->
+                <input type="text" id="newPageTitleInput" class="form-control mb-3 property-input" placeholder="Enter page title...">
+
+                <!-- Parent Selection -->
+                <div style="margin-bottom: 24px;">
+                    <h6>Parent (optional)</h6>
+                    <select id="parentSelect" class="form-select form-select-sm d-inline-block w-auto"></select>
+                </div>
+
+                <!-- Create Button -->
+                <button onclick="createNewPageConfirm()" class="btn btn-primary w-100">Create Page</button>
+
+                <!-- Icon Options -->
+                <input type="hidden" id="pageIconSelect" value="">
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Database Modal -->
+    <div class="modal fade" id="dbModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content p-4">
+                <h6 class="mb-3 d-flex align-items-center gap-2">Create New Database</h6>
+
+                <!-- Title -->
+                <input type="text" id="newDbTitleInput" class="form-control mb-3 property-input" placeholder="Enter database title...">
+
+                <!-- Icon Selection -->
+                <label class="d-flex align-items-center mb-2" style="cursor: pointer;">
+                    <i id="dbIconPreview" style="font-size: 18px; margin-right: 8px;" class="fas fa-table"></i>
+                    Select icon (click to change)
+                </label>
+
+                <!-- Column Type -->
+                <div style="margin-bottom: 24px;">
+                    <h6>Add first column</h6>
+                    <select id="firstColumnSelect" class="form-select form-select-sm d-inline-block w-auto">
+                        <option value="text">Text (default)</option>
+                        <option value="number">Number</option>
+                        <option value="date">Date</option>
+                        <option value="checkbox">Checkbox</option>
+                        <option value="select">Select / Multi-select</option>
+                        <option value="email">Email</option>
+                    </select>
+                </div>
+
+                <!-- Create Button -->
+                <button onclick="createNewDatabaseConfirm()" class="btn btn-primary w-100">Create Database</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal fade" id="settingsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header border-0 py-3 px-4 d-flex justify-content-between align-items-center bg-light rounded-top">
+                    <h6 class="m-0"><i class="fas fa-cog me-2"></i>Settings & Members</h6>
+                    <button type="button" onclick="document.getElementById('settingsModal').classList.remove('show')" class="btn-close"></button>
+                </div>
+                <div class="modal-body px-4">
+                    <!-- Page Info -->
+                    <div style="margin-bottom: 20px;">
+                        <h6>About this page</h6>
+                        <textarea id="pageDescription" class="form-control mb-3 property-input" rows="3"></textarea>
+                        
+                        <button onclick="savePageSettings()" class="btn btn-primary">Save Changes</button>
+
+                        <!-- Cover Image -->
+                        <div style="margin-top: 24px;">
+                            <h6>Cover image (optional)</h6>
+                            <input type="file" id="coverFileInput" accept="image/*" onchange="previewCover(this)">
+                            <img id="coverPreview" class="mt-2 border rounded" style="max-height: 100px; display: none;">
+                        </div>
+
+                        <!-- Page Icon -->
+                        <div style="margin-top: 24px;">
+                            <h6>Page icon (optional)</h6>
+                            
+                            <!-- Emoji Picker Simulation -->
+                            <input type="hidden" id="pageIconValue">
+                            <button onclick="showEmojiPicker('page')" class="btn btn-sm btn-outline-secondary me-1"><i class="fas fa-icons"></i></button>
+                            <span id="currentPageIconDisplay"></span>
+
+                            <!-- Image Upload -->
+                            <input type="file" id="iconFileInput" accept="image/*" style="display: none;" onchange="previewIcon(this)">
+                        </div>
+                    </div>
+
+                    <!-- Members Section -->
+                    <hr class="my-4">
+                    
+                    <h6><i class="fas fa-users me-2"></i>Members (1)</h6>
+                    <p class="text-muted text-sm mb-3">Manage who can view and edit this page.</p>
+
+                    <!-- Add Member -->
+                    <div style="margin-bottom: 8px;">
+                        <input type="email" id="addMemberEmail" class="form-control form-select-sm d-inline-block w-auto" placeholder="Enter email or username...">
+                        <button onclick="inviteUser()" class="btn btn-primary btn-sm ms-1">Add</button>
+                    </div>
+
+                    <!-- Member List -->
+                    <ul id="membersList" style="list-style: none; padding-left: 0;"></ul>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Emoji Picker Modal (simplified) -->
+    <div class="modal fade" id="emojiPickerModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content p-2">
+                <h6 class="mb-3 text-center"><i class="fas fa-icons me-2"></i>Choose an icon</h6>
+
+                <!-- Emoji Grid -->
+                <div id="emojiGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 8px;">
+                    <!-- Emojis will be populated here -->
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // ============ Application State ============
+        const appState = {
+            currentPageId: 1,
+            currentDatabaseId: null,
+            isMobile: window.innerWidth <= 768,
+            
+            iconList: ['📄', '📝', '💡', '⭐️', '⚙️', '🔒', '🔑', '✅', '❌', '➕'],
+        };
+
+        // Monaco Editor instance
+        let editor;
+
+        // ============ Initialization ============
+        document.addEventListener('DOMContentLoaded', function() {
+            initMonacoEditor();
+            
+            // Check for mobile device
+            window.addEventListener('resize', () => {
+                appState.isMobile = window.innerWidth <= 768;
+                
+                if (!appState.isMobile) {
+                    document.querySelector('.mobile-nav-toggle').classList.add('d-none');
+                } else {
+                    document.querySelector('.mobile-nav-toggle').classList.remove('d-none');
+                }
+
+                // Adjust sidebar on mobile
+                const sidebar = document.getElementById('sidebar');
+                if (appState.isMobile) {
+                    sidebar.classList.remove('show');
+                }
+            });
+            
+            // Resize editor when switching pages
+            window.addEventListener('resize', resizeEditor);
+        });
+
+        // ============ Monaco Editor Setup ============
+        function initMonacoEditor() {
+            const container = document.getElementById("monaco-editor-container");
+            if (!container) return;
+
+            monaco.editor.create(container, {
+                value: "# Welcome\n\nThis is your Notion clone workspace. Click **+** in the sidebar to create new pages or databases.\n\nYou can:\n- Add blocks by pressing **Enter**\n- Change heading levels with buttons above editor",
+                language: "markdown",
+                theme: "vs-light",
+                fontSize: 14,
+                fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif",
+                automaticLayout: true,
+                minimap: { enabled: false },
+                scrollPastEnd: false,
+                wordWrap: "on"
+            });
+
+            // Add block toolbar buttons above editor
+            addBlockToolbar();
+        }
+
+        function resizeEditor() {
+            if (editor) {
+                monaco.editor.layoutChanged(() => {}); // Force relayout
+            }
+        }
+
+        // ============ Block Toolbar ============
+        let toolbarButtons = [];
+        
+        function addBlockToolbar() {
+            const toolbarDiv = document.createElement('div');
+            toolbarDiv.className = 'block-toolbar';
+            
+            [
+                ['h1', '<i class="fas fa-heading"></i>'], // Heading 1
+                ['h2', '<i class="fab fa-hacker-news"></i>'], // Heading 2 (using close brackets)
+                ['p', '<i class="fas fa-paragraph"></i>'], // Paragraph
+                ['bq', '<i class="fas fa-quote-left"></i>'], // Blockquote
+                ['ul', '<i class="fas fa-list-ul"></i>'], // Bullet list
+                ['ol', '<i class="fas fa-list-ol"></i>'], // Numbered list
+            ].forEach(([type, icon]) => {
+                const btn = document.createElement('button');
+                btn.className = 'toolbar-btn';
+                btn.innerHTML = icon;
+                btn.title = type === 'h1' ? 'Heading 1' : 
+                                type === 'h2' ? 'Heading 2' : 
+                                type === 'p' ? 'Paragraph' :
+                                type === 'bq' ? 'Quote' :
+                                type === 'ul' ? 'Bullet List' : 'Numbered List';
+                btn.onclick = () => toggleBlockType(type);
+                toolbarButtons.push(btn);
+            });
+
+            if (document.getElementById('monaco-editor-container')) {
+                document.querySelector('#monaco-editor-container').parentElement.insertBefore(toolbarDiv, 
+                    document.querySelector('#monaco-editor-container'));
+            }
+        }
+
+        function toggleBlockType(type) {
+            // In a real app, this would update the editor content
+            console.log('Toggle block type:', type);
+        }
+
+        // ============ Navigation Functions ============
+        
+        function switchPage(pageId) {
+            document.querySelectorAll('.page-item').forEach(el => el.classList.remove('active'));
+            const target = document.getElementById(`page-item-${pageId}`);
+            if (target) target.classList.add('active');
+
+            appState.currentPageId = pageId;
+            
+            // Hide welcome screen and database view, show page editor
+            document.getElementById('welcomeScreen').style.display = 'none';
+            document.getElementById('databaseView').style.display = 'none';
+            document.getElementById('pageEditor').style.display = 'block';
+
+            // Update title input with actual data
+            const titles = ['Home Page', 'Project Ideas', 'Startup Plan'];
+            document.getElementById('pageTitleInput').value = titles[pageId - 1];
+
+            // Load page content (placeholder)
+            loadPageContent(pageId);
+
+            // Hide sidebar on mobile after selection
+            if (appState.isMobile) {
+                toggleSidebar();
+            }
+
+            updateTitleDisplay(titles[pageId - 1]);
+        }
+
+        function switchDatabase(dbId) {
+            document.querySelectorAll('.database-item').forEach(el => el.classList.remove('active'));
+            const target = document.getElementById(`db-item-${dbId}`);
+            if (target) target.classList.add('active');
+
+            appState.currentDatabaseId = dbId;
+            
+            // Hide welcome screen and page editor, show database view
+            document.getElementById('welcomeScreen').style.display = 'none';
+            document.getElementById('pageEditor').style.style.display = 'none';
+            document.getElementById('databaseView').style.display = 'block';
+
+            const titles = ['Tasks Database', 'Team Members'];
+            updateDbTitleDisplay(titles[dbId - 1]);
+        }
+
+        function toggleSidebar() {
+            if (appState.isMobile) {
+                appState.sidebarHidden = !appState.sidebarHidden;
+                document.getElementById('sidebar').classList.toggle('show');
+            }
+        }
+
+        // ============ Page Operations ============
+
+        function createNewPage() {
+            const pageModal = new bootstrap.Modal(document.getElementById('pageModal'));
+            pageModal.show();
+            
+            // Clear inputs
+            document.getElementById('newPageTitleInput').value = '';
+            document.querySelector('#pageIconPreview').innerHTML = '<i class="fas fa-file"></i>';
+        }
+
+        function createNewPageConfirm() {
+            const title = document.getElementById('newPageTitleInput').value || "Untitled Page";
+            const icon = appState.iconList.find(i => i === document.getElementById('pageIconSelect').value) || '📄';
+            
+            // Create new page (placeholder implementation)
+            const newId = 10 + Math.floor(Math.random() * 9);
+            switchPage(newId);
+
+            // Close modal and reset form
+            bootstrap.Modal.getInstance(document.getElementById('pageModal')).hide();
+        }
+
+        function deleteCurrentPage() {
+            if (confirm("Are you sure you want to delete this page? This action cannot be undone.")) {
+                alert(`Deleted page "${document.getElementById('pageTitleInput').value}"`);
+                
+                // Switch back to home or welcome screen
+                document.querySelectorAll('.page-item').forEach(el => el.classList.remove('active'));
+                document.getElementById('welcomeScreen').style.display = 'flex';
+            }
+        }
+
+        function duplicateCurrentPage() {
+            const title = document.getElementById('pageTitleInput').value || "Untitled Page";
+            
+            // Create a copy (placeholder)
+            alert(`Created a duplicate of "${title}"`);
+        }
+
+        function showSettings() {
+            new bootstrap.Modal(document.getElementById('settingsModal')).show();
+        }
+
+        function previewIcon(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    document.querySelector('#pageIconPreview').innerHTML = 
+                        `<img src="${e.target.result}" style="width: 24px; height: 24px;">`;
+                    
+                    // In real app, upload to server here
+                };
+                
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function previewCover(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    document.getElementById('coverPreview').src = e.target.result;
+                    document.getElementById('coverPreview').style.display = 'block';
+                    
+                    // In real app, upload to server here
+                };
+                
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function savePageSettings() {
+            const description = document.getElementById('pageDescription').value;
+            
+            // Save page settings (placeholder)
+            alert(`Saved! Description: "${description}"`);
+        }
+
+        // ============ Database Operations ============
+
+        function createNewDatabase() {
+            const dbModal = new bootstrap.Modal(document.getElementById('dbModal'));
+            dbModal.show();
+            
+            document.getElementById('newDbTitleInput').value = '';
+            document.querySelector('#dbIconPreview').innerHTML = '<i class="fas fa-table"></i>';
+        }
+
+        function createNewDatabaseConfirm() {
+            const title = document.getElementById('newDbTitleInput').value || "Untitled Database";
+            const icon = '📊'; // Placeholder
+            
+            // Create new database (placeholder)
+            const newId = 10 + Math.floor(Math.random() * 9);
+            switchDatabase(newId);
+
+            bootstrap.Modal.getInstance(document.getElementById('dbModal')).hide();
+        }
+
+        function addColumn() {
+            alert("Add column functionality coming soon!");
+            
+            // Example: Add a new column to the table
+            const columns = ['Name', 'Status', 'Priority'];
+            const tbody = document.querySelector('#dbTable tbody');
+            
+            if (tbody) {
+                // Create header row for new column
+                const tr = document.createElement('tr');
+                
+                // First cell (title/label)
+                const td1 = document.createElement('td');
+                td1.innerHTML = '<i class="fas fa-plus-circle"></i> New Column';
+                td1.style.fontWeight = 'bold';
+                
+                // Property type selector
+                const select = document.createElement('select');
+                select.className = 'form-select form-select-sm property-input';
+                ['text', 'number', 'date', 'checkbox'].forEach(type => {
+                    const option = document.createElement('option');
+                    option.value = type;
+                    option.text = type.charAt(0).toUpperCase() + type.slice(1);
+                    select.appendChild(option);
+                });
+
+                // Second cell (property selector)
+                const td2 = document.createElement('td');
+                td2.innerHTML = '';
+                
+                tr.appendChild(td1);
+                td2.appendChild(select);
+                
+                // Add a placeholder row for this column
+                const newRow = document.createElement('tr');
+                newRow.style.height = '40px';
+                newRow.style.borderBottom = 'none';
+                
+                const newTd1 = document.createElement('td');
+                newTd1.innerHTML = '<i class="fas fa-plus"></i>';
+                newTd1.className = 'text-muted cursor-pointer p-2';
+                newTd1.onclick = () => addDbRow(); // For now, just adds row
+                
+                const newTd2 = document.createElement('td');
+                newTd2.style.height = '40px';
+                
+                newRow.appendChild(newTd1);
+                newRow.appendChild(newTd2);
+                
+                tbody.insertBefore(tr, tbody.children[0]);
+            }
+        }
+
+        function addDbRow() {
+            const table = document.getElementById('dbTable');
+            if (!table) return;
+            
+            // Add a new row to the database table
+            const newRow = document.createElement('tr');
+            newRow.className = 'property-input';
+            newRow.style.height = '40px';
+            
+            // Name column (text input)
+            const td1 = document.createElement('td');
+            td1.innerHTML = '<i class="fas fa-plus"></i>';
+            td1.className = 'text-muted cursor-pointer p-2 property-input';
+            newRow.appendChild(td1);
+
+            // Status dropdown
+            const selectTd = document.createElement('td');
+            const statusSelect = document.createElement('select');
+            statusSelect.className = 'form-select form-select-sm d-inline-block w-auto property-input';
+            
+            ['Not Started', 'In Progress', 'Done'].forEach(status => {
+                const option = document.createElement('option');
+                option.value = status;
+                option.text = status.charAt(0).toUpperCase() + status.slice(1);
+                statusSelect.appendChild(option);
+            });
+
+            selectTd.appendChild(statusSelect);
+            
+            // Priority dropdown (optional)
+            const priorityTd = document.createElement('td');
+            const prioritySelect = document.createElement('select');
+            prioritySelect.className = 'form-select form-select-sm d-inline-block w-auto property-input';
+            
+            ['Low', 'Medium', 'High'].forEach(priority => {
+                const option = document.createElement('option');
+                option.value = priority;
+                option.text = priority.charAt(0).toUpperCase() + priority.slice(1);
+                prioritySelect.appendChild(option);
+            });
+
+            priorityTd.appendChild(prioritySelect);
+
+            // Date input (optional)
+            const dateTd = document.createElement('td');
+            const dateInput = document.createElement('input');
+            dateInput.type = 'date';
+            dateInput.className = 'form-control form-select-sm d-inline-block w-auto property-input text-center py-0';
+            
+            dateTd.appendChild(dateInput);
+
+            newRow.appendChild(selectTd);
+            newRow.appendChild(priorityTd);
+            newRow.appendChild(dateTd);
+            
+            table.querySelector('tbody').appendChild(newRow);
+        }
+
+        function changeTableView(viewType) {
+            alert(`Switching to ${viewType} view... (coming soon)`);
+            
+            // For now, just show a message
+            const currentView = document.getElementById('tableViewToggle');
+            if (currentView && currentView.value === 'board') {
+                document.querySelector('.table-container').innerHTML = 
+                    '<div class="p-4 text-center"><i style="font-size: 64px;" class="fas fa-th-large"></i><br>Board view coming soon!</div>';
+            } else if (currentView && currentView.value === 'calendar') {
+                document.querySelector('.table-container').innerHTML = 
+                    '<div class="p-4 text-center"><i style="font-size: 64px;" class="far fa-calendar-alt"></i><br>Calendar view coming soon!</div>';
+            } else if (currentView && currentView.value === 'table') {
+                document.querySelector('.table-container').innerHTML = ''; // Restore table
+                addDbRow(); // Add a sample row
+            }
+        }
+
+        function showDbSettings() {
+            alert("Database settings: rename, delete columns, change view");
+        }
+
+        // ============ Share & Comments ============
+
+        function sharePage() {
+            new bootstrap.Modal(document.getElementById('shareModal')).show();
+            
+            document.getElementById('shareLinkInput').value = 
+                `https://notion-clone.example.com/p/${appState.currentPageId}`;
+        }
+
+        function copyShareLink() {
+            const linkInput = document.getElementById('shareLinkInput');
+            if (linkInput) {
+                linkInput.select();
+                navigator.clipboard.writeText(linkInput.value).then(() => {
+                    alert("Copied to clipboard!");
+                });
+            }
+        }
+
+        function inviteUser() {
+            const email = document.getElementById('addUserEmail').value;
+            if (email) {
+                // Add user to access list (placeholder)
+                const userList = document.getElementById('userAccessList');
+                
+                const li = document.createElement('li');
+                li.className = 'd-flex justify-content-between align-items-center p-2 bg-light rounded mb-2';
+                li.innerHTML = `<span>👤 ${email}</span><i class="fas fa-times text-muted"></i>`;
+                
+                userList.appendChild(li);
+                
+                // Clear input
+                document.getElementById('addUserEmail').value = '';
+            } else {
+                alert("Please enter an email or username");
+            }
+        }
+
+        function showComments() {
+            new bootstrap.Modal(document.getElementById('commentsModal')).show();
+            
+            const commentsContainer = document.querySelector('#commentsModal .modal-body p');
+            if (commentsContainer) {
+                commentsContainer.style.display = 'none';
+            }
+        }
+
+        function addComment() {
+            const commentText = document.getElementById('commentInput').value;
+            if (!commentText.trim()) return;
+            
+            // Add comment to list (placeholder)
+            alert(`Added your comment: "${commentText}"`);
+            
+            // Clear input and reload comments
+            document.getElementById('commentInput').value = '';
+        }
+
+        function showEmojiPicker(type) {
+            const emojiGrid = document.getElementById('emojiGrid');
+            if (!emojiGrid) return;
+            
+            // Fill with emojis (using Unicode characters)
+            const emojis = ['😀', '😃', '😄', '😁', '😆', '🥰', '😍', '😊', 
+                           '😎', '🤩', '😇', '🙂', '🙃', '😉', '😌',
+                           '😏', '😒', '😞', '😔', '😟', '😕', '😣', 
+                           '😖', '😫', '😪', '🥴', '😵', '🤐', '🥱'];
+
+            emojiGrid.innerHTML = emojis.map(emoji => `
+                <button onclick="selectEmoji('${type}', '${emoji}')" style="font-size: 24px; background: none; border: none; cursor: pointer;">${emoji}</button>
+            `).join('');
+            
+            new bootstrap.Modal(document.getElementById('emojiPickerModal')).show();
+        }
+
+        function selectEmoji(type, emoji) {
+            if (type === 'page') {
+                document.querySelector('#pageIconPreview').innerHTML = emoji;
+                document.getElementById('pageIconSelect').value = emoji;
+            } else if (type === 'db') {
+                document.querySelector('#dbIconPreview').innerHTML = emoji;
+            }
+
+            bootstrap.Modal.getInstance(document.getElementById('emojiPickerModal')).hide();
+        }
+
+        // ============ UI Updates ============
+
+        function updateTitleDisplay(title) {
+            const display = document.getElementById('pageTitleDisplay');
+            if (display) {
+                display.textContent = title || 'Untitled';
+            }
+        }
+
+        function updateDbTitleDisplay(title) {
+            const display = document.getElementById('dbTitleDisplay');
+            if (display) {
+                display.textContent = title;
+            }
+        }
+
+        function togglePageSidebar() {
+            const sidebar = document.getElementById('pageSidebarContent');
+            sidebar.classList.toggle('open');
+            
+            // Load page content when opening
+            if (!sidebar.classList.contains('open')) {
+                loadPageContent(appState.currentPageId);
+            }
+        }
+
+        function showUserMenu() {
+            alert("User menu: Account settings, Sign out");
+        }
+
+        // ============ Page Content Loading (Placeholder) ============
+        
+        async function loadPageContent(pageId) {
+            const pageContainer = document.getElementById('pageContentArea');
+            if (!pageContainer) return;
+            
+            try {
+                // In real app, fetch from API: /api/pages/${pageId}
+                // For demo, show placeholder content
+                
+                let markdownContent = "";
+                
+                switch(pageId) {
+                    case 1: // Home Page
+                        markdownContent = `# Welcome to Your Notion Workspace
+
+This is your home page. You can use this space for notes, tasks, or as a central hub.
+
+## Getting Started
+
+- Click **+** in the sidebar to create new pages
+- Create databases by clicking **Database** button
+- Use keyboard shortcuts: \`/` to add blocks (coming soon)
+
+---
+
+> 💡 Tip: You can organize your workspace with nested pages and databases!`;
+                        break;
+                    case 2: // Project Ideas
+                        markdownContent = `# 🚀 Project Ideas
+
+A collection of project ideas for future development.
+
+## Current Projects
+
+- [ ] Build a web scraper
+- [ ] Create a personal blog
+- [ ] Learn Rust programming
+
+---
+
+💭 *Idea notebook - write down everything!*`;
+                        break;
+                    case 3: // Startup Plan
+                        markdownContent = `# 📊 Startup Business Plan
+
+## Executive Summary
+
+Our startup aims to revolutionize productivity tools for remote teams.
+
+### Mission Statement
+> "Empowering distributed teams with seamless collaboration."
+
+---
+
+## Target Market
+- Remote software development companies (50+ employees)
+- Digital agencies and consulting firms
+
+### Revenue Model
+- SaaS subscription: $19/user/month
+- Enterprise plans: Custom pricing`;
+                        break;
+                }
+                
+                // Render markdown as simple HTML
+                pageContainer.innerHTML = `
+                    <div style="padding-bottom: 20px;">${markdownContent}</div>
+                    
+                    <!-- Add Block Toolbar -->
+                    <div class="block-toolbar" id="${pageId}_toolbar"></div>
+                `;
+
+                // Initialize toolbar for this page
+                addBlockToolbar();
+
+            } catch (error) {
+                console.error('Error loading page:', error);
+            }
+        }
+
+    </script>
+</body>
+</html>

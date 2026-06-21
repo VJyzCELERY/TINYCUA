@@ -1,0 +1,5 @@
+ Container experiment-searxng-1 Running 
+ Container experiment-openclaw-run-1f28f4c32855 Creating 
+ Container experiment-openclaw-run-1f28f4c32855 Created 
+[tools] tool_call failed: Unknown tool id: shell raw_params={"id":"shell","args":{"command":"mkdir -p /workspace/experiment-4/notion-app/{backend,frontend/public/css,frontend/public/js}","description":"Creating project structure for Notion-like app"}}
+[agent/embedded] embedded run failover decision: runId=4dc19f1d-c3fe-41a8-9ebd-aefcb9483c78 stage=assistant decision=surface_error reason=timeout from=local/qwen3.5-9b profile=- rawError=LLM idle timeout (120s): no response from model

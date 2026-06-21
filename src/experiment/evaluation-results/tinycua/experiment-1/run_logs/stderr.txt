@@ -1,0 +1,8 @@
+ Container experiment-searxng-1 Running 
+ Container experiment-tinycua-run-4f7181d661f0 Creating 
+ Container experiment-tinycua-run-4f7181d661f0 Created 
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.node:node=query_analyst record_output content_len=0
+INFO:tinycua.loops.query_analyst:QueryAnalyst routed to 'passthrough' — no action taken
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.node:node=response record_output content_len=117

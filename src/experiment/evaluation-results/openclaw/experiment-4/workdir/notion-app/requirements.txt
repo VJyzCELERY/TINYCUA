@@ -1,0 +1,6 @@
+# Flask Web Framework
+flask>=3.0.0
+flask-cors>=4.0.0
+# Utilities
+click>=8.1.7
+python-dotenv>=1.0.0

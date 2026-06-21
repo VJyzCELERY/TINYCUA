@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analog Clock</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .clock {
+            width: 350px;
+            height: 350px;
+            border-radius: 50%;
+            background: white;
+            box-shadow:
+                20px 20px 60px rgba(0, 0, 0, 0.3),
+                -20px -20px 60px rgba(255, 255, 255, 0.8);
+            position: relative;
+        }
+
+        .marker {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 50%;
+            top: calc(var(--marker-top) * 1% - 6px);
+            left: calc(var(--marker-left) * 1% - 6px);
+        }
+
+        .hand {
+            position: absolute;
+            bottom: 50%;
+            left: 50%;
+            transform-origin: bottom center;
+            border-radius: 4px;
+            transition: all 0.02s cubic-bezier(0.4, 2.38, 0.96, 1);
+        }
+
+        .hour-hand {
+            width: 8px;
+            height: calc(var(--h-length) * 1%);
+            background: linear-gradient(to top, #764ba2, #667eea);
+            margin-left: -4px;
+            z-index: 3;
+        }
+
+        .minute-hand {
+            width: 5px;
+            height: calc(var(--m-length) * 1%);
+            background: linear-gradient(to top, #9c27b0, #667eea);
+            margin-left: -2.5px;
+            z-index: 2;
+        }
+
+        .second-hand {
+            width: 3px;
+            height: calc(var(--s-length) * 1%);
+            background: linear-gradient(to top, #e91e63, #ff0054);
+            margin-left: -1.5px;
+            z-index: 1;
+        }
+
+        .center-dot {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+        }
+
+        .digital-time {
+            position: fixed;
+            bottom: -70px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px 30px;
+            border-radius: 15px;
+            box-shadow:
+                0 4px 6px rgba(0, 0, 0, 0.1),
+                -2px 2px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .time-text {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #333;
+            letter-spacing: 2px;
+        }
+
+        .date-text {
+            font-size: 0.95rem;
+            color: #667eea;
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+    <div class="clock">
+        <div class="center-dot"></div>
+        
+        <!-- Hour Hand -->
+        <div class="hand hour-hand" id="hourHand" style="--h-length: 25; --transform-rotate: 0deg;"></div>
+        
+        <!-- Minute Hand -->
+        <div class="hand minute-hand" id="minuteHand" style="--m-length: 40; --transform-rotate: 0deg;"></div>
+        
+        <!-- Second Hand -->
+        <div class="hand second-hand" id="secondHand" style="--s-length: 50; --transform-rotate: 0deg;"></div>
+    </div>
+
+    <div class="digital-time">
+        <div class="time-text" id="digitalTime">12:00</div>
+        <div class="date-text" id="dateText"></div>
+    </div>
+
+    <script>
+        const hourHand = document.getElementById('hourHand');
+        const minuteHand = document.getElementById('minuteHand');
+        const secondHand = document.getElementById('secondHand');
+        const digitalTime = document.getElementById('digitalTime');
+        const dateText = document.getElementById('dateText');
+
+        function updateClock() {
+            const now = new Date();
+            
+            // Calculate angles
+            const seconds = now.getSeconds();
+            const milliseconds = now.getMilliseconds();
+            const minutes = now.getMinutes();
+            const hours = now.getHours();
+
+            // Second hand angle (smooth movement)
+            const secondDegrees = ((seconds + milliseconds / 1000) / 60) * 360;
+
+            // Minute hand angle (includes seconds for smoothness)
+            const minuteDegrees = ((minutes + seconds / 60) / 60) * 360;
+
+            // Hour hand angle (includes minutes for smoothness)
+            const hourDegrees = (((hours % 12) + minutes / 60) / 12) * 360;
+
+            // Apply rotations
+            secondHand.style.setProperty('--transform-rotate', `${secondDegrees}deg`);
+            minuteHand.style.setProperty('--transform-rotate', `${minuteDegrees}deg`);
+            hourHand.style.setProperty('--transform-rotate', `${hourDegrees}deg`);
+
+            // Update digital time
+            const hours12 = hours % 12 || 12;
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            digitalTime.textContent = `${hours12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+
+            // Update date
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                           'July', 'August', 'September', 'October', 'November', 'December'];
+            dateText.textContent = `${days[now.getDay()]} ${now.getDate()} ${months[now.getMonth()]}`;
+        }
+
+        // Update every 10ms for smooth second hand movement
+        setInterval(updateClock, 10);
+        updateClock(); // Initial call
+    </script>
+</body>
+</html>

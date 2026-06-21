@@ -1,0 +1,11 @@
+{
+  "experiment_num": 2,
+  "agent": "opencode",
+  "started_at": "2026-06-21T00:54:16.023265+00:00",
+  "llm_started_at": "2026-06-21T00:54:22.189328+00:00",
+  "ended_at": "2026-06-21T00:55:06.879911+00:00",
+  "warmup_seconds": 6.166063,
+  "duration_seconds": 44.690583,
+  "exit_code": 0,
+  "status": "passed"
+}

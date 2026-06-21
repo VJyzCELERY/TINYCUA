@@ -1,0 +1,51 @@
+Query: Hello there
+Initializing agent...
+  ⚠ tirith security scanner enabled but not available — command scanning will use pattern matching only
+[0;32m✓[0m Detected: linux (debian)
+[0;36m→[0m Checking Node.js (for browser tools)...
+[0;36m→[0m Node.js not found — installing Node.js 22 LTS...
+[0;33m⚠[0m Could not find Node.js 22 binary for linux-x64
+[0;36m→[0m Install manually: https://nodejs.org/en/download/
+────────────────────────────────────────
+🤖 AI Agent initialized with model: qwen3.5-9b
+🔗 Using custom base URL: http://host.docker.internal:1234/v1
+🔑 Using API key: any-rand...ring
+✅ Enabled toolset 'browser': browser_back, browser_cdp, browser_click, browser_console, browser_dialog, browser_get_images, browser_navigate, browser_press, browser_scroll, browser_snapshot, browser_type, browser_vision, web_search
+✅ Enabled toolset 'clarify': clarify
+✅ Enabled toolset 'code_execution': execute_code
+✅ Enabled toolset 'computer_use': computer_use
+✅ Enabled toolset 'cronjob': cronjob
+✅ Enabled toolset 'delegation': delegate_task
+✅ Enabled toolset 'file': patch, read_file, search_files, write_file
+✅ Enabled toolset 'image_gen': image_generate
+✅ Enabled toolset 'kanban': kanban_block, kanban_comment, kanban_complete, kanban_create, kanban_heartbeat, kanban_link, kanban_list, kanban_show, kanban_unblock
+✅ Enabled toolset 'memory': memory
+✅ Enabled toolset 'messaging': send_message
+✅ Enabled toolset 'session_search': session_search
+✅ Enabled toolset 'skills': skill_manage, skill_view, skills_list
+✅ Enabled toolset 'terminal': process, terminal
+✅ Enabled toolset 'todo': todo
+✅ Enabled toolset 'tts': text_to_speech
+✅ Enabled toolset 'vision': vision_analyze
+✅ Enabled toolset 'web': web_extract, web_search
+🛠️  Final tool selection (19 tools): clarify, cronjob, delegate_task, execute_code, memory, patch, process, read_file, search_files, session_search, skill_manage, skill_view, skills_list, terminal, text_to_speech, todo, web_extract, web_search, write_file
+🛠️  Loaded 19 tools: clarify, cronjob, delegate_task, execute_code, memory, patch, process, read_file, search_files, session_search, skill_manage, skill_view, skills_list, terminal, text_to_speech, todo, web_extract, web_search, write_file
+   ✅ Enabled toolsets: browser, clarify, code_execution, computer_use, cronjob, delegation, file, image_gen, kanban, memory, messaging, session_search, skills, terminal, todo, tts, vision, web
+⚠️  Some tools may not work due to missing requirements: ['browser', 'browser-cdp', 'computer_use', 'discord', 'discord_admin', 'feishu_doc', 'feishu_drive', 'hermes-yuanbao', 'homeassistant', 'image_gen', 'kanban', 'messaging', 'moa', 'spotify', 'video', 'video_gen', 'vision', 'x_search']
+📊 Context limit: 262,144 tokens (compress at 50% = 131,072)
+
+💬 Starting conversation: 'Hello there'
+  [thinking] The user is greeting me with a simple hello, so I should
+  [thinking] respond in kind and offer my assistance.
+
+╭─ ⚕ Hermes ───────────────────────────────────────────────────────────────────╮
+🎉 Conversation completed after 1 OpenAI-compatible API call(s)
+    Hi! How can I help you today?
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+Resume this session with:
+  hermes --resume 20260621_005347_33c5a0
+
+Session:        20260621_005347_33c5a0
+Duration:       8s
+Messages:       2 (1 user, 0 tool calls)

@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notion-like App</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background-color: #ffffff;
+            color: #37352f;
+            line-height: 1.6;
+        }
+
+        .app-container {
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 240px;
+            background-color: #f7f7f5;
+            border-right: 1px solid #e1e1e0;
+            display: flex;
+            flex-direction: column;
+            padding: 8px 0;
+        }
+
+        .sidebar-header {
+            padding: 8px 12px;
+            font-weight: 600;
+            font-size: 14px;
+            color: #37352f;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .sidebar-header span {
+            font-size: 20px;
+        }
+
+        .page-list {
+            list-style: none;
+            overflow-y: auto;
+            flex: 1;
+            padding: 4px 0;
+        }
+
+        .page-item {
+            padding: 6px 12px 6px 24px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #37352f;
+            border-radius: 4px;
+            transition: background-color 0.15s;
+        }
+
+        .page-item:hover {
+            background-color: #efefef;
+        }
+
+        .page-item.active {
+            background-color: #e7f3ff;
+            color: #0066cc;
+            font-weight: 500;
+        }
+
+        .sidebar-footer {
+            padding: 8px 12px;
+            border-top: 1px solid #e1e1e0;
+            font-size: 13px;
+            color: #787775;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+            padding-top: 40px;
+        }
+
+        .page-header {
+            position: sticky;
+            top: 0;
+            background-color: #ffffff;
+            border-bottom: 1px solid #e1e1e0;
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .page-title-input {
+            font-size: 24px;
+            font-weight: 700;
+            border: none;
+            outline: none;
+            background: transparent;
+            color: #37352f;
+            width: 100%;
+        }
+
+        .page-title-input::placeholder {
+            color: #9b9a98;
+        }
+
+        .breadcrumb {
+            font-size: 14px;
+            color: #9b9a98;
+            margin-top: 4px;
+        }
+
+        /* Editor */
+        .editor-container {
+            max-width: 800px;
+            margin: 24px auto;
+            padding: 0 24px;
+        }
+
+        .block-editor {
+            min-height: calc(100vh - 150px);
+        }
+
+        .editor-block {
+            font-size: 16px;
+            line-height: 1.8;
+            color: #37352f;
+            margin-bottom: 4px;
+            outline: none;
+            min-height: 24px;
+            padding: 4px 0;
+        }
+
+        .editor-block:focus {
+            background-color: transparent;
+        }
+
+        .editor-block.empty::before {
+            content: attr(placeholder);
+            color: #9b9a98;
+        }
+
+        /* Cover Image */
+        .cover-image-container {
+            position: relative;
+            height: 200px;
+            overflow: hidden;
+        }
+
+        .cover-image-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .cover-remove-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background-color: rgba(55, 53, 47, 0.6);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        /* Block Toolbar */
+        .block-toolbar {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 4px;
+            padding-left: 4px;
+        }
+
+        .toolbar-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+            color: #37352f;
+            padding: 4px 6px;
+            border-radius: 4px;
+        }
+
+        .toolbar-btn:hover {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 100;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 24px;
+            min-width: 300px;
+            max-width: 500px;
+        }
+
+        .modal h3 {
+            font-size: 16px;
+            margin-bottom: 16px;
+        }
+
+        .modal-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #e1e1e0;
+            border-radius: 4px;
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+
+        .modal-input:focus {
+            outline: none;
+            border-color: #37352f;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-primary {
+            background-color: #0066cc;
+            color: white;
+        }
+
+        .btn-secondary {
+            background-color: transparent;
+            color: #37352f;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        /* User Menu */
+        .user-menu {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .avatar {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background-color: #e1e1e0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #37352f;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            opacity: 1;
+        }
+
+        /* View Toggle */
+        .view-toggle {
+            position: absolute;
+            top: 40px;
+            left: 24px;
+            background-color: #ffffff;
+            border: 1px solid #e1e1e0;
+            padding: 6px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .view-toggle:hover {
+            background-color: #f7f7f5;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 48px 0;
+            color: #9b9a98;
+        }
+
+        .empty-state h2 {
+            font-size: 18px;
+            margin-bottom: 8px;
+        }
+
+        /* Block Type Buttons */
+        .block-type-buttons {
+            display: none;
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: -24px;
+            background-color: #ffffff;
+            border: 1px solid #e1e1e0;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .block-type-buttons.active {
+            display: flex;
+            justify-content: center;
+            gap: 4px;
+            padding: 8px;
+        }
+
+        .type-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            color: #37352f;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .type-btn:hover {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <span>📄</span>
+                <span id="workspace-name">My Workspace</span>
+            </div>
+            
+            <ul class="page-list" id="page-list">
+                <!-- Pages will be rendered here -->
+            </ul>
+
+            <div class="sidebar-footer">
+                <button class="btn btn-secondary" id="new-page-btn">+ New Page</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Cover Image -->
+            <div class="cover-image-container" id="cover-container">
+                <img src="" alt="Cover image" id="cover-image" style="display: none;">
+                <button class="cover-remove-btn" id="remove-cover-btn" style="display: none;" onclick="document.getElementById('cover-image').style.display = 'none'; document.getElementById('remove-cover-btn').style.display = 'none';">Remove</button>
+            </div>
+
+            <!-- Page Header -->
+            <header class="page-header">
+                <input type="text" class="page-title-input" id="page-title" placeholder="Untitled page" oninput="savePageTitle()">
+                <div class="user-menu" onclick="showUserMenu()">
+                    <div class="avatar" id="user-avatar">U</div>
+                    <span id="user-name">User</span>
+                </div>
+            </header>
+
+            <!-- Breadcrumb -->
+            <div class="breadcrumb" id="breadcrumb"></div>
+
+            <!-- View Toggle -->
+            <button class="view-toggle" onclick="toggleView()">List / Table</button>
+
+            <!-- Editor Container -->
+            <div class="editor-container">
+                <div class="block-toolbar" id="toolbar-buttons">
+                    <span style="color: #9b9a98; margin-right: 8px;">Type "/" for commands...</span>
+                </div>
+                
+                <div class="block-editor" id="editor" contenteditable="true" spellcheck="false" placeholder="Start typing here..."></div>
+            </div>
+
+            <!-- Empty State -->
+            <div class="empty-state" id="empty-state">
+                <h2>Welcome to your workspace</h2>
+                <p>Create a new page or start writing...</p>
+            </div>
+        </main>
+    </div>
+
+    <!-- Cover Image Modal -->
+    <div class="modal-overlay" id="cover-modal">
+        <div class="modal">
+            <h3>Cover Image</h3>
+            <input type="text" class="modal-input" id="cover-url" placeholder="Enter image URL (optional)">
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="document.getElementById('cover-modal').classList.remove('active')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveCoverImage()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Menu Modal -->
+    <div class="modal-overlay" id="user-modal">
+        <div class="modal">
+            <h3>User Settings</h3>
+            <input type="text" class="modal-input" id="username" placeholder="Your name">
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="document.getElementById('user-modal').classList.remove('active')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveUserName()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // API Base URL
+        const API_BASE = window.location.origin;
+
+        // State
+        let currentPageId = null;
+        let pages = [];
+        let currentUser = { name: 'User', avatar: 'U' };
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadPages();
+            setupEventListeners();
+        });
+
+        function setupEventListeners() {
+            const editor = document.getElementById('editor');
+            
+            // Handle Enter key for new blocks
+            editor.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    insertBlock('\n');
+                } else if (e.key === '/') {
+                    showCommandMenu(e);
+                }
+            });
+
+            // Handle Escape to close command menu
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    hideCommandMenu();
+                }
+            });
+
+            // Auto-resize editor
+            editor.addEventListener('input', () => {
+                const scrollHeight = editor.scrollHeight;
+                editor.style.height = Math.min(scrollHeight, 500) + 'px';
+            });
+
+            // Page title change
+            document.getElementById('page-title').addEventListener('change', (e) => {
+                if (currentPageId && e.target.value.trim()) {
+                    savePage(e.target.value);
+                }
+            });
+        }
+
+        async function loadPages() {
+            try {
+                const response = await fetch(`${API_BASE}/api/pages`);
+                pages = await response.json();
+                
+                renderPageList();
+                
+                if (pages.length > 0 && currentPageId === null) {
+                    currentPageId = pages[0].id;
+                    loadPage(currentPageId);
+                } else if (currentPageId) {
+                    loadPage(currentPageId);
+                }
+
+                // Hide empty state if we have content
+                const emptyState = document.getElementById('empty-state');
+                if (pages.length > 0 && currentPageId) {
+                    emptyState.style.display = 'none';
+                } else {
+                    emptyState.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Failed to load pages:', error);
+                showToast('Failed to connect to backend');
+            }
+        }
+
+        function renderPageList() {
+            const pageList = document.getElementById('page-list');
+            pageList.innerHTML = '';
+
+            pages.forEach(page => {
+                const li = document.createElement('li');
+                li.className = `page-item ${currentPageId === page.id ? 'active' : ''}`;
+                li.textContent = page.title || 'Untitled';
+                li.onclick = () => loadPage(page.id);
+                pageList.appendChild(li);
+            });
+        }
+
+        async function loadPage(id) {
+            currentPageId = id;
+            
+            // Update active state in sidebar
+            renderPageList();
+
+            try {
+                const response = await fetch(`${API_BASE}/api/pages/${id}`);
+                const page = await response.json();
+
+                if (page.title) {
+                    document.getElementById('page-title').value = page.title;
+                } else {
+                    document.getElementById('page-title').value = 'Untitled page';
+                }
+
+                // Set cover image if exists
+                if (page.cover_image) {
+                    const img = document.getElementById('cover-image');
+                    img.src = page.cover_image;
+                    img.style.display = 'block';
+                    document.getElementById('remove-cover-btn').style.display = 'inline-block';
+                }
+
+                // Load content and restore formatting
+                if (page.content && Array.isArray(page.content)) {
+                    const editor = document.getElementById('editor');
+                    editor.innerHTML = page.content.map(block => 
+                        `<div class="editor-block" data-type="${block.type || 'text'}">${block.text || ''}</div>`
+                    ).join('');
+
+                    // Remove empty placeholder classes
+                    editor.querySelectorAll('.empty').forEach(el => {
+                        el.classList.remove('empty');
+                    });
+
+                    // Scroll to top after content loads
+                    setTimeout(() => {
+                        window.scrollTo(0, 0);
+                    }, 100);
+                } else {
+                    document.getElementById('editor').innerHTML = '';
+                }
+
+                // Update breadcrumb
+                const breadcrumbs = page.breadcrumbs || [];
+                document.getElementById('breadcrumb').textContent = breadcrumbs.join(' > ') || 'Home';
+
+            } catch (error) {
+                console.error('Failed to load page:', error);
+                showToast('Failed to load page');
+            }
+        }
+
+        function insertBlock(text = '') {
+            const editor = document.getElementById('editor');
+            const selection = window.getSelection();
+            const range = selection.getRangeAt(0);
+            
+            // Create new block
+            const newBlock = document.createElement('div');
+            newBlock.className = 'editor-block';
+            if (text.trim()) {
+                newBlock.textContent = text;
+            } else {
+                newBlock.setAttribute('placeholder', '');
+            }
+
+            range.insertNode(newBlock);
+            
+            // Move cursor to new block
+            const newRange = document.createRange();
+            newRange.selectNodeContents(newBlock);
+            newRange.collapse(false);
+            selection.removeAllRanges();
+            selection.addRange(newRange);
+
+            // Save content periodically
+            savePageContent();
+        }
+
+        async function savePageTitle() {
+            const title = document.getElementById('page-title').value.trim();
+            if (currentPageId && title) {
+                try {
+                    await fetch(`${API_BASE}/api/pages/${currentPageId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            title,
+                            content: null // Optional: could include partial content update
+                        })
+                    });
+                } catch (error) {
+                    console.error('Failed to save page title:', error);
+                }
+            }
+        }
+
+        async function savePageContent() {
+            if (!currentPageId) return;
+
+            const editor = document.getElementById('editor');
+            const blocks = [];
+            
+            editor.querySelectorAll('.editor-block').forEach(block => {
+                blocks.push({
+                    type: block.dataset.type || 'text',
+                    text: block.textContent.trim()
+                });
+            });
+
+            try {
+                await fetch(`${API_BASE}/api/pages/${currentPageId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: blocks })
+                });
+            } catch (error) {
+                console.error('Failed to save page content:', error);
+            }
+        }
+
+        async function savePage(title = null, content = null) {
+            if (!currentPageId) return;
+
+            try {
+                const data = {};
+                
+                if (title !== null) data.title = title;
+                if (content !== null) data.content = content;
+                
+                await fetch(`${API_BASE}/api/pages/${currentPageId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+            } catch (error) {
+                console.error('Failed to save page:', error);
+            }
+        }
+
+        async function createPage() {
+            try {
+                const response = await fetch(`${API_BASE}/api/pages`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: 'Untitled page' })
+                });
+
+                const newPage = await response.json();
+                
+                // Clear editor and set placeholder
+                document.getElementById('editor').innerHTML = '';
+                document.getElementById('page-title').value = newPage.title;
+                
+                loadPages();
+                showToast('New page created');
+            } catch (error) {
+                console.error('Failed to create page:', error);
+                showToast('Failed to create page');
+            }
+        }
+
+        async function deletePage() {
+            if (!currentPageId) return;
+
+            try {
+                await fetch(`${API_BASE}/api/pages/${currentPageId}`, {
+                    method: 'DELETE'
+                });
+                
+                loadPages();
+                showToast('Page deleted');
+            } catch (error) {
+                console.error('Failed to delete page:', error);
+                showToast('Failed to delete page');
+            }
+        }
+
+        async function saveCoverImage() {
+            const url = document.getElementById('cover-url').value.trim();
+            if (!url) return;
+
+            try {
+                await fetch(`${API_BASE}/api/pages/${currentPageId}/cover`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+
+                document.getElementById('cover-url').value = '';
+                showToast('Cover image saved');
+            } catch (error) {
+                console.error('Failed to save cover:', error);
+                showToast('Failed to save cover image');
+            }
+        }
+
+        async function saveUserName() {
+            const name = document.getElementById('username').value.trim();
+            if (!name) return;
+
+            try {
+                await fetch(`${API_BASE}/api/user`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+
+                currentUser.name = name;
+                document.getElementById('user-name').textContent = name;
+                
+                showToast('Name updated');
+            } catch (error) {
+                console.error('Failed to save user:', error);
+                showToast('Failed to update user');
+            }
+        }
+
+        function showUserMenu() {
+            // Show settings modal
+            document.getElementById('user-modal').classList.add('active');
+        }
+
+        function toggleView() {
+            showToast('View toggle functionality (demo)');
+        }
+
+        function hideCommandMenu() {
+            const toolbar = document.getElementById('toolbar-buttons');
+            if (toolbar.querySelector('.command-menu')) {
+                toolbar.querySelector('.command-menu').remove();
+            }
+        }
+
+        async function showCommandMenu(event) {
+            event.preventDefault();
+            
+            // Hide command menu on click outside
+            document.addEventListener('click', hideCommandMenu, { once: true });
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // Event listeners for buttons
+        document.getElementById('new-page-btn').addEventListener('click', createPage);
+    </script>
+</body>
+</html>
