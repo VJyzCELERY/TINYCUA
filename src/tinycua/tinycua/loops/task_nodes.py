@@ -49,93 +49,127 @@ def shrink_threshold_for_effort(effort: str) -> int:
 
 
 _TASK_ANALYZER_INSTRUCTION = (
-    "You are the TaskAnalyzer. You only decompose or refine the roadmap; you do "
-    "not execute tasks or mutate results. Inspect the roadmap. If the active "
-    "task needs subtasks, call task_decompose. If no useful decomposition "
-    "remains, call task_update. Do not write a plan — call a tool."
+    "You are the TaskAnalyzer. You decompose or refine the roadmap. Before "
+    "decomposing, you may explore (web_search, fetch_url, read_file, "
+    "list_files, search_files, run_shell) to ground your plan in current "
+    "reality — especially for research tasks, verify what entities are "
+    "current today instead of assuming from prior knowledge. You do not "
+    "execute the task or produce the deliverable — that is the "
+    "TaskExecutor's job. Inspect the roadmap. If the active task needs "
+    "subtasks, call task_decompose. If no useful decomposition remains, "
+    "call task_update. Do not write a plan — call a tool."
 )
 _TASK_ANALYZER_CONTINUATION = (
-    "Based on the roadmap above, call task_inspect. Then call task_decompose "
-    "for concrete sequential subtasks, or task_update if the task should stay "
-    "as-is. Do not repeatedly decompose a task that already has children. "
-    "If previous tasks already write to the report file, do not create a "
-    "final 'write report' task — decompose it as 'review and reorganize "
-    "existing report.md' instead."
+    "Based on the roadmap and mission context above, call task_inspect. "
+    "Explore first (web_search/fetch_url/read_file/run_shell) when the "
+    "task involves a fast-moving domain (research, current state of tech, "
+    "models, frameworks) so your decomposition targets what is current "
+    "today. Then call task_decompose for concrete sequential subtasks, or "
+    "task_update if the task should stay as-is. Do not repeatedly decompose "
+    "a task that already has children. If previous tasks already write to "
+    "the report file, do not create a final 'write report' task — "
+    "decompose it as 'review and reorganize existing report.md' instead."
 )
 _TASK_ANALYZER_LOCAL_REPLAN_CONTINUATION = (
-    "Refine only the active local region. Call task_decompose if it needs "
-    "subtasks, or task_update if execution can continue. Do not decompose the "
-    "root roadmap from a local replan."
+    "Refine only the active local region. Explore the local region "
+    "(read_file/run_shell/search_files) if it helps you understand the "
+    "current task before refining. Call task_decompose if it needs "
+    "subtasks, or task_update if execution can continue. Do not decompose "
+    "the root roadmap from a local replan."
 )
 
 _TASK_ASSESSOR_UPFRONT_INSTRUCTION = (
     "You are the TaskAssessor for the upfront analysis-effort decomposition loop. "
-    "You only assess decomposition readiness; you do not execute tasks, mutate "
-    "task state, or discuss execution tools. Inspect the whole roadmap and "
-    "select unfinished tasks that are complex enough to warrant further "
-    "decomposition. Use task_inspect for read-only assessment and node_handoff "
-    "to instruct TaskAnalyzer which tasks to analyze and why. "
+    "You assess decomposition readiness. You may explore (web_search, "
+    "fetch_url, read_file, run_shell) to verify whether the roadmap covers "
+    "current reality — especially for research tasks, check that the tasks "
+    "target current entities, not stale assumptions. You do not execute "
+    "tasks or mutate task state. Inspect the whole roadmap and select "
+    "unfinished tasks that are complex enough to warrant further "
+    "decomposition. Use task_inspect for read-only assessment and "
+    "node_handoff to instruct TaskAnalyzer which tasks to analyze and why. "
     "Be concise and do not repeat upstream context."
 )
 _TASK_ASSESSOR_UPFRONT_CONTINUATION = (
     "Based on the whole roadmap above, assess decomposition readiness across "
-    "the roadmap. Use node_handoff to instruct TaskAnalyzer with selected task IDs, "
+    "the roadmap. Explore (web_search/fetch_url/read_file/run_shell) to "
+    "verify the roadmap targets current reality for research tasks. Use "
+    "node_handoff to instruct TaskAnalyzer with selected task IDs, "
     "reasons, constraints, or that no further upfront decomposition is useful."
 )
 _TASK_ASSESSOR_LOCAL_REPLAN_INSTRUCTION = (
     "You are the TaskAssessor for a ResultReviewer-requested local replan. "
     "Inspect the active task and nearby roadmap context to decide whether "
-    "that local region needs refinement before execution continues. Do not "
-    "reassess the whole roadmap, do not execute tasks, and do not discuss "
-    "execution tools. Use task_inspect for read-only assessment and node_handoff "
-    "to instruct TaskAnalyzer. Do not mutate task state."
+    "that local region needs refinement before execution continues. You may "
+    "explore the local region (read_file, run_shell, search_files) to "
+    "understand it. Do not reassess the whole roadmap, do not execute "
+    "tasks, and do not discuss execution tools. Use task_inspect for "
+    "read-only assessment and node_handoff to instruct TaskAnalyzer. Do "
+    "not mutate task state."
 )
 _TASK_ASSESSOR_LOCAL_REPLAN_CONTINUATION = (
     "Based on the active task and local roadmap region above, assess whether "
     "the reviewed task needs local decomposition or planning metadata updates. "
+    "Explore the local region if it helps your assessment. "
     "Use node_handoff to pass the local assessment, selected decomposition "
     "target, blocked planning gap, or that no local replan is useful."
 )
 
 _TASK_EXECUTOR_INSTRUCTION = (
     "You are the TaskExecutor. You only execute the active task; you do not "
-    "review, decompose, or curate other tasks. You MUST use tools for "
-    "workspace changes, inspection, commands, Python, research, or "
-    "verification. Preserve explicit user constraints from the work order. "
-    "Your final action MUST call task_result_update with a concise outcome "
-    "report. Do not describe what you will do — use the tools and report the "
-    "result."
+    "review, decompose, or curate other tasks. Explore the workspace and "
+    "task state first (read_file, list_files, search_files, web_search, "
+    "fetch_url) before making changes — plan and analyze before you act. "
+    "You MUST use tools for workspace changes, inspection, commands, "
+    "Python, research, or verification. Preserve explicit user constraints "
+    "from the work order. Your final action MUST call task_result_update "
+    "with a concise outcome report. Do not describe what you will do — use "
+    "the tools and report the result."
 )
 _TASK_EXECUTOR_CONTINUATION = (
-    "Based on the active task above, use tools to complete it. Then call "
-    "task_result_update with what changed or was found and success=true/false. "
-    "If blocked, call task_result_update with success=false and the concrete "
-    "blocker; do not keep repeating read/list inspection."
+    "Based on the active task above, explore the current state (read_file/"
+    "list_files/search_files/web_search) before making changes. Then use "
+    "tools to complete it. Call task_result_update with what changed or was "
+    "found and success=true/false. If blocked, call task_result_update with "
+    "success=false and the concrete blocker; do not keep repeating "
+    "read/list inspection."
 )
 
 _RESULT_REVIEWER_INSTRUCTION = (
     "You are the ResultReviewer. You only review outcomes; you do not edit "
     "files or re-execute work. Verify with run_shell (test -f, grep, pytest, "
     "git diff) and check exit_code/exit_code_meaning, not eyeballed source. "
-    "Then call task_review_decision: approved, needs_revision, rejected, or "
-    "replan. If bad, record feedback; do not edit files. Terminate after "
-    "useful task curation. Do not write a long explanation — call the tools."
+    "For research tasks, use web_search/fetch_url to verify the executor's "
+    "claimed findings (model names, versions, benchmarks) are real and "
+    "current — do not accept fabricated or stale claims, and do not "
+    "re-research the whole task. Then call task_review_decision: approved, "
+    "needs_revision, rejected, or replan. If bad, record feedback; do not "
+    "edit files. Terminate after useful task curation. Do not write a long "
+    "explanation — call the tools."
 )
 _RESULT_REVIEWER_CONTINUATION = (
-    "Verify the outcome. Call task_review_decision first. Then call "
-    "task_inspect (no task_id) for the compact task list; only for a task you "
-    "want to annotate, call task_inspect with that task_id for detail, then "
+    "Verify the outcome. Explore to verify the executor's claims: run_shell "
+    "(test -f, grep, pytest, git diff) for file artifacts; web_search/"
+    "fetch_url for research-task claims (model names, versions, benchmarks). "
+    "Then call task_review_decision first. Then call task_inspect (no "
+    "task_id) for the compact task list; only for a task you want to "
+    "annotate, call task_inspect with that task_id for detail, then "
     "task_update to add context. Then call terminate."
 )
 
 _RESULT_AGGREGATION_INSTRUCTION = (
-    "You are the ResultAggregation node. Summarize completed task results, "
-    "artifacts, and verification evidence concisely. Do not include Python reprs "
-    "or duplicate upstream context."
+    "You are the ResultAggregation node. You act as a compaction layer: "
+    "summarize completed task results, artifacts, and verification evidence "
+    "concisely. You may explore task results (read_file, list_files, "
+    "run_shell, task_inspect) to verify or enrich claims in the task "
+    "results before aggregating — but do not re-research or re-execute the "
+    "work. Do not include Python reprs or duplicate upstream context."
 )
 _RESULT_AGGREGATION_CONTINUATION = (
-    "Based on accepted task results above, aggregate the Worker result into "
-    "concise response-ready context with artifacts and verification evidence."
+    "Based on accepted task results above, explore the task results "
+    "(read_file/list_files/run_shell/task_inspect) to verify claims if "
+    "needed, then aggregate the Worker result into concise response-ready "
+    "context with artifacts and verification evidence."
 )
 
 _ANALYSIS_EFFORT_INSTRUCTION = "Deterministic effort controller. No LLM call required."
@@ -189,9 +223,12 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
         if not names.intersection({"task_inspect", "task_decompose", "task_update"}):
             return ""
         return (
-            "Tool guidance: call task_inspect to read state, then task_decompose "
-            "to add subtasks or task_update to confirm the roadmap. Do not "
-            "execute work here."
+            "Tool guidance: call task_inspect to read state. Explore first "
+            "(web_search/fetch_url/read_file/list_files/search_files/"
+            "run_shell) to ground your decomposition in current reality, "
+            "especially for research tasks. Then call task_decompose to add "
+            "subtasks or task_update to confirm the roadmap. Do not execute "
+            "the task itself — decompose and hand off to the executor."
         )
 
 
@@ -467,12 +504,19 @@ def _render_request_contract(session: Session) -> str:
 
 
 def _render_mission_block(session: Session) -> str:
-    """Render a compact canonical mission block from the root task.
+    r"""Render a compact canonical mission block from the root task.
 
-    The mission is the single canonical "goal" (original request + hard
-    constraints) stored on the root task at creation time. It travels with
-    the task tree so every worker-internal node sees the same goal without
-    inheriting the full session context. See FR-003.
+    The mission is the single canonical "goal" carried with the task tree so
+    every worker-internal node sees the same goal without inheriting the full
+    session context. See FR-003.
+
+    Structured as ``{context}\n{query}``: the InformationDigester's
+    comprehensive research (``mission_context`` + ``mission_key_points``)
+    appears first as context, followed by the original request and hard
+    constraints. Empty sections are omitted (no empty headers). This gives
+    downstream planning/review nodes the first-layer exploration findings
+    so they don't anchor on training-data priors (e.g. "2024-2025" for a
+    "current" research task).
 
     Returns an empty string when no mission is stored (no-op).
     """
@@ -481,17 +525,28 @@ def _render_mission_block(session: Session) -> str:
         return ""
     root = store.tasks[store.root_task_id]
     mission = str(root.metadata.get("mission", "") or "").strip()
+    mission_context = str(root.metadata.get("mission_context", "") or "").strip()
+    key_points = root.metadata.get("mission_key_points", [])
+    if not isinstance(key_points, list):
+        key_points = []
+    key_points = [str(point).strip() for point in key_points if str(point).strip()]
     constraints = root.metadata.get("inherited_constraints", [])
     if not isinstance(constraints, list):
         constraints = []
-    if not mission and not constraints:
+    constraints = [str(c).strip() for c in constraints if str(c).strip()]
+    if not (mission or mission_context or key_points or constraints):
         return ""
     lines = ["## Mission"]
+    if mission_context:
+        lines.append(mission_context)
+    if key_points:
+        lines.append("Key findings:")
+        lines.extend(f"- {point}" for point in key_points)
     if mission:
-        lines.append(mission)
+        lines.append(f"Original request: {mission}")
     if constraints:
         lines.append("Hard constraints:")
-        lines.extend(f"- {constraint}" for constraint in constraints if constraint)
+        lines.extend(f"- {constraint}" for constraint in constraints)
     return "\n".join(lines)
 
 
@@ -551,7 +606,9 @@ class TinyCUATaskAssessorNode(ProcessNode):
         if not names.intersection({"task_inspect", "node_handoff"}):
             return ""
         return (
-            "Tool guidance: call task_inspect for read-only assessment and "
+            "Tool guidance: call task_inspect for read-only assessment. "
+            "Explore (web_search/fetch_url/read_file/run_shell) to verify "
+            "the roadmap targets current reality for research tasks. Then "
             "node_handoff to instruct TaskAnalyzer. Do not mutate task state."
         )
 
@@ -845,6 +902,14 @@ class TinyCUAResultReviewerNode(ProcessNode):
                 "diff) over eyeballing source. Do not accept generic 'all "
                 "requirements met' — cite specific evidence (file excerpt, "
                 "command output, exit_code)."
+            )
+        research_verify = names.intersection({"web_search", "fetch_url"})
+        if research_verify:
+            lines.append(
+                "For research tasks, verify the executor's claimed entities "
+                "(model names, versions, benchmarks) with web_search/fetch_url "
+                "before approving — do not accept fabricated or stale claims, "
+                "and do not re-research the whole task."
             )
         if "task_review_decision" in names:
             lines.append("Your final action MUST call task_review_decision, then task_inspect.")

@@ -14,7 +14,11 @@ from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.response_node import ResponseNode
 from tinycua.loops.task_nodes import TinyCUAResultReviewerNode
-from tinycua.loops.task_nodes import TinyCUATaskAnalyzerNode, TinyCUATaskExecutorNode
+from tinycua.loops.task_nodes import (
+    TinyCUATaskAnalyzerNode,
+    TinyCUATaskAssessorNode,
+    TinyCUATaskExecutorNode,
+)
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.node_input import NodeInput
 from tinycua.models.session import Session
@@ -277,13 +281,59 @@ def test_task_node_prompts_are_action_first_not_phase_essays() -> None:
         reviewer.build_continuation(),
     ]
 
-    assert all(len(prompt) < 500 for prompt in prompts)
+    # Prompts stay action-first (call a tool, no essay answers). The limit
+    # accommodates the exploration-guidance additions (each node may explore
+    # before its role duty) while still rejecting phase-essay bloat.
+    assert all(len(prompt) < 850 for prompt in prompts)
     combined = "\n".join(prompts)
     assert "Phase 1" not in combined
     assert "four phases" not in combined
     assert "Do not write a plan" in combined
     assert "Do not describe what you will do" in combined
     assert "Do not write a long explanation" in combined
+
+
+def test_planning_nodes_encourage_exploration_before_role_duty() -> None:
+    """Planning/review nodes instruct the model to explore before their role.
+
+    Exploration is permissive (you may explore) and role-scoped: the analyzer
+    explores to ground decomposition, the assessor to verify the roadmap, the
+    reviewer to verify claims, the executor before making changes. The
+    execution boundary is preserved (each still says it does not execute the
+    deliverable / stays in its role).
+    """
+    analyzer = TinyCUATaskAnalyzerNode(
+        node_id="task_analyzer", config=create_node_config("task_analyzer")
+    )
+    assessor = TinyCUATaskAssessorNode(
+        node_id="task_assessor", config=create_node_config("task_assessor")
+    )
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor", config=create_node_config("task_executor")
+    )
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="result_reviewer", config=create_node_config("result_reviewer")
+    )
+
+    analyzer_prompt = analyzer.build_instruction() + " " + analyzer.build_continuation()
+    assessor_prompt = assessor.build_instruction() + " " + assessor.build_continuation()
+    executor_prompt = executor.build_instruction() + " " + executor.build_continuation()
+    reviewer_prompt = reviewer.build_instruction() + " " + reviewer.build_continuation()
+
+    # Each planning/review node mentions an exploration tool.
+    for prompt in (analyzer_prompt, assessor_prompt, reviewer_prompt):
+        assert any(t in prompt for t in ("web_search", "fetch_url", "read_file", "run_shell")), (
+            "planning/review nodes must encourage exploration tools"
+        )
+    # Executor explores the workspace/state before making changes.
+    assert any(t in executor_prompt for t in ("read_file", "list_files", "search_files")), (
+        "executor must explore workspace/state before making changes"
+    )
+    # Execution boundary preserved: each node still says it does not execute
+    # the deliverable / stays in its role.
+    assert "do not execute the task" in analyzer_prompt.lower() or "do not execute" in analyzer_prompt.lower()
+    assert "do not execute" in assessor_prompt.lower() or "do not mutate task state" in assessor_prompt.lower()
+    assert "do not edit files" in reviewer_prompt.lower() or "do not re-execute" in reviewer_prompt.lower()
 
 
 def test_task_tool_descriptions_are_brief_but_specific() -> None:
