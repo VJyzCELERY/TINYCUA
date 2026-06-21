@@ -9,6 +9,34 @@ Judge verdicts are centralized under [`judges_verdict/`](judges_verdict/). Each 
 
 ## Evaluation Setup
 
+All evaluated harnesses used the same local inference model:
+
+| Setting | Value |
+|---|---|
+| Model | Qwen3.5 9B (`qwen3.5-9b`) |
+| Provider/API | OpenAI-compatible local server via LM Studio |
+| Context length | 262,144 tokens |
+| GPU offload | 32 layers |
+| CPU threads / thread pool | 9 |
+| Evaluation batch size | 2048 |
+| Physical batch size | 512 |
+| Max concurrent requests | 4 |
+| Thinking | Enabled |
+| Temperature | 0.6 |
+| Context overflow | Rolling window |
+| Top-K | 20 |
+| Top-P | 0.95 |
+| Min-P | 0 |
+| Repeat penalty | 1.1 |
+| Presence penalty | 1 |
+| Flash Attention | Enabled |
+| Unified KV cache | Enabled |
+| KV cache quantization | K: Q8_0, V: Q8_0 |
+| KV cache GPU offload | Enabled |
+| Keep model in memory | Enabled |
+| mmap | Enabled |
+| Structured output | Disabled |
+
 The cross-submission judge was an **opencode agent** running model **`openai/gpt-5.5`** with variant **`high`**.
 
 Submissions were anonymized during judging:
