@@ -40,12 +40,35 @@ class TodoWriteTool(Tool):
         self,
         descriptions: list[str] | None = None,
         done_index: int | None = None,
+        update_index: int | None = None,
+        update_description: str | None = None,
+        update_status: str | None = None,
+        delete_index: int | None = None,
     ) -> list[dict]:
-        """Append todo items or mark one done."""
+        """Append, update, mark done, or delete todo items.
+
+        Args:
+            descriptions: Append new todo items with these descriptions.
+            done_index: Mark the item at this index as done.
+            update_index: Index of the item to update in-place.
+            update_description: New description for the item at update_index.
+            update_status: New status for the item at update_index
+                ("pending", "in_progress", "done").
+            delete_index: Remove the item at this index.
+        """
         if descriptions is not None:
             for description in descriptions:
-                self._todo_store.append({"description": description, "done": False})
+                self._todo_store.append({"description": description, "status": "pending"})
         if done_index is not None:
             if 0 <= done_index < len(self._todo_store):
+                self._todo_store[done_index]["status"] = "done"
                 self._todo_store[done_index]["done"] = True
+        if update_index is not None and 0 <= update_index < len(self._todo_store):
+            if update_description is not None:
+                self._todo_store[update_index]["description"] = update_description
+            if update_status is not None:
+                self._todo_store[update_index]["status"] = update_status
+                self._todo_store[update_index]["done"] = update_status == "done"
+        if delete_index is not None and 0 <= delete_index < len(self._todo_store):
+            self._todo_store.pop(delete_index)
         return [dict(item) for item in self._todo_store]

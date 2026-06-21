@@ -243,7 +243,7 @@ class TaskUpdateTool(SessionTaskToolMixin, Tool):
                     },
                 },
                 "required": [],
-                "additionalProperties": True,
+                "additionalProperties": {"type": "string"},
             },
         )
 
@@ -543,10 +543,19 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
     def __call__(
         self,
         task_id: str | None = None,
-        decision: str = ReviewerDecision.APPROVED.value,
+        decision: str = "",
         rationale: str = "",
     ) -> dict[str, Any]:
-        """Persist a reviewer decision for the active or specified task."""
+        """Persist a reviewer decision for the active or specified task.
+
+        Args:
+            task_id: Optional task reference (UUID or roadmap number).
+            decision: Required — one of approved, needs_revision, rejected,
+                replan. Must not be omitted (no default approve).
+            rationale: Optional reason for the decision.
+        """
+        if not decision:
+            return {"success": False, "error": "decision is required — cannot default to approved."}
         active_id: str | None
         if task_id:
             active_id = self._store.resolve_task_id(task_id)
