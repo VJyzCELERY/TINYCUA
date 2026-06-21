@@ -89,13 +89,33 @@ def build_judge_prompt(task_prompt: str, criteria: str, *, workdir_empty: bool) 
 def _copy_workdir(src: Path, dst: Path) -> bool:
     """Copy workdir contents into dst. Return True if any files were copied."""
     has_files = False
+    # Directories that are container-only artifacts — skip them so broken
+    # symlinks (venv/bin/python → /usr/bin/python inside Docker) don't crash
+    # copytree, and the judge doesn't see build noise.
+    _SKIP_DIRS = frozenset({
+        "venv", ".venv", "node_modules", "__pycache__",
+        ".git", ".tinycua-artifacts", ".tinycua_context_cache",
+    })
     for item in src.iterdir():
         if item.name in HARNESS_ARTIFACTS:
             continue
         if item.is_dir():
-            shutil.copytree(item, dst / item.name)
+            if item.name in _SKIP_DIRS:
+                continue
+            try:
+                shutil.copytree(item, dst / item.name, ignore_dangling_symlinks=True)
+            except shutil.Error:
+                # Broken symlinks inside nested dirs — copy what we can.
+                shutil.copytree(
+                    item, dst / item.name,
+                    ignore_dangling_symlinks=True,
+                    dirs_exist_ok=True,
+                )
         else:
-            shutil.copy2(item, dst / item.name)
+            try:
+                shutil.copy2(item, dst / item.name)
+            except (OSError, shutil.SameFileError):
+                pass
         has_files = True
     return has_files
 

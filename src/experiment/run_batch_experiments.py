@@ -58,7 +58,7 @@ def archive_results(
     if archive_dir.exists():
         msg = f"archive already exists: {archive_dir}"
         raise FileExistsError(msg)
-    archive_dir.mkdir(parents=True)
+    archive_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy2(manifest, archive_dir / "manifest.txt")
 
     wanted = {num for num, _ in experiments}

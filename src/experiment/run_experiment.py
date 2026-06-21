@@ -50,7 +50,7 @@ HARNESS_ARTIFACTS: dict[str, set[str]] = {
         "TOOLS.md",
         "USER.md",
     },
-    "tinycua": {".tinycua_context_cache", "tmp"},
+    "tinycua": {".tinycua_context_cache", "tmp", "venv", ".venv", "__pycache__"},
 }
 
 
