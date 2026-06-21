@@ -161,6 +161,18 @@ def root_session() -> Session:
     return Session()
 
 
+@pytest.fixture()
+def workspace_tmp(tmp_path: Path) -> Path:
+    """Create a temp dir and bind it as the workspace for native tools.
+
+    Milestone 5: native tools raise WorkspaceNotBoundError when the workspace
+    is not bound. Tests that use file/shell tools MUST use this fixture.
+    """
+    bind_workspace(tmp_path)
+    yield tmp_path
+    bind_workspace(None)
+
+
 @pytest.fixture(autouse=True)
 def _resource_limits(request: pytest.FixtureRequest) -> Any:
     """Auto-applied fixture that monitors RSS after every test.

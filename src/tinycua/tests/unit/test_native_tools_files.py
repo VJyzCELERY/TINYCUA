@@ -6,50 +6,51 @@ from pathlib import Path
 
 import pytest
 
+from tinycua.agent.tools.native.context import bind_workspace
+
 
 # --- read_file edge cases ---
 
 
 def test_read_file_path_resolution_absolute():
-    """Absolute paths are used as-is."""
+    """Absolute paths outside workspace raise an error (workspace must be bound)."""
+    from tinycua.agent.tools.native.context import bind_workspace
     from tinycua.agent.tools.native.files import read_file
 
-    result = read_file("/nonexistent/absolute/path.txt")
-    assert isinstance(result, dict)
-    assert "error" in result
+    with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
+        result = read_file("/nonexistent/absolute/path.txt")
+        assert isinstance(result, dict)
+        assert "error" in result
 
 
 def test_read_file_path_resolution_relative():
-    """Relative paths are resolved from CWD."""
-    original_cwd = os.getcwd()
-    try:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            os.chdir(tmpdir)
-            Path("subdir").mkdir()
-            Path("subdir/test.txt").write_text("relative content\n")
+    """Relative paths are resolved from the bound workspace."""
+    from tinycua.agent.tools.native.context import bind_workspace
 
-            from tinycua.agent.tools.native.files import read_file
+    with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
+        Path(tmpdir, "subdir").mkdir()
+        Path(tmpdir, "subdir/test.txt").write_text("relative content\n")
 
-            result = read_file("subdir/test.txt")
-            assert result == "relative content\n"
-    finally:
-        os.chdir(original_cwd)
+        from tinycua.agent.tools.native.files import read_file
+
+        result = read_file("subdir/test.txt")
+        assert result == "relative content\n"
 
 
 def test_read_file_dot_slash_prefix():
-    """Paths with ./ prefix are treated as relative."""
-    original_cwd = os.getcwd()
-    try:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            os.chdir(tmpdir)
-            Path("dotfile.txt").write_text("dot content\n")
+    """Paths with ./ prefix are treated as relative to the workspace."""
+    from tinycua.agent.tools.native.context import bind_workspace
 
-            from tinycua.agent.tools.native.files import read_file
+    with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
+        Path(tmpdir, "dotfile.txt").write_text("dot content\n")
 
-            result = read_file("./dotfile.txt")
-            assert result == "dot content\n"
-    finally:
-        os.chdir(original_cwd)
+        from tinycua.agent.tools.native.files import read_file
+
+        result = read_file("./dotfile.txt")
+        assert result == "dot content\n"
 
 
 def test_read_file_permission_denied():
@@ -66,6 +67,7 @@ def test_read_file_permission_denied():
         path = f.name
     try:
         os.chmod(path, 0o000)  # Remove all permissions
+        bind_workspace(tempfile.gettempdir())  # bind workspace to temp dir
         result = read_file(path)
         assert isinstance(result, dict)
         assert "error" in result
@@ -81,6 +83,7 @@ def test_read_file_permission_denied():
 def test_read_file_not_a_file():
     """Reading a directory returns error."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         from tinycua.agent.tools.native.files import read_file
 
         result = read_file(tmpdir)
@@ -96,6 +99,7 @@ def test_read_file_start_zero_returns_error():
         f.write("hello\nworld\n")
         path = f.name
     try:
+        bind_workspace(tempfile.gettempdir())
         result = read_file(path, start=0)
         assert isinstance(result, dict)
         assert "error" in result
@@ -112,6 +116,7 @@ def test_read_file_truncation_message_format():
     try:
         from tinycua.agent.tools.native.files import read_file
 
+        bind_workspace(tempfile.gettempdir())
         result = read_file(path)
         assert "[Truncated:" in result
         assert "lines remaining" in result
@@ -127,6 +132,7 @@ def test_read_file_truncation_message_format():
 def test_write_file_empty_content():
     """Writing empty content creates empty file."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         filepath = os.path.join(tmpdir, "empty.txt")
         from tinycua.agent.tools.native.files import write_file
 
@@ -139,6 +145,7 @@ def test_write_file_empty_content():
 def test_write_file_binary_content():
     """Writing text with binary-looking content works."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         filepath = os.path.join(tmpdir, "binary.txt")
         from tinycua.agent.tools.native.files import write_file
 
@@ -154,6 +161,7 @@ def test_write_file_binary_content():
 def test_str_replace_exact_match():
     """str_replace replaces exact text match."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         filepath = os.path.join(tmpdir, "exact.txt")
         Path(filepath).write_text("line 1\nline 2\nline 3\n")
         from tinycua.agent.tools.native.files import str_replace
@@ -168,6 +176,7 @@ def test_str_replace_exact_match():
 def test_str_replace_multiple_matches_error():
     """str_replace with multiple matches and replace_all=False returns error."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         filepath = os.path.join(tmpdir, "multi.txt")
         Path(filepath).write_text("foo\nbar\nfoo\n")
         from tinycua.agent.tools.native.files import str_replace
@@ -179,6 +188,7 @@ def test_str_replace_multiple_matches_error():
 def test_str_replace_replace_all():
     """str_replace with replace_all=True replaces all occurrences."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         filepath = os.path.join(tmpdir, "all.txt")
         Path(filepath).write_text("foo\nbar\nfoo\n")
         from tinycua.agent.tools.native.files import str_replace
@@ -192,6 +202,7 @@ def test_str_replace_replace_all():
 def test_str_replace_empty_old_string_creates_file():
     """str_replace with empty old_string creates a new file."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         filepath = os.path.join(tmpdir, "new.txt")
         from tinycua.agent.tools.native.files import str_replace
 
@@ -203,6 +214,7 @@ def test_str_replace_empty_old_string_creates_file():
 def test_str_replace_empty_old_string_existing_file_errors():
     """str_replace with empty old_string on existing file returns error."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         filepath = os.path.join(tmpdir, "exists.txt")
         Path(filepath).write_text("existing content")
         from tinycua.agent.tools.native.files import str_replace
@@ -215,6 +227,7 @@ def test_str_replace_empty_old_string_existing_file_errors():
 def test_str_replace_not_found_returns_error():
     """str_replace with old_string not in file returns error."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         filepath = os.path.join(tmpdir, "notfound.txt")
         Path(filepath).write_text("hello world")
         from tinycua.agent.tools.native.files import str_replace
@@ -227,6 +240,7 @@ def test_str_replace_not_found_returns_error():
 def test_str_replace_identical_strings_error():
     """str_replace with identical old and new returns error."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         filepath = os.path.join(tmpdir, "identical.txt")
         Path(filepath).write_text("hello")
         from tinycua.agent.tools.native.files import str_replace
@@ -239,6 +253,7 @@ def test_str_replace_identical_strings_error():
 def test_str_replace_fuzzy_line_trimmed():
     """str_replace matches with trailing whitespace differences (line-trimmed strategy)."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         filepath = os.path.join(tmpdir, "fuzzy.txt")
         Path(filepath).write_text("def foo():\n    pass  \n")
         from tinycua.agent.tools.native.files import str_replace
@@ -252,6 +267,7 @@ def test_str_replace_fuzzy_line_trimmed():
 def test_str_replace_diff_preview():
     """str_replace returns a diff_preview of the replaced content."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         filepath = os.path.join(tmpdir, "preview.txt")
         Path(filepath).write_text("old text here")
         from tinycua.agent.tools.native.files import str_replace
@@ -268,6 +284,7 @@ def test_str_replace_diff_preview():
 def test_append_file_to_existing():
     """append_file appends content to an existing file."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         filepath = os.path.join(tmpdir, "append.txt")
         Path(filepath).write_text("line 1\nline 2\n")
         from tinycua.agent.tools.native.files import append_file
@@ -280,6 +297,7 @@ def test_append_file_to_existing():
 def test_append_file_creates_new():
     """append_file creates a new file if it doesn't exist."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         filepath = os.path.join(tmpdir, "new_append.txt")
         from tinycua.agent.tools.native.files import append_file
 
@@ -291,6 +309,7 @@ def test_append_file_creates_new():
 def test_append_file_adds_newline_separator():
     """append_file adds a newline if the file doesn't end with one."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         filepath = os.path.join(tmpdir, "no_nl.txt")
         Path(filepath).write_text("no newline here")
         from tinycua.agent.tools.native.files import append_file
@@ -304,6 +323,7 @@ def test_append_file_adds_newline_separator():
 def test_append_file_creates_parent_dirs():
     """append_file creates parent directories."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         filepath = os.path.join(tmpdir, "subdir", "nested", "file.txt")
         from tinycua.agent.tools.native.files import append_file
 
@@ -315,6 +335,7 @@ def test_append_file_creates_parent_dirs():
 def test_list_files_no_match():
     """Pattern with no matches returns empty list."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         Path(tmpdir, "readme.md").touch()
         from tinycua.agent.tools.native.files import list_files
 
@@ -330,6 +351,7 @@ def test_list_files_with_subdirectories():
     not flattened into the result.
     """
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         Path(tmpdir, "file.txt").touch()
         Path(tmpdir, "subdir").mkdir()
         Path(tmpdir, "subdir", "nested.txt").touch()
@@ -352,6 +374,7 @@ def test_list_files_on_file_returns_error():
     try:
         from tinycua.agent.tools.native.files import list_files
 
+        bind_workspace(tempfile.gettempdir())
         result = list_files(path)
         assert isinstance(result, dict)
         assert "error" in result
@@ -363,6 +386,7 @@ def test_list_files_on_file_returns_error():
 def test_list_files_absolute_paths():
     """Returned paths are absolute."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         Path(tmpdir, "test.txt").touch()
         from tinycua.agent.tools.native.files import list_files
 
@@ -377,6 +401,7 @@ def test_list_files_absolute_paths():
 def test_read_file_accepts_string_start_and_offset():
     """read_file must coerce string line args (local models emit "7")."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         filepath = os.path.join(tmpdir, "coerce_read.txt")
         Path(filepath).write_text("one\ntwo\nthree\nfour\n")
         from tinycua.agent.tools.native.files import read_file
@@ -423,6 +448,7 @@ def test_normalize_newlines_unescapes_literal_backslash_t():
 def test_str_replace_unescapes_literal_newline_in_new_string():
     """str_replace writes real newlines when model sends literal \\n."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         filepath = os.path.join(tmpdir, "literal_nl.txt")
         Path(filepath).write_text("old text\n")
         from tinycua.agent.tools.native.files import str_replace
@@ -439,6 +465,7 @@ def test_str_replace_unescapes_literal_newline_in_new_string():
 def test_write_file_unescapes_literal_newline_in_content():
     """write_file writes real newlines when model sends literal \\n."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         filepath = os.path.join(tmpdir, "write_literal_nl.txt")
         from tinycua.agent.tools.native.files import write_file
 
@@ -455,6 +482,7 @@ def test_write_file_unescapes_literal_newline_in_content():
 def test_read_file_warns_about_literal_backslash_n_on_long_lines():
     """read_file appends a warning when a long line has literal \\n."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         filepath = os.path.join(tmpdir, "malformed.txt")
         # Write a file with a long line containing literal \n (backslash + n)
         long_content = "x" * 600 + "\\n" + "y" * 100
@@ -469,6 +497,7 @@ def test_read_file_warns_about_literal_backslash_n_on_long_lines():
 def test_read_file_no_warning_for_short_literal_backslash_n():
     """read_file does not warn for short lines with literal \\n."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         filepath = os.path.join(tmpdir, "short.txt")
         Path(filepath).write_text('sep = "\\n"')
         from tinycua.agent.tools.native.files import read_file
@@ -483,6 +512,7 @@ def test_read_file_no_warning_for_short_literal_backslash_n():
 def test_search_files_content_exact():
     """search_files finds exact string in file content."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         filepath = os.path.join(tmpdir, "test.py")
         Path(filepath).write_text("def foo():\n    return 42\n")
         import tinycua.agent.tools.native.files as files_mod
@@ -499,6 +529,7 @@ def test_search_files_content_exact():
 def test_search_files_content_regex():
     """search_files finds regex pattern."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         filepath = os.path.join(tmpdir, "test.py")
         Path(filepath).write_text("val = 12345\n")
         import tinycua.agent.tools.native.files as files_mod
@@ -514,6 +545,7 @@ def test_search_files_content_regex():
 def test_search_files_files_only():
     """search_files target='files' finds files by glob."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         Path(tmpdir, "a.py").touch()
         Path(tmpdir, "b.txt").touch()
         import tinycua.agent.tools.native.files as files_mod
@@ -530,6 +562,7 @@ def test_search_files_files_only():
 def test_search_files_file_glob_filter():
     """search_files filters by file_glob in content mode."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         Path(tmpdir, "match.py").write_text("target_string\n")
         Path(tmpdir, "skip.txt").write_text("target_string\n")
         import tinycua.agent.tools.native.files as files_mod
@@ -546,6 +579,7 @@ def test_search_files_file_glob_filter():
 def test_search_files_context_lines():
     """search_files returns context lines around matches."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         filepath = os.path.join(tmpdir, "ctx.py")
         Path(filepath).write_text("line1\nline2\nMATCH\nline4\nline5\n")
         import tinycua.agent.tools.native.files as files_mod
@@ -564,6 +598,7 @@ def test_search_files_context_lines():
 def test_search_files_output_mode_count():
     """search_files count mode returns match counts."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         Path(tmpdir, "multi.py").write_text("foo\nfoo\nbar\n")
         import tinycua.agent.tools.native.files as files_mod
         files_mod._last_search_key = None
@@ -578,6 +613,7 @@ def test_search_files_output_mode_count():
 def test_search_files_no_matches():
     """search_files returns 'No matches found' for no matches."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         Path(tmpdir, "empty.py").write_text("nothing here\n")
         import tinycua.agent.tools.native.files as files_mod
         files_mod._last_search_key = None
@@ -596,6 +632,7 @@ def test_search_files_nonexistent_path():
     files_mod._search_repeat_count = 0
     from tinycua.agent.tools.native.files import search_files
 
+    bind_workspace(tempfile.gettempdir())
     result = search_files("test", path="/nonexistent/path/xyz")
     assert isinstance(result, dict)
     assert "error" in result
@@ -604,6 +641,7 @@ def test_search_files_nonexistent_path():
 def test_search_files_loop_detection():
     """search_files blocks after 4 identical consecutive searches."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         Path(tmpdir, "loop.py").write_text("test content\n")
         import tinycua.agent.tools.native.files as files_mod
         files_mod._last_search_key = None
@@ -624,6 +662,7 @@ def test_search_files_loop_detection():
 def test_search_files_pagination():
     """search_files pagination via offset and limit."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
         Path(tmpdir, "page.py").write_text("\n".join(f"match_{i}" for i in range(10)) + "\n")
         import tinycua.agent.tools.native.files as files_mod
         files_mod._last_search_key = None
