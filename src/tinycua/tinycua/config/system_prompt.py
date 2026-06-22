@@ -118,6 +118,8 @@ def build_runtime_context(
     now: datetime | None = None,
     *,
     date_snapshot: str | None = None,
+    env_snapshot: str | None = None,
+    workspace_dir: Any = None,
 ) -> str:
     """Build a STABLE runtime context label for node system prompts.
 
@@ -134,6 +136,10 @@ def build_runtime_context(
     while still giving the model an authoritative current date in the system
     prompt (instead of only in volatile user-context metadata).
 
+    ``env_snapshot`` is the session-scoped environment block (OS, shell, python,
+    virtualization) — also stable for the session. ``workspace_dir`` is the
+    session's workspace path (where file tools operate), rendered when set.
+
     The ``now`` arg is accepted for backward-compat/test purposes but ignored
     — the context is constant within a session.
     """
@@ -141,4 +147,10 @@ def build_runtime_context(
     parts = ["## Runtime Context", "Agent runtime: TinyCUA"]
     if date_snapshot:
         parts.append(f"Today: {date_snapshot}")
+    if env_snapshot:
+        parts.append(env_snapshot)
+    if workspace_dir is not None:
+        parts.append(
+            f"Workspace: {workspace_dir} (file tools operate here; write outputs here)"
+        )
     return "\n".join(parts)

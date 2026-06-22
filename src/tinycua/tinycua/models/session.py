@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import logging
+import os
+import platform
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -13,6 +16,71 @@ if TYPE_CHECKING:
     from tinycua.config.session_config import SessionConfig
     from tinycua.models.chat_record import ChatRecord
     from tinycua.models.session_context_entry import SessionContextEntry
+
+logger = logging.getLogger(__name__)
+
+
+def _detect_virtualization() -> list[str]:
+    """Detect virtualization signals (Docker, WSL2, etc.). Pure stdlib.
+
+    Returns a list of detected signals (e.g. ["Docker container", "WSL2 host"]).
+    Empty list means bare metal / no virtualization detected.
+    """
+    signals: list[str] = []
+    if os.path.exists("/.dockerenv"):
+        signals.append("Docker container")
+    try:
+        with open("/proc/1/cgroup", encoding="utf-8") as f:
+            cg = f.read()
+        if "docker" in cg or "kubepods" in cg:
+            if "Docker container" not in signals:
+                signals.append("container (cgroup)")
+    except (OSError, PermissionError):
+        pass
+    release = platform.release().lower()
+    if "microsoft" in release and "wsl" in release:
+        signals.append("WSL2 host")
+    return signals
+
+
+def _detect_distro() -> str:
+    """Best-effort distro name from /etc/os-release. Empty string if unknown."""
+    try:
+        with open("/etc/os-release", encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("PRETTY_NAME="):
+                    return line.split("=", 1)[1].strip().strip('"')
+    except (OSError, PermissionError):
+        pass
+    return ""
+
+
+def _build_env_snapshot() -> str:
+    """Build a session-scoped environment snapshot for the system prompt.
+
+    Captures OS + virtualization + shell + python at call time. Pure stdlib
+    (platform + file checks) — no subprocess calls. Failures degrade
+    gracefully (skip that signal). Stable for the session lifetime so
+    FR-015 prompt-cache stability holds.
+
+    Returns the multi-line ``Environment:`` block (no leading ``##`` — the
+    caller places it in the runtime context).
+    """
+    os_name = platform.system()
+    machine = platform.machine()
+    distro = _detect_distro()
+    os_label = f"{os_name} ({distro})" if distro else os_name
+    virt_signals = _detect_virtualization()
+    virt_label = ", ".join(virt_signals) if virt_signals else "bare metal"
+    py_version = platform.python_version()
+    return (
+        "Environment:\n"
+        f"- OS: {os_label} on {machine}\n"
+        f"- Virtualization: {virt_label}\n"
+        "- Shell: /bin/sh (POSIX sh — bash syntax like [[ ]], brace expansion {a,b}, "
+        "source, or the `function` keyword is not supported)\n"
+        f"- Python: {py_version} (run_python executes in this version)"
+    )
 
 
 @dataclass
@@ -59,6 +127,18 @@ class Session:
     date_snapshot: str = field(
         default_factory=lambda: datetime.now().strftime("%Y-%m-%d (%A)")
     )
+    # Session-scoped environment snapshot for the system prompt (FR-015).
+    # OS + virtualization + shell + python, captured once at construction.
+    # Stable for the session lifetime so the prompt-cache prefix stays
+    # byte-stable. Child sessions inherit the root's snapshot via
+    # ensure_session(). Never mutated during the session.
+    env_snapshot: str = field(default_factory=_build_env_snapshot)
+    # Lazy AGENTS.md snapshot. None = not yet read from disk; "" = read but
+    # missing/empty (no Project Instructions section); non-empty = read with
+    # content. Resolved on first build_system_message call (by then
+    # session_config.workspace_dir is set), then cached so we read the file
+    # at most once per session. Child sessions inherit the resolved value.
+    agents_md_snapshot: str | None = None
 
     @staticmethod
     def _summary_to_entry(summary: Any) -> SessionContextEntry:

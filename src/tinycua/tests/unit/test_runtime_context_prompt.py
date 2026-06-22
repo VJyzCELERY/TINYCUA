@@ -126,3 +126,184 @@ def test_system_prompt_differs_across_sessions_with_different_snapshots() -> Non
     assert sys_a != sys_b
     assert "Today: 2026-06-21 (Sunday)" in sys_a["content"]
     assert "Today: 2027-01-01 (Friday)" in sys_b["content"]
+
+
+def test_build_env_snapshot_is_nonempty_with_os_shell_python() -> None:
+    """_build_env_snapshot produces a block with OS, Shell, and Python lines."""
+    from tinycua.models.session import _build_env_snapshot
+
+    snapshot = _build_env_snapshot()
+    assert "Environment:" in snapshot
+    assert "OS:" in snapshot
+    assert "Shell:" in snapshot
+    assert "/bin/sh" in snapshot
+    assert "Python:" in snapshot
+
+
+def test_session_has_env_snapshot_by_default() -> None:
+    """A fresh Session captures an env_snapshot at construction."""
+    session = Session()
+    assert session.env_snapshot
+    assert "OS:" in session.env_snapshot
+
+
+def test_build_runtime_context_includes_env_snapshot() -> None:
+    """When env_snapshot is provided, the Environment block appears."""
+    env = (
+        "Environment:\n"
+        "- OS: Linux on x86_64\n"
+        "- Shell: /bin/sh (POSIX sh)\n"
+        "- Python: 3.12.13"
+    )
+    ctx = build_runtime_context(env_snapshot=env)
+    assert "## Runtime Context" in ctx
+    assert "Environment:" in ctx
+    assert "/bin/sh" in ctx
+
+
+def test_build_runtime_context_includes_workspace_when_set() -> None:
+    """workspace_dir renders a Workspace line; None omits it."""
+    ctx = build_runtime_context(workspace_dir="/workspace/experiment-2")
+    assert "Workspace: /workspace/experiment-2" in ctx
+    assert "file tools operate here" in ctx
+
+    ctx_no_ws = build_runtime_context()
+    assert "Workspace:" not in ctx_no_ws
+
+
+def test_system_message_includes_env_snapshot_and_workspace() -> None:
+    """The system message carries the session's env snapshot + workspace."""
+    from pathlib import Path
+
+    from tinycua.config.session_config import SessionConfig
+
+    session = Session(session_config=SessionConfig(workspace_dir=Path("/workspace/x")))
+    session.env_snapshot = (
+        "Environment:\n- OS: Linux\n- Shell: /bin/sh\n- Python: 3.12.13"
+    )
+    node = ProcessNode("x", NodeConfigBase(), instruction="Do the task.")
+    node.ensure_session(session)
+
+    system = node.build_system_message()
+    assert "Environment:" in system["content"]
+    assert "/bin/sh" in system["content"]
+    assert "Workspace: /workspace/x" in system["content"]
+
+
+def test_child_session_inherits_env_snapshot() -> None:
+    """ensure_session copies the root's env_snapshot to the child."""
+    root = Session()
+    root.env_snapshot = "Environment:\n- OS: Linux\n- Shell: /bin/sh"
+    node = ProcessNode("x", NodeConfigBase(), instruction="Do the task.")
+
+    child = node.ensure_session(root)
+
+    assert "Shell: /bin/sh" in child.env_snapshot
+    system = node.build_system_message()
+    assert "Environment:" in system["content"]
+
+
+def test_agents_md_snapshot_rendered_when_present(tmp_path) -> None:
+    """AGENTS.md at {workspace}/AGENTS.md renders a Project Instructions section."""
+    from pathlib import Path
+
+    from tinycua.config.session_config import SessionConfig
+
+    agents_content = "# Project Rules\n\nAlways write tests first."
+    (tmp_path / "AGENTS.md").write_text(agents_content, encoding="utf-8")
+    session = Session(session_config=SessionConfig(workspace_dir=Path(tmp_path)))
+    node = ProcessNode("x", NodeConfigBase(), instruction="Do the task.")
+    node.ensure_session(session)
+
+    system = node.build_system_message()
+    assert "## Project Instructions (AGENTS.md)" in system["content"]
+    assert "Always write tests first." in system["content"]
+
+
+def test_agents_md_snapshot_omitted_when_missing(tmp_path) -> None:
+    """No AGENTS.md in the workspace → no Project Instructions section."""
+    from pathlib import Path
+
+    from tinycua.config.session_config import SessionConfig
+
+    session = Session(session_config=SessionConfig(workspace_dir=Path(tmp_path)))
+    node = ProcessNode("x", NodeConfigBase(), instruction="Do the task.")
+    node.ensure_session(session)
+
+    system = node.build_system_message()
+    assert "Project Instructions" not in system["content"]
+    # The node's (child) session cached the empty result (no re-read on next build).
+    assert node.session.agents_md_snapshot == ""
+
+
+def test_agents_md_snapshot_omitted_when_empty(tmp_path) -> None:
+    """Empty AGENTS.md → no Project Instructions section."""
+    from pathlib import Path
+
+    from tinycua.config.session_config import SessionConfig
+
+    (tmp_path / "AGENTS.md").write_text("   \n  \n", encoding="utf-8")
+    session = Session(session_config=SessionConfig(workspace_dir=Path(tmp_path)))
+    node = ProcessNode("x", NodeConfigBase(), instruction="Do the task.")
+    node.ensure_session(session)
+
+    system = node.build_system_message()
+    assert "Project Instructions" not in system["content"]
+    assert node.session.agents_md_snapshot == ""
+
+
+def test_agents_md_snapshot_read_at_most_once(tmp_path) -> None:
+    """Two builds read AGENTS.md once — the second uses the cached snapshot."""
+    from pathlib import Path
+
+    from tinycua.config.session_config import SessionConfig
+
+    agents_path = tmp_path / "AGENTS.md"
+    agents_path.write_text("rule v1", encoding="utf-8")
+    session = Session(session_config=SessionConfig(workspace_dir=Path(tmp_path)))
+    node = ProcessNode("x", NodeConfigBase(), instruction="Do the task.")
+    node.ensure_session(session)
+
+    node.build_system_message()
+    assert node.session.agents_md_snapshot == "rule v1"
+    # Mutate the file after the first read; the cached snapshot must not change.
+    agents_path.write_text("rule v2", encoding="utf-8")
+    node.build_system_message()
+    assert node.session.agents_md_snapshot == "rule v1"
+
+
+def test_agents_md_section_appears_between_instruction_and_runtime_context(tmp_path) -> None:
+    """AGENTS.md is a static fragment after the node instruction, before runtime context."""
+    from pathlib import Path
+
+    from tinycua.config.session_config import SessionConfig
+
+    (tmp_path / "AGENTS.md").write_text("PROJECT RULE", encoding="utf-8")
+    session = Session(session_config=SessionConfig(workspace_dir=Path(tmp_path)))
+    node = ProcessNode("x", NodeConfigBase(), instruction="Do the task.")
+    node.ensure_session(session)
+
+    system = node.build_system_message()
+    content = system["content"]
+    instr_pos = content.index("Do the task.")
+    agents_pos = content.index("PROJECT RULE")
+    runtime_pos = content.index("## Runtime Context")
+    assert instr_pos < agents_pos < runtime_pos
+
+
+def test_child_session_inherits_resolved_agents_md(tmp_path) -> None:
+    """Child session inherits the root's resolved AGENTS.md snapshot."""
+    from pathlib import Path
+
+    from tinycua.config.session_config import SessionConfig
+
+    (tmp_path / "AGENTS.md").write_text("inherited rule", encoding="utf-8")
+    root = Session(session_config=SessionConfig(workspace_dir=Path(tmp_path)))
+    # Resolve on the root first (simulates the root node building its system msg).
+    from tinycua.loops.node import _resolve_agents_md
+
+    _resolve_agents_md(root)
+    assert root.agents_md_snapshot == "inherited rule"
+    node = ProcessNode("x", NodeConfigBase(), instruction="Do the task.")
+    child = node.ensure_session(root)
+    assert child.agents_md_snapshot == "inherited rule"

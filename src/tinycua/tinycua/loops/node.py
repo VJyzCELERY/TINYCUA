@@ -27,6 +27,51 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _resolve_agents_md(session: Session) -> str:
+    """Resolve the AGENTS.md content for a session, reading at most once.
+
+    Reads ``{workspace_dir}/AGENTS.md`` when the workspace is set and the
+    snapshot hasn't been resolved yet (``session.agents_md_snapshot is None``).
+    Caches the result on ``session.agents_md_snapshot`` so the file is read at
+    most once per session (FR-015 prompt-cache stability):
+
+    - ``None`` → not yet checked; this call reads + caches.
+    - ``""``  → checked but missing/empty/unreadable; no Project Instructions.
+    - non-empty → checked with content; the AGENTS.md text.
+
+    Returns the cached content (possibly empty). Read failures log a debug
+    warning and cache ``""`` — the agent never sees a broken read in its
+    system prompt.
+    """
+    if session.agents_md_snapshot is not None:
+        return session.agents_md_snapshot
+    sc = session.session_config
+    workspace = getattr(sc, "workspace_dir", None) if sc is not None else None
+    if workspace is None:
+        # No workspace bound → nothing to read. Cache empty so we don't keep
+        # checking on every build_system_message call.
+        session.agents_md_snapshot = ""
+        return ""
+    agents_path = workspace / "AGENTS.md" if hasattr(workspace, "__truediv__") else None
+    if agents_path is None:
+        session.agents_md_snapshot = ""
+        return ""
+    try:
+        content = agents_path.read_text(encoding="utf-8")
+    except (OSError, PermissionError):
+        logger.debug(
+            "agents_md_read_failed workspace=%s path=%s",
+            workspace, agents_path, exc_info=True,
+        )
+        session.agents_md_snapshot = ""
+        return ""
+    if not content.strip():
+        session.agents_md_snapshot = ""
+        return ""
+    session.agents_md_snapshot = content
+    return content
+
+
 # Internal bookkeeping messages that should never reach the LLM.
 _SKIP_CONTENT_PREFIXES = (
     "Scheduled analysis effort",
@@ -241,12 +286,19 @@ class Node(ABC):
         self.session.input_context = list(root_or_parent_session.input_context)
         self.session.task = root_or_parent_session.task
         self.session.task_store = root_or_parent_session.task_store
-        # FR-015: inherit the root's date snapshot so all nodes in one run
-        # share one date in the stable system prefix (prompt-cache friendly).
+        # FR-015: inherit the root's stable snapshots so all nodes in one run
+        # share one date + environment + AGENTS.md in the stable system prefix
+        # (prompt-cache friendly). If the root hasn't resolved AGENTS.md yet
+        # (None), the child inherits None and resolves on its first build
+        # (workspace is shared via session_config).
         if root_or_parent_session.date_snapshot:
             self.session.date_snapshot = root_or_parent_session.date_snapshot
+        if root_or_parent_session.env_snapshot:
+            self.session.env_snapshot = root_or_parent_session.env_snapshot
+        if root_or_parent_session.agents_md_snapshot is not None:
+            self.session.agents_md_snapshot = root_or_parent_session.agents_md_snapshot
         # Invalidate the cached system message so the next build picks up
-        # the now-attached session's date snapshot.
+        # the now-attached session's snapshots.
         self._cached_system_message = None
         self._cached_system_key = None
         return self.session
@@ -340,11 +392,29 @@ class Node(ABC):
         instruction = self.build_instruction()
         if instruction:
             builder.add_static(instruction)
-        # FR-015: pass the session's date snapshot so the stable system
-        # prefix carries the authoritative current date. The snapshot is
-        # stable for the session lifetime, so prompt-cache stability holds.
-        snapshot = self.session.date_snapshot if self.session else None
-        builder.add_dynamic_context(build_runtime_context(date_snapshot=snapshot))
+        # AGENTS.md project instructions (static, specialized loader). Read
+        # from {workspace}/AGENTS.md at most once per session, cached on the
+        # session so FR-015 prompt-cache stability holds. Placed after the
+        # node instruction (role) and before the runtime context (env).
+        if self.session is not None:
+            agents_md = _resolve_agents_md(self.session)
+            if agents_md:
+                builder.add_static(f"## Project Instructions (AGENTS.md)\n{agents_md}")
+        # FR-015: pass the session's date + env snapshots + workspace into the
+        # stable runtime context. All three are stable for the session
+        # lifetime, so prompt-cache stability holds.
+        date_snapshot = self.session.date_snapshot if self.session else None
+        env_snapshot = self.session.env_snapshot if self.session else None
+        workspace_dir = None
+        if self.session is not None and self.session.session_config is not None:
+            workspace_dir = self.session.session_config.workspace_dir
+        builder.add_dynamic_context(
+            build_runtime_context(
+                date_snapshot=date_snapshot,
+                env_snapshot=env_snapshot,
+                workspace_dir=workspace_dir,
+            )
+        )
         tool_prompt = self.build_tool_system_prompt(resolved_tools)
         if tool_prompt:
             builder.add_dynamic_context(tool_prompt)
