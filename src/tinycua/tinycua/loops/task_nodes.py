@@ -875,6 +875,7 @@ class TinyCUAResultReviewerNode(ProcessNode):
             self.session.task_store,
             enable_open_question_review=enable_oq,
             replan_threshold=replan_threshold,
+            session=self.session,
         ).schedule_after_review(queue)
         existing_terminal_ids = {
             node.node_id for node in queue.items if node.is_terminal

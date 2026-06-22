@@ -112,12 +112,15 @@ class Task:
 
     @property
     def consecutive_failures(self) -> int:
-        """Count of consecutive needs_revision/rejected/replan decisions (resets on approve).
+        """Count of consecutive needs_revision/rejected/replan decisions.
 
         Counts backward from the latest reviewer decision until an ``approved``
-        is hit. This is the deterministic replan trigger: when this count
-        reaches ``replan_threshold`` (default 5), the runtime routes to
-        TaskAnalyzer for replan instead of retrying the executor.
+        OR a ``replan_boundary`` entry is hit. The boundary marker is inserted
+        by ``schedule_replan`` (FR-049) so the failure baseline resets when a
+        replan is triggered, without losing the audit trail. This is the
+        deterministic replan trigger: when this count reaches
+        ``replan_threshold`` (default 5), the runtime routes to TaskAnalyzer
+        for replan instead of retrying the executor.
         """
         back_decisions = {
             ReviewerDecision.NEEDS_REVISION.value,
@@ -126,10 +129,11 @@ class Task:
         }
         count = 0
         for d in reversed(self.reviewer_decisions):
-            if d.get("decision") in back_decisions:
+            decision = d.get("decision")
+            if decision in back_decisions:
                 count += 1
             else:
-                break  # approved — breaks the consecutive run
+                break  # approved or replan_boundary — breaks the consecutive run
         return count
 
 
