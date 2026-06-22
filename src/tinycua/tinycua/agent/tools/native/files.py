@@ -553,12 +553,20 @@ def _fuzzy_find_and_replace(
     """Find old_string in content using fuzzy matching and replace it.
 
     Tries each matching strategy in order. Returns (new_content, match_count, error).
+    FR-052: distinguishes zero-match from multi-match errors so the model can
+    tell whether to provide more context (multi-match) or fix the string
+    (zero-match).
     """
+    max_multi_match = 0  # FR-052: track the highest match count across strategies
     for strategy_name, strategy_fn in _MATCH_STRATEGIES:
         matches = strategy_fn(content, old_string)
         if not matches:
             continue
         if len(matches) > 1 and not replace_all:
+            # FR-052: record the multi-match count for a distinct error, then
+            # try the next strategy (a fuzzier one may narrow to 1 match).
+            if len(matches) > max_multi_match:
+                max_multi_match = len(matches)
             continue  # ambiguous — try next strategy
         # Safety guard: refuse if matched region is disproportionately large.
         old_line_count = old_string.count("\n") + 1
@@ -576,7 +584,14 @@ def _fuzzy_find_and_replace(
         for start, end in reversed(matches):
             result = result[:start] + new_string + result[end:]
         return result, len(matches), None
-    # All strategies failed to find a unique match.
+    # FR-052: if any strategy found >1 matches, return a distinct actionable error.
+    if max_multi_match > 1:
+        return content, 0, (
+            f"Found {max_multi_match} matches for old_string. Provide more "
+            f"context in old_string to disambiguate, or set replace_all=True "
+            f"to replace all {max_multi_match}."
+        )
+    # All strategies found zero matches.
     return content, 0, f"Could not find old_string in the file. Check for exact whitespace and indentation. Tried {len(_MATCH_STRATEGIES)} matching strategies."
 
 
