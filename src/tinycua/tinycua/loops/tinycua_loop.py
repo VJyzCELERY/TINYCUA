@@ -31,7 +31,7 @@ from tinycua.loops.prompt_protocol_mixin import PromptProtocolMixin
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.loops.task_tree_rendering import render_task_tree
 from tinycua.loops.trace_state_mixin import TraceStateMixin
-from tinycua.loops.recovery_stages_mixin import RecoveryStagesMixin
+from tinycua.loops.recovery_stages_mixin import RecoveryGuardMixin, RecoveryStagesMixin
 from tinycua.loops.validation_retry_mixin import ValidationRetryMixin
 from tinycua.models.session import Session
 
@@ -147,6 +147,7 @@ class TinyCUALoop(
     OrchestrationMixin,
     ValidationRetryMixin,
     RecoveryStagesMixin,
+    RecoveryGuardMixin,
     PromptProtocolMixin,
     TraceStateMixin,
     BaseLoop,

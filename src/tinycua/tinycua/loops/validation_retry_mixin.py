@@ -1001,12 +1001,7 @@ class ValidationRetryMixin:
         *,
         missing_tools: list[str] | None = None,
     ) -> tuple[LLMResult, ValidationResult] | None:
-        """Structured-output retry: constrain the LLM to produce valid tool-call JSON.
-
-        Replaces the 3-stage escalation with a single stage: the LLM is called
-        with ``response_format: json_schema`` from the missing tool's params.
-        The LLM stays the decider — the runtime never synthesizes the call.
-        """
+        """Structured-output retry: constrain the LLM via ``response_format: json_schema``."""
         if not missing_tools:
             return None
         # Skip for mock agents (tests) — only real LanguageModel supports
@@ -1121,7 +1116,11 @@ class ValidationRetryMixin:
                 f"{tool_name} call via json_schema constraint.",
             )
             return result, result_validation
-        return None
+        # Return the partial result so the caller can accumulate the successful
+        # tool call and advance to the next missing prerequisite. Previously
+        # returned None, discarding the successful task_decompose and looping
+        # forever (experiment-2: 23 cycles, pending 5→50, never terminated).
+        return result, result_validation
 
     def _build_recovery_messages(
         self,
@@ -1186,11 +1185,10 @@ class ValidationRetryMixin:
         *,
         missing_tools: list[str] | None = None,
     ) -> tuple[LLMResult, ValidationResult] | None:
-        """Focused retry exposing only the missing prerequisite tools.
+        """Focused retry exposing only the missing prerequisite tools (FR-063).
 
-        Fallback for the structured-output track: exposes the missing tools
-        without response_format, letting the LLM freely decide arguments.
-        Returns (result, validation) if valid, else None.
+        Returns (result, validation) — partial result even when validation
+        fails, so the caller accumulates successful tool calls.
         """
         if missing_tools is not None and missing_tools:
             recovery_tools: list[Tool] = []
@@ -1233,7 +1231,9 @@ class ValidationRetryMixin:
         if recovery_validation.is_valid:
             self._record_node_content_transcript(node, f"Recovery retry succeeded — the model called the missing tool(s) ({missing_str}) with a focused context.")
             return recovery_result, recovery_validation
-        return None
+        # Return the partial result so the caller accumulates successful tool
+        # calls and advances to the next missing prerequisite (FR-063).
+        return recovery_result, recovery_validation
 
     def _required_tool_for_recovery(self, node: Node, validation: ValidationResult) -> Tool | None:
         """Determine the single tool the model needs to call to satisfy validation.

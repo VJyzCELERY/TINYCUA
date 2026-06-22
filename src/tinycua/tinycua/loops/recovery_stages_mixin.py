@@ -137,7 +137,9 @@ class RecoveryStagesMixin:
                 f"call after the model could not produce one.",
             )
             return judge_result, judge_validation
-        return None
+        # Return the partial result so the caller accumulates successful tool
+        # calls and advances to the next missing prerequisite (FR-063).
+        return judge_result, judge_validation
 
     @staticmethod
     def _parse_judge_tool_call(
@@ -188,3 +190,82 @@ class RecoveryStagesMixin:
                 "arguments": json.dumps(arguments, default=str),
             },
         }
+
+
+class RecoveryGuardMixin:
+    """No-progress guard + stage outcome recording for the recovery loop (FR-063).
+
+    Extracted from ``orchestration_mixin.py`` to keep that file under the
+    1500 LOC gate. Composed into ``TinyCUALoop`` via MRO.
+    """
+
+    @staticmethod
+    def _record_stage_outcome(
+        node: Node,
+        stage_name: str,
+        recovery_result: tuple[LLMResult, ValidationResult],
+        accumulated_before: set[str],
+        accumulated_after: set[str],
+    ) -> None:
+        """Record what a recovery stage produced for guard rationale (FR-063).
+
+        Logs the stage name, tools called, success, result summary, and which
+        new tools were added to the accumulated set. The no-progress guard
+        and recovery messages use this to show the model what it already did.
+        """
+        from tinycua.loops.node_guidance import summarize_tool_result
+
+        llm_result, _ = recovery_result
+        tool_results = llm_result.metadata.get("tool_results", []) if isinstance(
+            llm_result.metadata, dict
+        ) else []
+        tools_called = [
+            tr.get("name", "?") for tr in tool_results
+            if isinstance(tr, dict)
+        ]
+        successful_tools = [
+            tr.get("name", "?") for tr in tool_results
+            if isinstance(tr, dict)
+            and isinstance(tr.get("output"), dict)
+            and tr["output"].get("success") is True
+        ]
+        summaries = []
+        for tr in tool_results:
+            if isinstance(tr, dict) and isinstance(tr.get("output"), dict) and tr["output"].get("success"):
+                content_str = str(tr.get("content", "") or tr.get("output", ""))
+                summaries.append(f"{tr.get('name', '?')}: {summarize_tool_result(content_str)[:120]}")
+        new_tools = sorted(accumulated_after - accumulated_before)
+        node.progress.stage_tool_history.append({
+            "stage": stage_name,
+            "tools": tools_called,
+            "successful_tools": successful_tools,
+            "result_summary": "; ".join(summaries)[:300],
+            "new_tools": new_tools,
+        })
+
+    @staticmethod
+    def _is_no_progress(
+        accumulated_before: set[str],
+        accumulated_results: dict[str, dict],
+        node: Node,
+    ) -> bool:
+        """Check if a stage executed a tool but added no new successful tool.
+
+        Only fires when the stage's tool call succeeded (accumulated grew with
+        a successful tool) but accumulated_results didn't gain a NEW key —
+        meaning the model re-called a tool it already called. Stage failures
+        (LLM didn't produce a valid call) don't trigger the guard.
+        """
+        accumulated_after = set(accumulated_results.keys())
+        if accumulated_after != accumulated_before:
+            return False  # new tool was added — progress was made
+        history = node.progress.stage_tool_history
+        if history and history[-1].get("successful_tools"):
+            logger.info(
+                "node=%s no-progress guard: model re-called existing tool (%s), "
+                "skipping to next recovery stage",
+                node.node_id,
+                history[-1].get("successful_tools"),
+            )
+            return True
+        return False

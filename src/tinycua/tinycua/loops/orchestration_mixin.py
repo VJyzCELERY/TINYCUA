@@ -999,12 +999,7 @@ class OrchestrationMixin:
         cycle: int,
         stage_results: dict[str, bool],
     ) -> None:
-        """Log system state on every recovery cycle for traceability.
-
-        Emits a structured log record showing the node, validation errors, task
-        store state, queue contents, and which recovery stages failed. This
-        makes stuck loops visible in logs without decoding stdout.
-        """
+        """Log system state on every recovery cycle for traceability."""
         store = self.root_session.task_store
         total = len(store.tasks)
         completed = sum(1 for t in store.tasks.values() if t.status.value == "completed")
@@ -1019,17 +1014,8 @@ class OrchestrationMixin:
             "node=%s stuck — recovery cycle=%d errors=%s "
             "task_store root=%s active=%s completed=%d/%d pending=%d in_progress=%d "
             "stages=[%s] queue=%s retrying with tightened context",
-            node.node_id,
-            cycle,
-            errors,
-            root_id,
-            active_id,
-            completed,
-            total,
-            pending,
-            in_progress,
-            stages,
-            queue_ids,
+            node.node_id, cycle, errors, root_id, active_id,
+            completed, total, pending, in_progress, stages, queue_ids,
         )
 
     async def _unbounded_recovery(
@@ -1093,6 +1079,7 @@ class OrchestrationMixin:
                 stage_results["direct_terminate"] = terminated is not None
             # Stage 1: structured-output retry (15 budget).
             if structured_attempts < _STRUCTURED_BUDGET:
+                prev_successful = set(accumulated_results.keys())
                 recovery = await self._structured_output_retry(
                     node, agent, resolved_tools, current_result, current_validation,
                     missing_tools=missing,
@@ -1102,13 +1089,23 @@ class OrchestrationMixin:
                 if recovery is not None:
                     current_result, current_validation = recovery
                     self._accumulate_results(current_result, accumulated_results)
+                    self._record_stage_outcome(
+                        node, "structured_output_retry", recovery,
+                        prev_successful, set(accumulated_results.keys()),
+                    )
                     current_validation = self._revalidate_with_accumulated(
                         node, current_result, accumulated_results
                     )
                     if current_validation.is_valid:
                         return current_result, current_validation
+                    # No-progress guard: tool succeeded but no NEW tool was
+                    # added → the model re-called an existing tool. Skip
+                    # remaining structured budget to advance to focused/judge.
+                    if self._is_no_progress(prev_successful, accumulated_results, node):
+                        structured_attempts = _STRUCTURED_BUDGET
             # Stage 2: focused retry (10 budget).
             elif recovery_attempts < _RECOVERY_BUDGET:
+                prev_successful = set(accumulated_results.keys())
                 focused = await self._recovery_retry(
                     node, agent, resolved_tools, current_result, current_validation,
                     missing_tools=missing,
@@ -1118,13 +1115,20 @@ class OrchestrationMixin:
                 if focused is not None:
                     current_result, current_validation = focused
                     self._accumulate_results(current_result, accumulated_results)
+                    self._record_stage_outcome(
+                        node, "focused_retry", focused,
+                        prev_successful, set(accumulated_results.keys()),
+                    )
                     current_validation = self._revalidate_with_accumulated(
                         node, current_result, accumulated_results
                     )
                     if current_validation.is_valid:
                         return current_result, current_validation
+                    if self._is_no_progress(prev_successful, accumulated_results, node):
+                        recovery_attempts = _RECOVERY_BUDGET
             # Stage 3: judge retry (3 budget) — re-enabled (FR-012 updated).
             elif judge_attempts < _JUDGE_BUDGET:
+                prev_successful = set(accumulated_results.keys())
                 judged = await self._judge_retry(
                     node, agent, resolved_tools, current_result, current_validation,
                     missing_tools=missing,
@@ -1134,11 +1138,17 @@ class OrchestrationMixin:
                 if judged is not None:
                     current_result, current_validation = judged
                     self._accumulate_results(current_result, accumulated_results)
+                    self._record_stage_outcome(
+                        node, "judge_retry", judged,
+                        prev_successful, set(accumulated_results.keys()),
+                    )
                     current_validation = self._revalidate_with_accumulated(
                         node, current_result, accumulated_results
                     )
                     if current_validation.is_valid:
                         return current_result, current_validation
+                    if self._is_no_progress(prev_successful, accumulated_results, node):
+                        judge_attempts = _JUDGE_BUDGET
             else:
                 # All 30 cycles exhausted — signal re-entry (FR-060).
                 logger.info(

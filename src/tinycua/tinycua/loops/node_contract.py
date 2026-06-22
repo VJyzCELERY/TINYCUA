@@ -31,11 +31,12 @@ class NodeState(StrEnum):
 
 @dataclass
 class NodeProgress:
-    """Per-node runtime tracking. Lives on the ``Node`` instance.
+    """Per-node runtime tracking. Lives on ``session.node_progress[node_id]``.
 
     Makes node state observable: ``phase``, ``attempt_count``, which tools
     have been called, which required tools are satisfied, and a history of
-    state transitions.
+    state transitions. Also carries ``accumulated_tool_results`` across
+    recovery re-entries and ``stage_tool_history`` for the no-progress guard.
     """
 
     phase: NodeState = NodeState.PENDING
@@ -43,6 +44,13 @@ class NodeProgress:
     visited_tools: set[str] = None  # type: ignore[assignment]
     satisfied_requirements: set[str] = None  # type: ignore[assignment]
     history: list[dict[str, Any]] = None  # type: ignore[assignment]
+    # FR-063: successful tool results accumulated across recovery stages.
+    # Survives re-entry (lives on session). Fresh dispatch resets.
+    accumulated_tool_results: dict[str, dict] = None  # type: ignore[assignment]
+    # FR-063: per-stage log of what each recovery attempt produced, so the
+    # no-progress guard has evidence and recovery messages can show the
+    # model what it already did.
+    stage_tool_history: list[dict[str, Any]] = None  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
         """Initialize mutable default fields (dataclass mutable-default safe)."""
@@ -52,6 +60,10 @@ class NodeProgress:
             self.satisfied_requirements = set()
         if self.history is None:
             self.history = []
+        if self.accumulated_tool_results is None:
+            self.accumulated_tool_results = {}
+        if self.stage_tool_history is None:
+            self.stage_tool_history = []
 
     def transition(self, to: NodeState, reason: str = "") -> None:
         """Transition to a new phase, recording the transition in history.
@@ -88,6 +100,8 @@ class NodeProgress:
         self.visited_tools.clear()
         self.satisfied_requirements.clear()
         self.history.clear()
+        self.accumulated_tool_results.clear()
+        self.stage_tool_history.clear()
 
 
 @dataclass(frozen=True)
