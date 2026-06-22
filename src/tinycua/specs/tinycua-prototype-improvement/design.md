@@ -58,10 +58,10 @@ This redesign hardens the TinyCUA research prototype along four axes motivated b
 | `loops/orchestration_mixin.py` | Modified | Replace `_unbounded_recovery`'s 5-stage escalation with 2-track; remove `_log_recovery_cycle` `print(stderr)`; consult `NodeContract` for `_RECOVERY_CHAINS` |
 | `loops/prompt_protocol_mixin.py` | Modified | Remove `_required_single_tool_choice_name`, `_missing_or_required_tool_name`, `_requires_any_tool_choice`; consult `NodeContract`; **M8**: add `task_inspect` to `_missing_or_required_tool_name` candidate tuple before `task_review_decision` |
 | `loops/recovery_stages_mixin.py` | Modified | Remove `_judge_retry` (the whole file likely deleted) |
-| `loops/worker_runtime.py` | Modified | Remove commented `OPEN_QUESTION` branch + `ResponseNode` `noqa` import; **M8**: reset `consecutive_failures` on replan via boundary marker, cap replans per task via `max_replans` effort mapping, force-approve at cap, skip executor re-run when `plan_unchanged` |
+| `loops/worker_runtime.py` | Modified | Remove commented `OPEN_QUESTION` branch + `ResponseNode` `noqa` import; **M8**: reset `consecutive_failures` on replan via boundary marker, cap replans per task via `max_replans` effort mapping, force-approve at cap |
 | `config/node_config.py` | Modified | Remove inline `required_tool_calls` overrides; build `NodeContract` per node; **M8**: raise `task_analyzer` `max_attempts` from 3 to 10 |
 | `config/session_config.py` | Modified | **M8**: add `max_replans: int \| None` field (derived from `worker_effort` when None: `none=0, low=1, medium=3, high=6`) |
-| `models/task.py` | Modified | Add `delete_task`, `merge_tasks` to `TaskStateStore`; **M8**: `consecutive_failures` breaks on `replan_boundary` entries; `decompose_task` signals `plan_unchanged` when children already exist |
+| `models/task.py` | Modified | Add `delete_task`, `merge_tasks` to `TaskStateStore`; **M8**: `consecutive_failures` breaks on `replan_boundary` entries |
 | `tools/task_tools.py` | Modified | Add `task_shrink` tool; remove `TaskReviewDecisionTool` default-approve; fix `TaskUpdateTool` `additionalProperties`; **M8**: document `rejected` as alias for `needs_revision` in `TaskReviewDecisionTool` description |
 | `tools/todo_tools.py` | Modified | Real update-in-place, delete, status transitions |
 | `agent/tools/native/web.py` | Modified | markdown conversion, Content-Type guard, UA, retry, consistent dict |
@@ -73,7 +73,7 @@ This redesign hardens the TinyCUA research prototype along four axes motivated b
 | `agent/tools/native/output_persist.py` | Modified | remove duplicate `print` |
 | `tools/enhanced_context_retrieval.py` | Modified | fix index math, cache cap + eviction |
 | `loops/tinycua_loop.py` | Modified | structured-output payload construction; tool coercion via SDK |
-| `loops/task_nodes.py` | Modified | **M8**: analyzer instruction adds `terminate` call, drops `task_inspect`-first trap; reviewer instruction adds general sanity-checker responsibility; `build_tool_system_prompt` adds dedup guidance; `local_replan` analyzer mode prompt mentions `task_shrink` option + `plan_unchanged` signal |
+| `loops/task_nodes.py` | Modified | **M8**: analyzer instruction adds `terminate` call, drops `task_inspect`-first trap; analyzer `on_complete` skips queued executor when `plan_unchanged` metadata is set; reviewer instruction adds general sanity-checker responsibility; `build_tool_system_prompt` adds dedup guidance; `local_replan` analyzer mode prompt mentions `task_shrink` option + `plan_unchanged` signal |
 | `loops/trace_state_mixin.py` | Modified | emit `node_state_transition` + `task_tree_shrink` events |
 | (new) `loops/node_contract.py` | New | `NodeContract` dataclass + per-node registry |
 | (new) `agent/tools/native/tool_result.py` | New | `ToolResult` envelope dataclass |
@@ -287,7 +287,7 @@ def run_shell(command: str, *, timeout: int = 120, venv: str | None = None,
 
 - [ ] **Reset failure baseline on replan**: `schedule_replan` inserts a synthetic `{"decision": "replan_boundary"}` entry into `reviewer_decisions`; `consecutive_failures` breaks on `replan_boundary` (not just `approved`)
 - [ ] **Cap replans per task**: add `max_replans` to `SessionConfig` (derived from `worker_effort`: `none=0, low=1, medium=3, high=6`); in `schedule_after_review`, when `replan_count >= max_replans`, force-approve with "replan budget exhausted" rationale instead of queueing another replan
-- [ ] **Non-vacuous replan**: when the active task has children and the analyzer confirms `plan_unchanged` (via `task_update` metadata), `schedule_replan` skips re-queueing executor+reviewer; the analyzer MAY call `task_shrink` to restructure instead
+- [ ] **Non-vacuous replan**: when the analyzer confirms `plan_unchanged` (via `task_update` metadata), the analyzer's `on_complete` removes the queued executor — the plan did not change, re-execution would duplicate work. The reviewer is kept to re-judge the existing result. The analyzer MAY call `task_shrink` to restructure instead
 - [ ] **`str_replace` error fix**: distinguish zero-match from multi-match in `_fuzzy_find_and_replace`; return `"Found N matches..."` when >1 matches and `replace_all=False`
 - [ ] **Reviewer missing-tool heuristic fix**: rephrase `_validate_result_reviewer_inspects_after_decision` error to not contain `task_review_decision`; add `task_inspect` to `_missing_or_required_tool_name` candidates
 - [ ] **Analyzer prompt fix**: add "after `task_decompose`/`task_update` succeeds, call `terminate`"; remove `task_inspect`-first instruction from continuation

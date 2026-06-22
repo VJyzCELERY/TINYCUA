@@ -273,7 +273,7 @@ Evidence: experiment-2 trace analysis (`src/experiment/results/tinycua/experimen
 | Milestone 5 — Tool hardening — experiment-evidenced | TODO | |
 | Milestone 6 — Tool hardening — other tools | TODO | |
 | Milestone 7 — Logging | TODO | |
-| Milestone 8 — Loop reliability | TODO | Replan cap + non-vacuous replan + str_replace error + reviewer sanity-checker + file-tool diff |
+| Milestone 8 — Loop reliability | Done | FR-049..FR-058 shipped: replan boundary reset + max_replans effort cap, non-vacuous replan via plan_unchanged, str_replace multi-match error, reviewer heuristic fix, analyzer terminate prompt + max_attempts=10, reviewer sanity-checker, needs_revision/rejected unification, file-tool diff/preview |
 
 ---
 
