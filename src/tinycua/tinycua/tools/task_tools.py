@@ -540,9 +540,18 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
                             "replan",
                         ],
                     },
-                    "rationale": {"type": "string"},
+                    "rationale": {
+                        "type": "string",
+                        "description": (
+                            "Required validation evidence. For approved: "
+                            "'[validated]: <command+result confirming the "
+                            "outcome>'. For needs_revision/rejected/replan: "
+                            "'[finding]: <issue> [validate]: <command to "
+                            "verify the fix>'."
+                        ),
+                    },
                 },
-                "required": ["decision"],
+                "required": ["decision", "rationale"],
                 "additionalProperties": False,
             },
         )

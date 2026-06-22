@@ -1,0 +1,136 @@
+"""Generic node guidance: prompt constants and tool-keyed guidance builders.
+
+Extracted from ``task_nodes.py`` so node-specific prompt enhancements evolve
+independently of the node plumbing. Currently holds the ResultReviewer
+guidance; other nodes' guidance can move here in the future.
+
+FR-059: the reviewer instruction enforces validation evidence in every
+``task_review_decision`` rationale — a validator in ``validation_retry_mixin``
+backs it up at runtime. The validation logic lives here (not in the mixin) to
+keep the mixin under the LOC gate and centralize reviewer rules.
+"""
+
+from __future__ import annotations
+
+import json
+from typing import Any
+
+_RESULT_REVIEWER_INSTRUCTION = (
+    "You are the ResultReviewer. You only review outcomes; you do not edit "
+    "files or re-execute work. Verify with run_shell (test -f, grep, pytest, "
+    "git diff) and check exit_code, not eyeballed source. For research "
+    "tasks, use web_search/fetch_url to verify claimed findings are real "
+    "and current — do not accept fabricated or stale claims, do not "
+    "re-research the whole task. Then call task_review_decision: approved, "
+    "needs_revision, rejected, or replan. If bad, record feedback; do not "
+    "edit files. Terminate after useful task curation. Do not write a long "
+    "explanation — call the tools. "
+    "Also sanity-check for common LLM messes (any artifact type): "
+    "duplicate/repeated content (grep -c, sort | uniq -d), hallucinated "
+    "claims, structural inconsistency (claimed N sections but has M). "
+    "Every decision must cite validation evidence in rationale."
+)
+_RESULT_REVIEWER_CONTINUATION = (
+    "Verify the outcome. Explore to verify the executor's claims: run_shell "
+    "(test -f, grep, pytest, git diff) for file artifacts; web_search/"
+    "fetch_url for research-task claims (model names, versions, benchmarks). "
+    "Then call task_review_decision first. Then call task_inspect (no "
+    "task_id) for the compact task list; only for a task you want to "
+    "annotate, call task_inspect with that task_id for detail, then "
+    "task_update to add context. Then call terminate."
+)
+
+
+def build_reviewer_tool_guidance(resolved_tools: list[Any] | None) -> str:
+    """Build tool-keyed guidance for the ResultReviewer.
+
+    FR-005/FR-008: behavioral guidance keyed on present tools. FR-056:
+    includes generic dedup detection guidance when run_shell is available.
+    """
+    names = {getattr(tool, "name", "") for tool in (resolved_tools or [])}
+    lines: list[str] = []
+    readonly = names.intersection({"read_file", "run_shell", "list_files"})
+    if readonly:
+        lines.append(
+            "Before approving a task with file artifacts, run at least one "
+            "verification tool (read_file, run_shell, list_files) against "
+            "the claimed artifact, OR state in the rationale why "
+            "verification was skipped (e.g. pure-research task). Prefer "
+            "run_shell with exit_code checks (test -f, grep, pytest, git "
+            "diff) over eyeballing source. Do not accept generic 'all "
+            "requirements met' — cite specific evidence (file excerpt, "
+            "command output, exit_code)."
+        )
+    research_verify = names.intersection({"web_search", "fetch_url"})
+    if research_verify:
+        lines.append(
+            "For research tasks, verify the executor's claimed entities "
+            "(model names, versions, benchmarks) with web_search/fetch_url "
+            "before approving — do not accept fabricated or stale claims, "
+            "and do not re-research the whole task."
+        )
+    if "task_review_decision" in names:
+        lines.append("Your final action MUST call task_review_decision, then task_inspect.")
+    # FR-056: when run_shell is available, suggest generic dedup detection.
+    if "run_shell" in names:
+        lines.append(
+            "To check for duplicate or repeated content in an artifact, "
+            "use run_shell: e.g. `grep -c '^## ' report.md` to count "
+            "top-level sections, `sort <file> | uniq -d` to find duplicate "
+            "lines, `wc -l <file>` to verify claimed line counts. These "
+            "are generic checks — apply whichever is relevant to the "
+            "artifact type."
+        )
+    if not lines:
+        return ""
+    return "Tool guidance: " + " ".join(lines)
+
+
+def validate_reviewer_rationale(tool_calls: list[dict[str, Any]]) -> list[str]:
+    """Check that task_review_decision rationale has validation evidence (FR-059).
+
+    Returns a list of error strings (empty if valid). The rationale MUST
+    include validation evidence so the executor can verify findings
+    deterministically:
+    - approved: ``[validated]: <command+result confirming the outcome>``
+    - needs_revision/rejected/replan: ``[finding]: <issue> [validate]:
+      <runnable command the executor can use to verify the fix>``
+
+    Generic across artifact types — code (pytest, grep), research
+    (web_search URL), data (wc, run_python).
+    """
+    for tool_call in tool_calls:
+        function = tool_call.get("function") or {}
+        name = function.get("name") or tool_call.get("name")
+        if name != "task_review_decision":
+            continue
+        arguments = function.get("arguments") or tool_call.get("arguments") or {}
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except json.JSONDecodeError:
+                arguments = {}
+        decision = arguments.get("decision", "")
+        rationale = (arguments.get("rationale") or "").strip()
+        if not rationale:
+            return [
+                "task_review_decision rationale is required — include "
+                "validation evidence. For approved: '[validated]: "
+                "<command+result>'. For needs_revision/rejected/replan: "
+                "'[finding]: <issue> [validate]: <command>'."
+            ]
+        lowered = rationale.lower()
+        if decision == "approved" and "[validated]" not in lowered:
+            return [
+                "Approved decisions must include '[validated]: "
+                "<command+result>' in the rationale — cite the "
+                "evidence that confirms the outcome."
+            ]
+        if decision in ("needs_revision", "rejected", "replan") and "[validate]" not in lowered:
+            return [
+                "Non-approved decisions must include '[validate]: "
+                "<command>' in the rationale — provide a runnable "
+                "command the executor can use to verify the fix."
+            ]
+        return []
+    return []

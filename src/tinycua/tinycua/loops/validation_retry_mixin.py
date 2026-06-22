@@ -391,6 +391,7 @@ class ValidationRetryMixin:
             self._validate_result_reviewer_failed_approval(node, llm_result),
             self._validate_result_reviewer_result_exists(node, llm_result),
             self._validate_result_reviewer_inspects_after_decision(node, llm_result),
+            self._validate_result_reviewer_rationale_evidence(node, llm_result),
             self._validate_worker_lifecycle_terminate(node, llm_result),
             self._validate_decision_route_tool(node, llm_result),
             self._validate_final_response_content(node, llm_result),
@@ -561,6 +562,28 @@ class ValidationRetryMixin:
             "curating context for them. The decision is recorded; now inspect "
             "the roadmap in the same response."
         )
+        return validation
+
+    def _validate_result_reviewer_rationale_evidence(
+        self,
+        node: Node,
+        llm_result: LLMResult,
+    ) -> ValidationResult:
+        """Require validation evidence in the reviewer's rationale (FR-059).
+
+        Thin wrapper around ``node_guidance.validate_reviewer_rationale``
+        to keep this mixin under the LOC gate. The validation logic lives
+        in ``node_guidance.py`` alongside other reviewer rules.
+        """
+        from tinycua.loops.node_guidance import validate_reviewer_rationale
+
+        validation = ValidationResult(is_valid=True, errors=[])
+        if node.node_id != "result_reviewer":
+            return validation
+        errors = validate_reviewer_rationale(llm_result.tool_calls)
+        if errors:
+            validation.is_valid = False
+            validation.errors.extend(errors)
         return validation
 
     def _validate_worker_lifecycle_terminate(
