@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
 from tinycua.models.state_object import StateObject
+from tinycua_sdk.tools.decorators import Tool as _SDKTool
 
 __all__ = [
     "AgentMonitor",
@@ -18,8 +19,22 @@ __all__ = [
 ]
 
 
-class Tool:
-    """Minimal SDK-compatible tool type used by TinyCUA node scopes."""
+class Tool(_SDKTool):
+    """TinyCUA's tool base for task/todo/routing tools.
+
+    Subclasses the SDK ``Tool`` (so ``to_config``, ``from_callable``, the
+    ``dependencies`` field, and isinstance checks against the SDK type all
+    hold without drift) and overrides ``invoke`` to forward to ``__call__`` —
+    this is the dispatch pattern TinyCUA's task/todo/routing tools use
+    (they override ``__call__`` with typed args, not ``_callable``).
+
+    The SDK's ``ToolExecutor.execute`` calls ``tool.invoke(**arguments)``,
+    which here routes to the subclass's ``__call__``. Native tools
+    (files.py, shell.py, ...) are built via the ``@tool`` decorator and
+    are plain SDK ``Tool`` instances with a ``_callable`` — they use the
+    SDK's default ``invoke`` (coercion + ``_callable``), not this override.
+    Both kinds coexist in a node's resolved tool list.
+    """
 
     def __init__(
         self,
@@ -27,26 +42,43 @@ class Tool:
         description: str = "",
         parameters: dict[str, Any] | None = None,
     ) -> None:
-        self.name = name
-        self.description = description or name.replace("_", " ")
-        self.parameters = parameters or {
-            "type": "object",
-            "properties": {},
-            "additionalProperties": True,
-        }
+        super().__init__(
+            name=name,
+            description=description or name.replace("_", " "),
+            parameters=parameters
+            or {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": True,
+            },
+        )
 
-    def to_config(self) -> dict[str, Any]:
-        """Return OpenAI-compatible tool schema config."""
-        return {
-            "type": "function",
-            "name": self.name,
-            "description": self.description,
-            "parameters": self.parameters,
-        }
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        """Default callable for schema-only tools (e.g. route selectors).
+
+        Schema-only tools don't override ``__call__`` — they exist to declare a
+        tool schema to the LLM; the route label is parsed from the tool-call
+        arguments by the loop, not from invoking the tool. When the SDK's
+        ``ToolExecutor.execute`` does invoke them, this returns the arguments
+        as an acknowledgement dict (rather than recursing into ``invoke``).
+
+        Task/todo/handoff tools override ``__call__`` with typed parameters and
+        real logic, so this default is never reached for them.
+        """
+        if args:
+            return {"args": list(args), "kwargs": kwargs}
+        return {"received": kwargs}
 
     def invoke(self, **kwargs: Any) -> Any:
-        """Invoke SDK-style tools through the callable interface."""
-        return self(**kwargs)  # type: ignore[misc,operator]
+        """Forward to ``__call__`` — the TinyCUA task-tool dispatch pattern.
+
+        Subclasses override ``__call__`` with typed parameters; this routes
+        the SDK's ``tool.invoke(**arguments)`` call to the subclass's
+        ``__call__``. Native ``@tool``-decorated tools are plain SDK ``Tool``
+        instances and use the SDK's default ``invoke`` (coercion +
+        ``_callable``), NOT this override.
+        """
+        return self.__call__(**kwargs)
 
 
 @dataclass
