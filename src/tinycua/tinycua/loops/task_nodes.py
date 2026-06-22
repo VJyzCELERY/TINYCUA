@@ -264,6 +264,7 @@ def _local_task_region(session: Session) -> dict:
                 "task_id": task.task_id,
                 "title": task.title,
                 "status": task.status.value,
+                "result": task.result.summary if task.result else None,
             }
             for task in children
         ],
@@ -272,6 +273,7 @@ def _local_task_region(session: Session) -> dict:
                 "task_id": task.task_id,
                 "title": task.title,
                 "status": task.status.value,
+                "result": task.result.summary if task.result else None,
             }
             for task in siblings
         ],
@@ -358,21 +360,40 @@ def _render_task_tree_markdown(snapshot: dict) -> str:
 
 
 def _render_local_region_markdown(region: dict) -> str:
-    """Render local task region as concise markdown."""
+    """Render local task region as concise markdown with full result summaries.
+
+    The local replan region is scoped to the active task + its children +
+    siblings, so the token budget is small. Full result summaries (no
+    truncation) are shown for completed tasks so the assessor/analyzer can
+    see exactly what was found and decide whether the region needs
+    refinement — a 200-char truncation could hide the very detail that
+    determines "does this region need replanning?"
+    """
     lines: list[str] = []
     active = region.get("active_task")
     if active:
         lines.append(f"Active: {active.get('title', 'unknown')} [{active.get('status', '?')}]")
+        active_result = active.get("result")
+        if active_result:
+            lines.append(f"  Result: {active_result}")
     children = region.get("children", [])
     if children:
         lines.append("Subtasks:")
         for child in children:
-            lines.append(f"  - [{child.get('status', '?')}] {child.get('title', '?')}")
+            line = f"  - [{child.get('status', '?')}] {child.get('title', '?')}"
+            child_result = child.get("result")
+            if child_result:
+                line += f" — {child_result}"
+            lines.append(line)
     siblings = region.get("siblings", [])
     if siblings:
         lines.append("Sibling tasks:")
         for sib in siblings:
-            lines.append(f"  - [{sib.get('status', '?')}] {sib.get('title', '?')}")
+            line = f"  - [{sib.get('status', '?')}] {sib.get('title', '?')}"
+            sib_result = sib.get("result")
+            if sib_result:
+                line += f" — {sib_result}"
+            lines.append(line)
     return "\n".join(lines) if lines else str(region)
 
 

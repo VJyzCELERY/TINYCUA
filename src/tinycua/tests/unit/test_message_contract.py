@@ -688,6 +688,48 @@ def test_task_analyzer_local_replan_prompt_does_not_replan_root() -> None:
     assert "Task snapshot:" not in rendered
 
 
+def test_local_replan_region_shows_sibling_and_child_results() -> None:
+    """Local replan region (analyzer + assessor) renders full result summaries.
+
+    Both the active task and its siblings/children carry their result summary
+    in the rendered region so the assessor/analyzer can see exactly what was
+    found and decide whether the region needs refinement — not just titles +
+    statuses.
+    """
+    from tinycua.loops.task_nodes import _local_task_region, _render_local_region_markdown
+    from tinycua.models.task import TaskResult, TaskStatus
+
+    loop = TinyCUALoop()
+    root = loop.root_session.task_store.create_task("Build application")
+    # Sibling A — completed with a result.
+    sibling_a = loop.root_session.task_store.create_task("Fetch Vellum data", parent_id=root.task_id)
+    sibling_a.status = TaskStatus.COMPLETED
+    sibling_a.result = TaskResult(content="full vellum content", summary="Vellum: Claude Opus 4.8 #1", success=True)
+    # Active task — in-progress with a partial result.
+    active = loop.root_session.task_store.create_task("Fetch Kaggle dataset", parent_id=root.task_id)
+    active.status = TaskStatus.IN_PROGRESS
+    active.result = TaskResult(content="partial kaggle", summary="Kaggle: GPT-5.5 scores 89% MMLU", success=True)
+    loop.root_session.task_store.active_task_id = active.task_id
+    # Sibling B — pending, no result.
+    loop.root_session.task_store.create_task("Fetch AlphaCorp article", parent_id=root.task_id)
+
+    region = _local_task_region(loop.root_session)
+    rendered = _render_local_region_markdown(region)
+
+    # Active task result is rendered (full summary, no truncation).
+    assert "Active: Fetch Kaggle dataset" in rendered
+    assert "Kaggle: GPT-5.5 scores 89% MMLU" in rendered
+    # Completed sibling result is rendered.
+    assert "Fetch Vellum data" in rendered
+    assert "Vellum: Claude Opus 4.8 #1" in rendered
+    # Pending sibling shows title + status, no result line (it has none).
+    assert "Fetch AlphaCorp article" in rendered
+    # The region dict carries results for children + siblings (for any caller
+    # that wants the structured form, not just the markdown render).
+    assert any(s.get("result") == "Vellum: Claude Opus 4.8 #1" for s in region["siblings"])
+    assert region["active_task"]["result"] == "Kaggle: GPT-5.5 scores 89% MMLU"
+
+
 def test_digester_may_digest_without_forced_context_retrieval() -> None:
     """Digester can choose digest-only; retrieval is encouraged, not forced."""
     loop = TinyCUALoop()
