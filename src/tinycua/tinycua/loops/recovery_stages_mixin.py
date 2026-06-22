@@ -23,7 +23,89 @@ logger = logging.getLogger(__name__)
 
 
 class RecoveryStagesMixin:
-    """Mixin providing the LLM-judge recovery stage for the retry loop."""
+    """Mixin providing recovery message building + LLM-judge stage for the retry loop."""
+
+    def _build_recovery_messages(
+        self,
+        node: Node,
+        recovery_tools: list[Tool],
+        last_result: LLMResult,
+        validation: ValidationResult,
+        missing_tools: list[str] | None,
+    ) -> list[dict[str, Any]]:
+        """Build the recovery retry message list (FR-066 goal-oriented)."""
+        from datetime import datetime
+
+        system_msg = node.build_system_message(recovery_tools)
+        recovery_messages: list[dict[str, Any]] = []
+        if system_msg.get("content"):
+            recovery_messages.append(system_msg)
+        now = datetime.now().astimezone()
+        recovery_messages.append(
+            {"role": "user", "content": f"<context>Current time: {now:%H:%M:%S %z}, timezone: {now.tzname() or 'local'}</context>"}
+        )
+        last_content = (last_result.content or "").strip()
+        tool_call_summary = ""
+        if last_result.tool_calls:
+            names = [tc.get("function", {}).get("name", "?") for tc in last_result.tool_calls if isinstance(tc, dict)]
+            tool_call_summary = f" (called: {', '.join(names)})"
+        recovery_messages.append({"role": "assistant", "content": f"[My last response]{tool_call_summary}: {last_content}"})
+        # FR-060: trimmed one-line summaries of previous tool results so the
+        # model knows what its commands returned without re-running them.
+        tool_results = last_result.metadata.get("tool_results", []) if isinstance(last_result.metadata, dict) else []
+        if tool_results:
+            from tinycua.loops.node_guidance import summarize_tool_result
+
+            summary_lines = []
+            for item in tool_results[-10:]:
+                if not isinstance(item, dict):
+                    continue
+                name = item.get("name", "?")
+                content_str = str(item.get("content", "") or item.get("output", ""))
+                summary = summarize_tool_result(content_str)
+                summary_lines.append(f"  - {name}: {summary}")
+            if summary_lines:
+                recovery_messages.append(
+                    {"role": "user", "content": "Previous tool results (trimmed — do not re-run these):\n" + "\n".join(summary_lines)},
+                )
+        missing_str = ", ".join(missing_tools) if missing_tools else "the required tools"
+        node_continuation = node.build_continuation(node.session) if node.session else ""
+        # FR-066: goal-oriented recovery directive — goal + progress +
+        # why-missing + recent attempts + directive.
+        contract = node.contract
+        directive_parts: list[str] = []
+        if contract and contract.goal:
+            directive_parts.append(f"## Node Goal\n{contract.goal}")
+        progress_block = node.build_progress_block()
+        if progress_block:
+            directive_parts.append(progress_block)
+        first_missing = missing_tools[0] if missing_tools else ""
+        if contract and first_missing and contract.tool_rationale.get(first_missing):
+            directive_parts.append(
+                f"## Why {first_missing} Is Required\n{contract.tool_rationale[first_missing]}"
+            )
+        history = node.progress.stage_tool_history
+        if history:
+            hist_lines = ["## Recent Recovery Attempts"]
+            for entry in history[-5:]:
+                tools = ", ".join(entry.get("successful_tools") or entry.get("tools", []))
+                if tools:
+                    new = ", ".join(entry.get("new_tools", [])) or "(no new tools)"
+                    summary = entry.get("result_summary", "")[:120]
+                    hist_lines.append(f"- {entry['stage']}: called {tools} → {new}. {summary}")
+                else:
+                    hist_lines.append(f"- {entry['stage']}: failed to produce a valid call")
+            hist_lines.append(
+                "\nYou already called these tools. Do NOT repeat them. Call the next missing tool."
+            )
+            directive_parts.append("\n".join(hist_lines))
+        directive_parts.append(
+            f"Call {missing_str} now — do not repeat what you already did.\n\n{node_continuation}"
+        )
+        recovery_messages.append(
+            {"role": "user", "content": "\n\n".join(directive_parts)}
+        )
+        return recovery_messages
 
     async def _judge_retry(
         self,

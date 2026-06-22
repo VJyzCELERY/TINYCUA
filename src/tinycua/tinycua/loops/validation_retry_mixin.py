@@ -13,6 +13,12 @@ from typing import TYPE_CHECKING, Any
 from tinycua.config.types import LLMResult, ValidationError, ValidationResult
 from tinycua.loops._loop_constants import _UNBOUNDED_RETRY_ATTEMPTS
 from tinycua.loops.context_rendering import sanitize_internal_reprs
+from tinycua.loops.node_contract import (
+    ANY_OF_TOOLS_BY_NODE,
+    REQUIRED_TOOLS_BY_NODE,
+    RECOVERY_TOOL_MAP,
+    TERMINATED_NODE_IDS,
+)
 from tinycua.loops.route_classifier import RouteClassifier
 from tinycua.agent.tools.native.output_persist import persist_if_oversized
 
@@ -26,13 +32,8 @@ logger = logging.getLogger(__name__)
 class ValidationRetryMixin:
     """Mixin extracted from TinyCUALoop for modularity."""
 
-    _TERMINATED_NODE_IDS = {
-        "task_create",
-        "task_analyzer",
-        "task_assessor",
-        "task_executor",
-        "result_reviewer",
-    }
+    # FR-061: derived from _NODE_CONTRACTS (single source of truth).
+    _TERMINATED_NODE_IDS = TERMINATED_NODE_IDS
 
     def _retry_message_for_validation(
         self,
@@ -347,10 +348,17 @@ class ValidationRetryMixin:
             and "task_decompose" in error_text
             and "task_update" in error_text
         ):
-            return (
-                "Call task_decompose if the roadmap needs structural changes, "
-                "or task_update if no further decomposition is useful."
-            )
+            # FR-066: include rationale from contract so the model knows WHY.
+            contract = node.contract
+            decompose_why = contract.tool_rationale.get("task_decompose", "")
+            update_why = contract.tool_rationale.get("task_update", "")
+            parts = ["Call task_decompose if the roadmap needs structural changes"]
+            if decompose_why:
+                parts.append(f"({decompose_why})")
+            parts.append("or task_update if no further decomposition is useful")
+            if update_why:
+                parts.append(f"({update_why})")
+            return " ".join(parts) + "."
         required = self._missing_or_required_tool_name(node, error_text)
         if required:
             return f"Call {required} with the current evidence before continuing."
@@ -623,7 +631,7 @@ class ValidationRetryMixin:
         node_id: str,
         tool_results: list[dict[str, Any]],
     ) -> bool:
-        """Return whether existing node-specific required conditions are met."""
+        """Return whether node-specific required conditions are met (FR-062)."""
         successful = {
             str(item.get("name"))
             for item in tool_results
@@ -852,6 +860,9 @@ class ValidationRetryMixin:
             and isinstance(item.get("output"), dict)
             and item["output"].get("success") is True
         }
+        # FR-062: merge progress.satisfied_requirements (accumulated across
+        # recovery stages + re-entries) with the current result's tool_results.
+        successful_tool_names |= node.progress.satisfied_requirements
         # Executor failure reports (success=False) are valid blocker signals for reviewer/replan
         has_executor_failure_report = any(
             isinstance(item, dict)
@@ -860,27 +871,32 @@ class ValidationRetryMixin:
             and item["output"].get("success") is False
             for item in tool_results
         )
-        required_by_node = {
-            "task_create": {"task_init"},
-            "task_executor": {"task_result_update"},
-            "result_reviewer": {"task_review_decision"},
-        }
-        any_of_by_node = {
-            "task_analyzer": {"task_decompose", "task_update"},
-            "task_assessor": {"node_handoff"},
-        }
-        any_of = any_of_by_node.get(node.node_id)
-        if any_of is not None:
-            if successful_tool_names.intersection(any_of):
+        # FR-061: use contract-derived maps instead of ad-hoc dicts.
+        # Only apply task-state validation to terminated nodes (task-state
+        # lifecycle nodes). Route-selection nodes (query_analyst, worker) have
+        # required_tools but are validated via validate_output, not here.
+        if node.node_id not in TERMINATED_NODE_IDS:
+            return validation
+        any_of_groups = ANY_OF_TOOLS_BY_NODE.get(node.node_id)
+        if any_of_groups is not None:
+            # any_of_tools is a frozenset of frozensets — any one group must
+            # be fully satisfied. But for the "any-of" validation, the
+            # original code treated it as a flat set (intersection). We keep
+            # that semantics: if any tool from any group is in the successful
+            # set, the node is satisfied.
+            flat_any_of = set()
+            for group in any_of_groups:
+                flat_any_of |= group
+            if successful_tool_names.intersection(flat_any_of):
                 return validation
             validation.is_valid = False
             validation.errors.append(
                 f"{node.node_id} must call at least one successful "
-                f"task-state tool from {sorted(any_of)}; task state cannot "
+                f"task-state tool from {sorted(flat_any_of)}; task state cannot "
                 "be inferred from prose."
             )
             return validation
-        required = required_by_node.get(node.node_id)
+        required = REQUIRED_TOOLS_BY_NODE.get(node.node_id)
         if node.node_id == "result_aggregation":
             store = self.root_session.task_store
             if store.root_task_id is not None and store.all_done():
@@ -1122,59 +1138,6 @@ class ValidationRetryMixin:
         # forever (experiment-2: 23 cycles, pending 5→50, never terminated).
         return result, result_validation
 
-    def _build_recovery_messages(
-        self,
-        node: Node,
-        recovery_tools: list[Tool],
-        last_result: LLMResult,
-        validation: ValidationResult,
-        missing_tools: list[str] | None,
-    ) -> list[dict[str, Any]]:
-        """Build the recovery retry message list (system + time + last response + directive)."""
-        from datetime import datetime
-
-        system_msg = node.build_system_message(recovery_tools)
-        recovery_messages: list[dict[str, Any]] = []
-        if system_msg.get("content"):
-            recovery_messages.append(system_msg)
-        now = datetime.now().astimezone()
-        recovery_messages.append(
-            {"role": "user", "content": f"<context>Current time: {now:%H:%M:%S %z}, timezone: {now.tzname() or 'local'}</context>"}
-        )
-        last_content = (last_result.content or "").strip()
-        tool_call_summary = ""
-        if last_result.tool_calls:
-            names = [tc.get("function", {}).get("name", "?") for tc in last_result.tool_calls if isinstance(tc, dict)]
-            tool_call_summary = f" (called: {', '.join(names)})"
-        recovery_messages.append({"role": "assistant", "content": f"[My last response]{tool_call_summary}: {last_content}"})
-        # FR-060: include trimmed summaries of previous tool results so the
-        # model knows what its commands returned — prevents the verification
-        # loop where it keeps re-running run_shell because it can't see prior
-        # results. One-line summaries (via summarize_tool_result), last 10.
-        tool_results = last_result.metadata.get("tool_results", []) if isinstance(last_result.metadata, dict) else []
-        if tool_results:
-            from tinycua.loops.node_guidance import summarize_tool_result
-
-            summary_lines = []
-            for item in tool_results[-10:]:
-                if not isinstance(item, dict):
-                    continue
-                name = item.get("name", "?")
-                content_str = str(item.get("content", "") or item.get("output", ""))
-                summary = summarize_tool_result(content_str)
-                summary_lines.append(f"  - {name}: {summary}")
-            if summary_lines:
-                recovery_messages.append(
-                    {"role": "user", "content": "Previous tool results (trimmed — do not re-run these):\n" + "\n".join(summary_lines)},
-                )
-        errors = "; ".join(validation.errors)
-        missing_str = ", ".join(missing_tools) if missing_tools else "the required tools"
-        node_continuation = node.build_continuation(node.session) if node.session else ""
-        recovery_messages.append(
-            {"role": "user", "content": f"The above response did not satisfy the node's requirement: {errors}\n\nYou still need to call: {missing_str}. Call {missing_str} now — do not repeat what you already did.\n\n{node_continuation}"}
-        )
-        return recovery_messages
-
     async def _recovery_retry(
         self,
         node: Node,
@@ -1245,15 +1208,8 @@ class ValidationRetryMixin:
         """
         errors = "; ".join(validation.errors).lower()
         node_id = node.node_id
-        # Map validation failures to the specific tool that would satisfy them.
-        recovery_tool_map: dict[str, tuple[str, ...]] = {
-            "result_reviewer": ("task_inspect", "terminate", "task_review_decision"),
-            "task_executor": ("task_result_update", "terminate"),
-            "task_analyzer": ("task_decompose", "task_update", "task_inspect", "terminate"),
-            "task_assessor": ("node_handoff", "terminate"),
-            "task_create": ("task_init", "terminate"),
-        }
-        candidates = recovery_tool_map.get(node_id, ())
+        # FR-061: use contract-derived recovery tool candidates.
+        candidates = RECOVERY_TOOL_MAP.get(node_id, ())
         # Find which candidate is mentioned in the validation errors.
         for name in candidates:
             if name in errors:

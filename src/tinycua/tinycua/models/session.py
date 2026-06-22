@@ -139,6 +139,10 @@ class Session:
     # session_config.workspace_dir is set), then cached so we read the file
     # at most once per session. Child sessions inherit the resolved value.
     agents_md_snapshot: str | None = None
+    # FR-062: per-node progress trackers, keyed by node_id. Survives node
+    # reconstruction (fresh node instances read from here). Cleaned up when
+    # a node completes (don't store done nodes).
+    node_progress: dict[str, Any] = field(default_factory=dict)
 
     @staticmethod
     def _summary_to_entry(summary: Any) -> SessionContextEntry:

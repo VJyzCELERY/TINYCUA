@@ -242,10 +242,35 @@ class Node(ABC):
         # caching). Invalidated only when the resolved tools list changes.
         self._cached_system_message: dict[str, str] | None = None
         self._cached_system_key: tuple[int, ...] | None = None
-        # Stateful node tracking (Milestone 2): per-node observable state.
+        # FR-062: per-node progress lives on session.node_progress[node_id]
+        # so it survives node reconstruction. Fallback for session-less nodes.
         from tinycua.loops.node_contract import NodeProgress
 
-        self.progress = NodeProgress()
+        self._fallback_progress = NodeProgress()
+
+    @property
+    def progress(self) -> NodeProgress:
+        """Per-node runtime progress (FR-062).
+
+        Lives on ``session.node_progress[node_id]`` so it survives node
+        reconstruction. Falls back to an instance-level tracker when no
+        session is attached (tests, pre-ensure_session access).
+        """
+        from tinycua.loops.node_contract import NodeProgress
+
+        if self.session is None:
+            return self._fallback_progress
+        if self.node_id not in self.session.node_progress:
+            self.session.node_progress[self.node_id] = NodeProgress()
+        return self.session.node_progress[self.node_id]
+
+    @progress.setter
+    def progress(self, value: Any) -> None:
+        """Allow direct assignment (compat with existing code that sets progress)."""
+        if self.session is not None:
+            self.session.node_progress[self.node_id] = value
+        else:
+            self._fallback_progress = value
 
     @property
     def contract(self) -> NodeContract:
@@ -286,6 +311,9 @@ class Node(ABC):
         self.session.input_context = list(root_or_parent_session.input_context)
         self.session.task = root_or_parent_session.task
         self.session.task_store = root_or_parent_session.task_store
+        # FR-062: share node_progress by reference so progress survives node
+        # reconstruction and is visible across parent/child sessions.
+        self.session.node_progress = root_or_parent_session.node_progress
         # FR-015: inherit the root's stable snapshots so all nodes in one run
         # share one date + environment + AGENTS.md in the stable system prefix
         # (prompt-cache friendly). If the root hasn't resolved AGENTS.md yet
@@ -349,13 +377,59 @@ class Node(ABC):
         Returns:
             The complete continuation prompt, or an empty string.
         """
-        del session
         parts: list[str] = []
         if self._continuation:
             parts.append(self._continuation)
         if self.config.custom_continuation_append:
             parts.append(self.config.custom_continuation_append)
-        return "\n".join(parts)
+        base = "\n".join(parts)
+        # FR-065: inject live progress block when there IS progress (at least
+        # one tool has been satisfied). Shows the model what it already did
+        # and what's still needed — no more blind "did I already call X?".
+        progress_block = self.build_progress_block()
+        if progress_block:
+            base = f"{base}\n\n{progress_block}"
+        return base
+
+    def build_progress_block(self) -> str:
+        """Build a '## Your Progress' block showing satisfied + missing tools.
+
+        Only emitted when ``satisfied_requirements`` is non-empty (Q4: show
+        progress only when there IS progress). Computes missing tools from
+        the node's contract.
+        """
+        if not self.progress.satisfied_requirements:
+            return ""
+        contract = self.contract
+        if not contract:
+            return ""
+        satisfied_set = self.progress.satisfied_requirements
+        relevant: set[str] = set(contract.required_tools)
+        # For any_of: if ANY group is satisfied, the any_of requirement is
+        # met — don't list alternatives as missing. Only show the satisfied
+        # tools. If NO group is satisfied, list all group tools as candidates.
+        any_of_satisfied = any(
+            group.issubset(satisfied_set) for group in contract.any_of_tools
+        )
+        for group in contract.any_of_tools:
+            if any_of_satisfied:
+                relevant |= (group & satisfied_set)
+            else:
+                relevant |= group
+        if contract.requires_terminate:
+            relevant.add("terminate")
+        relevant |= set(contract.additional_recovery_tools)
+        satisfied = sorted(satisfied_set & relevant)
+        missing = sorted(relevant - satisfied_set)
+        if not satisfied:
+            return ""
+        lines = ["## Your Progress This Session"]
+        if satisfied:
+            lines.append(f"Already called successfully: {', '.join(satisfied)}")
+        if missing:
+            lines.append(f"Still needed: {', '.join(missing)}")
+            lines.append(f"You are {len(missing)} step(s) from completing this node.")
+        return "\n".join(lines)
 
     def build_tool_system_prompt(self, resolved_tools: list[Any] | None = None) -> str:
         """Build node-level tool instructions for the single system prompt.
@@ -418,6 +492,26 @@ class Node(ABC):
         tool_prompt = self.build_tool_system_prompt(resolved_tools)
         if tool_prompt:
             builder.add_dynamic_context(tool_prompt)
+        # FR-064: inject goal + success criteria + tool rationale from the
+        # NodeContract. Goes in the dynamic suffix so the cached prefix
+        # (instruction + AGENTS.md + date/env) stays byte-stable. The model
+        # now knows its fulfillment criteria and WHY each tool is required.
+        contract = self.contract
+        if contract and (contract.goal or contract.success_criteria):
+            contract_lines: list[str] = []
+            if contract.goal:
+                contract_lines.append(f"## Your Goal\n{contract.goal}")
+            if contract.success_criteria:
+                contract_lines.append(
+                    f"## Success Criteria (what 'done' looks like)\n{contract.success_criteria}"
+                )
+            if contract.tool_rationale:
+                lines = ["## Required Tools — Why Each Is Needed"]
+                for tool_name, rationale in contract.tool_rationale.items():
+                    lines.append(f"- {tool_name}: {rationale}")
+                contract_lines.append("\n".join(lines))
+            if contract_lines:
+                builder.add_dynamic_context("\n\n".join(contract_lines))
         message = builder.build()
         self._cached_system_message = message
         self._cached_system_key = cache_key

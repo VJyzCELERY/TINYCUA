@@ -782,6 +782,18 @@ class TinyCUALoop(
         retry_message: str | None = None
         retry_feedback: list[dict[str, Any]] = []
         retry_tool_results: list[dict[str, Any]] = []
+        # FR-063: reset progress for fresh dispatch. Recovery re-entry
+        # preserves accumulated_tool_results so the node doesn't re-call
+        # tools it already called before the budget exhausted.
+        if self._recovery_reentry:
+            preserved = dict(node.progress.accumulated_tool_results)
+            preserved_history = list(node.progress.stage_tool_history)
+            node.progress.reset()
+            node.progress.accumulated_tool_results = preserved
+            node.progress.stage_tool_history = preserved_history
+            self._recovery_reentry = False
+        else:
+            node.progress.reset()
 
         for attempt in range(1, max_attempts + 1):
             # Milestone 2: track per-node state transitions.

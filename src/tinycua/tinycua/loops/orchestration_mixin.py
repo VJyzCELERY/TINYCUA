@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 from tinycua.config.types import LLMResult, ValidationError, ValidationResult
 from tinycua.loops.context_rendering import sanitize_internal_reprs
 from tinycua.loops.node import NodeRunContext
+from tinycua.loops.node_contract import RECOVERY_CHAINS
 from tinycua.loops.propagation import PropagationRule, finalize_terminal_output, propagate_on_termination
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.models.node_handoff import NodeHandoff
@@ -259,6 +260,10 @@ class OrchestrationMixin:
             self.root_session,
             rule,
         )
+        # FR-062: clean up node progress for completed nodes — don't store
+        # done nodes. A re-enqueued node (reviewer sends back to executor)
+        # gets a fresh NodeProgress on its next dispatch.
+        self.root_session.node_progress.pop(node.node_id, None)
         return content, llm_result.tool_calls
 
     async def _execute_node(
@@ -472,6 +477,8 @@ class OrchestrationMixin:
             self.root_session,
             rule,
         )
+        # FR-062: clean up node progress for completed nodes.
+        self.root_session.node_progress.pop(node.node_id, None)
 
         return combined, validation, llm_result
 
@@ -953,16 +960,8 @@ class OrchestrationMixin:
         ):
             yield event
 
-    # Prerequisite chains: the ordered sequence of tools each node must call
-    # before it can terminate. Recovery tracks which have been called and only
-    # asks for the missing ones in order. ``terminate`` is always last.
-    _RECOVERY_CHAINS: dict[str, tuple[str, ...]] = {
-        "result_reviewer": ("task_review_decision", "task_inspect", "terminate"),
-        "task_executor": ("task_result_update", "terminate"),
-        "task_create": ("task_init", "terminate"),
-        "task_analyzer": ("task_decompose", "terminate"),
-        "task_assessor": ("node_handoff", "terminate"),
-    }
+    # FR-061: derived from _NODE_CONTRACTS (single source of truth).
+    _RECOVERY_CHAINS = RECOVERY_CHAINS
 
     def _resolve_recovery_tool(
         self,
@@ -1043,7 +1042,10 @@ class OrchestrationMixin:
         cycle = 0
         current_result = llm_result
         current_validation = validation
-        accumulated_results: dict[str, dict[str, Any]] = {}
+        # FR-063: seed accumulated_results from node.progress (survives re-entry).
+        accumulated_results: dict[str, dict[str, Any]] = dict(
+            node.progress.accumulated_tool_results
+        )
         for item in llm_result.metadata.get("tool_results", []):
             if (
                 isinstance(item, dict)
@@ -1051,6 +1053,8 @@ class OrchestrationMixin:
                 and item["output"].get("success") is True
             ):
                 accumulated_results[str(item.get("name"))] = item
+        # FR-063: write back to node.progress so re-entries carry forward.
+        node.progress.accumulated_tool_results = dict(accumulated_results)
         # FR-060: per-method budgets (15/10/3 = 30 total).
         structured_attempts = 0
         recovery_attempts = 0
