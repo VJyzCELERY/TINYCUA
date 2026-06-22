@@ -4,10 +4,41 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+def print_node_traversal(loop: Any) -> None:
+    """Print the linear node execution order to stderr at end of run.
+
+    Extracts ``node_id`` from each entry in the execution trace and prints
+    them as a clean list. Consecutive same-node entries collapse to
+    ``node_id (×N)``; non-consecutive re-entries stay as separate lines
+    (preserves traversal order). Goes to ``sys.stderr`` so it does not
+    pollute the ``stdout`` response. Always-on — no flag needed.
+    """
+    trace_data = safe_loop_call(loop, "get_execution_trace", default=[])
+    if not isinstance(trace_data, list) or not trace_data:
+        print("=== NODE TRAVERSAL ===\n(no nodes executed)", file=sys.stderr, flush=True)
+        return
+    ids: list[str] = []
+    counts: list[int] = []
+    for step in trace_data:
+        node_id = step.get("node_id", "unknown") if isinstance(step, dict) else "unknown"
+        if ids and ids[-1] == node_id:
+            counts[-1] += 1
+        else:
+            ids.append(node_id)
+            counts.append(1)
+    print("=== NODE TRAVERSAL ===", file=sys.stderr, flush=True)
+    for node_id, count in zip(ids, counts):
+        if count > 1:
+            print(f"{node_id} (×{count})", file=sys.stderr, flush=True)
+        else:
+            print(node_id, file=sys.stderr, flush=True)
 
 
 async def run_streaming(agent: Any, prompt: str) -> str:

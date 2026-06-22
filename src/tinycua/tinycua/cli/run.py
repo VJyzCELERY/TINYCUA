@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
 from tinycua.cli.config import build_language_model
 from tinycua.cli.config import load_config
+from tinycua.cli.live_stream import print_node_traversal
 from tinycua.cli.live_stream import print_summary as print_live_summary
 from tinycua.cli.live_stream import run_streaming
 from tinycua.cli.logging import write_log_entry
@@ -208,6 +209,7 @@ def _finalize_run_success(
         _write_run_transcripts(loop, artifact_dir, transcript_path, elapsed)
 
     print(f"Agent completed in {elapsed:.1f}s", flush=True)
+    print_node_traversal(loop)
     if result and not trace:
         print(result, flush=True)
     print_live_summary(loop, workspace, artifact_dir, result, trace=trace, task_tree=task_tree)
