@@ -258,6 +258,11 @@ def create_node_config(
             "task_analyzer_mode",
             "task_creation",
         )
+    # FR-055: task_analyzer gets 10 (raised from default 3) — a prose-prone
+    # model needs enough attempts to land the state-tool call + terminate.
+    # task_executor/result_reviewer get 25 (unchanged).
+    if normalized == "task_analyzer":
+        retry_policy = replace(retry_policy, max_attempts=10)
     if normalized in {"task_executor", "result_reviewer"}:
         retry_policy = replace(retry_policy, max_attempts=25)
     retry_guidance = {
