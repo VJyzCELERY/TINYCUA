@@ -2,7 +2,7 @@
 
 **Status**: Draft
 **Created**: 2026-06-21
-**Last Updated**: 2026-06-21
+**Last Updated**: 2026-06-22
 **Subproject(s) Affected**: tinycua, tinycua-sdk (no SDK API changes — consumes existing `response_format` passthrough)
 
 ---
@@ -171,6 +171,21 @@ A benchmark run starts experiment-4 ("build a Notion-like app"). The TaskExecuto
 - **FR-047**: All non-decision nodes (TaskAnalyzer, TaskAssessor, TaskExecutor, ResultReviewer, ResultAggregation, InformationDigester) MUST be instructed to explore with read-only tools (web_search, fetch_url, read_file, list_files, search_files, run_shell) before fulfilling their role. Exploration is permissive and role-scoped: the analyzer explores to ground decomposition in current reality, the assessor to verify the roadmap covers current reality, the reviewer to verify the executor's claims, aggregation to verify task results, the executor to plan before making changes. The execution boundary is preserved structurally — planning/review nodes only have `EXPLORATORY_AGENT_TOOLS` (no write tools), so they cannot produce the deliverable. Decision nodes (QueryAnalyst, Worker) are excluded.
 - **FR-048**: The mission block (`_render_mission_block`) MUST render a structured `{context}\n{query}` block: the InformationDigester's `context_summary` + `key_points` as context first, followed by the original request and hard constraints. Empty sections MUST be omitted (no empty headers). The digester's `context_summary` and `key_points` MUST be stored on the root task metadata (`mission_context`, `mission_key_points`) by `_apply_task_lifecycle_marker` so they travel with the mission to every downstream node.
 
+#### Loop Reliability (Milestone 8)
+
+Evidence: experiment-2 trace analysis (`src/experiment/results/tinycua/experiment-2/logs/`). The replan loop never reset `consecutive_failures` and had no cap, so a task that the reviewer kept sending back (5+ times) re-fired `replan_triggered` on every subsequent rejection (counter climbed 5→7→9 with threshold 5). Each replan was vacuous — `decompose_task` is idempotent on a parent with existing children, so the executor reran the same task, re-researched, and re-appended content. The 45-min runtime and 100KB duplicated report were loop iterations, not model verbosity.
+
+- **FR-049**: When `schedule_replan` fires, the runtime MUST insert a synthetic `replan_boundary` entry into the task's `reviewer_decisions` audit trail. The `consecutive_failures` derived counter MUST break on `replan_boundary` entries (not just on `approved`), so the failure baseline resets when a replan is triggered. The full audit trail is preserved — no history is lost.
+- **FR-050**: The runtime MUST cap replans per task via a `max_replans` setting derived from the worker effort profile: `none=0, low=1, medium=3, high=6`. When a task's replan count reaches the cap, the next reviewer send-back MUST force-approve the task with rationale `"replan budget exhausted (effort={effort}, cap={max_replans})."` rather than queue another replan. This bounds the loop without violating the zero-exit guarantee.
+- **FR-051**: `schedule_replan` MUST be non-vacuous: when the active task already has children and the analyzer confirms the plan is unchanged (via a `plan_unchanged` metadata flag set by `task_update`), the runtime MUST skip re-queueing the executor and reviewer against the same task — the plan did not change, so re-execution would only duplicate work. The analyzer MAY instead call `task_shrink` to restructure the plan (only unfinished tasks can be shrunk; completed tasks remain immutable per FR-023).
+- **FR-052**: `str_replace` MUST distinguish zero-match from multi-match errors. When `old_string` matches in 2+ places and `replace_all=False`, the error MUST state `"Found N matches for old_string. Provide more context in old_string to disambiguate, or set replace_all=True to replace all N."` — not the generic whitespace error. The generic `"Could not find old_string"` error is reserved for zero-match cases.
+- **FR-053**: The `result_reviewer` missing-tool heuristic (`_missing_or_required_tool_name`) MUST return the actually-missing tool, not pattern-match on substrings in the error text. The `_validate_result_reviewer_inspects_after_decision` error MUST NOT contain the substring `task_review_decision` (rephrased to `"ResultReviewer must call task_inspect after the review decision is recorded."`). `task_inspect` MUST be in the heuristic's candidate tuple, placed before `task_review_decision`.
+- **FR-054**: The `task_analyzer` instruction MUST tell the model to call `terminate` after `task_decompose` or `task_update` succeeds. The continuation MUST NOT instruct the model to call `task_inspect` first (the roadmap is already in context via `build_continuation`); `task_inspect` does not satisfy the analyzer's state-tool contract and traps the model into a retry-exhausted cycle.
+- **FR-055**: The `task_analyzer` node's `max_attempts` MUST be raised from the default 3 to 10 (between the default and the executor/reviewer's 25), so a prose-prone model has enough attempts to land the state-tool call.
+- **FR-056**: The `result_reviewer` MUST act as a general sanity-checker for common LLM messes — generic across artifact types (code, report, data, anything): (a) duplicate/repeated content (detect via `run_shell` grep/wc/sort|uniq -c against the artifact), (b) hallucinated claims (entities, versions, scores that don't verify), (c) structural inconsistency (artifact claims N sections but has M). This is prompt-only guidance — the reviewer LLM decides which checks apply based on the artifact type. No hardcoded artifact-specific structure rules.
+- **FR-057**: `needs_revision` and `rejected` are unified into a single send-back routing path. `rejected` is an alias for `needs_revision` — both send the task back for rework and increment `consecutive_failures` identically. There is no terminal-failure path for `rejected`; the `TaskReviewDecisionTool` description MUST document the aliasing.
+- **FR-058**: `append_file` and `write_file` MUST return a `diff_preview` (the first ~500 chars of the appended/written content, with a leading marker) and `new_file_size` in their result dict, so the model can see what was added without re-reading the full file. `str_replace` MUST return a real unified-diff snippet (via `difflib.unified_diff`, first ~500 chars) instead of just `new_string[:200]`.
+
 ### Key Entities
 
 - **NodeState** (enum): PENDING, EXECUTING, AWAITING_TOOL, RETRYING, COMPLETED, FAILED. Lives on the `Node` instance.
@@ -200,6 +215,12 @@ A benchmark run starts experiment-4 ("build a Notion-like app"). The TaskExecuto
 - [ ] **WorkspaceNotBoundError raised when unset**: a unit test calls `resolve_workspace_path("foo")` without binding and asserts `WorkspaceNotBoundError`.
 - [ ] **ToolResult envelope**: all tools return a `ToolResult` (or dict matching the envelope); the loop serializes it consistently.
 - [ ] **todo_tools real operations**: a unit test updates a todo in-place and deletes one, asserting the operations are real (not no-ops).
+- [ ] **Replan loop is bounded**: a stub-model integration test forces the reviewer to always return `needs_revision`; the runtime caps replans at `max_replans` (effort-profiled) and force-approves instead of looping forever. Total executor invocations ≤ `max_replans + 1`.
+- [ ] **`consecutive_failures` resets on replan**: a unit test asserts that after `schedule_replan` inserts a `replan_boundary` entry, the derived `consecutive_failures` counter returns to 0.
+- [ ] **`str_replace` multi-match error is actionable**: a unit test asserts that 2 matches with `replace_all=False` returns `"Found 2 matches..."` (not the whitespace error), and 2 matches with `replace_all=True` succeeds.
+- [ ] **Reviewer does not double-invoke `task_review_decision`**: a unit test asserts the inspect-after-decision retry message mentions `task_inspect`, not `task_review_decision`.
+- [ ] **Analyzer prompt includes `terminate` instruction**: a snapshot test asserts the analyzer instruction contains "call terminate" and does NOT instruct calling `task_inspect` first.
+- [ ] **File tools return diff/preview**: unit tests assert `append_file`, `write_file`, and `str_replace` result dicts contain `diff_preview` and (for append/write) `new_file_size`.
 
 ---
 
@@ -252,6 +273,7 @@ A benchmark run starts experiment-4 ("build a Notion-like app"). The TaskExecuto
 | Milestone 5 — Tool hardening — experiment-evidenced | TODO | |
 | Milestone 6 — Tool hardening — other tools | TODO | |
 | Milestone 7 — Logging | TODO | |
+| Milestone 8 — Loop reliability | TODO | Replan cap + non-vacuous replan + str_replace error + reviewer sanity-checker + file-tool diff |
 
 ---
 

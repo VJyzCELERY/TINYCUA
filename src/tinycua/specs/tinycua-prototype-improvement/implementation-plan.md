@@ -455,6 +455,53 @@ def test_open_question_branch_removed():
 - **Emit structured trace events**: node state transition, retry with schema error, tool call with result shape, recovery cycle, task-tree shrink.
 - **Make retry/recovery observable without stderr**: trace events go to execution trace + logger.
 
+### Milestone 8 — Loop Reliability
+
+#### MODIFY `src/tinycua/tinycua/models/task.py`
+
+- **`consecutive_failures` property**: break on `replan_boundary` entries in addition to `approved` (FR-049).
+- **`decompose_task`**: when `task.children` already exists, return a result that signals `plan_unchanged` (set `task.metadata["plan_unchanged"] = True` via the analyzer's `task_update` call, or have `decompose_task` itself set the flag when it returns existing children) (FR-051).
+
+#### MODIFY `src/tinycua/tinycua/config/session_config.py`
+
+- **Add `max_replans: int | None = None`** field. When `None`, derive from `worker_effort`: `{"none": 0, "low": 1, "medium": 3, "high": 6}`. Document in the docstring (FR-050).
+
+#### MODIFY `src/tinycua/tinycua/loops/worker_runtime.py`
+
+- **`schedule_replan`**: after queueing the replan nodes, insert a synthetic `{"decision": "replan_boundary", "rationale": "replan triggered", "metadata": {}}` entry into the active task's `reviewer_decisions` via `record_reviewer_decision` or a direct append. This resets `consecutive_failures` (FR-049).
+- **`schedule_after_review`**: before the threshold check, count `replan_boundary` entries in `reviewer_decisions` → `replan_count`. If `replan_count >= max_replans` (from `SessionConfig`), force-approve the task: call `record_reviewer_decision(approved, rationale="replan budget exhausted (effort={effort}, cap={max_replans}).")` and schedule the next task (not another replan) (FR-050).
+- **`schedule_replan` non-vacuous**: after the analyzer runs, if `active.metadata.get("plan_unchanged")` is true, skip queueing the executor+reviewer pair — the plan did not change, re-execution would duplicate work. Re-queue only the reviewer against the existing result, or force-approve if the result hasn't changed (FR-051).
+
+#### MODIFY `src/tinycua/tinycua/agent/tools/native/files.py`
+
+- **`_fuzzy_find_and_replace`**: track per-strategy whether it found 0 vs >1 matches. After all strategies, if any found >1 matches (and `replace_all=False`), return `"Found N matches for old_string in {strategy}. Provide more context in old_string to disambiguate, or set replace_all=True to replace all N."` If all found 0, keep the existing `"Could not find old_string"` error (FR-052).
+- **`append_file`**: return `diff_preview` (first ~500 chars of appended content with a leading `\n--- appended ---\n` marker) and `new_file_size` (FR-058).
+- **`write_file`**: return `diff_preview` (first ~500 chars of written content) and `new_file_size` (FR-058).
+- **`str_replace`**: replace `diff_preview = new_string[:200]` with a real `difflib.unified_diff` snippet (first ~500 chars) between old and new content (FR-058).
+
+#### MODIFY `src/tinycua/tinycua/loops/validation_retry_mixin.py`
+
+- **`_validate_result_reviewer_inspects_after_decision`**: rephrase the error string from `"ResultReviewer must call task_inspect after task_review_decision ..."` to `"ResultReviewer must call task_inspect after the review decision is recorded."` — removes the `task_review_decision` substring so the heuristic doesn't misfire (FR-053).
+
+#### MODIFY `src/tinycua/tinycua/loops/prompt_protocol_mixin.py`
+
+- **`_missing_or_required_tool_name`**: add `task_inspect` to the candidate tuple, placed BEFORE `task_review_decision`, as a belt-and-suspenders fix (FR-053).
+
+#### MODIFY `src/tinycua/tinycua/loops/task_nodes.py`
+
+- **`_TASK_ANALYZER_INSTRUCTION` / `_TASK_ANALYZER_CONTINUATION`**: add "After `task_decompose` or `task_update` succeeds, call `terminate`." Remove the "call `task_inspect`" first instruction from the continuation (FR-054).
+- **`_RESULT_REVIEWER_INSTRUCTION`**: add the general sanity-checker responsibility — detect duplicate/repeated content (via `run_shell` grep/wc/sort|uniq), hallucinated claims, structural inconsistency. Generic across artifact types, prompt-only (FR-056).
+- **Reviewer `build_tool_system_prompt`**: when `run_shell` is available, add dedup guidance (e.g. `grep -c '^## ' report.md`, `sort | uniq -d`) (FR-056).
+- **Analyzer `local_replan` mode prompt**: mention `task_shrink` as an option for restructuring (only unfinished tasks), and `task_update` with `plan_unchanged=true` when the plan is correct (FR-051).
+
+#### MODIFY `src/tinycua/tinycua/config/node_config.py`
+
+- **`task_analyzer` `max_attempts`**: raise from the default 3 to 10 (FR-055).
+
+#### MODIFY `src/tinycua/tinycua/tools/task_tools.py`
+
+- **`TaskReviewDecisionTool` description**: document that `rejected` is an alias for `needs_revision` — both send the task back for rework (FR-057).
+
 ## Architecture Changes
 
 | Component | Change Type | Description |
@@ -462,26 +509,28 @@ def test_open_question_branch_removed():
 | `loops/node_contract.py` | New | `NodeContract` registry — single source of truth |
 | `loops/node.py` | Modify | Add `NodeState`/`NodeProgress`; remove dormant retry loops |
 | `loops/recovery_stages_mixin.py` | Remove | `_judge_retry` deleted |
-| `loops/validation_retry_mixin.py` | Modify | Remove inline maps; consult `NodeContract` |
+| `loops/validation_retry_mixin.py` | Modify | Remove inline maps; consult `NodeContract`; **M8**: rephrase inspect-after-decision error |
 | `loops/orchestration_mixin.py` | Modify | 2-track retry; structured output; remove `print(stderr)` |
-| `loops/prompt_protocol_mixin.py` | Modify | Remove inline maps; consult `NodeContract` |
-| `loops/worker_runtime.py` | Modify | Remove `OPEN_QUESTION` branch |
-| `models/task.py` | Modify | Add `delete_task`, `merge_tasks` |
-| `tools/task_tools.py` | Modify | Add `task_shrink`; review-tool required decision; fix metadata schema |
+| `loops/prompt_protocol_mixin.py` | Modify | Remove inline maps; consult `NodeContract`; **M8**: add `task_inspect` to heuristic candidates |
+| `loops/worker_runtime.py` | Modify | Remove `OPEN_QUESTION` branch; **M8**: reset failure baseline on replan, cap replans per task, non-vacuous replan |
+| `loops/task_nodes.py` | Modify | **M8**: analyzer `terminate` instruction, reviewer sanity-checker, `local_replan` prompt |
+| `loops/tinycua_loop.py` | Modify | Structured-output payload; tool coercion |
+| `loops/trace_state_mixin.py` | Modify | `node_state_transition` + `task_tree_shrink` events |
+| `models/task.py` | Modify | Add `delete_task`, `merge_tasks`; **M8**: `consecutive_failures` breaks on `replan_boundary`, `decompose_task` signals `plan_unchanged` |
+| `tools/task_tools.py` | Modify | Add `task_shrink`; review-tool required decision; fix metadata schema; **M8**: document `rejected` as alias for `needs_revision` |
 | `tools/todo_tools.py` | Modify | Real update/delete |
+| `tools/enhanced_context_retrieval.py` | Modify | Fix index math, cache cap |
 | `agent/tools/native/web.py` | Modify | markdown, binary guard, UA, retry, `ToolResult` |
 | `agent/tools/native/web_search.py` | Modify | backend-down vs no-matches, retry |
 | `agent/tools/native/shell.py` | Modify | venv, executable, env, context |
 | `agent/tools/native/context.py` | Modify | raise-if-unset, re-root, relative reporting |
-| `agent/tools/native/files.py` | Modify | assert workspace bound |
+| `agent/tools/native/files.py` | Modify | assert workspace bound; **M8**: `str_replace` multi-match error, `append_file`/`write_file`/`str_replace` return `diff_preview` |
 | `agent/tools/native/python_exec.py` | Modify | reject >max |
 | `agent/tools/native/output_persist.py` | Modify | remove duplicate print |
 | `agent/tools/native/tool_result.py` | New | `ToolResult` envelope |
 | `config/types.py` | Modify | `Tool.invoke` → SDK coercion |
-| `config/node_config.py` | Modify | Remove inline overrides; effort-profiled threshold |
-| `tools/enhanced_context_retrieval.py` | Modify | Fix index math, cache cap |
-| `loops/trace_state_mixin.py` | Modify | `node_state_transition` + `task_tree_shrink` events |
-| `loops/tinycua_loop.py` | Modify | Structured-output payload; tool coercion |
+| `config/node_config.py` | Modify | Remove inline overrides; effort-profiled threshold; **M8**: raise analyzer `max_attempts` to 10 |
+| `config/session_config.py` | Modify | **M8**: add `max_replans` field (effort-derived) |
 
 ## Data Model Changes
 
@@ -536,6 +585,7 @@ Node: + progress: NodeProgress
 - [ ] Milestone 4 (shrink) is independent
 - [ ] Milestone 5-6 (tools) are independent
 - [ ] Milestone 7 (logging) threads through all
+- [ ] Milestone 8 (loop reliability) is independent of M2-M7; depends only on existing `worker_runtime.py` + `models/task.py` + `agent/tools/native/files.py`
 
 ## Risks and Mitigations
 
@@ -546,8 +596,11 @@ Node: + progress: NodeProgress
 | `delete_task` on active task crashes runtime | High | Guard: refuse on root/active (FR-023) |
 | `html2text` breaks in Docker | Med | Pin version; add to Docker build; test in CI |
 | Structured output changes eval harness config | Med | Re-enable per-node; verify with tinycua-only re-run |
+| Force-approve at replan cap accepts a flawed result | Med | The "replan budget exhausted" rationale is recorded in the audit trail; the run still produces output for inspection. Strict mode can be added later if needed. |
+| `plan_unchanged` signal is set incorrectly (analyzer says unchanged but plan was wrong) | Low | The analyzer LLM decides; the signal is advisory. If wrong, the reviewer will reject and the loop continues (bounded by `max_replans`). |
+| `str_replace` multi-match error confuses the model further | Low | The error is actionable ("provide more context or set replace_all=True"); the model can still fall back to `append_file` if needed. |
 
 ---
 
 *Generated from spec.md and design.md*
-*Last updated: 2026-06-21*
+*Last updated: 2026-06-22*

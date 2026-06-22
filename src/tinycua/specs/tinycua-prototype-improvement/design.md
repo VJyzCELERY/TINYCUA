@@ -2,7 +2,7 @@
 
 **Spec**: `./spec.md`
 **Status**: Draft
-**Last Updated**: 2026-06-21
+**Last Updated**: 2026-06-22
 
 ---
 
@@ -54,25 +54,26 @@ This redesign hardens the TinyCUA research prototype along four axes motivated b
 | Component | Change Type | Notes |
 |-----------|-------------|-------|
 | `loops/node.py` | Modified | Add `NodeState`, `NodeProgress`; remove dormant `ProcessNode.__call__`/`DecisionNode.__call__` retry loops, `_call_failure_route`, `Node.propagate` no-op |
-| `loops/validation_retry_mixin.py` | Modified | Remove `_judge_retry`, `_route_task_executor_failure_to_reviewer` stub, `_validate_tool_owned_task_state`'s inline maps; consult `NodeContract` |
+| `loops/validation_retry_mixin.py` | Modified | Remove `_judge_retry`, `_route_task_executor_failure_to_reviewer` stub, `_validate_tool_owned_task_state`'s inline maps; consult `NodeContract`; **M8**: rephrase `_validate_result_reviewer_inspects_after_decision` error to not contain `task_review_decision` substring |
 | `loops/orchestration_mixin.py` | Modified | Replace `_unbounded_recovery`'s 5-stage escalation with 2-track; remove `_log_recovery_cycle` `print(stderr)`; consult `NodeContract` for `_RECOVERY_CHAINS` |
-| `loops/prompt_protocol_mixin.py` | Modified | Remove `_required_single_tool_choice_name`, `_missing_or_required_tool_name`, `_requires_any_tool_choice`; consult `NodeContract` |
+| `loops/prompt_protocol_mixin.py` | Modified | Remove `_required_single_tool_choice_name`, `_missing_or_required_tool_name`, `_requires_any_tool_choice`; consult `NodeContract`; **M8**: add `task_inspect` to `_missing_or_required_tool_name` candidate tuple before `task_review_decision` |
 | `loops/recovery_stages_mixin.py` | Modified | Remove `_judge_retry` (the whole file likely deleted) |
-| `loops/worker_runtime.py` | Modified | Remove commented `OPEN_QUESTION` branch + `ResponseNode` `noqa` import |
-| `config/node_config.py` | Modified | Remove inline `required_tool_calls` overrides; build `NodeContract` per node |
-| `config/types.py` | Modified | `Tool.invoke` delegates to SDK coercion for class-based tools |
-| `models/task.py` | Modified | Add `delete_task`, `merge_tasks` to `TaskStateStore` |
-| `tools/task_tools.py` | Modified | Add `task_shrink` tool; remove `TaskReviewDecisionTool` default-approve; fix `TaskUpdateTool` `additionalProperties` |
+| `loops/worker_runtime.py` | Modified | Remove commented `OPEN_QUESTION` branch + `ResponseNode` `noqa` import; **M8**: reset `consecutive_failures` on replan via boundary marker, cap replans per task via `max_replans` effort mapping, force-approve at cap, skip executor re-run when `plan_unchanged` |
+| `config/node_config.py` | Modified | Remove inline `required_tool_calls` overrides; build `NodeContract` per node; **M8**: raise `task_analyzer` `max_attempts` from 3 to 10 |
+| `config/session_config.py` | Modified | **M8**: add `max_replans: int \| None` field (derived from `worker_effort` when None: `none=0, low=1, medium=3, high=6`) |
+| `models/task.py` | Modified | Add `delete_task`, `merge_tasks` to `TaskStateStore`; **M8**: `consecutive_failures` breaks on `replan_boundary` entries; `decompose_task` signals `plan_unchanged` when children already exist |
+| `tools/task_tools.py` | Modified | Add `task_shrink` tool; remove `TaskReviewDecisionTool` default-approve; fix `TaskUpdateTool` `additionalProperties`; **M8**: document `rejected` as alias for `needs_revision` in `TaskReviewDecisionTool` description |
 | `tools/todo_tools.py` | Modified | Real update-in-place, delete, status transitions |
 | `agent/tools/native/web.py` | Modified | markdown conversion, Content-Type guard, UA, retry, consistent dict |
 | `agent/tools/native/web_search.py` | Modified | backend-down vs no-matches, retry/backoff |
 | `agent/tools/native/shell.py` | Modified | venv param, executable param, env passthrough, shell context in result |
 | `agent/tools/native/context.py` | Modified | drop cwd fallback (raise), re-root absolute paths, workspace-relative reporting |
-| `agent/tools/native/files.py` | Modified | assert workspace bound at session start |
+| `agent/tools/native/files.py` | Modified | assert workspace bound at session start; **M8**: `str_replace` distinguishes zero-match vs multi-match errors; `append_file`/`write_file`/`str_replace` return `diff_preview` + `new_file_size` |
 | `agent/tools/native/python_exec.py` | Modified | reject >max with error, not silent clamp |
 | `agent/tools/native/output_persist.py` | Modified | remove duplicate `print` |
 | `tools/enhanced_context_retrieval.py` | Modified | fix index math, cache cap + eviction |
 | `loops/tinycua_loop.py` | Modified | structured-output payload construction; tool coercion via SDK |
+| `loops/task_nodes.py` | Modified | **M8**: analyzer instruction adds `terminate` call, drops `task_inspect`-first trap; reviewer instruction adds general sanity-checker responsibility; `build_tool_system_prompt` adds dedup guidance; `local_replan` analyzer mode prompt mentions `task_shrink` option + `plan_unchanged` signal |
 | `loops/trace_state_mixin.py` | Modified | emit `node_state_transition` + `task_tree_shrink` events |
 | (new) `loops/node_contract.py` | New | `NodeContract` dataclass + per-node registry |
 | (new) `agent/tools/native/tool_result.py` | New | `ToolResult` envelope dataclass |
@@ -282,7 +283,20 @@ def run_shell(command: str, *, timeout: int = 120, venv: str | None = None,
 - [ ] Emit structured trace events: node state transition, retry with schema error, tool call with result shape, recovery cycle, task-tree shrink
 - [ ] Make retry/recovery observable without reading stderr
 
-> **Note**: Phases 3, 4, 5 are largely independent and can be parallelized. Phase 2 depends on Phase 1 (NodeContract). Phase 6 threads through all.
+### Phase 7 — Loop Reliability (Milestone 8)
+
+- [ ] **Reset failure baseline on replan**: `schedule_replan` inserts a synthetic `{"decision": "replan_boundary"}` entry into `reviewer_decisions`; `consecutive_failures` breaks on `replan_boundary` (not just `approved`)
+- [ ] **Cap replans per task**: add `max_replans` to `SessionConfig` (derived from `worker_effort`: `none=0, low=1, medium=3, high=6`); in `schedule_after_review`, when `replan_count >= max_replans`, force-approve with "replan budget exhausted" rationale instead of queueing another replan
+- [ ] **Non-vacuous replan**: when the active task has children and the analyzer confirms `plan_unchanged` (via `task_update` metadata), `schedule_replan` skips re-queueing executor+reviewer; the analyzer MAY call `task_shrink` to restructure instead
+- [ ] **`str_replace` error fix**: distinguish zero-match from multi-match in `_fuzzy_find_and_replace`; return `"Found N matches..."` when >1 matches and `replace_all=False`
+- [ ] **Reviewer missing-tool heuristic fix**: rephrase `_validate_result_reviewer_inspects_after_decision` error to not contain `task_review_decision`; add `task_inspect` to `_missing_or_required_tool_name` candidates
+- [ ] **Analyzer prompt fix**: add "after `task_decompose`/`task_update` succeeds, call `terminate`"; remove `task_inspect`-first instruction from continuation
+- [ ] **Analyzer `max_attempts`**: raise from 3 to 10
+- [ ] **Reviewer sanity-checker**: add general LLM-mess detection responsibility to reviewer instruction (dedup, hallucination, structural inconsistency) — prompt-only, generic across artifact types
+- [ ] **Unify `needs_revision`/`rejected`**: document `rejected` as alias in `TaskReviewDecisionTool` description; both share the same routing path
+- [ ] **File-tool diff/preview**: `append_file`/`write_file` return `diff_preview` + `new_file_size`; `str_replace` returns a real unified-diff snippet
+
+> **Note**: Phases 3, 4, 5 are largely independent and can be parallelized. Phase 2 depends on Phase 1 (NodeContract). Phase 6 threads through all. Phase 7 is independent of Phases 2-6 and can be parallelized with any of them.
 
 ---
 
@@ -315,6 +329,26 @@ def run_shell(command: str, *, timeout: int = 120, venv: str | None = None,
 7. **Decision**: Planning/review nodes explore before their role duty; digested context travels with the mission as `{context}\n{query}`.
    - **Reason**: Experiment-2 showed the 9B model anchored on "2024-2025" when scoping a "current frontier LLMs" research task, despite seeing `Today: 2026-06-21` in the system prompt. Two root causes: (a) the TaskAnalyzer's instruction forbade exploration ("Do not execute work here"), so it decomposed from training-data priors; (b) the InformationDigester's comprehensive research was dropped — only `original_query + constraints` reached the mission block, so the analyzer had no first-layer findings to ground its decomposition. The fix: all non-decision nodes get permissive, role-scoped exploration framing (analyzer explores to scope tasks, assessor to verify the roadmap, reviewer to verify claims, aggregation to verify task results, executor before making changes); the digester's `context_summary + key_points` are stored on the root task and rendered by `_render_mission_block` as a structured `{context}\n{query}` block so every downstream node sees the first-layer exploration findings. The execution boundary is preserved structurally — `EXPLORATORY_AGENT_TOOLS` has no write tools, so planning/review nodes still cannot produce the deliverable. Exploration is bounded by the soft "2-4 searches" hint in the digester + the `_MAX_TOOL_CONTINUATIONS=6` loop cap + the 3s `web_search` rate limit.
    - **Alternatives Considered**: (a) Prescriptive "use 2026 in queries" directive in the system prompt — rejected (too rigid, doesn't generalize, the user explicitly wanted a behavior not a hardcoded year). (b) Let only the analyzer search — rejected (the assessor and reviewer also benefit from exploring their respective concerns; exploration is a universal non-eager behavior). (c) Carry the full `session_context` (audit trail) into LLM messages — rejected (it's an audit trail, not LLM-reusable; the mission block is the right vehicle for first-layer findings). (d) Keep the digester's research in `session_context` only and give the analyzer `enhanced_context_retrieval` — rejected (the analyzer's role is planning, not context retrieval; the mission block already travels to every node that needs it, no extra tool needed).
+
+8. **Decision**: Reset `consecutive_failures` on replan via a synthetic `replan_boundary` entry in `reviewer_decisions`, not a dedicated counter field.
+   - **Reason**: The derived `consecutive_failures` property (`models/task.py:113-133`) already walks `reviewer_decisions` backwards and breaks on `approved`. Adding a `replan_boundary` sentinel and breaking on it too keeps the audit trail as the single source of truth — no separate counter to keep in sync, no dataclass migration. The full decision history (including the boundary markers) stays observable.
+   - **Alternatives Considered**: (a) A dedicated `replans_per_task: int` field incremented by `schedule_replan` — rejected (duplicates the audit trail, needs a dataclass migration, can drift). (b) Truncate `reviewer_decisions` on replan — rejected (loses audit history, violates observability).
+
+9. **Decision**: Cap replans per task via an effort-profiled `max_replans` (`none=0, low=1, medium=3, high=6`); at cap, force-approve with "replan budget exhausted" rationale.
+   - **Reason**: Experiment-2 showed the replan loop climb 5→7→9 with threshold 5 and no backstop — the same task was re-executed 5+ times, re-researching and re-appending duplicate content, for 45 minutes. A cap bounds the loop without violating the zero-exit guarantee (the task still completes, just with a note that the replan budget was exhausted). Effort-profiled mapping mirrors the existing `analysis_effort` pass-limit pattern (`task_nodes.py:1104`: `none=0, low=1, medium=2, high=3`) — higher effort allows more replans. Force-approve (not fail-the-task) keeps the run producing output.
+   - **Alternatives Considered**: (a) Fixed cap regardless of effort — rejected (doesn't adapt to task complexity; a high-effort research task may legitimately need more replans than a low-effort one). (b) Fail the task at cap — rejected (strict; aborts the run in strict mode; the user preferred force-approve so the experiment still produces output). (c) No cap, rely on the model to eventually approve — rejected (experiment-2 evidence: the model kept rejecting for 5+ cycles).
+
+10. **Decision**: Make replans non-vacuous via a `plan_unchanged` signal; the analyzer MAY `task_shrink` instead.
+   - **Reason**: `decompose_task` is idempotent on a parent with existing children (`models/task.py:195-209`) — it silently returns the existing children and discards the analyzer's new subtasks. So a replan that routes to the analyzer and then back to the executor reruns the same task, re-researches, and re-appends content. The `plan_unchanged` metadata flag (set by `task_update` when the analyzer confirms the existing plan) lets `schedule_replan` skip the executor re-run. When the plan IS wrong, the analyzer can `task_shrink` (delete/merge unfinished tasks — completed tasks are immutable per FR-023) to actually restructure. Making `task_shrink` required was rejected — it should be an option, not a mandate.
+   - **Alternatives Considered**: (a) Require `task_shrink` on every replan after the first — rejected (too rigid; the plan may be correct and only execution was flawed). (b) Make `decompose_task` non-idempotent (overwrite existing children) — rejected (would lose the existing plan's progress and completed children).
+
+11. **Decision**: Reviewer as a general sanity-checker for LLM messes — prompt-only, generic across artifact types.
+   - **Reason**: Experiment-2's duplicated 100KB report (8+ "## Conclusion"/"## Key Insights" sections, SWE-bench mentioned 76 times) was a structural mess the reviewer could have caught but wasn't told to look for. Hardcoding "report structure" rules would be too specific (the reviewer also reviews code, data, anything). A generic responsibility — detect duplicate/repeated content (grep/wc/sort|uniq), hallucinated claims (verify entities), structural inconsistency (claimed N sections but has M) — lets the reviewer LLM decide which checks apply based on the artifact type. Prompt-only keeps it adaptable; a deterministic pre-check was rejected for coupling the reviewer to file-artifact assumptions.
+   - **Alternatives Considered**: (a) Deterministic pre-check in `_reviewer_context_blocks` that runs `grep -c '^## '` on detected artifacts — rejected (couples the reviewer to file-artifact assumptions; doesn't generalize to code/data). (b) Hardcoded "no duplicate section headers" rule — rejected (too specific to markdown reports).
+
+12. **Decision**: Unify `needs_revision` and `rejected` into one routing path; `rejected` is an alias.
+   - **Reason**: Experiment-2 showed both decisions increment `consecutive_failures` identically and route through the same `schedule_after_review` branch (`worker_runtime.py:87`). Having two names for the same behavior confused the model and the design. `rejected` becomes an alias for `needs_revision` — both send the task back for rework. No terminal-failure path is added (the user explicitly chose to merge them, citing "from original design being rejected means there is a needed revision").
+   - **Alternatives Considered**: (a) Make `rejected` a terminal failure (kill the task) — rejected by the user (Q3). (b) Keep them separate with different routing — rejected (no behavioral difference existed anyway; the separation was accidental complexity).
 
 ---
 
