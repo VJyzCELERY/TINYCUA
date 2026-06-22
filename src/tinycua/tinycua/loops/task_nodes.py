@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any, TYPE_CHECKING
 
 from tinycua.config.node_config import create_node_config
@@ -15,6 +16,8 @@ from tinycua.models.task import (
     TaskResult,
     TaskStatus,
 )
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
@@ -75,9 +78,13 @@ _TASK_ANALYZER_CONTINUATION = (
 _TASK_ANALYZER_LOCAL_REPLAN_CONTINUATION = (
     "Refine only the active local region. Explore the local region "
     "(read_file/run_shell/search_files) if it helps you understand the "
-    "current task before refining. Call task_decompose if it needs "
-    "subtasks, or task_update if execution can continue. Do not decompose "
-    "the root roadmap from a local replan."
+    "current task before refining. If the existing plan is correct and "
+    "the task failed due to execution (not planning), call task_update "
+    "with metadata {\"plan_unchanged\": true} so the runtime skips "
+    "re-execution. If the plan is wrong, call task_shrink to delete or "
+    "merge unfinished tasks (completed tasks are immutable and cannot be "
+    "shrunk), then task_decompose or task_update with the refined plan. "
+    "Do not decompose the root roadmap from a local replan."
 )
 
 _TASK_ASSESSOR_UPFRONT_INSTRUCTION = (
@@ -231,6 +238,41 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
             "especially for research tasks. Then call task_decompose to add "
             "subtasks or task_update to confirm the roadmap. Do not execute "
             "the task itself — decompose and hand off to the executor."
+        )
+
+    def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
+        """Skip re-execution when the analyzer confirmed the plan is unchanged.
+
+        FR-051: in a local replan, when the analyzer sets
+        ``metadata.plan_unchanged`` on the active task (via ``task_update``),
+        the queued executor is removed — the plan did not change, so
+        re-execution would only duplicate work. The reviewer is kept so it
+        can re-judge the existing result. Only fires in ``local_replan``
+        mode; the upfront analysis loop is unaffected.
+        """
+        super().on_complete(queue, response)
+        mode = str(self.config.metadata.get("task_analyzer_mode", "task_creation"))
+        if mode != "local_replan":
+            return
+        if self.session is None:
+            return
+        active = self.session.task_store.get_active_task()
+        if active is None or not active.metadata.get("plan_unchanged"):
+            return
+        # Remove the next queued task_executor (if any) — keep the reviewer.
+        # ponytail: linear scan is fine, the queue is short (≤4 after replan).
+        removed = False
+        new_items = []
+        for node in queue.items:
+            if not removed and node.node_id == "task_executor":
+                removed = True
+                continue
+            new_items.append(node)
+        queue.items = new_items
+        logger.info(
+            "plan_unchanged task_id=%s — skipping executor re-run, "
+            "reviewer will re-judge the existing result",
+            active.task_id,
         )
 
 
