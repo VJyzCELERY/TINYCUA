@@ -1038,23 +1038,13 @@ class ValidationRetryMixin:
                 "strict": False,
             },
         }
-        # Build a minimal context: the model's last response + the missing
-        # tool directive. No tool history — the model sees only what's missing.
-        errors = "; ".join(validation.errors)
-        last_content = (last_result.content or "").strip()[:2000]
-        retry_messages: list[dict[str, Any]] = [
-            {
-                "role": "user",
-                "content": (
-                    f"The previous response did not satisfy the requirement: "
-                    f"{errors}\n\n"
-                    f"Your last response was:\n{last_content}\n\n"
-                    f"Call '{tool_name}' now with the correct arguments. "
-                    f"Output ONLY the JSON arguments object — no prose, no "
-                    f"explanation, no markdown fences."
-                ),
-            }
-        ]
+        # FR-060: use the same full-context message builder as _recovery_retry
+        # (system prompt + continuation + task under review + outcome report +
+        # roadmap + trimmed tool results). Previously sent a bare user message
+        # with no context — the model had no idea what it was reviewing.
+        retry_messages = self._build_recovery_messages(
+            node, [required_tool], last_result, validation, missing_tools,
+        )
         try:
             raw_response = await self._call_agent_llm(
                 agent,
@@ -1158,6 +1148,26 @@ class ValidationRetryMixin:
             names = [tc.get("function", {}).get("name", "?") for tc in last_result.tool_calls if isinstance(tc, dict)]
             tool_call_summary = f" (called: {', '.join(names)})"
         recovery_messages.append({"role": "assistant", "content": f"[My last response]{tool_call_summary}: {last_content}"})
+        # FR-060: include trimmed summaries of previous tool results so the
+        # model knows what its commands returned — prevents the verification
+        # loop where it keeps re-running run_shell because it can't see prior
+        # results. One-line summaries (via summarize_tool_result), last 10.
+        tool_results = last_result.metadata.get("tool_results", []) if isinstance(last_result.metadata, dict) else []
+        if tool_results:
+            from tinycua.loops.node_guidance import summarize_tool_result
+
+            summary_lines = []
+            for item in tool_results[-10:]:
+                if not isinstance(item, dict):
+                    continue
+                name = item.get("name", "?")
+                content_str = str(item.get("content", "") or item.get("output", ""))
+                summary = summarize_tool_result(content_str)
+                summary_lines.append(f"  - {name}: {summary}")
+            if summary_lines:
+                recovery_messages.append(
+                    {"role": "user", "content": "Previous tool results (trimmed — do not re-run these):\n" + "\n".join(summary_lines)},
+                )
         errors = "; ".join(validation.errors)
         missing_str = ", ".join(missing_tools) if missing_tools else "the required tools"
         node_continuation = node.build_continuation(node.session) if node.session else ""

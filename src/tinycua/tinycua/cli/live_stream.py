@@ -288,35 +288,15 @@ def format_usage(usage: Any) -> str:
 
 
 def summarize_tool_result(content: str) -> str:
-    """Summarize a tool result without dumping its JSON body."""
-    try:
-        payload = json.loads(content)
-    except json.JSONDecodeError:
-        return truncate(content, 500)
-    if not isinstance(payload, dict):
-        return truncate(content, 500)
-    output = payload.get("output")
-    status = ""
-    if isinstance(output, dict):
-        success = output.get("success")
-        if success is not None:
-            status = f"success={success}"
-        if output.get("path"):
-            return f"{status} path={output['path']}".strip()
-        if output.get("task_id"):
-            task_bits = [status, f"task_id={output['task_id']}"]
-            if output.get("status"):
-                task_bits.append(f"status={output['status']}")
-            if output.get("decision"):
-                task_bits.append(f"decision={output['decision']}")
-            return " ".join(bit for bit in task_bits if bit)
-        if output.get("exit_code") is not None:
-            return f"exit_code={output.get('exit_code')} timed_out={output.get('timed_out')}"
-    if isinstance(output, list):
-        return f"items={len(output)}"
-    if payload.get("error"):
-        return f"error={payload['error']}"
-    return "completed"
+    """Summarize a tool result without dumping its JSON body.
+
+    Re-exported from ``node_guidance`` for backward compatibility. The
+    canonical implementation lives in the loops layer so the recovery loop
+    can import it without a CLI dependency.
+    """
+    from tinycua.loops.node_guidance import summarize_tool_result as _impl
+
+    return _impl(content)
 
 
 def event_delta_text(event: dict[str, Any]) -> str:

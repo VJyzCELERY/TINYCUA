@@ -190,6 +190,10 @@ class TinyCUALoop(
         self._final_response_events: list[dict[str, Any]] = []
         self._transcript_events: list[dict[str, Any]] = []
         self._transcript_seen_node_contents: set[str] = set()
+        # FR-060: re-entry signal — set by _unbounded_recovery when the
+        # recovery budget is exhausted. Checked by callers to skip
+        # on_complete/advance and re-dispatch the node with fresh context.
+        self._recovery_reentry: bool = False
         self.workspace_dir = getattr(session_config, "workspace_dir", None)
         self.artifact_dir = getattr(session_config, "artifact_dir", None)
         self.session_dir = getattr(session_config, "session_dir", None)

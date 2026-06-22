@@ -8,12 +8,59 @@ FR-059: the reviewer instruction enforces validation evidence in every
 ``task_review_decision`` rationale — a validator in ``validation_retry_mixin``
 backs it up at runtime. The validation logic lives here (not in the mixin) to
 keep the mixin under the LOC gate and centralize reviewer rules.
+
+FR-060: ``summarize_tool_result`` lives here so the recovery loop can
+import it without depending on the CLI layer. The CLI re-exports it.
 """
 
 from __future__ import annotations
 
 import json
 from typing import Any
+
+
+def _truncate(value: str, limit: int) -> str:
+    """Truncate long strings with an ellipsis marker."""
+    if len(value) <= limit:
+        return value
+    return f"{value[:limit]}…[truncated]"
+
+
+def summarize_tool_result(content: str) -> str:
+    """Summarize a tool result without dumping its JSON body.
+
+    Moved here from ``cli/live_stream.py`` so the recovery loop can import
+    it without a CLI dependency. The CLI re-exports it for backward compat.
+    """
+    try:
+        payload = json.loads(content)
+    except json.JSONDecodeError:
+        return _truncate(content, 500)
+    if not isinstance(payload, dict):
+        return _truncate(content, 500)
+    output = payload.get("output")
+    status = ""
+    if isinstance(output, dict):
+        success = output.get("success")
+        if success is not None:
+            status = f"success={success}"
+        if output.get("path"):
+            return f"{status} path={output['path']}".strip()
+        if output.get("task_id"):
+            task_bits = [status, f"task_id={output['task_id']}"]
+            if output.get("status"):
+                task_bits.append(f"status={output['status']}")
+            if output.get("decision"):
+                task_bits.append(f"decision={output['decision']}")
+            return " ".join(bit for bit in task_bits if bit)
+        if output.get("exit_code") is not None:
+            return f"exit_code={output.get('exit_code')} timed_out={output.get('timed_out')}"
+    if isinstance(output, list):
+        return f"items={len(output)}"
+    if payload.get("error"):
+        return f"error={payload['error']}"
+    return "completed"
+
 
 _RESULT_REVIEWER_INSTRUCTION = (
     "You are the ResultReviewer. You only review outcomes; you do not edit "

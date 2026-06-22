@@ -341,11 +341,19 @@ class OrchestrationMixin:
             )
             if recovered is not None:
                 return recovered
-            # Unbounded tightened-retry loop — never exits until validation
-            # passes. No graceful continue, no exit-0 escape hatch.
-            recovered_result, _ = await self._unbounded_recovery(
+            # FR-060: recovery loop with per-method budgets (15/10/3).
+            # Returns None when the budget is exhausted → re-enter the node.
+            recovery_result = await self._unbounded_recovery(
                 node, agent, resolved_tools, llm_result, validation
             )
+            if recovery_result is None:
+                # Re-entry: don't call on_complete, don't advance.
+                # The caller (queue loop) re-dispatches this node fresh.
+                self._record_node_content_transcript(
+                    node, "Recovery budget exhausted — re-entering node with fresh context.",
+                )
+                return "", []
+            recovered_result, _ = recovery_result
             trace_entry = self._trace_entry(
                 node, attempt, resolved_tools,
                 recovered_result.content, recovered_result,
@@ -517,6 +525,12 @@ class OrchestrationMixin:
                 ):
                     yield event
 
+                # FR-060: check re-entry signal — if set, don't advance.
+                # Re-dispatch the same node (still at items[0]) with fresh context.
+                if self._recovery_reentry:
+                    self._recovery_reentry = False
+                    continue
+
                 # Stop at terminal nodes — do not advance past them
                 if node.is_terminal and self.queue.current is node:
                     finalize_terminal_output(
@@ -674,6 +688,11 @@ class OrchestrationMixin:
                 attempt,
             )
             raise
+        # FR-060: re-entry signal from _execute_node's recovery path.
+        if self._recovery_reentry:
+            # Don't emit node.completed, don't advance — the main loop
+            # will re-dispatch this node with fresh context.
+            return
         if stream_messages is not None:
             if combined:
                 stream_messages.append({"role": "assistant", "content": combined})
@@ -1020,39 +1039,25 @@ class OrchestrationMixin:
         resolved_tools: list[Tool],
         llm_result: LLMResult,
         validation: ValidationResult,
-    ) -> tuple[LLMResult, ValidationResult]:
-        """Unbounded 2-track recovery — never exits until validation passes.
+    ) -> tuple[LLMResult, ValidationResult] | None:
+        """Recovery loop with per-method budgets + unlimited re-entry (FR-060).
 
-        Milestone 3 redesign: replaces the 5-stage forcing escalation with a
-        2-track system:
+        Three retry stages with diminishing budgets:
+        1. **Structured-output** (15): ``response_format: json_schema`` with
+           full session context.
+        2. **Focused retry** (10): full context, no schema, free-form tool calls.
+        3. **Judge retry** (3): LLM judge injects the tool call with full context.
 
-        1. **Deterministic track**: if the only missing prerequisite is
-           ``terminate`` (a no-arg tool), call it directly without an LLM
-           round-trip. This is not stealing an LLM decision — terminate takes
-           no parameters (FR-011).
-
-        2. **Structured-output track**: the LLM is called with
-           ``response_format: json_schema`` built from the missing tool's
-           parameters, constraining it to produce valid JSON. The LLM stays
-           the decider — the runtime never synthesizes the call (unlike the
-           removed ``_judge_retry`` stage). If the output is invalid, the
-           loop retries with the schema error (unbounded).
-
-        FR-015: after 10 consecutive structured-output failures, a stuck-model
-        diagnostic is logged (observability only — the loop continues to
-        preserve the zero-exit, one-shot, no-HITL guarantee).
-
-        No graceful exit — the loop only returns when validation passes.
+        Total: 30 cycles per invocation. When all budgets are exhausted, returns
+        ``None`` to signal the caller to re-enter the node (re-dispatch with
+        fresh ``build_messages``, clearing accumulated context). Re-entry is
+        unlimited — no force-approve, only ``_direct_terminate`` when terminate
+        is the only missing tool.
         """
         cycle = 0
         current_result = llm_result
         current_validation = validation
-        # Accumulate successful tool results (dicts) across the entire recovery.
-        # Keyed by tool name — last successful result wins. This lets the
-        # validator see the full accumulated state even when a stage only
-        # produced one tool call.
         accumulated_results: dict[str, dict[str, Any]] = {}
-        # Seed with successful tools from the original failed result.
         for item in llm_result.metadata.get("tool_results", []):
             if (
                 isinstance(item, dict)
@@ -1060,22 +1065,21 @@ class OrchestrationMixin:
                 and item["output"].get("success") is True
             ):
                 accumulated_results[str(item.get("name"))] = item
-        # Track consecutive structured-output failures for the stuck-model
-        # diagnostic (FR-015). The loop is still unbounded — this is for
-        # observability only, not a bound.
-        consecutive_schema_failures = 0
+        # FR-060: per-method budgets (15/10/3 = 30 total).
+        structured_attempts = 0
+        recovery_attempts = 0
+        judge_attempts = 0
+        _STRUCTURED_BUDGET = 15
+        _RECOVERY_BUDGET = 10
+        _JUDGE_BUDGET = 3
         while not current_validation.is_valid:
             cycle += 1
             stage_results: dict[str, bool] = {}
             accumulated_successful = set(accumulated_results.keys())
-            # Determine which prerequisite tools are still missing.
             missing = self._missing_recovery_tools_from_set(
                 node, accumulated_successful
             )
-            # Deterministic track: if the ONLY missing prerequisite is
-            # terminate, call it directly without an LLM round-trip. terminate
-            # has no meaningful parameters — there is nothing for the model to
-            # decide. This is not stealing an LLM decision (FR-011).
+            # Deterministic track: terminate-only → direct call (FR-011).
             if missing == ["terminate"]:
                 terminated = await self._direct_terminate(node, agent)
                 if terminated is not None:
@@ -1087,34 +1091,29 @@ class OrchestrationMixin:
                     if current_validation.is_valid:
                         return current_result, current_validation
                 stage_results["direct_terminate"] = terminated is not None
-            # Structured-output track (Milestone 3): the LLM is constrained via
-            # response_format: json_schema to produce valid tool-call JSON.
-            # The LLM stays the decider — the runtime never synthesizes the
-            # call (unlike the removed _judge_retry stage). Replaces the
-            # 3-stage escalation (focused → tightening → judge).
-            recovery = await self._structured_output_retry(
-                node, agent, resolved_tools, current_result, current_validation,
-                missing_tools=missing,
-            )
-            stage_results["structured_output_retry"] = recovery is not None
-            if recovery is not None:
-                current_result, current_validation = recovery
-                self._accumulate_results(current_result, accumulated_results)
-                current_validation = self._revalidate_with_accumulated(
-                    node, current_result, accumulated_results
+            # Stage 1: structured-output retry (15 budget).
+            if structured_attempts < _STRUCTURED_BUDGET:
+                recovery = await self._structured_output_retry(
+                    node, agent, resolved_tools, current_result, current_validation,
+                    missing_tools=missing,
                 )
-                if current_validation.is_valid:
-                    return current_result, current_validation
-                consecutive_schema_failures = 0
-            else:
-                # Fallback: focused retry (expose missing tools, no response_format).
-                # This handles LLMs that don't support json_schema and mock LLMs
-                # in tests. The LLM freely decides the arguments via normal
-                # tool calls — still LLM-decided, just not schema-constrained.
+                structured_attempts += 1
+                stage_results["structured_output_retry"] = recovery is not None
+                if recovery is not None:
+                    current_result, current_validation = recovery
+                    self._accumulate_results(current_result, accumulated_results)
+                    current_validation = self._revalidate_with_accumulated(
+                        node, current_result, accumulated_results
+                    )
+                    if current_validation.is_valid:
+                        return current_result, current_validation
+            # Stage 2: focused retry (10 budget).
+            elif recovery_attempts < _RECOVERY_BUDGET:
                 focused = await self._recovery_retry(
                     node, agent, resolved_tools, current_result, current_validation,
                     missing_tools=missing,
                 )
+                recovery_attempts += 1
                 stage_results["focused_retry"] = focused is not None
                 if focused is not None:
                     current_result, current_validation = focused
@@ -1124,20 +1123,31 @@ class OrchestrationMixin:
                     )
                     if current_validation.is_valid:
                         return current_result, current_validation
-                    consecutive_schema_failures = 0
-                else:
-                    consecutive_schema_failures += 1
-                # FR-015: stuck-model diagnostic (observability, not a bound).
-                if consecutive_schema_failures >= 10:
-                    logger.warning(
-                        "node=%s stuck-model — %d consecutive structured-output "
-                        "failures. The loop continues (zero-exit guarantee) but "
-                        "this model may be unable to produce the required output.",
-                        node.node_id,
-                        consecutive_schema_failures,
+            # Stage 3: judge retry (3 budget) — re-enabled (FR-012 updated).
+            elif judge_attempts < _JUDGE_BUDGET:
+                judged = await self._judge_retry(
+                    node, agent, resolved_tools, current_result, current_validation,
+                    missing_tools=missing,
+                )
+                judge_attempts += 1
+                stage_results["judge_retry"] = judged is not None
+                if judged is not None:
+                    current_result, current_validation = judged
+                    self._accumulate_results(current_result, accumulated_results)
+                    current_validation = self._revalidate_with_accumulated(
+                        node, current_result, accumulated_results
                     )
-                    consecutive_schema_failures = 0  # reset to avoid log spam
-            # All stages failed — log state and loop back.
+                    if current_validation.is_valid:
+                        return current_result, current_validation
+            else:
+                # All 30 cycles exhausted — signal re-entry (FR-060).
+                logger.info(
+                    "node=%s recovery_budget_exhausted — re-entering node with "
+                    "fresh context (structured=%d recovery=%d judge=%d)",
+                    node.node_id, structured_attempts, recovery_attempts, judge_attempts,
+                )
+                self._recovery_reentry = True
+                return None
             self._log_recovery_cycle(node, current_validation, cycle, stage_results)
 
     async def _direct_terminate(
@@ -1338,14 +1348,38 @@ class OrchestrationMixin:
                     max_attempts,
                 )
             return
-        # Unbounded tightened-retry loop — never exits until validation
-        # passes. Cycles through focused → tightening → judge stages,
-        # logging state to stderr each cycle. No graceful continue, no
-        # exit-0 escape hatch. The node must produce valid output before
-        # the queue can advance past it (queue integrity invariant).
-        recovered_result, _ = await self._unbounded_recovery(
+        # FR-060: recovery loop with per-method budgets (15/10/3).
+        # Returns None when the budget is exhausted → re-enter the node.
+        recovery_result = await self._unbounded_recovery(
             node, agent, resolved_tools, llm_result, validation
         )
+        if recovery_result is None:
+            # Re-entry: yield event, return from generator.
+            # Do NOT call on_complete, do NOT advance.
+            reentry_event = self._emit_lifecycle_event(
+                "node.reentry",
+                node.node_id,
+                node_type,
+                max_attempts,
+                emit_lifecycle,
+                final_only,
+                node.is_terminal,
+                content="Recovery budget exhausted — re-entering node with fresh context.",
+                finish_reason="reentry",
+            )
+            if reentry_event is not None:
+                yield self._enrich_and_yield(
+                    reentry_event,
+                    include_meta,
+                    node.node_id,
+                    node_type,
+                    max_attempts,
+                )
+            self._record_node_content_transcript(
+                node, "Recovery budget exhausted — re-entering node with fresh context.",
+            )
+            return
+        recovered_result, _ = recovery_result
         recovery_content = recovered_result.content or combined
         # Record the recovered output and fire on_complete so the queue
         # gets the next nodes (schedule_after_review / schedule_next).

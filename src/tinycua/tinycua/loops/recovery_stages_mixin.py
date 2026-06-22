@@ -35,14 +35,18 @@ class RecoveryStagesMixin:
         *,
         missing_tools: list[str] | None = None,
     ) -> tuple[LLMResult, ValidationResult] | None:
-        """Tightest recovery: an LLM judge injects the first missing tool call.
+        """Last-resort recovery: an LLM judge injects the first missing tool call.
 
-        The judge sees only the validation error, the required tool name, and
-        the model's last response. It produces the exact tool call, which we
-        inject and execute. The stuck model never gets to decide again.
+        Re-enabled (FR-012 updated): the judge now sees the FULL session
+        context — system prompt, continuation (task under review, outcome
+        report, roadmap), and trimmed tool results — so it makes an
+        INFORMED injection, not a blind guess. This is the absolute final
+        retry stage before node re-entry; the model gets 15 structured +
+        10 focused chances first. The judge produces the exact tool call,
+        which we inject and execute.
 
         Returns (result, validation) if the injected call passes validation,
-        otherwise None (caller logs state and loops back to stage 1).
+        otherwise None (caller logs state and loops back or signals re-entry).
         """
         # Determine the tool to inject: the first missing prerequisite.
         if missing_tools:
@@ -55,36 +59,34 @@ class RecoveryStagesMixin:
 
         tool_name = getattr(required_tool, "name", "the required tool")
         errors = "; ".join(validation.errors)
-        last_content = (last_result.content or "").strip()[:2000]
 
         tool_schema = {
             "name": tool_name,
             "parameters": getattr(required_tool, "parameters", {}),
         }
 
-        judge_messages: list[dict[str, Any]] = [
-            {
-                "role": "system",
-                "content": (
-                    "You are a tool-call judge. An AI agent failed to call the "
-                    "required tool. You must produce the exact tool call that "
-                    "satisfies the requirement. Output ONLY a JSON object with "
-                    "'name' and 'arguments' keys. No prose, no explanation."
-                ),
-            },
-            {
-                "role": "user",
-                "content": (
-                    f"Requirement that was not satisfied: {errors}\n\n"
-                    f"The agent's last response was:\n{last_content}\n\n"
-                    f"Produce a single tool call to '{tool_name}' that satisfies "
-                    f"the requirement. Tool schema:\n"
-                    f"{json.dumps(tool_schema, default=str)}\n\n"
-                    f"Output ONLY: {{\"name\": \"{tool_name}\", "
-                    f"\"arguments\": {{...}}}}"
-                ),
-            },
-        ]
+        # FR-060: build full-context messages using _build_recovery_messages
+        # (system prompt + continuation + trimmed tool results), then append
+        # the judge directive. The judge now sees what task it's reviewing,
+        # what the outcome report says, and what tool results were produced.
+        judge_messages = self._build_recovery_messages(
+            node, [required_tool], last_result, validation, missing_tools,
+        )
+        # Replace the last user message (the recovery directive) with the
+        # judge directive — same context, different instruction.
+        judge_messages[-1] = {
+            "role": "user",
+            "content": (
+                f"The agent failed to call '{tool_name}' after multiple "
+                f"retries. Validation error: {errors}\n\n"
+                f"Using the session context and task state above, produce a "
+                f"single tool call to '{tool_name}' that satisfies the "
+                f"requirement. Tool schema:\n"
+                f"{json.dumps(tool_schema, default=str)}\n\n"
+                f"Output ONLY: {{\"name\": \"{tool_name}\", "
+                f"\"arguments\": {{...}}}}"
+            ),
+        }
         try:
             raw_response = await self._call_agent_llm(
                 agent,

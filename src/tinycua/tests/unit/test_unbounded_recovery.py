@@ -136,7 +136,12 @@ class TestUnboundedRecovery:
 
     @pytest.mark.asyncio
     async def test_recovery_logs_state_on_cycle_failure(self) -> None:
-        """The recovery loop logs system state to stderr when all stages fail."""
+        """The recovery loop logs system state and signals re-entry after budget exhaustion.
+
+        FR-060: the loop is no longer truly unbounded — it has a per-method
+        budget (15/10/3 = 30 total). When all budgets are exhausted, it returns
+        None to signal node re-entry. This test verifies the re-entry signal.
+        """
         loop = TinyCUALoop()
         node = TinyCUATaskCreateNode(
             node_id="task_create",
@@ -154,24 +159,19 @@ class TestUnboundedRecovery:
 
         agent._call_llm = mock_llm
 
-        import asyncio
-
-        # The unbounded loop spins forever when all stages fail. We verify
-        # it doesn't exit (timeout) rather than checking for a specific return.
-        with pytest.raises(asyncio.TimeoutError):
-            await asyncio.wait_for(
-                loop._unbounded_recovery(
-                    node,
-                    agent,
-                    [],
-                    LLMResult(content="fails"),
-                    ValidationResult(
-                        is_valid=False,
-                        errors=["task_create must call task_init"],
-                    ),
-                ),
-                timeout=3.0,
-            )
+        # FR-060: after 30 cycles (15+10+3), the loop returns None (re-entry).
+        result = await loop._unbounded_recovery(
+            node,
+            agent,
+            [],
+            LLMResult(content="fails"),
+            ValidationResult(
+                is_valid=False,
+                errors=["task_create must call task_init"],
+            ),
+        )
+        assert result is None  # re-entry signal
+        assert loop._recovery_reentry is True
 
 
 class TestOnCompleteFiresAfterRecovery:
