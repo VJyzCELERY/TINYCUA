@@ -265,7 +265,7 @@ def test_str_replace_fuzzy_line_trimmed():
 
 
 def test_str_replace_diff_preview():
-    """str_replace returns a diff_preview of the replaced content."""
+    """str_replace returns a unified-diff preview of the replaced content (FR-058)."""
     with tempfile.TemporaryDirectory() as tmpdir:
         bind_workspace(tmpdir)
         filepath = os.path.join(tmpdir, "preview.txt")
@@ -274,7 +274,8 @@ def test_str_replace_diff_preview():
 
         result = str_replace(filepath, old_string="old", new_string="new")
         assert result["success"] is True
-        assert result["diff_preview"] == "new"
+        # FR-058: diff_preview is now a unified-diff snippet, not just new_string.
+        assert "new" in result["diff_preview"]
         assert "new text here" in Path(filepath).read_text()
 
 

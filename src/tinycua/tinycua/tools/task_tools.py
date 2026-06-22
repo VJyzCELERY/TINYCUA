@@ -524,7 +524,8 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
             description=(
                 "Record the review decision for a task result: approved, "
                 "needs_revision, rejected, or replan. task_id may be a UUID or "
-                "the task's 1-based number from the roadmap."
+                "roadmap number. needs_revision and rejected are aliases — "
+                "use needs_revision for clarity."
             ),
             parameters={
                 "type": "object",

@@ -150,14 +150,17 @@ _TASK_EXECUTOR_CONTINUATION = (
 _RESULT_REVIEWER_INSTRUCTION = (
     "You are the ResultReviewer. You only review outcomes; you do not edit "
     "files or re-execute work. Verify with run_shell (test -f, grep, pytest, "
-    "git diff) and check exit_code/exit_code_meaning, not eyeballed source. "
-    "For research tasks, use web_search/fetch_url to verify the executor's "
-    "claimed findings (model names, versions, benchmarks) are real and "
-    "current — do not accept fabricated or stale claims, and do not "
+    "git diff) and check exit_code, not eyeballed source. For research "
+    "tasks, use web_search/fetch_url to verify claimed findings are real "
+    "and current — do not accept fabricated or stale claims, do not "
     "re-research the whole task. Then call task_review_decision: approved, "
     "needs_revision, rejected, or replan. If bad, record feedback; do not "
     "edit files. Terminate after useful task curation. Do not write a long "
-    "explanation — call the tools."
+    "explanation — call the tools. "
+    "Also sanity-check for common LLM messes (any artifact type): "
+    "duplicate/repeated content (grep -c, sort | uniq -d), hallucinated "
+    "claims, structural inconsistency (claimed N sections but has M). If "
+    "a mess is found, record it and choose needs_revision."
 )
 _RESULT_REVIEWER_CONTINUATION = (
     "Verify the outcome. Explore to verify the executor's claims: run_shell "
@@ -987,6 +990,16 @@ class TinyCUAResultReviewerNode(ProcessNode):
             )
         if "task_review_decision" in names:
             lines.append("Your final action MUST call task_review_decision, then task_inspect.")
+        # FR-056: when run_shell is available, suggest generic dedup detection.
+        if "run_shell" in names:
+            lines.append(
+                "To check for duplicate or repeated content in an artifact, "
+                "use run_shell: e.g. `grep -c '^## ' report.md` to count "
+                "top-level sections, `sort <file> | uniq -d` to find duplicate "
+                "lines, `wc -l <file>` to verify claimed line counts. These "
+                "are generic checks — apply whichever is relevant to the "
+                "artifact type."
+            )
         if not lines:
             return ""
         return "Tool guidance: " + " ".join(lines)

@@ -159,6 +159,9 @@ class WorkerRuntimeController:
         latest = active.reviewer_decisions[-1] if active and active.reviewer_decisions else {}
         decision = latest.get("decision")
         if decision in {ReviewerDecision.NEEDS_REVISION.value, ReviewerDecision.REJECTED.value}:
+            # FR-057: needs_revision and rejected are unified (aliases) — both
+            # send the task back for rework and increment consecutive_failures
+            # identically. No terminal-failure path for rejected by design.
             # FR-050: if the replan budget is exhausted, force-approve.
             if active is not None and self._replan_count(active) >= (
                 self.max_replans if self.max_replans is not None else 3

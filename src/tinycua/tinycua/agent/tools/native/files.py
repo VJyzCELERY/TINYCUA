@@ -293,10 +293,14 @@ def write_file(path: str, content: str) -> dict[str, Any]:
     try:
         content = _normalize_newlines(content)
         chars_written = resolved.write_text(content, encoding="utf-8")
+        # FR-058: return a diff_preview + new_file_size so the model can see
+        # what was written without re-reading the full file.
         return {
             "success": True,
             "path": str(resolved),
             "chars_written": chars_written,
+            "new_file_size": len(content.encode("utf-8")),
+            "diff_preview": content[:500],
             "error": None,
         }
     except PermissionError:
@@ -304,6 +308,8 @@ def write_file(path: str, content: str) -> dict[str, Any]:
             "success": False,
             "path": str(resolved),
             "chars_written": 0,
+            "new_file_size": 0,
+            "diff_preview": None,
             "error": f"Permission denied: {path}",
         }
     except Exception as exc:
@@ -311,6 +317,8 @@ def write_file(path: str, content: str) -> dict[str, Any]:
             "success": False,
             "path": str(resolved),
             "chars_written": 0,
+            "new_file_size": 0,
+            "diff_preview": None,
             "error": str(exc),
         }
 
@@ -727,8 +735,20 @@ def str_replace(
             "diff_preview": None,
             "error": str(exc),
         }
-    # Build a minimal diff preview (first 200 chars of the changed region).
-    diff_preview = new_string[:200]
+    # FR-058: build a real unified-diff snippet (first ~500 chars) so the
+    # model can see what actually changed, not just new_string[:200].
+    import difflib
+
+    diff_lines = list(
+        difflib.unified_diff(
+            content.splitlines(keepends=True),
+            new_content.splitlines(keepends=True),
+            fromfile=str(resolved),
+            tofile=str(resolved),
+            n=1,
+        )
+    )
+    diff_preview = "".join(diff_lines)[:500]
     return {
         "success": True,
         "path": str(resolved),
@@ -787,10 +807,14 @@ def append_file(path: str, content: str) -> dict[str, Any]:
             combined = content
         resolved.write_text(combined, encoding="utf-8")
         bytes_appended = len(content.encode("utf-8"))
+        # FR-058: return a diff_preview + new_file_size so the model can see
+        # what was added without re-reading the full file.
         return {
             "success": True,
             "path": str(resolved),
             "bytes_appended": bytes_appended,
+            "new_file_size": len(combined.encode("utf-8")),
+            "diff_preview": f"--- appended ---\n{content[:500]}",
             "error": None,
         }
     except PermissionError:
@@ -798,6 +822,8 @@ def append_file(path: str, content: str) -> dict[str, Any]:
             "success": False,
             "path": str(resolved),
             "bytes_appended": 0,
+            "new_file_size": 0,
+            "diff_preview": None,
             "error": f"Permission denied: {path}",
         }
     except Exception as exc:
@@ -805,6 +831,8 @@ def append_file(path: str, content: str) -> dict[str, Any]:
             "success": False,
             "path": str(resolved),
             "bytes_appended": 0,
+            "new_file_size": 0,
+            "diff_preview": None,
             "error": str(exc),
         }
 
