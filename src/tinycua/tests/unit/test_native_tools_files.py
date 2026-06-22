@@ -385,7 +385,7 @@ def test_list_files_on_file_returns_error():
 
 
 def test_list_files_absolute_paths():
-    """Returned paths are absolute."""
+    """Returned paths are workspace-relative (FR-035: relative, not absolute)."""
     with tempfile.TemporaryDirectory() as tmpdir:
         bind_workspace(tmpdir)
         Path(tmpdir, "test.txt").touch()
@@ -393,7 +393,8 @@ def test_list_files_absolute_paths():
 
         result = list_files(tmpdir)
         assert len(result) == 1
-        assert result[0].startswith("/")
+        # FR-035: list_files now returns workspace-relative paths.
+        assert result[0] == "test.txt"
 
 
 # --- defensive int() coercion for string line args (local models) -------

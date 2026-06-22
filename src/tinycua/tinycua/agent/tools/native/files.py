@@ -15,6 +15,7 @@ from tinycua_sdk.tools.decorators import tool
 from tinycua.agent.tools.native.context import (
     bind_workspace_to_tool,
     resolve_workspace_path,
+    to_workspace_relative,
 )
 
 # Internal truncation limit for full-file reads (100 KB)
@@ -275,6 +276,7 @@ def write_file(path: str, content: str) -> dict[str, Any]:
         return {
             "success": False,
             "path": path,
+            "rel_path": path,
             "chars_written": 0,
             "error": str(exc),
         }
@@ -286,6 +288,7 @@ def write_file(path: str, content: str) -> dict[str, Any]:
         return {
             "success": False,
             "path": str(resolved),
+            "rel_path": to_workspace_relative(resolved),
             "chars_written": 0,
             "error": f"Permission denied creating directory: {resolved.parent}",
         }
@@ -298,6 +301,7 @@ def write_file(path: str, content: str) -> dict[str, Any]:
         return {
             "success": True,
             "path": str(resolved),
+            "rel_path": to_workspace_relative(resolved),
             "chars_written": chars_written,
             "new_file_size": len(content.encode("utf-8")),
             "diff_preview": content[:500],
@@ -307,6 +311,7 @@ def write_file(path: str, content: str) -> dict[str, Any]:
         return {
             "success": False,
             "path": str(resolved),
+            "rel_path": to_workspace_relative(resolved),
             "chars_written": 0,
             "new_file_size": 0,
             "diff_preview": None,
@@ -316,6 +321,7 @@ def write_file(path: str, content: str) -> dict[str, Any]:
         return {
             "success": False,
             "path": str(resolved),
+            "rel_path": to_workspace_relative(resolved),
             "chars_written": 0,
             "new_file_size": 0,
             "diff_preview": None,
@@ -636,6 +642,7 @@ def str_replace(
         return {
             "success": False,
             "path": path,
+            "rel_path": path,
             "replacements_made": 0,
             "bytes_written": 0,
             "diff_preview": None,
@@ -652,6 +659,7 @@ def str_replace(
         return {
             "success": False,
             "path": path,
+            "rel_path": path,
             "replacements_made": 0,
             "bytes_written": 0,
             "diff_preview": None,
@@ -663,6 +671,7 @@ def str_replace(
             return {
                 "success": False,
                 "path": str(resolved),
+                "rel_path": to_workspace_relative(resolved),
                 "replacements_made": 0,
                 "bytes_written": 0,
                 "diff_preview": None,
@@ -674,6 +683,7 @@ def str_replace(
             return {
                 "success": True,
                 "path": str(resolved),
+                "rel_path": to_workspace_relative(resolved),
                 "replacements_made": 1,
                 "bytes_written": len(new_string.encode("utf-8")),
                 "diff_preview": new_string[:200],
@@ -683,6 +693,7 @@ def str_replace(
             return {
                 "success": False,
                 "path": str(resolved),
+                "rel_path": to_workspace_relative(resolved),
                 "replacements_made": 0,
                 "bytes_written": 0,
                 "diff_preview": None,
@@ -693,6 +704,7 @@ def str_replace(
         return {
             "success": False,
             "path": str(resolved),
+            "rel_path": to_workspace_relative(resolved),
             "replacements_made": 0,
             "bytes_written": 0,
             "diff_preview": None,
@@ -705,6 +717,7 @@ def str_replace(
         return {
             "success": False,
             "path": str(resolved),
+            "rel_path": to_workspace_relative(resolved),
             "replacements_made": 0,
             "bytes_written": 0,
             "diff_preview": None,
@@ -718,6 +731,7 @@ def str_replace(
         return {
             "success": False,
             "path": str(resolved),
+            "rel_path": to_workspace_relative(resolved),
             "replacements_made": match_count,
             "bytes_written": 0,
             "diff_preview": None,
@@ -730,6 +744,7 @@ def str_replace(
         return {
             "success": False,
             "path": str(resolved),
+            "rel_path": to_workspace_relative(resolved),
             "replacements_made": 0,
             "bytes_written": 0,
             "diff_preview": None,
@@ -743,8 +758,8 @@ def str_replace(
         difflib.unified_diff(
             content.splitlines(keepends=True),
             new_content.splitlines(keepends=True),
-            fromfile=str(resolved),
-            tofile=str(resolved),
+            fromfile=to_workspace_relative(resolved),
+            tofile=to_workspace_relative(resolved),
             n=1,
         )
     )
@@ -752,6 +767,7 @@ def str_replace(
     return {
         "success": True,
         "path": str(resolved),
+        "rel_path": to_workspace_relative(resolved),
         "replacements_made": match_count,
         "bytes_written": len(new_content.encode("utf-8")),
         "diff_preview": diff_preview,
@@ -783,6 +799,7 @@ def append_file(path: str, content: str) -> dict[str, Any]:
         return {
             "success": False,
             "path": path,
+            "rel_path": path,
             "bytes_appended": 0,
             "error": str(exc),
         }
@@ -792,6 +809,7 @@ def append_file(path: str, content: str) -> dict[str, Any]:
         return {
             "success": False,
             "path": str(resolved),
+            "rel_path": to_workspace_relative(resolved),
             "bytes_appended": 0,
             "error": f"Permission denied creating directory: {resolved.parent}",
         }
@@ -812,6 +830,7 @@ def append_file(path: str, content: str) -> dict[str, Any]:
         return {
             "success": True,
             "path": str(resolved),
+            "rel_path": to_workspace_relative(resolved),
             "bytes_appended": bytes_appended,
             "new_file_size": len(combined.encode("utf-8")),
             "diff_preview": f"--- appended ---\n{content[:500]}",
@@ -821,6 +840,7 @@ def append_file(path: str, content: str) -> dict[str, Any]:
         return {
             "success": False,
             "path": str(resolved),
+            "rel_path": to_workspace_relative(resolved),
             "bytes_appended": 0,
             "new_file_size": 0,
             "diff_preview": None,
@@ -830,6 +850,7 @@ def append_file(path: str, content: str) -> dict[str, Any]:
         return {
             "success": False,
             "path": str(resolved),
+            "rel_path": to_workspace_relative(resolved),
             "bytes_appended": 0,
             "new_file_size": 0,
             "diff_preview": None,
@@ -861,8 +882,8 @@ def list_files(
             from ``path`` for every entry below it (files and directories).
 
     Returns:
-        A list of absolute paths on success (directories suffixed with ``/``),
-        or an error dict on failure.
+        A list of workspace-relative paths on success (directories suffixed
+        with ``/``), or an error dict on failure.
     """
     try:
         resolved = _resolve_path(path)
@@ -881,12 +902,15 @@ def list_files(
             entries = sorted(resolved.glob(pattern))
         # ponytail: include dirs (suffixed with /) so a reviewer can see created
         # artifacts like .venv. If throughput ever matters, add a files-only flag.
+        # FR-035: return workspace-relative paths so the model has a short,
+        # clean path to echo back, reducing the chance of path doubling.
         result = []
         for entry in entries:
+            rel = to_workspace_relative(entry)
             if entry.is_dir():
-                result.append(f"{entry}/")
+                result.append(f"{rel}/")
             else:
-                result.append(str(entry))
+                result.append(str(rel))
         return result
     except PermissionError:
         return {"error": f"Permission denied: {path}"}
@@ -1025,7 +1049,7 @@ def _search_files_only(
         content = content.replace("\r\n", "\n")
         lines = content.split("\n")
         if any(regex.search(line) for line in lines):
-            file_paths.append(str(filepath))
+            file_paths.append(to_workspace_relative(filepath))
     return file_paths[offset : offset + limit]
 
 
@@ -1038,16 +1062,17 @@ def _render_content_matches(
     """Render content-mode matches with optional context lines + pagination footer."""
     result: list[str] = []
     for filepath, line_num, line, ctx_lines in all_matches:
+        rel = to_workspace_relative(filepath)
         if context > 0:
             for ci, ctx_line in enumerate(ctx_lines):
                 ctx_line_num = line_num - context + ci
                 if ctx_line_num < 1:
                     continue
                 prefix = ">" if ctx_line == line else " "
-                result.append(f"{filepath}:{ctx_line_num}:{prefix} {ctx_line}")
+                result.append(f"{rel}:{ctx_line_num}:{prefix} {ctx_line}")
             result.append("")  # blank line between matches
         else:
-            result.append(f"{filepath}:{line_num}: {line}")
+            result.append(f"{rel}:{line_num}: {line}")
 
     total = len(result)
     paged = result[offset : offset + limit]
@@ -1094,11 +1119,11 @@ def _search_files_by_name(
     results: list[str] = []
     if root.is_file():
         if fnmatch.fnmatch(root.name, pattern):
-            results.append(str(root))
+            results.append(to_workspace_relative(root))
     else:
         for entry in sorted(root.rglob("*")):
             if entry.is_file() and fnmatch.fnmatch(entry.name, pattern):
-                results.append(str(entry))
+                results.append(to_workspace_relative(entry))
 
     total = len(results)
     paged = results[offset : offset + limit]

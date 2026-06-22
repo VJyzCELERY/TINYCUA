@@ -57,6 +57,13 @@ def resolve_workspace_path(path: str) -> Path:
     Absolute paths that match a workspace subpath are re-rooted under the
     workspace (heuristic: if ``workspace / path`` exists, prefer it).
 
+    FR-035: absolute paths already under the workspace are normalized by
+    stripping repeated workspace prefixes. The model sometimes echoes back
+    a path that already contains the workspace prefix, or contains it twice
+    (``/ws/exp-2/ws/exp-2/report.md``). The doubled path is stripped to the
+    canonical form so ``write_file``/``append_file`` don't create a nested
+    duplicate and ``str_replace`` finds the correct file.
+
     Args:
         path: User-supplied path (relative or absolute).
 
@@ -73,15 +80,36 @@ def resolve_workspace_path(path: str) -> Path:
 
     candidate = Path(path).expanduser()
 
-    # Re-root absolute paths that look like workspace subpaths.
-    # E.g. /backend/api/auth.py → /workspace/experiment-4/backend/api/auth.py
-    # if the latter exists. This fixes the experiment-4 mismatch.
+    # FR-035: normalize absolute paths that are already under the workspace.
+    # Strip repeated workspace prefixes (the doubled-path case) so the
+    # canonical path is always returned, even if the doubled file exists.
     if candidate.is_absolute():
-        # Try re-rooting under the workspace first.
-        rerooted = (workspace / candidate.relative_to(candidate.anchor)).resolve(strict=False)
-        if rerooted.exists():
-            candidate = rerooted
-        resolved = candidate.resolve(strict=False)
+        resolved_abs = candidate.resolve(strict=False)
+        if resolved_abs.is_relative_to(workspace):
+            rel = resolved_abs.relative_to(workspace)
+            rel_parts = rel.parts
+            # ws_tail = the workspace's full path after root (e.g.
+            # ('workspace', 'experiment-2') for /workspace/experiment-2).
+            # The doubled-path case: the model echoes back the full workspace
+            # path it saw in a tool result, producing
+            # /ws/exp-2/ws/exp-2/report.md. Strip the workspace's own
+            # segments from the front of the relative part.
+            ws_tail = workspace.parts[1:]
+            while len(rel_parts) > len(ws_tail) and rel_parts[: len(ws_tail)] == ws_tail:
+                rel_parts = rel_parts[len(ws_tail):]
+            if len(rel_parts) < len(rel.parts):
+                # A workspace prefix was stripped — re-resolve the remainder.
+                resolved = (workspace / Path(*rel_parts)).resolve(strict=False)
+            else:
+                resolved = resolved_abs
+        else:
+            # Not under workspace — try re-rooting under the workspace first.
+            # E.g. /backend/api/auth.py → /workspace/experiment-4/backend/api/auth.py
+            # if the latter exists. This fixes the experiment-4 mismatch.
+            rerooted = (workspace / candidate.relative_to(candidate.anchor)).resolve(strict=False)
+            if rerooted.exists():
+                candidate = rerooted
+            resolved = candidate.resolve(strict=False)
     else:
         resolved = (workspace / candidate).resolve(strict=False)
 
