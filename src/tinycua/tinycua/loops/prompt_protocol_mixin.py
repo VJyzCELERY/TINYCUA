@@ -323,6 +323,7 @@ class PromptProtocolMixin:
                 return str(tool_name)
         for tool_name in (
             "task_result_update",
+            "task_inspect",
             "task_review_decision",
             "task_update",
             "task_decompose",

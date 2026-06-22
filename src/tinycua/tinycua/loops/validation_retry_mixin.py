@@ -549,12 +549,17 @@ class ValidationRetryMixin:
             return validation
         # Decision recorded but no inspect — retry to add it. No rollback:
         # the decision (including approval) stays so the active task advances.
+        # FR-053: the error string MUST NOT contain the substring
+        # "task_review_decision" — the _missing_or_required_tool_name heuristic
+        # pattern-matches on substrings, and "task_review_decision" here would
+        # cause it to return the wrong tool (the decision was already called;
+        # the actually-missing tool is task_inspect).
         validation.is_valid = False
         validation.errors.append(
-            "ResultReviewer must call task_inspect after task_review_decision "
-            "to review remaining unfinished tasks before curating context for "
-            "them. The decision is recorded; now inspect the roadmap in the "
-            "same response."
+            "ResultReviewer must call task_inspect after the review decision "
+            "is recorded — inspect the remaining unfinished tasks before "
+            "curating context for them. The decision is recorded; now inspect "
+            "the roadmap in the same response."
         )
         return validation
 
