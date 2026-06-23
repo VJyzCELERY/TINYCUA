@@ -41,6 +41,25 @@ def print_node_traversal(loop: Any) -> None:
             print(node_id, file=sys.stderr, flush=True)
 
 
+def print_final_task_tree(loop: Any) -> None:
+    """Print the final task tree state to stderr (FR-075).
+
+    Only called when ``--trace`` is enabled. Uses ``render_markdown()``
+    which is cached and cheap.
+    """
+    session = safe_loop_call(loop, "root_session", default=None)
+    if session is None:
+        return
+    task_store = getattr(session, "task_store", None)
+    if task_store is None:
+        return
+    render = task_store.render_markdown()
+    if not render.strip():
+        return
+    print("=== FINAL TASK TREE ===", file=sys.stderr, flush=True)
+    print(render, file=sys.stderr, flush=True)
+
+
 async def run_streaming(agent: Any, prompt: str) -> str:
     """Run an agent stream and render node text/tool activity live."""
     stream = await agent.run(prompt, stream=True)
@@ -243,7 +262,8 @@ def print_summary(loop: Any, workspace_dir: Path, artifact_dir: Path | None, res
     state_snapshot = safe_loop_call(loop, "get_state_snapshot", default={})
     if trace:
         trace_data = safe_loop_call(loop, "get_execution_trace", default=[])
-        print("\n=== TRACE ===", flush=True)
+        # FR-075: trace sections go to stderr, leaving stdout clean.
+        print("\n=== TRACE ===", file=sys.stderr, flush=True)
         for index, step in enumerate(trace_data, start=1):
             node_id = step.get("node_id") if isinstance(step, dict) else "unknown"
             node_type = step.get("node_type") if isinstance(step, dict) else "unknown"
@@ -251,25 +271,25 @@ def print_summary(loop: Any, workspace_dir: Path, artifact_dir: Path | None, res
             terminal = step.get("is_terminal") if isinstance(step, dict) else None
             print(
                 f"[{index}] {node_id} ({node_type}) route={route} terminal={terminal}",
-                flush=True,
+                file=sys.stderr, flush=True,
             )
             if isinstance(step, dict) and step.get("validation_errors"):
-                print(f"    validation_errors={len(step['validation_errors'])}", flush=True)
-            print(flush=True)
+                print(f"    validation_errors={len(step['validation_errors'])}", file=sys.stderr, flush=True)
+            print(file=sys.stderr, flush=True)
     if trace:
-        print("=== FINAL RESPONSE ===", flush=True)
-        print(result or "", flush=True)
+        print("=== FINAL RESPONSE ===", file=sys.stderr, flush=True)
+        print(result or "", file=sys.stderr, flush=True)
     if trace or task_tree:
-        print("=== TASK TREE ===", flush=True)
+        print("=== TASK TREE ===", file=sys.stderr, flush=True)
         if isinstance(state_snapshot, dict):
-            print(state_snapshot.get("task_tree_text", "No tasks."), flush=True)
+            print(state_snapshot.get("task_tree_text", "No tasks."), file=sys.stderr, flush=True)
     if trace:
-        print("\n=== WORKSPACE FILES ===", flush=True)
+        print("\n=== WORKSPACE FILES ===", file=sys.stderr, flush=True)
         for path in visible_workspace_files(workspace_dir):
-            print(f"- {path}", flush=True)
+            print(f"- {path}", file=sys.stderr, flush=True)
         if artifact_dir is not None:
-            print("\n=== ARTIFACTS ===", flush=True)
-            print(f"Full trace/transcript JSON saved under: {artifact_dir}", flush=True)
+            print("\n=== ARTIFACTS ===", file=sys.stderr, flush=True)
+            print(f"Full trace/transcript JSON saved under: {artifact_dir}", file=sys.stderr, flush=True)
 
 
 def truncate(value: str, limit: int) -> str:

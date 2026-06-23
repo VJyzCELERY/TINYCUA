@@ -80,7 +80,7 @@ _RESULT_REVIEWER_INSTRUCTION = (
 _RESULT_REVIEWER_CONTINUATION = (
     "Test the result: run_shell (test -f, grep, pytest, python -c 'import "
     "...') for code; web_search/fetch_url for research claims. For markdown "
-    "with math, check tab corruption: grep -cP '\\t' report.md. Then call "
+    "with math, check tab corruption: grep -cP '\\t' <the_file>. Then call "
     "task_review_decision for the active task. If its result also completes "
     "siblings, propagate via task_result_update (success=true, note "
     "'completed as part of task N'). Then task_inspect (no task_id), then "
@@ -117,7 +117,7 @@ def build_reviewer_tool_guidance(resolved_tools: list[Any] | None) -> str:
     if "run_shell" in names:
         lines.append(
             "For markdown with math, check for tab corruption: "
-            "grep -cP '\\t' report.md. Tabs in math blocks mean the LaTeX "
+            "grep -cP '\\t' <the_file>. Tabs in math blocks mean the LaTeX "
             "is broken — send back for revision."
         )
     research_verify = names.intersection({"web_search", "fetch_url"})
@@ -134,7 +134,7 @@ def build_reviewer_tool_guidance(resolved_tools: list[Any] | None) -> str:
     if "run_shell" in names:
         lines.append(
             "To check for duplicate or repeated content in an artifact, "
-            "use run_shell: e.g. `grep -c '^## ' report.md` to count "
+            "use run_shell: e.g. `grep -c '^## ' <the_file>` to count "
             "top-level sections, `sort <file> | uniq -d` to find duplicate "
             "lines, `wc -l <file>` to verify claimed line counts. These "
             "are generic checks — apply whichever is relevant to the "

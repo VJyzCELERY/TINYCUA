@@ -80,7 +80,7 @@ _TASK_ANALYZER_CONTINUATION = (
     "task_update succeeds, call terminate. Do not repeatedly decompose "
     "a task that already has children. If previous tasks already write to "
     "the report file, do not create a final 'write report' task — "
-    "decompose it as 'review and reorganize existing report.md' instead."
+    "decompose it as 'review and reorganize the existing deliverable file' instead."
 )
 _TASK_ANALYZER_LOCAL_REPLAN_CONTINUATION = (
     "Refine only the active local region. Explore the local region "
@@ -517,7 +517,7 @@ def _render_active_task_work_order(session: Session) -> str:
             "Complete this active task only. Use workspace, shell, Python, or "
             "research tools when they provide evidence. Do not just plan.",
             "If writing to a file that previous tasks already wrote to (e.g. "
-            "report.md), use `read_file` first to check existing content, then "
+            "the deliverable file), use `read_file` first to check existing content, then "
             "`append_file` or `str_replace` to add your section. Do NOT "
             "overwrite the entire file unless this is the first task writing "
             "to it.",

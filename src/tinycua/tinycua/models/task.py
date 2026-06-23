@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from dataclasses import asdict, dataclass, field
 from enum import StrEnum
 from typing import Any, ClassVar
+
+logger = logging.getLogger(__name__)
 
 
 class TaskStatus(StrEnum):
@@ -145,6 +148,10 @@ class TaskStateStore:
     root_task_id: str | None = None
     active_task_id: str | None = None
     transition_log: list[dict[str, Any]] = field(default_factory=list)
+    # FR-075: enable task tree snapshot logging via --trace CLI flag.
+    _enable_trace: bool = field(default=False, repr=False)
+    # Internal flag to suppress per-child logging during decompose_task.
+    _suppress_log: bool = field(default=False, repr=False)
     # ponytail: cached post-order task id list (root excluded) for O(1)
     # number lookup. None = stale; rebuilt lazily on next access. Invalidated
     # only on structural change (create_task) — status transitions don't
@@ -174,6 +181,34 @@ class TaskStateStore:
         """Increment the monotonic version (called on every mutation)."""
         self.version += 1
 
+    def _log_tree_snapshot(self, method: str) -> None:
+        """Log the task tree state after a mutation (FR-075).
+
+        Multi-line INFO: header (method + counts + active/root) then one
+        line per task (numbered, status, title, has_result marker). Only
+        fires when ``_enable_trace`` is True (set via ``--trace`` CLI flag).
+        """
+        if not self._enable_trace:
+            return
+        total = len(self.tasks)
+        completed = sum(1 for t in self.tasks.values() if t.status == TaskStatus.COMPLETED)
+        pending = sum(1 for t in self.tasks.values() if t.status == TaskStatus.PENDING)
+        in_progress = sum(1 for t in self.tasks.values() if t.status == TaskStatus.IN_PROGRESS)
+        active = self.active_task_id or "none"
+        root = self.root_task_id or "none"
+        lines = [
+            f"task_tree_mutation method={method} root={root} active={active} "
+            f"completed={completed}/{total} pending={pending} in_progress={in_progress}"
+        ]
+        ordered = self._ordered_ids()
+        for i, task_id in enumerate(ordered, 1):
+            task = self.tasks.get(task_id)
+            if task is None:
+                continue
+            marker = " ✓" if task.result is not None else ""
+            lines.append(f"  {i}. [{task.status.value}] {task.title}{marker}")
+        logger.info("\n".join(lines))
+
     def create_task(
         self,
         title: str,
@@ -194,6 +229,8 @@ class TaskStateStore:
         self._ordered_task_ids = None  # structural change: invalidate cache
         self._bump_version()
         self._refresh_active_task()
+        if not self._suppress_log:
+            self._log_tree_snapshot("create_task")
         return task
 
     def decompose_task(self, task_id: str, subtasks: list[str]) -> list[str]:
@@ -206,10 +243,15 @@ class TaskStateStore:
         task = self.get_task(task_id)
         if task.children:
             return list(task.children)
+        self._suppress_log = True
         child_ids = []
-        for title in subtasks:
-            if title.strip():
-                child_ids.append(self.create_task(title, parent_id=task_id).task_id)
+        try:
+            for title in subtasks:
+                if title.strip():
+                    child_ids.append(self.create_task(title, parent_id=task_id).task_id)
+        finally:
+            self._suppress_log = False
+        self._log_tree_snapshot("decompose_task")
         return child_ids
 
     def _reparent_completed_child(
@@ -274,6 +316,7 @@ class TaskStateStore:
         self._ordered_task_ids = None
         self._bump_version()
         self._refresh_active_task()
+        self._log_tree_snapshot("delete_task")
 
     def merge_tasks(self, child_id: str, parent_id: str) -> Task:
         """Collapse a child into its parent, preserving work.
@@ -329,6 +372,7 @@ class TaskStateStore:
         self._ordered_task_ids = None
         self._bump_version()
         self._refresh_active_task()
+        self._log_tree_snapshot("merge_tasks")
         return parent
 
     def get_task(self, task_id: str) -> Task:
@@ -426,6 +470,7 @@ class TaskStateStore:
         )
         self._bump_version()
         self._refresh_active_task()
+        self._log_tree_snapshot("transition")
         return task
 
     def record_result(self, task_id: str, result: TaskResult) -> Task:
@@ -436,6 +481,7 @@ class TaskStateStore:
         task.result = result
         self._bump_version()
         self._refresh_active_task()
+        self._log_tree_snapshot("record_result")
         return task
 
     def record_reviewer_decision(
@@ -498,6 +544,7 @@ class TaskStateStore:
                 self._propagate_result_to_next_sibling(task)
                 self._refresh_active_task()
                 self._bump_version()
+        self._log_tree_snapshot("record_reviewer_decision")
         return task
 
     def next_unfinished_leaf(self) -> Task | None:

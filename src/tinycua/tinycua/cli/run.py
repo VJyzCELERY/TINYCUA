@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import json
 import logging
+import sys
 import time
 import threading
 from collections.abc import Coroutine
@@ -113,7 +114,7 @@ def _prepare_run_workspace(
             _test_file.touch()
             _test_file.unlink()
         except OSError:
-            print(f"Artifact directory not writable: {artifact_dir}", flush=True)
+            print(f"Artifact directory not writable: {artifact_dir}", file=sys.stderr, flush=True)
             return 1
         log_path = artifact_dir / "agent.log"
         transcript_path = artifact_dir / "transcript.jsonl"
@@ -132,7 +133,7 @@ def _load_run_config(
     except ValueError as e:
         if log_path:
             write_log_entry(log_path, "config", "error", {"error": str(e)})
-        print(f"Configuration error: {e}", flush=True)
+        print(f"Configuration error: {e}", file=sys.stderr, flush=True)
         return 1
     if log_path:
         write_log_entry(log_path, "config", "info", {
@@ -165,7 +166,7 @@ def _build_run_agent(
     except Exception as e:
         if log_path:
             write_log_entry(log_path, "error", "error", {"error": str(e), "phase": "agent_creation"})
-        print(f"Failed to create agent: {e}", flush=True)
+        print(f"Failed to create agent: {e}", file=sys.stderr, flush=True)
         return 1
     return agent
 
@@ -195,7 +196,7 @@ def _finalize_run_success(
     if timeout_event.is_set():
         if log_path:
             write_log_entry(log_path, "timeout", "warning", {"timeout": timeout, "elapsed": elapsed})
-        print(f"Agent timed out after {timeout}s", flush=True)
+        print(f"Agent timed out after {timeout}s", file=sys.stderr, flush=True)
         return 124
 
     if log_path:
@@ -208,8 +209,11 @@ def _finalize_run_success(
     if save_artifacts and artifact_dir is not None and transcript_path is not None and log_path is not None:
         _write_run_transcripts(loop, artifact_dir, transcript_path, elapsed)
 
-    print(f"Agent completed in {elapsed:.1f}s", flush=True)
+    print(f"Agent completed in {elapsed:.1f}s", file=sys.stderr, flush=True)
     print_node_traversal(loop)
+    if trace:
+        from tinycua.cli.live_stream import print_final_task_tree
+        print_final_task_tree(loop)
     if result and not trace:
         print(result, flush=True)
     print_live_summary(loop, workspace, artifact_dir, result, trace=trace, task_tree=task_tree)
@@ -226,7 +230,7 @@ def _handle_run_exception(
         return 124
     if log_path:
         write_log_entry(log_path, "error", "error", {"error": str(exc), "elapsed": elapsed})
-    print(f"Agent error: {exc}", flush=True)
+    print(f"Agent error: {exc}", file=sys.stderr, flush=True)
     return 1
 
 
@@ -304,6 +308,12 @@ def run_command(
     )
     if isinstance(agent, int):
         return agent
+
+    # FR-075: enable task tree snapshot logging when --trace is set.
+    if trace:
+        loop = agent.loop
+        if hasattr(loop, "root_session") and loop.root_session is not None:
+            loop.root_session.task_store._enable_trace = True
 
     # Timeout watchdog: set an event after timeout seconds
     timeout_event = threading.Event()
