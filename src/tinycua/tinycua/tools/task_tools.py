@@ -235,6 +235,14 @@ class TaskUpdateTool(SessionTaskToolMixin, Tool):
                             "or constraints that the next executor should know."
                         ),
                     },
+                    "title": {
+                        "type": "string",
+                        "description": (
+                            "Updated task title. Use to correct a stale or "
+                            "mistaken title from task_init; the new title "
+                            "propagates to all downstream roadmap renderings."
+                        ),
+                    },
                     "status": {
                         "type": "string",
                         "enum": ["pending", "in_progress", "blocked"],
@@ -252,11 +260,12 @@ class TaskUpdateTool(SessionTaskToolMixin, Tool):
     def __call__(
         self,
         task_id: str | None = None,
+        title: str | None = None,
         description: str | None = None,
         status: str | None = None,
         **metadata: str,
     ) -> dict[str, Any]:
-        """Update task description, status, and metadata."""
+        """Update task title, description, status, and metadata."""
         active_id, error = self._resolve_task_ref(task_id)
         if error is not None:
             return error
@@ -283,6 +292,8 @@ class TaskUpdateTool(SessionTaskToolMixin, Tool):
         try:
             if status is not None:
                 task = self._store.transition(active_id, TaskStatus(status))
+            if title is not None:
+                task.title = title
             if description is not None:
                 task.description = description
             task.metadata.update(metadata)

@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from tinycua.models.task import TaskStateStore
+from tinycua.loops.task_nodes import (
+    _render_task_tree_markdown,
+    _task_context_snapshot_from_store,
+)
+from tinycua.models.task import TaskResult, TaskStateStore
 from tinycua.tools.task_tools import (
     TaskDecomposeTool,
     TaskExecuteTool,
@@ -126,3 +130,71 @@ def test_task_decompose_does_not_collapse_app_web_ui_to_vertical_slice() -> None
     titles = [store.get_task(cid).title for cid in result["child_task_ids"]]
     assert titles == ["backend", "frontend", "api"]
     assert not any("vertical-slice" in t.lower() for t in titles)
+
+
+def test_task_update_can_correct_title() -> None:
+    """TaskUpdate can fix a stale or mistaken title from task_init."""
+    store = TaskStateStore()
+    init = TaskInitTool()
+    update = TaskUpdateTool()
+    for tool in (init, update):
+        tool.bind_task_store(store)
+
+    root = init("original title")
+    result = update(task_id=root["task_id"], title="corrected title")
+
+    assert result["success"] is True
+    assert store.get_task(root["task_id"]).title == "corrected title"
+
+    # Regression guard: the existing description branch still mutates description.
+    result_desc = update(
+        task_id=root["task_id"], description="extra context from completed work"
+    )
+    assert result_desc["success"] is True
+    assert (
+        store.get_task(root["task_id"]).description == "extra context from completed work"
+    )
+
+
+def test_task_update_title_rejected_on_completed_task() -> None:
+    """Title edits are rejected on completed tasks (immutable history)."""
+    store = TaskStateStore()
+    init = TaskInitTool()
+    update = TaskUpdateTool()
+    for tool in (init, update):
+        tool.bind_task_store(store)
+
+    root = init("Stale title")
+    # Complete via the proven record_result + approve pattern.
+    store.record_result(root["task_id"], TaskResult(content="done", success=True))
+    store.record_reviewer_decision(root["task_id"], "approved")
+    assert store.get_task(root["task_id"]).status.value == "completed"
+
+    result = update(task_id=root["task_id"], title="new title")
+
+    assert result["success"] is False
+    assert "immutable" in result["error"]
+    assert store.get_task(root["task_id"]).title == "Stale title"
+
+
+def test_task_update_title_propagates_to_roadmap_rendering() -> None:
+    """Corrected title shows up in the roadmap every node reads.
+
+    _render_task_tree_markdown reads task.title verbatim, so an
+    uncorrected stale title keeps re-infecting downstream prompts. The
+    fix must propagate immediately.
+    """
+    store = TaskStateStore()
+    init = TaskInitTool()
+    update = TaskUpdateTool()
+    for tool in (init, update):
+        tool.bind_task_store(store)
+
+    init("original title")
+    update(title="corrected title")
+
+    snapshot = _task_context_snapshot_from_store(store)
+    rendered = _render_task_tree_markdown(snapshot)
+
+    assert "corrected title" in rendered
+    assert "original title" not in rendered
