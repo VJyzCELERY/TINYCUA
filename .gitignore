@@ -20,6 +20,8 @@ __pycache__/
 # Config files with secrets (use config.example.yaml as template)
 *.yaml
 !config.example.yaml
+!src/experiment/judge/profiles/**/config.yaml
+!src/experiment/judge/profiles/**/profile.yaml
 
 # Logs
 logs/
