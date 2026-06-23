@@ -512,23 +512,30 @@ class TaskStateStore:
             self.active_task_id = task.task_id
             self._bump_version()
         elif reviewer_decision == ReviewerDecision.APPROVED:
-            # Fallback for parent tasks: the executor runs a verification pass
-            # on parent tasks (post-order traversal — all children done first).
-            # If the executor forgot to call task_result_update, auto-generate
-            # a synthetic "all children completed" result so the approval can
-            # proceed instead of crashing. The executor gets its chance first
-            # (via the Verification Pass continuation); this is the safety net.
-            if task.result is None and task.children:
-                all_children_done = all(
-                    self.tasks[cid].status == TaskStatus.COMPLETED
-                    for cid in task.children
-                    if cid in self.tasks
-                )
-                if all_children_done:
+            # FR-079: auto-generate a synthetic result when APPROVED and no
+            # result exists — for BOTH parent and leaf tasks. Previously only
+            # parent tasks with completed children got the fallback; leaf
+            # tasks with no result stayed pending, causing the reviewer to
+            # loop (approve → status doesn't flip → queue re-dispatches
+            # reviewer → approve again → same loop).
+            if task.result is None:
+                if task.children:
+                    all_children_done = all(
+                        self.tasks[cid].status == TaskStatus.COMPLETED
+                        for cid in task.children
+                        if cid in self.tasks
+                    )
+                    if all_children_done:
+                        task.result = TaskResult(
+                            content="All child tasks completed — parent goal achieved.",
+                            success=True,
+                            metadata={"aggregated": True},
+                        )
+                if task.result is None:
                     task.result = TaskResult(
-                        content="All child tasks completed — parent goal achieved.",
+                        content="Approved by reviewer (no executor result recorded).",
                         success=True,
-                        metadata={"aggregated": True},
+                        metadata={"auto_generated": True},
                     )
             if task.result is not None:
                 target = TaskStatus.COMPLETED if task.result.success else TaskStatus.FAILED

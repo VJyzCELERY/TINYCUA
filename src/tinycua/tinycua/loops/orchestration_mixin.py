@@ -1062,6 +1062,8 @@ class OrchestrationMixin:
         _STRUCTURED_BUDGET = 15
         _RECOVERY_BUDGET = 10
         _JUDGE_BUDGET = 3
+        # FR-078: track error strings across cycles for the same-error guard.
+        _error_history: list[str] = []
         while not current_validation.is_valid:
             cycle += 1
             stage_results: dict[str, bool] = {}
@@ -1162,6 +1164,29 @@ class OrchestrationMixin:
                 )
                 self._recovery_reentry = True
                 return None
+            # FR-078: same-error repetition guard — if the same validation
+            # error appears 3× in a row AND stages executed tools, take a
+            # different action instead of repeating the same retry.
+            current_error = "; ".join(current_validation.errors)
+            _error_history.append(current_error)
+            if len(_error_history) >= 3 and len(set(_error_history[-3:])) == 1:
+                error_lower = current_error.lower()
+                recent = node.progress.stage_tool_history[-3:]
+                stages_ran_tools = any(e.get("successful_tools") for e in recent)
+                if "call terminate" in error_lower and missing == ["terminate"]:
+                    logger.info("node=%s same-error guard: 'call terminate' ×3", node.node_id)
+                    terminated = await self._direct_terminate(node, agent)
+                    if terminated is not None:
+                        current_result, current_validation = terminated
+                        self._accumulate_results(current_result, accumulated_results)
+                        current_validation = self._revalidate_with_accumulated(
+                            node, current_result, accumulated_results)
+                        if current_validation.is_valid:
+                            return current_result, current_validation
+                elif stages_ran_tools and ("task_result_update" in error_lower or "task-state tool" in error_lower):
+                    logger.info("node=%s same-error guard: '%s' ×3, skipping to judge", node.node_id, current_error[:80])
+                    structured_attempts = _STRUCTURED_BUDGET
+                    recovery_attempts = _RECOVERY_BUDGET
             self._log_recovery_cycle(node, current_validation, cycle, stage_results)
 
     async def _direct_terminate(

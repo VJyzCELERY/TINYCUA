@@ -142,9 +142,10 @@ _TASK_EXECUTOR_INSTRUCTION = (
     "from the work order. Your final action MUST call task_result_update "
     "with success=true/false and a concise outcome report. Do not describe "
     "what you will do — use the tools and report the result. "
-    "If your work also completed sibling tasks, call task_inspect on each "
-    "sibling to verify, then task_result_update with success=true and a "
-    "note ('completed as part of task N') for each."
+    "After completing the active task, check for sibling tasks (same "
+    "parent) your work also completed. For each, call task_inspect to "
+    "verify, then task_result_update with success=true and 'completed as "
+    "part of task N'. Only report siblings you actually completed."
 )
 _TASK_EXECUTOR_CONTINUATION = (
     "Based on the active task above, explore the current state (read_file/"
@@ -152,8 +153,8 @@ _TASK_EXECUTOR_CONTINUATION = (
     "tools to complete it. Call task_result_update with what changed or was "
     "found and success=true/false. If blocked, call task_result_update with "
     "success=false and the concrete blocker; do not keep repeating "
-    "read/list inspection. If the roadmap has sibling tasks you already "
-    "completed as a side effect, inspect and report results for them too."
+    "read/list inspection. After completing the active task, check for "
+    "sibling tasks you also completed — inspect and report results for each."
 )
 
 _RESULT_REVIEWER_INSTRUCTION = _RESULT_REVIEWER_INSTRUCTION  # re-exported from node_guidance

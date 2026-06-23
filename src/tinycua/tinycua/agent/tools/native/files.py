@@ -58,6 +58,16 @@ def _normalize_newlines(text: str) -> str:
     text = _protect_unescape(text, "\\n", "\n", _LATEX_N)
     text = _protect_unescape(text, "\\t", "\t", _LATEX_T)
     text = _protect_unescape(text, "\\r", "\r", _LATEX_R)
+    # FR-080: decode \uXXXX escape sequences that json.loads didn't fully
+    # decode (double-escaped by local models). \u2208 → ∈, \u03a3 → Σ, etc.
+    # This fixes literal \uXXXX corruption in math-heavy documents.
+    import re
+
+    text = re.sub(
+        r"\\u([0-9a-fA-F]{4})",
+        lambda m: chr(int(m.group(1), 16)),
+        text,
+    )
     return text
 
 

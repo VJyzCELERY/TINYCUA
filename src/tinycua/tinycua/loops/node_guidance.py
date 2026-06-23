@@ -73,18 +73,21 @@ _RESULT_REVIEWER_INSTRUCTION = (
     "Do not write a long explanation — call the tools. Sanity-check for "
     "common LLM messes: duplicate content (grep -c, sort | uniq -d), "
     "hallucinated claims, structural inconsistency. Every decision must cite "
-    "validation evidence in rationale. If the result also satisfies sibling "
-    "tasks, call task_result_update for them (success=true, note 'completed "
-    "as part of task N'). Do NOT call task_review_decision for siblings."
+    "validation evidence in rationale. After reviewing the active task, "
+    "check if its result also satisfies sibling tasks (same parent). For "
+    "each, call task_result_update (success=true, 'completed as part of "
+    "task N'). Do NOT call task_review_decision for siblings."
 )
 _RESULT_REVIEWER_CONTINUATION = (
     "Test the result: run_shell (test -f, grep, pytest, python -c 'import "
-    "...') for code; web_search/fetch_url for research claims. For markdown "
-    "with math, check tab corruption: grep -cP '\\t' <the_file>. Then call "
-    "task_review_decision for the active task. If its result also completes "
-    "siblings, propagate via task_result_update (success=true, note "
-    "'completed as part of task N'). Then task_inspect (no task_id), then "
-    "terminate."
+    "...') for code; web_search/fetch_url for research claims. Verify the "
+    "artifact actually works, not just that it exists or imports. For "
+    "markdown with math, check for tab corruption AND unicode escape "
+    "corruption: grep -cP '\\t' <the_file> and grep -c '\\u[0-9a-f]' "
+    "<the_file>. Then call task_review_decision for the active task. If its "
+    "result also completes siblings, propagate via task_result_update "
+    "(success=true, note 'completed as part of task N'). Then task_inspect "
+    "(no task_id), then terminate."
 )
 
 
@@ -109,16 +112,18 @@ def build_reviewer_tool_guidance(resolved_tools: list[Any] | None) -> str:
             "command output, exit_code)."
         )
         lines.append(
-            "File existence (test -f) is NOT sufficient for code artifacts. "
-            "Run python -c 'import ...' or pytest via run_shell to verify "
-            "the code actually works. If pytest tests exist, run them — "
-            "if they fail, send back with the failure output."
+            "File existence and import checks are NOT sufficient. Verify "
+            "the artifact actually WORKS — run it, test it, probe its "
+            "behavior. For code, run a functional test that exercises the "
+            "main path, not just import. For documents, check content "
+            "integrity (tabs, escape sequences, duplicate sections)."
         )
     if "run_shell" in names:
         lines.append(
-            "For markdown with math, check for tab corruption: "
-            "grep -cP '\\t' <the_file>. Tabs in math blocks mean the LaTeX "
-            "is broken — send back for revision."
+            "For markdown with math, check for BOTH tab corruption "
+            "(grep -cP '\\t' <the_file>) AND unicode escape corruption "
+            "(grep -c '\\u[0-9a-f]' <the_file>). Literal \\uXXXX sequences "
+            "mean unicode escapes were not decoded — send back for revision."
         )
     research_verify = names.intersection({"web_search", "fetch_url"})
     if research_verify:

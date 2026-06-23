@@ -130,7 +130,7 @@ class TestReviewerTestingGuidance:
         tools = [_FakeTool("read_file"), _FakeTool("run_shell"), _FakeTool("task_review_decision")]
         guidance = build_reviewer_tool_guidance(tools)
         assert "not sufficient" in guidance.lower()
-        assert "python -c" in guidance.lower()
+        assert "actually works" in guidance.lower() or "functional" in guidance.lower()
 
 
 class TestTaskResultUpdateClarity:

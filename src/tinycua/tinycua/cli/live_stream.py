@@ -120,7 +120,10 @@ class LiveStreamPrinter:
         if event_type == "node.completed":
             content = str(event.get("content") or "")
             finish_reason = str(event.get("finish_reason") or "")
-            if content:
+            # FR-080: do NOT re-print content for the response node — it was
+            # already streamed as response.output_text.delta events. Re-printing
+            # causes triplication (deltas + node.completed + print(result)).
+            if content and node_id != "response":
                 self._print_text(node_id, content, kind="output")
             elif finish_reason:
                 self._print_marker(node_id, f"completed: {finish_reason}")

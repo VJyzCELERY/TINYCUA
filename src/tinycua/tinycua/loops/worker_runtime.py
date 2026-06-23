@@ -16,7 +16,7 @@ from tinycua.loops.task_nodes import (
     TinyCUATaskExecutorNode,
 )
 from tinycua.models.session import Session
-from tinycua.models.task import ReviewerDecision, TaskStateStore
+from tinycua.models.task import ReviewerDecision, TaskStateStore, TaskStatus
 
 logger = logging.getLogger(__name__)
 
@@ -298,7 +298,15 @@ class WorkerRuntimeController:
         # A failed result (success=False) also needs rework — the executor
         # must retry. next_unfinished_leaf treats FAILED as unfinished.
         failed_result = active.result is not None and not active.result.success
-        if active.result is None or needs_rework or failed_result:
+        # FR-079 safety net: if the last decision was approved but the task
+        # is not COMPLETED (status didn't flip — e.g. result was missing and
+        # auto-generation failed), spawn executor to produce a result instead
+        # of looping the reviewer.
+        approved_not_completed = (
+            last_decision == ReviewerDecision.APPROVED.value
+            and active.status != TaskStatus.COMPLETED
+        )
+        if active.result is None or needs_rework or failed_result or approved_not_completed:
             # No result OR sent back → executor must run.
             queue.items.extend(
                 [
