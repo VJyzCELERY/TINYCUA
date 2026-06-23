@@ -471,9 +471,9 @@ class TaskResultUpdateTool(SessionTaskToolMixin, Tool):
             name="task_result_update",
             description=(
                 "Report the outcome for the active or specified task. "
-                "Write a concise summary of what was done, what was found, "
-                "and whether it succeeded. Always call before finishing. "
-                "task_id may be UUID or roadmap number."
+                "Set success=true when done, success=false when failed or "
+                "blocked. Always call before finishing. task_id may be UUID "
+                "or roadmap number."
             ),
             parameters={
                 "type": "object",
@@ -482,8 +482,10 @@ class TaskResultUpdateTool(SessionTaskToolMixin, Tool):
                     "content": {
                         "type": "string",
                         "description": (
-                            "Concise outcome report: what was done, what was "
-                            "found, and why it succeeded or failed."
+                            "Concise outcome report: what was done, what "
+                            "was found, and why it succeeded or failed. "
+                            "Set success=true for completed work, "
+                            "success=false for failed/blocked work."
                         ),
                     },
                     "success": {"type": "boolean"},

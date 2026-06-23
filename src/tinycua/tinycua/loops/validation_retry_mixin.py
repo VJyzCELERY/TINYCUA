@@ -53,12 +53,14 @@ class ValidationRetryMixin:
             tool_results = self._tool_results_from_llm_result(llm_result)
             if self._successful_executor_action_results(tool_results):
                 return (
-                    "Call task_result_update with the observed tool results "
-                    "for the active task."
+                    "Call task_result_update with success=true and a concise "
+                    "summary of what was done. Do not leave the task without "
+                    "reporting the outcome."
                 )
             return (
-                "Use an appropriate action or research tool for the active "
-                "task, then call task_result_update with that evidence."
+                "Use an appropriate action or research tool for the active task, "
+                "then call task_result_update with success=true and the evidence. "
+                "Do not report success=true unless the work is actually done."
             )
         if "terminate" in str(error):
             if node.node_id != "result_reviewer":

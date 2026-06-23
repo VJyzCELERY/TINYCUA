@@ -19,8 +19,8 @@ class TestNodeGuidanceModule:
     def test_instruction_mentions_validation_evidence(self):
         assert "validation evidence" in _RESULT_REVIEWER_INSTRUCTION.lower()
 
-    def test_instruction_under_850_chars(self):
-        assert len(_RESULT_REVIEWER_INSTRUCTION) < 850
+    def test_instruction_under_950_chars(self):
+        assert len(_RESULT_REVIEWER_INSTRUCTION) < 950
 
     def test_continuation_importable(self):
         assert _RESULT_REVIEWER_CONTINUATION

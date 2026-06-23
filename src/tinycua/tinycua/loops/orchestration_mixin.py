@@ -1397,7 +1397,11 @@ class OrchestrationMixin:
         recovery_content = recovered_result.content or combined
         # Record the recovered output and fire on_complete so the queue
         # gets the next nodes (schedule_after_review / schedule_next).
-        self._record_node_output(node, recovery_content, recovered_result.tool_calls)
+        # FR-074: clear_prior=True to prevent duplicating content from
+        # the failed attempt that preceded recovery.
+        self._record_node_output(
+            node, recovery_content, recovered_result.tool_calls, clear_prior=True,
+        )
         recovered_result.metadata = dict(recovered_result.metadata)
         if recovery_content:
             self._record_node_content_transcript(node, recovery_content)

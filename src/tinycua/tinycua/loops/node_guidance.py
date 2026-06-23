@@ -63,28 +63,28 @@ def summarize_tool_result(content: str) -> str:
 
 
 _RESULT_REVIEWER_INSTRUCTION = (
-    "You are the ResultReviewer. You only review outcomes; you do not edit "
-    "files or re-execute work. Verify with run_shell (test -f, grep, pytest, "
-    "git diff) and check exit_code, not eyeballed source. For research "
-    "tasks, use web_search/fetch_url to verify claimed findings are real "
-    "and current — do not accept fabricated or stale claims, do not "
-    "re-research the whole task. Then call task_review_decision: approved, "
-    "needs_revision, rejected, or replan. If bad, record feedback; do not "
-    "edit files. Terminate after useful task curation. Do not write a long "
-    "explanation — call the tools. "
-    "Also sanity-check for common LLM messes (any artifact type): "
-    "duplicate/repeated content (grep -c, sort | uniq -d), hallucinated "
-    "claims, structural inconsistency (claimed N sections but has M). "
-    "Every decision must cite validation evidence in rationale."
+    "You are the ResultReviewer. You do not edit files. You SHOULD test the "
+    "result — run the code, check syntax, verify claims. Testing is "
+    "verification, not re-execution. Verify with run_shell (test -f, grep, "
+    "pytest, git diff) and check exit_code, not eyeballed source. For "
+    "research, use web_search/fetch_url to verify claims are real — do not "
+    "accept fabricated or stale claims. Then call task_review_decision: "
+    "approved, needs_revision, rejected, or replan. If bad, record feedback. "
+    "Do not write a long explanation — call the tools. Sanity-check for "
+    "common LLM messes: duplicate content (grep -c, sort | uniq -d), "
+    "hallucinated claims, structural inconsistency. Every decision must cite "
+    "validation evidence in rationale. If the result also satisfies sibling "
+    "tasks, call task_result_update for them (success=true, note 'completed "
+    "as part of task N'). Do NOT call task_review_decision for siblings."
 )
 _RESULT_REVIEWER_CONTINUATION = (
-    "Verify the outcome. Explore to verify the executor's claims: run_shell "
-    "(test -f, grep, pytest, git diff) for file artifacts; web_search/"
-    "fetch_url for research-task claims (model names, versions, benchmarks). "
-    "Then call task_review_decision first. Then call task_inspect (no "
-    "task_id) for the compact task list; only for a task you want to "
-    "annotate, call task_inspect with that task_id for detail, then "
-    "task_update to add context. Then call terminate."
+    "Test the result: run_shell (test -f, grep, pytest, python -c 'import "
+    "...') for code; web_search/fetch_url for research claims. For markdown "
+    "with math, check tab corruption: grep -cP '\\t' report.md. Then call "
+    "task_review_decision for the active task. If its result also completes "
+    "siblings, propagate via task_result_update (success=true, note "
+    "'completed as part of task N'). Then task_inspect (no task_id), then "
+    "terminate."
 )
 
 
@@ -107,6 +107,18 @@ def build_reviewer_tool_guidance(resolved_tools: list[Any] | None) -> str:
             "diff) over eyeballing source. Do not accept generic 'all "
             "requirements met' — cite specific evidence (file excerpt, "
             "command output, exit_code)."
+        )
+        lines.append(
+            "File existence (test -f) is NOT sufficient for code artifacts. "
+            "Run python -c 'import ...' or pytest via run_shell to verify "
+            "the code actually works. If pytest tests exist, run them — "
+            "if they fail, send back with the failure output."
+        )
+    if "run_shell" in names:
+        lines.append(
+            "For markdown with math, check for tab corruption: "
+            "grep -cP '\\t' report.md. Tabs in math blocks mean the LaTeX "
+            "is broken — send back for revision."
         )
     research_verify = names.intersection({"web_search", "fetch_url"})
     if research_verify:

@@ -258,7 +258,17 @@ class WorkerRuntimeController:
         return "\n".join(lines)
 
     def schedule_next(self, queue: NodeQueue) -> None:
-        """Schedule execution for the next active task or final aggregation."""
+        """Schedule execution for the next active task or final aggregation.
+
+        FR-067: state-driven queue. The queue checks the active task's state:
+        - No result → spawn [executor, reviewer] (work needs to be done).
+        - Has result, no negative review → spawn [reviewer] only (work is done,
+          just needs review — skip the executor no-op cycle).
+        - Has result + last review was needs_revision/rejected → spawn
+          [executor, reviewer] (rework needed).
+        - All done → spawn [result_aggregation].
+        Post-order traversal is maintained via next_unfinished_leaf.
+        """
         if self.store.all_done():
             queue.items.append(
                 TinyCUAResultAggregationNode(
@@ -267,7 +277,29 @@ class WorkerRuntimeController:
                 )
             )
             return
-        if self.store.get_active_task() is not None:
+        active = self.store.get_active_task()
+        if active is None:
+            queue.items.append(
+                TinyCUAResultAggregationNode(
+                    node_id="result_aggregation",
+                    config=create_node_config("result_aggregation"),
+                )
+            )
+            return
+        # Check if the task was sent back for rework.
+        last_decision = None
+        if active.reviewer_decisions:
+            last_decision = active.reviewer_decisions[-1].get("decision")
+        needs_rework = last_decision in {
+            ReviewerDecision.NEEDS_REVISION.value,
+            ReviewerDecision.REJECTED.value,
+            ReviewerDecision.REPLAN.value,
+        }
+        # A failed result (success=False) also needs rework — the executor
+        # must retry. next_unfinished_leaf treats FAILED as unfinished.
+        failed_result = active.result is not None and not active.result.success
+        if active.result is None or needs_rework or failed_result:
+            # No result OR sent back → executor must run.
             queue.items.extend(
                 [
                     TinyCUATaskExecutorNode(
@@ -279,4 +311,12 @@ class WorkerRuntimeController:
                         config=create_node_config("result_reviewer"),
                     ),
                 ]
+            )
+        else:
+            # Has result, not sent back → just review (skip executor no-op).
+            queue.items.append(
+                TinyCUAResultReviewerNode(
+                    node_id="result_reviewer",
+                    config=create_node_config("result_reviewer"),
+                )
             )

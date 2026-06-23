@@ -91,6 +91,22 @@ def _process_response(
         h.body_width = 0  # no line wrapping
         body = h.handle(body)
 
+    # FR-072: detect empty bodies (JS-rendered pages, auth-walled, etc.)
+    # and return failure so the model knows to try a different source.
+    if not body or not body.strip():
+        return {
+            "success": False,
+            "error": (
+                "Page returned empty content (likely JS-rendered or "
+                "requires authentication). Cannot verify content. Try a "
+                "different source or use web_search for snippets."
+            ),
+            "content": "",
+            "url": url,
+            "content_type": content_type,
+            "status": response.status_code,
+        }
+
     return {
         "success": True,
         "content": body,

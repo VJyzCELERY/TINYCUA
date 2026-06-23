@@ -282,9 +282,9 @@ def test_task_node_prompts_are_action_first_not_phase_essays() -> None:
     ]
 
     # Prompts stay action-first (call a tool, no essay answers). The limit
-    # accommodates the exploration-guidance additions (each node may explore
-    # before its role duty) while still rejecting phase-essay bloat.
-    assert all(len(prompt) < 850 for prompt in prompts)
+    # accommodates the exploration-guidance additions + sibling propagation
+    # guidance (FR-067/FR-069) while still rejecting phase-essay bloat.
+    assert all(len(prompt) < 950 for prompt in prompts)
     combined = "\n".join(prompts)
     assert "Phase 1" not in combined
     assert "four phases" not in combined

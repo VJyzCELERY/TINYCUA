@@ -75,7 +75,7 @@ def test_fetch_url_redirect(httpx_mock):
 
 
 def test_fetch_url_empty_response(httpx_mock):
-    """Empty response body returns empty string in content."""
+    """Empty response body returns failure (FR-072: empty body = likely JS-rendered)."""
     httpx_mock.add_response(
         method="GET",
         url="https://example.com/empty",
@@ -86,8 +86,9 @@ def test_fetch_url_empty_response(httpx_mock):
 
     result = fetch_url("https://example.com/empty")
     assert isinstance(result, dict)
-    assert result["success"] is True
-    assert result["content"] is not None
+    # FR-072: empty body is now a failure, not a silent success.
+    assert result["success"] is False
+    assert "empty content" in result.get("error", "").lower()
 
 
 def test_fetch_url_connection_error(httpx_mock):

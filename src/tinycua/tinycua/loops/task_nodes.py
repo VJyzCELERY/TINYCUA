@@ -133,15 +133,18 @@ _TASK_ASSESSOR_LOCAL_REPLAN_CONTINUATION = (
 )
 
 _TASK_EXECUTOR_INSTRUCTION = (
-    "You are the TaskExecutor. You only execute the active task; you do not "
+    "You are the TaskExecutor. You execute the active task; you do not "
     "review, decompose, or curate other tasks. Explore the workspace and "
     "task state first (read_file, list_files, search_files, web_search, "
     "fetch_url) before making changes — plan and analyze before you act. "
     "You MUST use tools for workspace changes, inspection, commands, "
     "Python, research, or verification. Preserve explicit user constraints "
     "from the work order. Your final action MUST call task_result_update "
-    "with a concise outcome report. Do not describe what you will do — use "
-    "the tools and report the result."
+    "with success=true/false and a concise outcome report. Do not describe "
+    "what you will do — use the tools and report the result. "
+    "If your work also completed sibling tasks, call task_inspect on each "
+    "sibling to verify, then task_result_update with success=true and a "
+    "note ('completed as part of task N') for each."
 )
 _TASK_EXECUTOR_CONTINUATION = (
     "Based on the active task above, explore the current state (read_file/"
@@ -149,7 +152,8 @@ _TASK_EXECUTOR_CONTINUATION = (
     "tools to complete it. Call task_result_update with what changed or was "
     "found and success=true/false. If blocked, call task_result_update with "
     "success=false and the concrete blocker; do not keep repeating "
-    "read/list inspection."
+    "read/list inspection. If the roadmap has sibling tasks you already "
+    "completed as a side effect, inspect and report results for them too."
 )
 
 _RESULT_REVIEWER_INSTRUCTION = _RESULT_REVIEWER_INSTRUCTION  # re-exported from node_guidance
@@ -1028,9 +1032,17 @@ class TinyCUAResultAggregationNode(ProcessNode):
         root.status = TaskStatus.COMPLETED
         aggregated = self._build_aggregated_result(llm_result.content)
         root.metadata["aggregated_result"] = aggregated.__dict__
+        # FR-074: use idempotent_by_identity to avoid duplicating if the
+        # orchestration layer's _record_node_output already recorded the
+        # same aggregated object. This handles both the direct-call test
+        # path (where parse_loop_result is the only recorder) and the
+        # production path (where _record_node_output runs first).
         from tinycua.models.session_context_entry import append_output_entry
 
-        append_output_entry(self.session, aggregated, self.node_id)
+        append_output_entry(
+            self.session, aggregated, self.node_id,
+            idempotent_by_identity=True,
+        )
 
     def _summarize_task_results(self) -> str:
         """Summarize child task outputs for aggregation content (reverse execution order)."""

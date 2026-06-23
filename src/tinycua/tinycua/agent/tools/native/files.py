@@ -23,31 +23,41 @@ _FULL_FILE_TRUNCATION_BYTES = 100 * 1024
 
 
 def _normalize_newlines(text: str) -> str:
-    """Unescape literal backslash-n/t/r to real control characters.
+    """Unescape literal backslash-n/t/r from JSON transport, preserving LaTeX.
 
-    Local models (qwen3.5-9b on llama.cpp/LM Studio) sometimes send ``\\n``
-    (backslash + n as two literal characters) in JSON tool-call arguments
-    instead of an actual newline byte. Cloud APIs (GPT-4, Claude) handle
-    this correctly, but local inference servers don't always deserialize
-    the escape properly. Writing the literal two-character sequence to a
-    file produces one giant line instead of properly formatted content.
+    Local models sometimes send ``\\n`` (backslash + n as two literal
+    characters) in JSON tool-call arguments instead of an actual newline.
 
-    This function unescapes ``\\n``, ``\\t``, and ``\\r`` to their real
-    control-character equivalents, but ONLY when:
-    - The text contains the literal two-character sequence (``\\n`` etc.)
-    - The text does NOT already contain the corresponding real character
-
-    This avoids mangling source code that legitimately contains ``\\n`` as
-    a string literal (e.g. Python ``sep = "\\n"``) — in those cases, the
-    content already has real newlines elsewhere, so the heuristic leaves
-    the literal ``\\n`` alone.
+    FR-073: Use the original heuristic (unescape when no real control char
+    exists) but protect known LaTeX command prefixes that start with
+    ``\\n``, ``\\t``, or ``\\r`` (e.g. ``\\nabla``, ``\\top``, ``\\right``).
     """
-    if "\\n" in text and "\n" not in text:
-        text = text.replace("\\n", "\n")
-    if "\\t" in text and "\t" not in text:
-        text = text.replace("\\t", "\t")
-    if "\\r" in text and "\r" not in text:
-        text = text.replace("\\r", "\r")
+    _LATEX_N = {"\\nabla", "\\neq", "\\nleq", "\\ngeq", "\\newcommand",
+                "\\nonumber", "\\nolimits", "\\nrightarrow", "\\nu"}
+    _LATEX_T = {"\\top", "\\tanh", "\\text", "\\theta", "\\times", "\\tilde",
+                "\\to", "\\tfrac", "\\tableofcontents", "\\tabular", "\\tau",
+                "\\tbinom", "\\textrm", "\\textbf", "\\textit"}
+    _LATEX_R = {"\\right", "\\ref", "\\rangle", "\\rule", "\\rho", "\\rm",
+                "\\raggedright", "\\raisebox"}
+
+    def _protect_unescape(text: str, seq: str, real_char: str, latex_cmds: set[str]) -> str:
+        if seq not in text or real_char in text:
+            return text
+        # Replace LaTeX commands with placeholders before unescaping.
+        placeholders: dict[str, str] = {}
+        for i, cmd in enumerate(latex_cmds):
+            if cmd in text:
+                ph = f"\x00LX{i}\x00"
+                placeholders[ph] = cmd
+                text = text.replace(cmd, ph)
+        text = text.replace(seq, real_char)
+        for ph, cmd in placeholders.items():
+            text = text.replace(ph, cmd)
+        return text
+
+    text = _protect_unescape(text, "\\n", "\n", _LATEX_N)
+    text = _protect_unescape(text, "\\t", "\t", _LATEX_T)
+    text = _protect_unescape(text, "\\r", "\r", _LATEX_R)
     return text
 
 
