@@ -348,8 +348,14 @@ def judge_agent(
     print(f"[{agent}] judging via hermes-judge container…", flush=True)
     started = datetime.now(UTC)
 
+    # Ephemeral container per judging run: `run --rm` spawns a fresh
+    # container (clean terminal env, no leftover state from prior runs)
+    # that inherits the judge-hermes-home volume (model/provider config +
+    # auth tokens) and is auto-removed on exit. Distinct from the `exec`
+    # path used by _judge_container_running / snapshot_judge_model, which
+    # probe the persistent container for cheap config reads.
     command = [
-        "docker", "compose", "exec",
+        "docker", "compose", "run", "--rm",
         "-T",
         "judge",
         "hermes", "-p", "judge", "chat", "-Q", "-q",
@@ -461,8 +467,14 @@ def cross_judge_experiment(
 
     print("  judging via hermes-judge container…", flush=True)
     started = datetime.now(UTC)
+    # Ephemeral container per judging run: `run --rm` spawns a fresh
+    # container (clean terminal env, no leftover state from prior runs)
+    # that inherits the judge-hermes-home volume (model/provider config +
+    # auth tokens) and is auto-removed on exit. Distinct from the `exec`
+    # path used by _judge_container_running / snapshot_judge_model, which
+    # probe the persistent container for cheap config reads.
     command = [
-        "docker", "compose", "exec",
+        "docker", "compose", "run", "--rm",
         "-T",
         "judge",
         "hermes", "-p", "judge", "chat", "-Q", "-q",
