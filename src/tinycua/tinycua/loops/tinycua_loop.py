@@ -15,7 +15,7 @@ from tinycua_sdk.agent.executor import ToolExecutor
 from tinycua_sdk.agent.loop import BaseLoop
 
 from tinycua.config.types import LLMResult, ValidationError, ValidationResult
-from tinycua.loops._loop_constants import _MAX_TOOL_CONTINUATIONS
+from tinycua.loops._loop_constants import _MAX_PROVIDER_RETRIES, _MAX_TOOL_CONTINUATIONS
 from tinycua.loops.context_rendering import render_llm_content, sanitize_internal_reprs
 from tinycua.loops.node_contract import NodeState
 from tinycua.loops.node_queue import NodeQueue
@@ -718,7 +718,7 @@ class TinyCUALoop(
         window = entries[:-keep_recent] if keep_recent else entries
         if not window:
             return
-        logger.debug(
+        logger.info(
             "compaction_trigger node=%s last_tokens=%d threshold=%d max_context=%s entries=%d keep_recent=%d",
             node.node_id,
             session._last_input_tokens,
@@ -730,7 +730,42 @@ class TinyCUALoop(
         try:
             await session.compact_context(window=window)
         except Exception:
-            logger.debug("compaction_failed node=%s", node.node_id, exc_info=True)
+            logger.info("compaction_failed node=%s", node.node_id, exc_info=True)
+
+    async def _force_compact(self, node: Node, agent: Agent) -> None:
+        """Force-compact session_context regardless of token threshold (FR-086).
+
+        Used when a provider error occurred (likely context overflow) — the
+        failed call produced no usage data, so the normal threshold check in
+        ``_maybe_compact`` can't fire. This bypasses the threshold and compacts
+        whatever's compactable to shrink the prompt for the next retry.
+
+        No-op when no strategy is configured or there aren't enough entries.
+        Never raises — compaction failures are logged and swallowed.
+        """
+        session = node.session or self.root_session
+        sc = session.session_config
+        if sc is None or sc.compaction_strategy is None:
+            return
+        strategy = sc.compaction_strategy
+        llm_call = getattr(strategy, "_llm_call", None)
+        if llm_call is None and hasattr(strategy, "_llm_call"):
+            strategy._llm_call = self._build_compaction_llm_call(agent)
+        keep_recent = max(0, sc.compaction_keep_recent)
+        entries = list(session.session_context)
+        if len(entries) <= keep_recent:
+            return
+        window = entries[:-keep_recent] if keep_recent else entries
+        if not window:
+            return
+        logger.info(
+            "forced_compaction node=%s entries=%d keep_recent=%d",
+            node.node_id, len(entries), keep_recent,
+        )
+        try:
+            await session.compact_context(window=window)
+        except Exception:
+            logger.info("forced_compaction_failed node=%s", node.node_id, exc_info=True)
 
     def _append_tool_result_messages(
         self,
@@ -767,6 +802,73 @@ class TinyCUALoop(
                 }
             )
 
+    async def _call_llm_with_provider_retry(
+        self,
+        agent: Agent,
+        node: Node,
+        attempt: int,
+        attempt_messages: list[dict[str, Any]],
+        attempt_tools: list[Tool],
+        base_messages: list[dict[str, Any]],
+        retry_feedback: list[dict[str, Any]],
+        retry_message: str | None,
+        provider_retries_ref: list[int],
+        *,
+        break_on_error: bool = False,
+    ) -> dict[str, Any] | None:
+        """Call the LLM with catch-compact-retry on provider errors (FR-086).
+
+        Catches any non-cancel exception, force-compacts session_context, and
+        retries with a smaller prompt. After ``_MAX_PROVIDER_RETRIES`` failed
+        retries, re-raises the original exception.
+
+        Args:
+            agent: The SDK agent instance.
+            node: The node being executed.
+            attempt: The current attempt number (for logging).
+            attempt_messages: The messages list for this attempt (rebuilt
+                in-place after compaction when ``break_on_error`` is False).
+            attempt_tools: The tools list for this attempt.
+            base_messages: Base messages for rebuilding after compaction.
+            retry_feedback: Retry feedback messages for rebuilding.
+            retry_message: Retry message string for rebuilding.
+            provider_retries_ref: A one-element list ``[count]`` acting as a
+                mutable counter shared across call sites.
+            break_on_error: When True (continuation rounds), force-compaction
+                then return ``None`` to signal the caller to break to the
+                next attempt. When False (initial call), retry in-place.
+
+        Returns:
+            The raw LLM response dict, or ``None`` when ``break_on_error`` is
+            True and a provider error was caught (caller breaks to next
+            attempt).
+
+        Raises:
+            The original exception after ``_MAX_PROVIDER_RETRIES`` retries.
+        """
+        while True:
+            try:
+                return await self._call_agent_llm(
+                    agent, node, attempt_messages, attempt_tools,
+                )
+            except (asyncio.CancelledError, KeyboardInterrupt):
+                raise
+            except Exception as exc:
+                provider_retries_ref[0] += 1
+                if provider_retries_ref[0] > _MAX_PROVIDER_RETRIES:
+                    raise
+                suffix = ", aborting continuation" if break_on_error else ""
+                logger.warning(
+                    "provider_error_retry node=%s attempt=%d retry=%d error=%s — forcing compaction%s",
+                    node.node_id, attempt, provider_retries_ref[0], str(exc)[:200], suffix,
+                )
+                await self._force_compact(node, agent)
+                if break_on_error:
+                    return None  # caller breaks to next attempt
+                attempt_messages[:] = self._messages_with_retry_prompt(
+                    base_messages, retry_feedback, retry_message,
+                )
+
     async def _call_node_with_retry(
         self,
         node: Node,
@@ -802,10 +904,14 @@ class TinyCUALoop(
                 NodeState.EXECUTING if attempt == 1 else NodeState.RETRYING,
                 reason="attempt" if attempt == 1 else "retry",
             )
-            # Milestone 8 Stream B: compact session_context before building
-            # messages when the previous call neared the context window.
-            if attempt > 1:
-                await self._maybe_compact(node, agent)
+            # FR-086: per-attempt provider-error retry counter (mutable list
+            # so the helper and continuation site share the same count).
+            provider_retries_ref = [0]
+            # FR-085: continuous monitoring — compact whenever the session
+            # exceeds threshold, not just on retries. Runs on attempt 1 too,
+            # as long as a prior call's usage data exists (chicken-and-egg
+            # guard in _maybe_compact: _last_input_tokens <= 0 → skip).
+            await self._maybe_compact(node, agent)
             attempt_messages = self._messages_with_retry_prompt(
                 base_messages,
                 retry_feedback,
@@ -816,11 +922,11 @@ class TinyCUALoop(
                 resolved_tools,
                 retry_message,
             )
-            raw_response = await self._call_agent_llm(
-                agent,
-                node,
-                attempt_messages,
-                attempt_tools,
+            # FR-086: catch provider errors, force-compaction, and retry.
+            raw_response = await self._call_llm_with_provider_retry(
+                agent, node, attempt, attempt_messages, attempt_tools,
+                base_messages, retry_feedback, retry_message,
+                provider_retries_ref,
             )
             last_result = LLMResult(
                 content=sanitize_internal_reprs(raw_response.get("content") or ""),
@@ -888,12 +994,16 @@ class TinyCUALoop(
                 continuation_rounds += 1
                 if continuation_rounds >= _MAX_TOOL_CONTINUATIONS:
                     break
-                raw_response = await self._call_agent_llm(
-                    agent,
-                    node,
-                    attempt_messages,
-                    attempt_tools,
+                # FR-086: catch provider errors during continuation rounds
+                # (context overflow from accumulated tool results). On error,
+                # force-compaction and break to the next attempt.
+                raw_response = await self._call_llm_with_provider_retry(
+                    agent, node, attempt, attempt_messages, attempt_tools,
+                    base_messages, retry_feedback, retry_message,
+                    provider_retries_ref, break_on_error=True,
                 )
+                if raw_response is None:
+                    break  # provider error → next attempt rebuilds from compacted context
                 last_result = LLMResult(
                     content=sanitize_internal_reprs(raw_response.get("content") or ""),
                     role=raw_response.get("role", "assistant"),

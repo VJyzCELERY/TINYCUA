@@ -91,20 +91,28 @@ def load_config(
     }
 
 
-def build_language_model(config: dict[str, str]) -> LanguageModel:
+def build_language_model(
+    config: dict[str, str],
+    max_context: int | None = None,
+) -> LanguageModel:
     """Build the SDK LanguageModel expected by Agent.__init__.
 
     Args:
         config: Mapping returned by ``load_config``. Must include
             ``provider_type`` so the SDK routes to the correct API
             (chat completitions vs responses).
+        max_context: Optional override for the model's max context window
+            in tokens (FR-084). When None, the SDK default (128_000) is used.
 
     Returns:
         OpenAI-compatible model configuration for TinyCUA runs.
     """
-    return LanguageModel(
-        provider=config.get("provider_type", "openai-chat-completions"),
-        model_name=config["model"],
-        base_url=config["base_url"],
-        api_key=config["api_key"],
-    )
+    kwargs: dict[str, object] = {
+        "provider": config.get("provider_type", "openai-chat-completions"),
+        "model_name": config["model"],
+        "base_url": config["base_url"],
+        "api_key": config["api_key"],
+    }
+    if max_context is not None:
+        kwargs["max_context"] = max_context
+    return LanguageModel(**kwargs)  # type: ignore[arg-type]

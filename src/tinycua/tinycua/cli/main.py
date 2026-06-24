@@ -153,6 +153,16 @@ def _add_run_arguments(parser: argparse.ArgumentParser) -> None:
         "When a task is sent back needs_revision/rejected this many times in a "
         "row, the runtime routes to TaskAnalyzer for replan instead of retrying.",
     )
+    parser.add_argument(
+        "--max-context",
+        dest="max_context",
+        type=int,
+        default=None,
+        help="Override the model's max context window (tokens) for compaction "
+        "threshold calculation. Default: probe the server via GET /v1/models; "
+        "fall back to 128000 when the probe fails or the field is absent "
+        "(FR-084).",
+    )
 
 
 def _normalise_run_args(args: argparse.Namespace) -> None:
@@ -245,6 +255,7 @@ def main() -> None:
             no_tool_audit=args.no_tool_audit,
             allow_open_question=args.allow_open_question,
             replan_threshold=args.replan_threshold,
+            max_context=args.max_context,
         )
         raise SystemExit(exit_code)
 

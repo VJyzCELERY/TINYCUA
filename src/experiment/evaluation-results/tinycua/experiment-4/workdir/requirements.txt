@@ -1,29 +1,5 @@
-# FastAPI and ASGI Server
-fastapi>=0.104.0
-uvicorn[standard]>=0.24.0
-
-# Database ORM
-sqlalchemy>=2.0.23
-aiosqlite>=0.19.0
-
-# Data validation and serialization
-pydantic>=2.5.3
-python-multipart>=0.0.6
-
-# Authentication (JWT)
-python-jose[cryptography]>=3.3.0
-passlib[bcrypt]>=1.7.4
-
-# Security
-cryptography>=42.0.0
-bcrypt>=4.0.1
-python-dotenv>=1.0.1
-
-# Utilities and utilities
-python-dateutil>=2.8.2
-pytz>=2023.3
-
-# Testing (optional, can be commented out for production)
-pytest>=7.4.3
-httpx>=0.25.2
-faker>=21.0.0
+fastapi[all]
+uvicorn[standard]
+pydantic-settings
+python-dotenv
+sqlmodel

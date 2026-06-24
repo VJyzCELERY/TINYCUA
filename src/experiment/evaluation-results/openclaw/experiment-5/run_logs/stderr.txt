@@ -1,7 +1,6 @@
  Container experiment-searxng-1 Running 
- Container experiment-openclaw-run-ca6a89fb4534 Creating 
- Container experiment-openclaw-run-ca6a89fb4534 Created 
-[tools] tool_call failed: Provide a command to start. raw_params={"id":"openclaw:core:exec","args":{"pty":true}}
-[tools] tool_call failed: node required raw_params={"id":"openclaw:file-transfer:file_write","args":{"path":"/workspace/experiment-5/NEURAL_NETWORKS_AND_TRANSFORMERS_STUDY_GUIDE.md","content":"# 🧠 Neural Networks & Transformers: Comprehensive Study Guide\n\n> **A complete guide to understanding neural networks, deep learning architectures, and transformer models**\n> \n> *Last updated: June 21, 2026*\n---\n\n## Table of Contents\n\n1. [Introduction](#introduction)\n - What are Neural Networks?\n - Historical Context\n2. [Fundamentals of Neural Networks](#fundamentals-of-neural-networks)\n - Neurons and Activation Functions\n - Network Archite…
-[tools] tool_call failed: agent=main node=auto gateway=default action=describe: node required raw_params={"id":"openclaw:core:nodes","args":{"action":"describe"}}
-[tools] tool_call failed: agent=main node=auto gateway=default action=list: Unknown action: list raw_params={"id":"openclaw:core:nodes","args":{"action":"list"}}
+ Container experiment-openclaw-run-e528c5057a96 Creating 
+ Container experiment-openclaw-run-e528c5057a96 Created 
+[tools] tool_describe failed: Unknown tool id: diagram-maker raw_params={"id":"diagram-maker"}
+[tools] tool_call failed: proposal_content required raw_params={"id":"openclaw:core:skill_workshop","args":{"action":"create","name":"neural-networks-transformers-study-guide.md"}}
+[tools] tool_call failed: proposal_content required raw_params={"id":"openclaw:core:skill_workshop","args":{"action":"create","name":"transformer-architecture-diagram.svg"}}

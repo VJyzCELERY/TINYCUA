@@ -1,87 +1,87 @@
  Container experiment-searxng-1 Running 
- Container experiment-hermes-run-6ff45e3d4498 Creating 
- Container experiment-hermes-run-6ff45e3d4498 Created 
-00:53:47 - run_agent - INFO - Verbose logging enabled (third-party library logs suppressed)
-00:53:48 - run_agent - INFO - OpenAI client created (agent_init, shared=True) thread=MainThread:132987618612032 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+ Container experiment-hermes-run-c67b20d38641 Creating 
+ Container experiment-hermes-run-c67b20d38641 Created 
+18:01:23 - run_agent - INFO - Verbose logging enabled (third-party library logs suppressed)
+18:01:23 - run_agent - INFO - OpenAI client created (agent_init, shared=True) thread=MainThread:129028474647360 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
 /usr/local/lib/python3.12/site-packages/hermes_cli/scripts/install.sh: line 794: curl: command not found
 /usr/local/lib/python3.12/site-packages/hermes_cli/scripts/install.sh: line 800: curl: command not found
-00:53:48 - tools.registry - DEBUG - Tool browser_back unavailable (check failed)
-00:53:48 - tools.registry - DEBUG - Tool browser_cdp unavailable (check failed)
-00:53:48 - tools.registry - DEBUG - Tool browser_click unavailable (check failed)
-00:53:48 - tools.registry - DEBUG - Tool browser_console unavailable (check failed)
-00:53:48 - tools.registry - DEBUG - Tool browser_dialog unavailable (check failed)
-00:53:48 - tools.registry - DEBUG - Tool browser_get_images unavailable (check failed)
-00:53:48 - tools.registry - DEBUG - Tool browser_navigate unavailable (check failed)
-00:53:48 - tools.registry - DEBUG - Tool browser_press unavailable (check failed)
-00:53:48 - tools.registry - DEBUG - Tool browser_scroll unavailable (check failed)
-00:53:48 - tools.registry - DEBUG - Tool browser_snapshot unavailable (check failed)
-00:53:48 - tools.registry - DEBUG - Tool browser_type unavailable (check failed)
-00:53:48 - tools.registry - DEBUG - Tool browser_vision unavailable (check failed)
-00:53:48 - tools.registry - DEBUG - Tool computer_use unavailable (check failed)
-00:53:48 - agent.auxiliary_client - DEBUG - Could not read Codex auth for auxiliary client: No Codex credentials stored. Run `hermes auth` to authenticate.
-00:53:48 - tools.registry - DEBUG - Tool image_generate unavailable (check failed)
-00:53:48 - tools.registry - DEBUG - Tool kanban_block unavailable (check failed)
-00:53:48 - tools.registry - DEBUG - Tool kanban_comment unavailable (check failed)
-00:53:48 - tools.registry - DEBUG - Tool kanban_complete unavailable (check failed)
-00:53:48 - tools.registry - DEBUG - Tool kanban_create unavailable (check failed)
-00:53:48 - tools.registry - DEBUG - Tool kanban_heartbeat unavailable (check failed)
-00:53:48 - tools.registry - DEBUG - Tool kanban_link unavailable (check failed)
-00:53:48 - tools.registry - DEBUG - Tool kanban_list unavailable (check failed)
-00:53:48 - tools.registry - DEBUG - Tool kanban_show unavailable (check failed)
-00:53:48 - tools.registry - DEBUG - Tool kanban_unblock unavailable (check failed)
-00:53:48 - tools.registry - DEBUG - Tool send_message unavailable (check failed)
-00:53:48 - tools.lazy_deps - INFO - Lazy-installing edge-tts==7.2.7 for feature 'tts.edge'
-00:53:49 - tools.tirith_security - INFO - cosign not on PATH — installing tirith with SHA-256 verification only (install cosign for full supply chain verification)
-00:53:49 - tools.tirith_security - INFO - tirith installed to /root/.hermes/bin/tirith (SHA-256 only)
-00:53:53 - tools.lazy_deps - INFO - Lazy install complete for feature 'tts.edge'
-00:53:53 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 00:54:53.
-00:53:53 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
-00:53:53 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
-00:53:53 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 00:54:53.
-00:53:53 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
-00:53:53 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 00:54:53.
-00:53:53 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
-00:53:53 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
-00:53:53 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 00:54:53.
-00:53:53 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
-00:53:53 - tools.registry - DEBUG - Tool vision_analyze unavailable (check failed)
-00:53:53 - agent.auxiliary_client - DEBUG - Could not read Codex auth for auxiliary client: No Codex credentials stored. Run `hermes auth` to authenticate.
-00:53:53 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 00:54:53.
-00:53:53 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
-00:53:53 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
-00:53:53 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 00:54:53.
-00:53:53 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
-00:53:53 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 00:54:53.
-00:53:53 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
-00:53:53 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
-00:53:53 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 00:54:53.
-00:53:53 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
-00:53:53 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 00:54:53.
-00:53:53 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
-00:53:53 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
-00:53:53 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 00:54:53.
-00:53:53 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
-00:53:53 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 00:54:53.
-00:53:53 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
-00:53:53 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
-00:53:53 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 00:54:53.
-00:53:53 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
-00:53:53 - agent.context_compressor - INFO - Context compressor initialized: model=qwen3.5-9b context_length=262144 threshold=131072 (50%) target_ratio=20% tail_budget=26214 provider=lmstudio base_url=http://host.docker.internal:1234/v1
-00:53:54 - agent.conversation_loop - INFO [20260621_005347_33c5a0] - conversation turn: session=20260621_005347_33c5a0 model=qwen3.5-9b provider=lmstudio platform=cli history=0 msg='Hello there'
-00:53:54 - root - DEBUG [20260621_005347_33c5a0] - API Request - Model: qwen3.5-9b, Messages: 1, Tools: 19
-00:53:54 - root - DEBUG [20260621_005347_33c5a0] - Last message role: user
-00:53:54 - root - DEBUG [20260621_005347_33c5a0] - Total message size: ~1,551 tokens
-00:53:54 - agent.chat_completion_helpers - DEBUG [20260621_005347_33c5a0] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
-00:53:54 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
-00:53:54 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-4 (_call):132987461101248 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:53:55 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-4 (_call):132987461101248 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:53:55 - root - DEBUG [20260621_005347_33c5a0] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=34, prompt_tokens=12897, total_tokens=12931, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=22, rejected_prediction_tokens=None), prompt_tokens_details=None)
-00:53:55 - agent.conversation_loop - INFO [20260621_005347_33c5a0] - API call #1: model=qwen3.5-9b provider=lmstudio in=12897 out=34 total=12931 latency=1.2s
-00:53:55 - root - DEBUG [20260621_005347_33c5a0] - Token usage: prompt=12,897, completion=34, total=12,931
-00:53:55 - root - DEBUG [20260621_005347_33c5a0] - Captured reasoning (98 chars): The user is greeting me with a simple hello, so I should respond in kind and offer my assistance.
+18:01:23 - tools.registry - DEBUG - Tool browser_back unavailable (check failed)
+18:01:23 - tools.registry - DEBUG - Tool browser_cdp unavailable (check failed)
+18:01:23 - tools.registry - DEBUG - Tool browser_click unavailable (check failed)
+18:01:23 - tools.registry - DEBUG - Tool browser_console unavailable (check failed)
+18:01:23 - tools.registry - DEBUG - Tool browser_dialog unavailable (check failed)
+18:01:23 - tools.registry - DEBUG - Tool browser_get_images unavailable (check failed)
+18:01:23 - tools.registry - DEBUG - Tool browser_navigate unavailable (check failed)
+18:01:23 - tools.registry - DEBUG - Tool browser_press unavailable (check failed)
+18:01:23 - tools.registry - DEBUG - Tool browser_scroll unavailable (check failed)
+18:01:23 - tools.registry - DEBUG - Tool browser_snapshot unavailable (check failed)
+18:01:23 - tools.registry - DEBUG - Tool browser_type unavailable (check failed)
+18:01:23 - tools.registry - DEBUG - Tool browser_vision unavailable (check failed)
+18:01:23 - tools.registry - DEBUG - Tool computer_use unavailable (check failed)
+18:01:23 - agent.auxiliary_client - DEBUG - Could not read Codex auth for auxiliary client: No Codex credentials stored. Run `hermes auth` to authenticate.
+18:01:23 - tools.registry - DEBUG - Tool image_generate unavailable (check failed)
+18:01:23 - tools.registry - DEBUG - Tool kanban_block unavailable (check failed)
+18:01:23 - tools.registry - DEBUG - Tool kanban_comment unavailable (check failed)
+18:01:23 - tools.registry - DEBUG - Tool kanban_complete unavailable (check failed)
+18:01:23 - tools.registry - DEBUG - Tool kanban_create unavailable (check failed)
+18:01:23 - tools.registry - DEBUG - Tool kanban_heartbeat unavailable (check failed)
+18:01:23 - tools.registry - DEBUG - Tool kanban_link unavailable (check failed)
+18:01:23 - tools.registry - DEBUG - Tool kanban_list unavailable (check failed)
+18:01:23 - tools.registry - DEBUG - Tool kanban_show unavailable (check failed)
+18:01:23 - tools.registry - DEBUG - Tool kanban_unblock unavailable (check failed)
+18:01:23 - tools.registry - DEBUG - Tool send_message unavailable (check failed)
+18:01:23 - tools.lazy_deps - INFO - Lazy-installing edge-tts==7.2.7 for feature 'tts.edge'
+18:01:24 - tools.tirith_security - INFO - cosign not on PATH — installing tirith with SHA-256 verification only (install cosign for full supply chain verification)
+18:01:24 - tools.tirith_security - INFO - tirith installed to /root/.hermes/bin/tirith (SHA-256 only)
+18:01:26 - tools.lazy_deps - INFO - Lazy install complete for feature 'tts.edge'
+18:01:26 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 18:02:26.
+18:01:26 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
+18:01:26 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
+18:01:26 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 18:02:26.
+18:01:26 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
+18:01:26 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 18:02:26.
+18:01:26 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
+18:01:26 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
+18:01:26 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 18:02:26.
+18:01:26 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
+18:01:26 - tools.registry - DEBUG - Tool vision_analyze unavailable (check failed)
+18:01:26 - agent.auxiliary_client - DEBUG - Could not read Codex auth for auxiliary client: No Codex credentials stored. Run `hermes auth` to authenticate.
+18:01:26 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 18:02:26.
+18:01:26 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
+18:01:26 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
+18:01:26 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 18:02:26.
+18:01:26 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
+18:01:26 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 18:02:26.
+18:01:26 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
+18:01:26 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
+18:01:26 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 18:02:26.
+18:01:26 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
+18:01:26 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 18:02:26.
+18:01:26 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
+18:01:26 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
+18:01:26 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 18:02:26.
+18:01:26 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
+18:01:26 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 18:02:26.
+18:01:26 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
+18:01:26 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
+18:01:26 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 18:02:26.
+18:01:26 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
+18:01:26 - agent.context_compressor - INFO - Context compressor initialized: model=qwen3.5-9b context_length=262144 threshold=131072 (50%) target_ratio=20% tail_budget=26214 provider=lmstudio base_url=http://host.docker.internal:1234/v1
+18:01:26 - agent.conversation_loop - INFO [20260623_180123_e0f022] - conversation turn: session=20260623_180123_e0f022 model=qwen3.5-9b provider=lmstudio platform=cli history=0 msg='Hello there'
+18:01:27 - root - DEBUG [20260623_180123_e0f022] - API Request - Model: qwen3.5-9b, Messages: 1, Tools: 19
+18:01:27 - root - DEBUG [20260623_180123_e0f022] - Last message role: user
+18:01:27 - root - DEBUG [20260623_180123_e0f022] - Total message size: ~1,551 tokens
+18:01:27 - agent.chat_completion_helpers - DEBUG [20260623_180123_e0f022] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
+18:01:27 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
+18:01:27 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-4 (_call):129028317165248 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:01:31 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-4 (_call):129028317165248 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:01:31 - root - DEBUG [20260623_180123_e0f022] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=46, prompt_tokens=12897, total_tokens=12943, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=34, rejected_prediction_tokens=None), prompt_tokens_details=None)
+18:01:31 - agent.conversation_loop - INFO [20260623_180123_e0f022] - API call #1: model=qwen3.5-9b provider=lmstudio in=12897 out=46 total=12943 latency=4.1s
+18:01:31 - root - DEBUG [20260623_180123_e0f022] - Token usage: prompt=12,897, completion=46, total=12,943
+18:01:31 - root - DEBUG [20260623_180123_e0f022] - Captured reasoning (182 chars): The user is greeting me with a simple hello - I should respond warmly and offer assistance in my standard helpful assistant manner without using any tools since no action is needed.
 
-00:53:55 - tools.browser_tool - DEBUG [20260621_005347_33c5a0] - cleanup_browser called for task_id: 20260621_005347_33c5a0
-00:53:55 - tools.browser_tool - DEBUG [20260621_005347_33c5a0] - Active sessions: []
-00:53:55 - tools.browser_tool - DEBUG [20260621_005347_33c5a0] - No active session found for task_id: 20260621_005347_33c5a0
-00:53:55 - agent.conversation_loop - INFO [20260621_005347_33c5a0] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.5-9b api_calls=1/90 budget=1/90 tool_turns=0 last_msg_role=assistant response_len=29 session=20260621_005347_33c5a0
-00:53:55 - tools.mcp_tool - DEBUG - mcp package not installed -- MCP tool support disabled
+18:01:31 - tools.browser_tool - DEBUG [20260623_180123_e0f022] - cleanup_browser called for task_id: 20260623_180123_e0f022
+18:01:31 - tools.browser_tool - DEBUG [20260623_180123_e0f022] - Active sessions: []
+18:01:31 - tools.browser_tool - DEBUG [20260623_180123_e0f022] - No active session found for task_id: 20260623_180123_e0f022
+18:01:31 - agent.conversation_loop - INFO [20260623_180123_e0f022] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.5-9b api_calls=1/90 budget=1/90 tool_turns=0 last_msg_role=assistant response_len=30 session=20260623_180123_e0f022
+18:01:31 - tools.mcp_tool - DEBUG - mcp package not installed -- MCP tool support disabled

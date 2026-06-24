@@ -144,6 +144,56 @@ def _load_run_config(
     return config
 
 
+def _resolve_max_context(
+    config: dict, cli_override: int | None, log_path: Path | None
+) -> int | None:
+    """Resolve the real max_context for compaction (FR-084).
+
+    Priority: explicit ``--max-context`` CLI flag > server probe > None
+    (let the SDK default of 128000 apply).
+
+    Args:
+        config: The run config dict (must have base_url, api_key, model).
+        cli_override: The ``--max-context`` CLI flag value, or None.
+        log_path: Optional artifact log path for recording the resolution.
+
+    Returns:
+        The resolved max_context (int), or None when the SDK default should
+        apply (no override and probe skipped/failed).
+    """
+    if cli_override is not None and cli_override > 0:
+        if log_path:
+            write_log_entry(log_path, "max_context", "info", {"source": "cli", "value": cli_override})
+        return cli_override
+
+    # Probe the server best-effort. Runs synchronously here since this is
+    # before the async agent loop starts. Uses a fresh event loop.
+    import asyncio
+
+    from tinycua.cli.model_probe import resolve_max_context
+
+    try:
+        resolved = asyncio.get_event_loop().run_until_complete(
+            resolve_max_context(
+                config["base_url"], config["api_key"], config["model"], fallback=128000,
+            )
+        )
+    except RuntimeError:
+        # No running loop — use asyncio.run for a one-shot call.
+        resolved = asyncio.run(
+            resolve_max_context(
+                config["base_url"], config["api_key"], config["model"], fallback=128000,
+            )
+        )
+    if log_path:
+        write_log_entry(log_path, "max_context", "info", {"source": "probe", "value": resolved})
+    # Only return when different from the SDK default so we don't redundantly
+    # pass 128000 (let the SDK default apply naturally via None).
+    if resolved == 128000:
+        return None
+    return resolved
+
+
 def _build_run_agent(
     config: dict, workspace: Path, artifact_dir: Path | None,
     worker_effort: str, no_tool_audit: bool,
@@ -152,6 +202,8 @@ def _build_run_agent(
 ) -> Agent | int:
     """Build the tinycua agent. Returns the agent or 1 on error."""
     try:
+        from tinycua.compaction.simple import SimpleCompaction
+
         agent = create_tinycua_agent(
             session_config=SessionConfig(
                 workspace_dir=workspace,
@@ -160,8 +212,9 @@ def _build_run_agent(
                 disable_tool_audit=no_tool_audit,
                 enable_open_question_review=allow_open_question,
                 replan_threshold=replan_threshold if replan_threshold is not None else 5,
+                compaction_strategy=SimpleCompaction(),  # FR-082
             ),
-            llm_model=build_language_model(config),
+            llm_model=build_language_model(config, max_context=config.get("max_context")),
         )
     except Exception as e:
         if log_path:
@@ -251,6 +304,7 @@ def run_command(
     no_tool_audit: bool = False,
     allow_open_question: bool = False,
     replan_threshold: int | None = None,
+    max_context: int | None = None,
 ) -> int:
     """Execute the tinycua run command (always streaming).
 
@@ -279,6 +333,10 @@ def run_command(
             to ResponseNode. Disabled by default for one-shot worker mode.
         replan_threshold: Consecutive reviewer rejections before auto-replan.
             Defaults to 5 if not specified.
+        max_context: Override for the model's max context window (tokens) used
+            for compaction threshold calculation (FR-084). When None, the
+            runtime probes the server via GET /v1/models; falls back to the
+            SDK default (128000) when the probe fails or the field is absent.
 
     Returns:
         Exit code: 0 success, 1 error, 124 timeout.
@@ -301,6 +359,12 @@ def run_command(
     config = _load_run_config(provider_url, api_key, model, provider_type, log_path)
     if isinstance(config, int):
         return config
+
+    # FR-084: resolve the real max_context. Priority: explicit --max-context
+    # flag > server probe (GET /v1/models) > SDK default (128000).
+    resolved_max_context = _resolve_max_context(config, max_context, log_path)
+    if resolved_max_context is not None:
+        config["max_context"] = resolved_max_context
 
     agent = _build_run_agent(
         config, workspace, artifact_dir, worker_effort, no_tool_audit,

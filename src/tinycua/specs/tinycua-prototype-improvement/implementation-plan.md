@@ -252,6 +252,130 @@ def test_open_question_branch_removed():
     assert "schedule_after_review" not in result.stdout or result.returncode == 1
 ```
 
+#### Milestone 9 — Context Window Protection (Hotfix)
+
+```python
+# Test file: src/tinycua/tests/unit/test_context_window_protection.py
+"""Unit tests for FR-082..FR-085: context window protection hotfix."""
+
+import logging
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+
+
+def test_fr082_compaction_wired_on_cli_path():
+    """FR-082: _build_run_agent sets compaction_strategy=SimpleCompaction()."""
+    from tinycua.cli.run import _build_run_agent
+    from tinycua.compaction.simple import SimpleCompaction
+    config = {"base_url": "http://x", "api_key": "k", "model": "m", "provider_type": "openai-chat-completions"}
+    agent = _build_run_agent(config, workspace=MagicMock(), artifact_dir=None,
+                             worker_effort="medium", no_tool_audit=False,
+                             allow_open_question=False, replan_threshold=5, log_path=None)
+    sc = agent.loop.session_config
+    assert isinstance(sc.compaction_strategy, SimpleCompaction)
+
+
+def test_fr083_max_context_messages_enforced():
+    """FR-083: build_messages_with_dedupe bounds prompt to last max_context_messages."""
+    from tinycua.loops.node import build_messages_with_dedupe
+    from tinycua.models.session import Session
+    from tinycua.config.session_config import SessionConfig
+    from tinycua.models.session_context_entry import SessionContextEntry
+    session = Session(session_config=SessionConfig(max_context_messages=3))
+    for i in range(10):
+        session.session_context.append(
+            SessionContextEntry(content=f"entry {i}", segment="output", created_seq=i)
+        )
+    messages = build_messages_with_dedupe(session)
+    # At most 3 context-derived assistant messages (plus system/continuation are not added here)
+    assert len(messages) <= 3
+    # Audit trail intact
+    assert len(session.session_context) == 10
+
+
+def test_fr083_none_means_unlimited():
+    """FR-083: max_context_messages=None disables the cap."""
+    from tinycua.loops.node import build_messages_with_dedupe
+    from tinycua.models.session import Session
+    from tinycua.config.session_config import SessionConfig
+    from tinycua.models.session_context_entry import SessionContextEntry
+    session = Session(session_config=SessionConfig(max_context_messages=None))
+    for i in range(10):
+        session.session_context.append(
+            SessionContextEntry(content=f"entry {i}", segment="output", created_seq=i)
+        )
+    messages = build_messages_with_dedupe(session)
+    assert len(messages) == 10  # unlimited — all entries sent
+
+
+@pytest.mark.asyncio
+async def test_fr084_probe_returns_context_length():
+    """FR-084: resolve_max_context returns the server-reported context_length."""
+    from tinycua.cli.model_probe import resolve_max_context
+    mock_model = MagicMock()
+    mock_model.id = "qwen3.5-9b"
+    mock_model.context_length = 32768
+    mock_list = MagicMock()
+    mock_list.data = [mock_model]
+    with patch("tinycua.cli.model_probe.AsyncOpenAI") as mock_client_cls:
+        mock_client = AsyncMock()
+        mock_client.models.list = AsyncMock(return_value=mock_list)
+        mock_client.close = AsyncMock()
+        mock_client_cls.return_value = mock_client
+        result = await resolve_max_context("http://x", "k", "qwen3.5-9b", fallback=128000)
+    assert result == 32768
+
+
+@pytest.mark.asyncio
+async def test_fr084_probe_error_falls_back():
+    """FR-084: resolve_max_context falls back on network error."""
+    from tinycua.cli.model_probe import resolve_max_context
+    with patch("tinycua.cli.model_probe.AsyncOpenAI", side_effect=Exception("network")):
+        result = await resolve_max_context("http://x", "k", "m", fallback=128000)
+    assert result == 128000
+
+
+@pytest.mark.asyncio
+async def test_fr084_probe_missing_field_falls_back():
+    """FR-084: resolve_max_context falls back when context_length is absent."""
+    from tinycua.cli.model_probe import resolve_max_context
+    mock_model = MagicMock()
+    mock_model.id = "gpt-4o"
+    mock_model.context_length = None  # vanilla OpenAI omits the field
+    mock_list = MagicMock()
+    mock_list.data = [mock_model]
+    with patch("tinycua.cli.model_probe.AsyncOpenAI") as mock_client_cls:
+        mock_client = AsyncMock()
+        mock_client.models.list = AsyncMock(return_value=mock_list)
+        mock_client.close = AsyncMock()
+        mock_client_cls.return_value = mock_client
+        result = await resolve_max_context("http://x", "k", "gpt-4o", fallback=128000)
+    assert result == 128000
+
+
+def test_fr085_compaction_fires_on_attempt_1(caplog):
+    """FR-085: _maybe_compact is called at top of attempt loop, not gated on attempt > 1."""
+    # Integration: stub a loop with _last_input_tokens over threshold,
+    # assert _maybe_compact is called before attempt 1's messages are built.
+    from tinycua.loops.tinycua_loop import TinyCUALoop
+    import inspect
+    src = inspect.getsource(TinyCUALoop._call_node_with_retry)
+    # The _maybe_compact call must NOT be inside an `if attempt > 1` block
+    assert "if attempt > 1" not in src or "_maybe_compact" not in src.split("if attempt > 1")[-1].split("attempt_messages")[0]
+
+
+def test_fr085_compaction_logs_at_info(caplog):
+    """FR-085: compaction_trigger is logged at INFO, not DEBUG."""
+    from tinycua.loops.tinycua_loop import logger as loop_logger
+    import inspect
+    src = inspect.getsource(loop_logger)  # won't work; instead check the module source
+    # Verify the log level in the source
+    import tinycua.loops.tinycua_loop as mod
+    src = inspect.getsource(mod)
+    # The compaction_trigger line must use logger.info, not logger.debug
+    assert "logger.info(" in src
+```
+
 ### Key Test Scenarios
 
 - [ ] **Scenario 1**: NodeContract is the single source — `task_result_update` appears only in `NodeContract`, not in 13 inline maps (grep assertion).
@@ -266,6 +390,13 @@ def test_open_question_branch_removed():
 - [ ] **Scenario 10**: Review tool no default approve — raises on omit.
 - [ ] **Scenario 11**: todo_tools real ops — update-in-place, delete work.
 - [ ] **Scenario 12**: Dead code removed — `ProcessNode.__call__` has no retry loop.
+- [ ] **Scenario 13 (M9)**: Compaction wired on CLI path — `_build_run_agent` sets `SimpleCompaction` (FR-082).
+- [ ] **Scenario 14 (M9)**: `max_context_messages` cap — prompt bounded to last N, audit trail intact (FR-083).
+- [ ] **Scenario 15 (M9)**: Server probe — `resolve_max_context` returns `context_length` on success, fallback on error/missing (FR-084).
+- [ ] **Scenario 16 (M9)**: `--max-context` override — explicit flag > server probe > SDK default (FR-084).
+- [ ] **Scenario 17 (M9)**: Continuous compaction — `_maybe_compact` called at top of attempt loop, not gated on `attempt > 1` (FR-085).
+- [ ] **Scenario 18 (M9)**: Compaction logs at INFO — `compaction_trigger` visible in real experiment logs (FR-085).
+- [ ] **Scenario 19 (M9)**: Experiment-5 re-run survives — no "Context size has been exceeded" (FR-082..FR-085 combined).
 
 ## Verification Plan
 
@@ -502,6 +633,43 @@ def test_open_question_branch_removed():
 
 - **`TaskReviewDecisionTool` description**: document that `rejected` is an alias for `needs_revision` — both send the task back for rework (FR-057).
 
+### Milestone 9 — Context Window Protection (Hotfix)
+
+Hotfix for the experiment-5 context-overflow failure. Four independent fixes (A+B+C+D) that compose to bound the prompt to the real served context window. TDD-first: write the tests in the Success Criteria section below before any implementation.
+
+#### MODIFY `src/tinycua/tinycua/cli/run.py`
+
+- **`_build_run_agent`**: add `compaction_strategy=SimpleCompaction()` to the `SessionConfig(...)` call (FR-082). Import: `from tinycua.compaction.simple import SimpleCompaction`. This is the root-cause fix — the factory's compaction-wired default was bypassed because the CLI passed a non-None config without the strategy.
+- **`run_command`**: after `_load_run_config`, resolve `max_context` via `resolve_max_context(config["base_url"], config["api_key"], config["model"], fallback=128_000)` when `--max-context` is not set (FR-084). Pass the resolved value into `build_language_model` via the new `max_context` kwarg.
+
+#### MODIFY `src/tinycua/tinycua/cli/config.py`
+
+- **`build_language_model`**: accept `max_context: int | None = None` and pass it to `LanguageModel(max_context=max_context)` when provided (FR-084). When `None`, `LanguageModel` keeps its default `128_000`.
+
+#### MODIFY `src/tinycua/tinycua/cli/main.py`
+
+- **`_add_run_arguments`**: add `--max-context` argparse flag (`type=int, default=None`) with help text: "Override the model's max context window (tokens). Default: probe the server; fall back to 128000." (FR-084).
+- **`_normalise_run_args`**: pass `max_context` through to `run_command`.
+
+#### NEW `src/tinycua/tinycua/cli/model_probe.py`
+
+- **`resolve_max_context(base_url, api_key, model_name, fallback) -> int`**: best-effort async function that probes `GET {base_url}/v1/models` via `AsyncOpenAI`, finds the model matching `model_name` (or the first model on local servers), and returns its `context_length` field (FR-084). Resolution priority inside the probe: `loaded_instances[0].config.context_length` (LM Studio active limit) → `max_context_length` (LM Studio ceiling) → top-level `context_length` (Ollama / OpenAI-compat extension) → `fallback`. Any exception (network, parse, missing) → return `fallback` with a DEBUG log. Never raises. One HTTP call, no token cost.
+
+#### MODIFY `src/tinycua/tinycua/loops/node.py`
+
+- **`build_messages_with_dedupe`**: after resolving `context_entries` (post-dedupe) and before converting to messages, slice to the last `max_context_messages` when set (FR-083):
+  ```python
+  max_msgs = session.session_config.max_context_messages if session.session_config is not None else None
+  if max_msgs is not None and len(context_entries) > max_msgs:
+      context_entries = context_entries[-max_msgs:]
+  ```
+  The full `session_context` list is never mutated — only the prompt-bound subset is capped. `None` = unlimited.
+
+#### MODIFY `src/tinycua/tinycua/loops/tinycua_loop.py`
+
+- **`_call_node_with_retry`**: move the `_maybe_compact` call from inside `if attempt > 1:` (lines 805-808) to the top of the `for attempt in range(...)` loop body, before `attempt_messages` is built (FR-085). The existing chicken-and-egg guard (`_last_input_tokens <= 0` → skip, in `_maybe_compact` line 706) handles the very-first-call-of-a-run case.
+- **`_maybe_compact` log lines**: change `logger.debug` → `logger.info` on the `compaction_trigger` line (722) and the `compaction_failed` line (733) (FR-085). The experiment runs at `INFO` (`run.py:294`); DEBUG lines were invisible, making it look like compaction never fired.
+
 ## Architecture Changes
 
 | Component | Change Type | Description |
@@ -528,6 +696,12 @@ def test_open_question_branch_removed():
 | `agent/tools/native/python_exec.py` | Modify | reject >max |
 | `agent/tools/native/output_persist.py` | Modify | remove duplicate print |
 | `agent/tools/native/tool_result.py` | New | `ToolResult` envelope |
+| `cli/run.py` | Modify | **M9**: wire `SimpleCompaction()` into `_build_run_agent` SessionConfig (FR-082); resolve `max_context` at startup (FR-084) |
+| `cli/config.py` | Modify | **M9**: `build_language_model` accepts `max_context` kwarg (FR-084) |
+| `cli/main.py` | Modify | **M9**: add `--max-context` argparse flag (FR-084) |
+| `cli/model_probe.py` | New | **M9**: `resolve_max_context` — best-effort `GET /v1/models` probe, silent fallback (FR-084) |
+| `loops/node.py` | Modify | **M9**: `build_messages_with_dedupe` bounds prompt to last `max_context_messages` entries (FR-083) |
+| `loops/tinycua_loop.py` | Modify | **M9**: continuous compaction monitoring (top of attempt loop) + INFO-level compaction logs (FR-085) |
 | `config/types.py` | Modify | `Tool.invoke` → SDK coercion |
 | `config/node_config.py` | Modify | Remove inline overrides; effort-profiled threshold; **M8**: raise analyzer `max_attempts` to 10 |
 | `config/session_config.py` | Modify | **M8**: add `max_replans` field (effort-derived) |

@@ -32,6 +32,11 @@
   - **`output_persist.py:338`**: duplicated `print("output_persist.py self-check OK")`.
   - **`orchestration_mixin.py:954-989`**: `_log_recovery_cycle` uses `print(..., file=sys.stderr)` instead of `logger`.
   - **Dead/dormant code**: `ProcessNode.__call__`/`DecisionNode.__call__` retry loops (bypassed by loop-owned path), `_call_failure_route` (always False, no overrides), `Node.propagate` (no-op default), `OPEN_QUESTION` reviewer decision (commented out in enum + routing, but `ResponseNode` import kept alive with `noqa`).
+  - **Compaction never wired on the CLI run path (experiment-5 root cause)**: `factory.py:73-80` sets `compaction_strategy=SimpleCompaction()` only when `session_config is None`. The CLI (`cli/run.py:155-165`) always passes a non-None `SessionConfig` without `compaction_strategy`, so the factory's compaction-wired default is bypassed. Result: `_maybe_compact` (`tinycua_loop.py:697`) and `Session.compact_context` (`session.py:180-183`) early-out on `compaction_strategy is None` every call — dead code on the production path. Evidence: zero `compaction_trigger` log lines in experiment-5's 6,230-line stderr while the context window was exceeded.
+  - **`max_context_messages` set but never enforced**: `SessionConfig.max_context_messages` (default 100, factory default 50) is stored and compared in tests, but no code reads it to trim `session_context` before sending to the LLM. `session_context` (the cross-node audit accumulator, appended by `append_output_entry` + propagated up by `propagation.py`) grows monotonically across a 4-hour run; `build_messages_with_dedupe` (`node.py:128-156`) prepends ALL of it as assistant messages on every TaskExecutor call. The within-attempt tool-result bounds (`evict_superseded_file_reads`, `enforce_turn_budget`, `persist_if_oversized`) operate on `attempt_messages` only — not the cross-node `session_context`.
+  - **`max_context` lies about the served model**: `LanguageModel.max_context` defaults to `128_000` (`llm_model.py:50`) and the CLI's `build_language_model` (`cli/config.py:105-110`) never overrides it. The served model in experiment-5 (`qwen3.5-9b` via LM Studio) was loaded with a context much smaller than 128K. So even if compaction were wired, the trigger threshold would be `0.7 × 128000 = 89.6K tokens` — compaction would never fire until the prompt was already far past the real wall. LM Studio's `GET /v1/models` exposes the real `context_length` per model; the SDK never probes it.
+  - **Compaction only triggered on retries, not continuously**: `_maybe_compact` is called only at `attempt > 1` (`tinycua_loop.py:807-808`). The first attempt of a new node can blow the window before any compaction runs. The chicken-and-egg guard (`_last_input_tokens <= 0`) already handles the very-first-call case; the `attempt > 1` gate is unnecessarily narrow.
+  - **Compaction events logged at DEBUG, invisible in real runs**: `_maybe_compact` logs at `logger.debug` (`tinycua_loop.py:721-733`). The experiment runs at `INFO` (`run.py:294`), so compaction trigger/failure events never appear in real experiment logs. This is why experiment-5's failure looked like "no compaction attempted" — the DEBUG lines were filtered out.
 
 - **Non-Goals**:
   - Changing the node-graph architecture (no new nodes, no new node types, no new mixins beyond what the stateful-nodes + retry-redesign require).
@@ -80,6 +85,14 @@ A benchmark run starts experiment-4 ("build a Notion-like app"). The TaskExecuto
 17. **Given** the retry/recovery loop, **When** a cycle runs, **Then** the cycle is logged via `logger` (not `print(stderr)`) with structured fields (node_id, phase, attempt_count, schema_error).
 18. **Given** the `ProcessNode.__call__`/`DecisionNode.__call__` retry loops, **When** the loop-owned path is active, **Then** these dormant codepaths are removed (dead code).
 19. **Given** the 13+ required-tools-per-node maps, **When** a node's required tools are queried, **Then** there is exactly one declarative source (the per-node spec from milestone 1), not 13 scattered maps.
+20. **Given** the `tinycua run` CLI path, **When** the agent is built via `_build_run_agent`, **Then** `session_config.compaction_strategy` is a `SimpleCompaction` (not None) — compaction is reachable on the production path, not dead code.
+21. **Given** a session with `max_context_messages=100` and 500 `session_context` entries, **When** `build_messages_with_dedupe` builds the LLM prompt, **Then** at most the last 100 context entries are sent as assistant messages; the full `session_context` list is never mutated (audit trail intact).
+22. **Given** an OpenAI-compatible server (LM Studio) serving a model loaded at 32K context, **When** the agent starts, **Then** the runtime probes `GET {base_url}/v1/models` and sets `max_context=32768` so the compaction threshold targets `0.7 × 32768 = 22.9K`, not `0.7 × 128000 = 89.6K`.
+23. **Given** a server probe that fails (network error, missing field, non-LM-Studio cloud), **When** the agent starts, **Then** the runtime falls back silently to the SDK default `128_000` (never raises).
+24. **Given** an explicit `--max-context 4096` CLI flag, **When** the agent starts, **Then** the flag value takes priority over the server probe (resolution: explicit flag > server probe > SDK default).
+25. **Given** a session whose `_last_input_tokens` exceeds the compaction threshold, **When** a node's first attempt begins, **Then** `_maybe_compact` is called before the attempt's messages are built (not gated on `attempt > 1`).
+26. **Given** compaction fires, **When** the trigger event is logged, **Then** the `compaction_trigger` line appears at `INFO` level (visible in real experiment logs without `--verbose`).
+27. **Given** a long research run (e.g. experiment-5's 4-hour multi-task session), **When** `session_context` grows past `max_context_messages`, **Then** the prompt sent to the LLM is bounded by the cap and the dropped tail is summarized by compaction — the run does not fail with "Context size has been exceeded".
 
 ### Edge Cases
 
@@ -93,6 +106,11 @@ A benchmark run starts experiment-4 ("build a Notion-like app"). The TaskExecuto
 - **NodeState after a crash/retry**: the state persists across retries within a node's lifecycle; on node exit (terminate), the state is finalized and written to the trace.
 - **Structured-output schema for a node with optional tool args**: the schema marks them as optional; the LLM may omit them; the coercion layer fills defaults.
 - **TaskAnalyzer shrink threshold at low effort**: threshold is high (e.g. >15 children) — the analyzer is rarely forced to shrink; at high effort, threshold is low (e.g. >8) — the analyzer is proactively nudged to shrink.
+- **`max_context_messages = None`**: unlimited — preserve current behavior for callers that opt out of the cap. The default `100` bounds the prompt; `None` disables the cap entirely.
+- **Server probe on vanilla OpenAI cloud**: the `/v1/models` response omits `context_length` (OpenAI doesn't populate the extension field) → fall back to the SDK default `128_000`. No regression for cloud-hosted OpenAI.
+- **Server probe when the server is down at startup**: the `GET /v1/models` call fails → fall back to the SDK default. The run proceeds; compaction uses the fallback threshold. No hard failure.
+- **Compaction LLM call itself fails (model overloaded mid-run)**: `compact_context` catches and logs at INFO; the `max_context_messages` cap is the independent backstop that doesn't depend on an LLM call succeeding. The prompt is still bounded.
+- **Continuous compaction thrashing**: if compaction fires every attempt, `compaction_keep_recent=5` preserves the working set; the threshold is 70% of real context, not 50%. Monitor via the new INFO logs; raise `compaction_keep_recent` if the working set proves too small.
 
 ---
 
@@ -209,6 +227,14 @@ Evidence: experiment-2 trace analysis (`src/experiment/results/tinycua/experimen
 - **FR-080**: `_normalize_newlines` decodes `\uXXXX` unicode escape sequences to real unicode characters (`\u2208` → `∈`, `\u03a3` → `Σ`, `\u210e` → `ℎ`). Fixes the literal `\uXXXX` corruption in math-heavy documents where local models sent double-escaped unicode in JSON tool-call arguments.
 - **FR-081**: Reviewer test guidance is generic ("verify the artifact actually works, not just that it exists or imports") and includes unicode escape corruption check (`grep -c '\u[0-9a-f]' <the_file>`) alongside the existing tab corruption check. The `node.completed` event handler in `live_stream.py` no longer re-prints content for the `response` node, eliminating one of the three sources of response triplication.
 
+#### Context Window Protection (Milestone 9 — Hotfix)
+
+- **FR-082**: The CLI run path (`tinycua run`) MUST enable compaction by setting `compaction_strategy=SimpleCompaction()` on the `SessionConfig`. The factory's compaction-wired default was bypassed because the CLI passed a non-None config without the strategy, making `_maybe_compact` and `Session.compact_context` dead code on the production path. Evidence: zero `compaction_trigger` log lines in experiment-5's 6,230-line stderr while the context window was exceeded.
+- **FR-083**: `build_messages_with_dedupe` MUST bound the `session_context` entries sent to the LLM to the last `max_context_messages` (when set, int > 0). The full `session_context` list (audit trail) is never mutated — only the prompt-bound subset is capped. When compaction fires (FR-082 + FR-085), the windowed entries are folded into a summary via `compact_context` before the cap applies. Default `max_context_messages=100` (from `SessionConfig`); `None` = unlimited (escape hatch).
+- **FR-084**: At agent startup, the runtime MUST probe the served model's real context length via `GET {base_url}/v1/models` and use it as `max_context` for compaction threshold calculation (`compaction_threshold * max_context`, where `compaction_threshold` is a float 0-1, default 0.7). Resolution priority: (1) explicit `--max-context` CLI flag, (2) server-reported `context_length` field (LM Studio/Ollama extension), (3) SDK default `128_000`. The probe is best-effort — any failure (network, parse, missing field) falls back silently, never raises. This prevents the threshold from targeting 89.6K when the real wall is 32K.
+- **FR-085**: Compaction MUST monitor continuously, not just on retries. `_maybe_compact` is called at the top of every attempt loop iteration (including attempt 1), gated on `session._last_input_tokens > 0` (chicken-and-egg guard for the very first call of a run). Compaction trigger and failure events MUST be logged at `INFO` level (not `DEBUG`) so they surface in real experiment logs without `--verbose`.
+- **FR-086**: When the LLM provider raises an error during a node's LLM call (context overflow, 500, network blip, etc.), the runtime MUST catch the exception (`Exception` broadly — no provider-specific error detection since different providers return different errors), force a compaction via `_force_compact` (bypassing the threshold check since the failed call produced no usage data), and retry the call with a smaller prompt. After `_MAX_PROVIDER_RETRIES` (3) failed retries within one attempt, the exception re-raises and the app crashes (same as before, but only after 3 recovery attempts). `asyncio.CancelledError` (timeout) and `KeyboardInterrupt` (user interrupt) are never caught. During continuation rounds (tool-loop), a caught error force-compacts and breaks to the next attempt (the model re-calls the tools), which is acceptable vs crashing.
+
 ### Key Entities
 
 - **NodeState** (enum): PENDING, EXECUTING, AWAITING_TOOL, RETRYING, COMPLETED, FAILED. Lives on the `Node` instance.
@@ -244,6 +270,17 @@ Evidence: experiment-2 trace analysis (`src/experiment/results/tinycua/experimen
 - [ ] **Reviewer does not double-invoke `task_review_decision`**: a unit test asserts the inspect-after-decision retry message mentions `task_inspect`, not `task_review_decision`.
 - [ ] **Analyzer prompt includes `terminate` instruction**: a snapshot test asserts the analyzer instruction contains "call terminate" and does NOT instruct calling `task_inspect` first.
 - [ ] **File tools return diff/preview**: unit tests assert `append_file`, `write_file`, and `str_replace` result dicts contain `diff_preview` and (for append/write) `new_file_size`.
+- [ ] **Compaction wired on CLI path**: a unit test building the agent via `_build_run_agent` asserts `session_config.compaction_strategy` is a `SimpleCompaction` (not None) (FR-082).
+- [ ] **max_context_messages enforced**: a unit test with `max_context_messages=3` and 10 `session_context` entries asserts `build_messages_with_dedupe` returns ≤3 context-derived assistant messages; `session_context` still has 10 entries (audit trail intact) (FR-083).
+- [ ] **max_context probed from server**: a unit test mocking `AsyncOpenAI.models.list()` returning a model with `context_length=32768` asserts `resolve_max_context` returns 32768; mocking a 500 error asserts it returns the fallback; mocking a missing field asserts it returns the fallback (FR-084).
+- [ ] **--max-context override**: a unit test asserts an explicit `--max-context 4096` flag takes priority over the server probe (FR-084).
+- [ ] **Compaction fires on attempt 1**: a unit test with `_last_input_tokens` over threshold asserts `_maybe_compact` is called before attempt 1's messages are built (not gated on `attempt > 1`) (FR-085).
+- [ ] **Compaction logs at INFO**: a unit test captures log records and asserts an INFO-level `compaction_trigger` line is emitted when compaction fires (FR-085).
+- [ ] **Experiment-5 re-run survives context overflow**: a re-run of experiment-5 with tinycua does not fail with "Context size has been exceeded" (exit_code != 1 from context overflow) (FR-082..FR-085 combined).
+- [ ] **Provider error triggers force-compaction**: a unit test mocking `_call_agent_llm` to raise then succeed asserts `_force_compact` was called and the retry succeeded (FR-086).
+- [ ] **Max provider retries exhausted re-raises**: a unit test mocking `_call_agent_llm` to always raise asserts it re-raises after `_MAX_PROVIDER_RETRIES` (3), not an infinite loop (FR-086).
+- [ ] **CancelledError not caught**: a unit test mocking `_call_agent_llm` to raise `asyncio.CancelledError` asserts it re-raises immediately without compaction (FR-086).
+- [ ] **Force-compaction bypasses threshold**: a unit test asserts `_force_compact` compacts even when `_last_input_tokens` is 0 (no usage data from failed call) (FR-086).
 
 ---
 
@@ -269,6 +306,11 @@ Evidence: experiment-2 trace analysis (`src/experiment/results/tinycua/experimen
 - `ToolResult` envelope: all tools return it.
 - Structured-output retry: schema-invalid → retry with schema error (unbounded).
 - `_judge_retry` removed: grep assertion.
+- `cli/run.py` `_build_run_agent`: asserts `compaction_strategy` is `SimpleCompaction` (FR-082).
+- `node.py` `build_messages_with_dedupe`: with `max_context_messages=3` and 10 entries, returns ≤3 messages; `session_context` unchanged (FR-083).
+- `cli/model_probe.py` `resolve_max_context`: mock `models.list()` → returns `context_length`; mock error → fallback; mock missing field → fallback (FR-084).
+- `--max-context` override: explicit flag takes priority over server probe (FR-084).
+- `tinycua_loop.py` `_maybe_compact` call site: over-threshold `_last_input_tokens` → `_maybe_compact` called on attempt 1; INFO log emitted (FR-085).
 
 ### Integration Tests
 
@@ -277,6 +319,8 @@ Evidence: experiment-2 trace analysis (`src/experiment/results/tinycua/experimen
 - All 5 experiments re-run with tinycua: zero exit each.
 - NodeState trace events present in the execution trace.
 - Structured-output payloads validated against schema in the loop.
+- Context window protection: fake agent pumps `session_context` to 200 entries → run one node → assert prompt sent to LLM has ≤ `max_context_messages` context entries and a compaction summary is present (FR-082 + FR-083 + FR-085 combined).
+- Experiment-5 re-run: no "Context size has been exceeded" failure (FR-082..FR-085).
 
 ### Manual Tests
 
@@ -297,6 +341,7 @@ Evidence: experiment-2 trace analysis (`src/experiment/results/tinycua/experimen
 | Milestone 6 — Tool hardening — other tools | TODO | |
 | Milestone 7 — Logging | TODO | |
 | Milestone 8 — Loop reliability | Done | FR-049..FR-058 shipped: replan boundary reset + max_replans effort cap, non-vacuous replan via plan_unchanged, str_replace multi-match error, reviewer heuristic fix, analyzer terminate prompt + max_attempts=10, reviewer sanity-checker, needs_revision/rejected unification, file-tool diff/preview |
+| Milestone 9 — Context window protection | TODO | FR-082..FR-086: wire compaction into CLI run path, enforce max_context_messages cap, probe server for real max_context, continuous compaction monitoring + INFO logs, catch-and-retry on provider errors. Hotfix for experiment-5 context-overflow failure. |
 
 ---
 
@@ -307,6 +352,24 @@ Evidence: experiment-2 trace analysis (`src/experiment/results/tinycua/experimen
    - **Target**: 2026-06-21
    - **Status**: Decided
    - **Proposed Answer**: Retry with schema error, unbounded (option a). FR-015 adds a diagnostic for observability but does not bound the loop. Consistent with the zero-exit philosophy.
+
+2. **max_context inference source (Milestone 9)**: should `max_context` be hardcoded per model, env-configured, or probed from the server at startup?
+   - **Owner**: @christopher-sebastian
+   - **Target**: 2026-06-24
+   - **Status**: Decided
+   - **Proposed Answer**: Probe the server via `GET /v1/models` (LM Studio and Ollama expose `context_length`). Resolution priority: (1) explicit `--max-context` CLI flag, (2) server-reported `context_length`, (3) SDK default `128_000`. Best-effort with silent fallback — never raises. The 0.7 compaction threshold (`compaction_threshold: float = 0.7`) is a ratio of the resolved `max_context`, so it tracks the real wall automatically.
+
+3. **Compaction trigger timing (Milestone 9)**: should compaction fire only at node boundaries, only on retries, or continuously?
+   - **Owner**: @christopher-sebastian
+   - **Target**: 2026-06-24
+   - **Status**: Decided
+   - **Proposed Answer**: Continuous monitoring — `_maybe_compact` at the top of every attempt loop iteration (including attempt 1), gated on `session._last_input_tokens > 0` (chicken-and-egg guard). Per the user's requirement: "compaction should monitor ongoing progress and trigger whenever the session exceeds the threshold, not just at the start."
+
+4. **Cross-attempt file-read staleness eviction (Milestone 9)**: should `evict_superseded_file_reads` be extended to cover reads embedded in `session_context` from prior node attempts (currently only maps ids from assistant messages carrying `tool_calls`)?
+   - **Owner**: @christopher-sebastian
+   - **Target**: 2026-06-24
+   - **Status**: Decided
+   - **Proposed Answer**: Defer to a future milestone. The `max_context_messages` cap (FR-083) + compaction (FR-082) handle the experiment-5 re-read storm without extending staleness eviction into the cross-node accumulator. The audit trail in `chat_history` stays lossless. Revisit only if re-read storms persist after A+B+C land.
 
 ---
 

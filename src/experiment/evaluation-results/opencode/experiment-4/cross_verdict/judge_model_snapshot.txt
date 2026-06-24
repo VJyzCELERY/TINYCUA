@@ -1,0 +1,57 @@
+
+┌─────────────────────────────────────────────────────────┐
+│              ⚕ Hermes Configuration                    │
+└─────────────────────────────────────────────────────────┘
+
+◆ Paths
+  Config:       /home/judge/.hermes/profiles/judge/config.yaml
+  Secrets:      /home/judge/.hermes/profiles/judge/.env
+  Install:      /usr/local/lib/python3.12/site-packages
+
+◆ API Keys
+  OpenRouter     (not set)
+  OpenAI (STT/TTS) (not set)
+  Exa            (not set)
+  Parallel       (not set)
+  Firecrawl      (not set)
+  Tavily         (not set)
+  Browserbase    (not set)
+  Browser Use    (not set)
+  FAL            (not set)
+  Anthropic      (not set)
+
+◆ Model
+  Model:        {'default': 'gpt-5.5', 'provider': 'openai-codex', 'base_url': 'https://chatgpt.com/backend-api/codex'}
+  Max turns:    30
+
+◆ Display
+  Personality:  default
+  Reasoning:    off
+  Bell:         off
+  User preview: first 2 line(s), last 2 line(s)
+
+◆ Terminal
+  Backend:      local
+  Working dir:  .
+  Timeout:      180s
+
+◆ Timezone
+  Timezone:     (server-local)
+
+◆ Context Compression
+  Enabled:      yes
+  Threshold:    70%
+  Target ratio: 20% of threshold preserved
+  Protect last: 20 messages
+  Protect first: 3 non-system head messages
+  Model:        (auto)
+
+◆ Messaging Platforms
+  Telegram:     not configured
+  Discord:      not configured
+
+────────────────────────────────────────────────────────────
+  hermes config edit     # Edit config file
+  hermes config set <key> <value>
+  hermes setup           # Run setup wizard
+

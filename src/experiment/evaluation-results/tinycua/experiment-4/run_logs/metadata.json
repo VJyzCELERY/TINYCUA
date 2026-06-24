@@ -1,11 +1,11 @@
 {
   "experiment_num": 4,
   "agent": "tinycua",
-  "started_at": "2026-06-21T02:15:12.478011+00:00",
-  "llm_started_at": "2026-06-21T02:15:13.607416+00:00",
-  "ended_at": "2026-06-21T02:48:18.641669+00:00",
-  "warmup_seconds": 1.129405,
-  "duration_seconds": 1985.034253,
+  "started_at": "2026-06-23T18:54:13.377319+00:00",
+  "llm_started_at": "2026-06-23T18:54:14.332163+00:00",
+  "ended_at": "2026-06-23T21:14:09.244921+00:00",
+  "warmup_seconds": 0.954844,
+  "duration_seconds": 8394.912758,
   "exit_code": 0,
   "status": "passed"
 }

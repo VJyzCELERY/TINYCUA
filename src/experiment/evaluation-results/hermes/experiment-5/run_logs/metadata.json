@@ -1,11 +1,11 @@
 {
   "experiment_num": 5,
   "agent": "hermes",
-  "started_at": "2026-06-21T02:49:59.078881+00:00",
-  "llm_started_at": "2026-06-21T02:50:04.437593+00:00",
-  "ended_at": "2026-06-21T02:53:06.404672+00:00",
-  "warmup_seconds": 5.358712,
-  "duration_seconds": 181.967079,
+  "started_at": "2026-06-23T21:15:41.468109+00:00",
+  "llm_started_at": "2026-06-23T21:15:45.936588+00:00",
+  "ended_at": "2026-06-23T21:17:32.053543+00:00",
+  "warmup_seconds": 4.468479,
+  "duration_seconds": 106.116955,
   "exit_code": 0,
   "status": "passed"
 }

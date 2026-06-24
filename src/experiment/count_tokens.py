@@ -6,9 +6,9 @@ with total input, total output, and total combined tokens, plus a
 per-node breakdown.
 
 Usage:
-    uv run python count_tokens.py results/tinycua/experiment-2/logs/stdout.log
-    cat results/.../stdout.log | uv run python count_tokens.py
-    uv run python count_tokens.py results/tinycua/experiment-*/logs/stdout.log
+    uv run python count_tokens.py evaluation-results/tinycua/experiment-2/run_logs/stdout.txt
+    cat evaluation-results/.../stdout.txt | uv run python count_tokens.py
+    uv run python count_tokens.py evaluation-results/tinycua/experiment-*/run_logs/stdout.txt
 """
 
 from __future__ import annotations
@@ -102,7 +102,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "files",
         nargs="*",
-        help="One or more stdout.log paths. If omitted, reads from stdin.",
+        help="One or more stdout.txt paths. If omitted, reads from stdin.",
     )
     parser.add_argument(
         "--no-by-node",

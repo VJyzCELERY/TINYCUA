@@ -32,8 +32,10 @@ logs/
 coverage.xml
 *.coverage
 htmlcov/
-src/experiment/results/
 src/experiment/archives/
+
+# Node.js build artifacts
+node_modules/
 
 
 # Local development artifacts

@@ -1,254 +1,291 @@
  Container experiment-searxng-1 Running 
- Container experiment-hermes-run-db4ead4e7943 Creating 
- Container experiment-hermes-run-db4ead4e7943 Created 
-02:50:00 - run_agent - INFO - Verbose logging enabled (third-party library logs suppressed)
-02:50:01 - run_agent - INFO - OpenAI client created (agent_init, shared=True) thread=MainThread:123146074026816 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+ Container experiment-hermes-run-b57f8e7c16ae Creating 
+ Container experiment-hermes-run-b57f8e7c16ae Created 
+21:15:42 - run_agent - INFO - Verbose logging enabled (third-party library logs suppressed)
+21:15:43 - run_agent - INFO - OpenAI client created (agent_init, shared=True) thread=MainThread:129780018565952 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
 /usr/local/lib/python3.12/site-packages/hermes_cli/scripts/install.sh: line 794: curl: command not found
 /usr/local/lib/python3.12/site-packages/hermes_cli/scripts/install.sh: line 800: curl: command not found
-02:50:01 - tools.registry - DEBUG - Tool browser_back unavailable (check failed)
-02:50:01 - tools.registry - DEBUG - Tool browser_cdp unavailable (check failed)
-02:50:01 - tools.registry - DEBUG - Tool browser_click unavailable (check failed)
-02:50:01 - tools.registry - DEBUG - Tool browser_console unavailable (check failed)
-02:50:01 - tools.registry - DEBUG - Tool browser_dialog unavailable (check failed)
-02:50:01 - tools.registry - DEBUG - Tool browser_get_images unavailable (check failed)
-02:50:01 - tools.registry - DEBUG - Tool browser_navigate unavailable (check failed)
-02:50:01 - tools.registry - DEBUG - Tool browser_press unavailable (check failed)
-02:50:01 - tools.registry - DEBUG - Tool browser_scroll unavailable (check failed)
-02:50:01 - tools.registry - DEBUG - Tool browser_snapshot unavailable (check failed)
-02:50:01 - tools.registry - DEBUG - Tool browser_type unavailable (check failed)
-02:50:01 - tools.registry - DEBUG - Tool browser_vision unavailable (check failed)
-02:50:01 - tools.registry - DEBUG - Tool computer_use unavailable (check failed)
-02:50:01 - agent.auxiliary_client - DEBUG - Could not read Codex auth for auxiliary client: No Codex credentials stored. Run `hermes auth` to authenticate.
-02:50:01 - tools.registry - DEBUG - Tool image_generate unavailable (check failed)
-02:50:01 - tools.registry - DEBUG - Tool kanban_block unavailable (check failed)
-02:50:01 - tools.registry - DEBUG - Tool kanban_comment unavailable (check failed)
-02:50:01 - tools.registry - DEBUG - Tool kanban_complete unavailable (check failed)
-02:50:01 - tools.registry - DEBUG - Tool kanban_create unavailable (check failed)
-02:50:01 - tools.registry - DEBUG - Tool kanban_heartbeat unavailable (check failed)
-02:50:01 - tools.registry - DEBUG - Tool kanban_link unavailable (check failed)
-02:50:01 - tools.registry - DEBUG - Tool kanban_list unavailable (check failed)
-02:50:01 - tools.registry - DEBUG - Tool kanban_show unavailable (check failed)
-02:50:01 - tools.registry - DEBUG - Tool kanban_unblock unavailable (check failed)
-02:50:01 - tools.registry - DEBUG - Tool send_message unavailable (check failed)
-02:50:01 - tools.lazy_deps - INFO - Lazy-installing edge-tts==7.2.7 for feature 'tts.edge'
-02:50:01 - tools.tirith_security - INFO - cosign not on PATH — installing tirith with SHA-256 verification only (install cosign for full supply chain verification)
-02:50:01 - tools.tirith_security - INFO - tirith installed to /root/.hermes/bin/tirith (SHA-256 only)
-02:50:04 - tools.lazy_deps - INFO - Lazy install complete for feature 'tts.edge'
-02:50:04 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 02:51:04.
-02:50:04 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
-02:50:04 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
-02:50:04 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 02:51:04.
-02:50:04 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
-02:50:04 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 02:51:04.
-02:50:04 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
-02:50:04 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
-02:50:04 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 02:51:04.
-02:50:04 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
-02:50:04 - tools.registry - DEBUG - Tool vision_analyze unavailable (check failed)
-02:50:04 - agent.auxiliary_client - DEBUG - Could not read Codex auth for auxiliary client: No Codex credentials stored. Run `hermes auth` to authenticate.
-02:50:04 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 02:51:04.
-02:50:04 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
-02:50:04 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
-02:50:04 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 02:51:04.
-02:50:04 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
-02:50:04 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 02:51:04.
-02:50:04 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
-02:50:04 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
-02:50:04 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 02:51:04.
-02:50:04 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
-02:50:04 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 02:51:04.
-02:50:04 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
-02:50:04 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
-02:50:04 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 02:51:04.
-02:50:04 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
-02:50:04 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 02:51:04.
-02:50:04 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
-02:50:04 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
-02:50:04 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 02:51:04.
-02:50:04 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
-02:50:04 - agent.context_compressor - INFO - Context compressor initialized: model=qwen3.5-9b context_length=262144 threshold=131072 (50%) target_ratio=20% tail_budget=26214 provider=lmstudio base_url=http://host.docker.internal:1234/v1
-02:50:04 - agent.conversation_loop - INFO [20260621_025000_2f7476] - conversation turn: session=20260621_025000_2f7476 model=qwen3.5-9b provider=lmstudio platform=cli history=0 msg='Can you do a research on Neural Networks and Transformer for me and write me a c...'
-02:50:04 - root - DEBUG [20260621_025000_2f7476] - API Request - Model: qwen3.5-9b, Messages: 1, Tools: 19
-02:50:04 - root - DEBUG [20260621_025000_2f7476] - Last message role: user
-02:50:04 - root - DEBUG [20260621_025000_2f7476] - Total message size: ~1,589 tokens
-02:50:04 - agent.chat_completion_helpers - DEBUG [20260621_025000_2f7476] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
-02:50:04 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
-02:50:04 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-4 (_call):123145983755968 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-02:50:12 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-4 (_call):123145983755968 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-02:50:12 - root - DEBUG [20260621_025000_2f7476] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=109, prompt_tokens=12926, total_tokens=13035, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=26, rejected_prediction_tokens=None), prompt_tokens_details=None)
-02:50:12 - agent.conversation_loop - INFO [20260621_025000_2f7476] - API call #1: model=qwen3.5-9b provider=lmstudio in=12926 out=109 total=13035 latency=7.8s
-02:50:12 - root - DEBUG [20260621_025000_2f7476] - Token usage: prompt=12,926, completion=109, total=13,035
-02:50:12 - root - DEBUG [20260621_025000_2f7476] - Tool call: web_search with args: {"query":"neural networks fundamentals deep learning basics architecture layers","limit":5}...
-02:50:12 - root - DEBUG [20260621_025000_2f7476] - Captured reasoning (155 chars): The user wants research documentation on Neural Networks and Transformers, so I'll start by searching the web for comprehensive resources and information.
+21:15:43 - tools.registry - DEBUG - Tool browser_back unavailable (check failed)
+21:15:43 - tools.registry - DEBUG - Tool browser_cdp unavailable (check failed)
+21:15:43 - tools.registry - DEBUG - Tool browser_click unavailable (check failed)
+21:15:43 - tools.registry - DEBUG - Tool browser_console unavailable (check failed)
+21:15:43 - tools.registry - DEBUG - Tool browser_dialog unavailable (check failed)
+21:15:43 - tools.registry - DEBUG - Tool browser_get_images unavailable (check failed)
+21:15:43 - tools.registry - DEBUG - Tool browser_navigate unavailable (check failed)
+21:15:43 - tools.registry - DEBUG - Tool browser_press unavailable (check failed)
+21:15:43 - tools.registry - DEBUG - Tool browser_scroll unavailable (check failed)
+21:15:43 - tools.registry - DEBUG - Tool browser_snapshot unavailable (check failed)
+21:15:43 - tools.registry - DEBUG - Tool browser_type unavailable (check failed)
+21:15:43 - tools.registry - DEBUG - Tool browser_vision unavailable (check failed)
+21:15:43 - tools.registry - DEBUG - Tool computer_use unavailable (check failed)
+21:15:43 - agent.auxiliary_client - DEBUG - Could not read Codex auth for auxiliary client: No Codex credentials stored. Run `hermes auth` to authenticate.
+21:15:43 - tools.registry - DEBUG - Tool image_generate unavailable (check failed)
+21:15:43 - tools.registry - DEBUG - Tool kanban_block unavailable (check failed)
+21:15:43 - tools.registry - DEBUG - Tool kanban_comment unavailable (check failed)
+21:15:43 - tools.registry - DEBUG - Tool kanban_complete unavailable (check failed)
+21:15:43 - tools.registry - DEBUG - Tool kanban_create unavailable (check failed)
+21:15:43 - tools.registry - DEBUG - Tool kanban_heartbeat unavailable (check failed)
+21:15:43 - tools.registry - DEBUG - Tool kanban_link unavailable (check failed)
+21:15:43 - tools.registry - DEBUG - Tool kanban_list unavailable (check failed)
+21:15:43 - tools.registry - DEBUG - Tool kanban_show unavailable (check failed)
+21:15:43 - tools.registry - DEBUG - Tool kanban_unblock unavailable (check failed)
+21:15:43 - tools.registry - DEBUG - Tool send_message unavailable (check failed)
+21:15:43 - tools.lazy_deps - INFO - Lazy-installing edge-tts==7.2.7 for feature 'tts.edge'
+21:15:44 - tools.tirith_security - INFO - cosign not on PATH — installing tirith with SHA-256 verification only (install cosign for full supply chain verification)
+21:15:44 - tools.tirith_security - INFO - tirith installed to /root/.hermes/bin/tirith (SHA-256 only)
+21:15:45 - tools.lazy_deps - INFO - Lazy install complete for feature 'tts.edge'
+21:15:45 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 21:16:45.
+21:15:45 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
+21:15:45 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
+21:15:45 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 21:16:45.
+21:15:45 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
+21:15:45 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 21:16:45.
+21:15:45 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
+21:15:45 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
+21:15:45 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 21:16:45.
+21:15:45 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
+21:15:45 - tools.registry - DEBUG - Tool vision_analyze unavailable (check failed)
+21:15:45 - agent.auxiliary_client - DEBUG - Could not read Codex auth for auxiliary client: No Codex credentials stored. Run `hermes auth` to authenticate.
+21:15:45 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 21:16:45.
+21:15:45 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
+21:15:45 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
+21:15:45 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 21:16:45.
+21:15:45 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
+21:15:45 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 21:16:45.
+21:15:45 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
+21:15:45 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
+21:15:45 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 21:16:45.
+21:15:45 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
+21:15:45 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 21:16:45.
+21:15:45 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
+21:15:45 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
+21:15:45 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 21:16:45.
+21:15:45 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
+21:15:45 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 21:16:45.
+21:15:45 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
+21:15:45 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
+21:15:45 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 21:16:45.
+21:15:45 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
+21:15:45 - agent.context_compressor - INFO - Context compressor initialized: model=qwen3.5-9b context_length=262144 threshold=131072 (50%) target_ratio=20% tail_budget=26214 provider=lmstudio base_url=http://host.docker.internal:1234/v1
+21:15:45 - agent.conversation_loop - INFO [20260623_211542_bdcef8] - conversation turn: session=20260623_211542_bdcef8 model=qwen3.5-9b provider=lmstudio platform=cli history=0 msg='Can you do a research on Neural Networks and Transformer for me and write me a c...'
+21:15:46 - root - DEBUG [20260623_211542_bdcef8] - API Request - Model: qwen3.5-9b, Messages: 1, Tools: 19
+21:15:46 - root - DEBUG [20260623_211542_bdcef8] - Last message role: user
+21:15:46 - root - DEBUG [20260623_211542_bdcef8] - Total message size: ~1,589 tokens
+21:15:46 - agent.chat_completion_helpers - DEBUG [20260623_211542_bdcef8] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
+21:15:46 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
+21:15:46 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-4 (_call):129779860825792 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+21:15:50 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-4 (_call):129779860825792 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+21:15:50 - root - DEBUG [20260623_211542_bdcef8] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=105, prompt_tokens=12926, total_tokens=13031, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=41, rejected_prediction_tokens=None), prompt_tokens_details=None)
+21:15:50 - agent.conversation_loop - INFO [20260623_211542_bdcef8] - API call #1: model=qwen3.5-9b provider=lmstudio in=12926 out=105 total=13031 latency=4.5s
+21:15:50 - root - DEBUG [20260623_211542_bdcef8] - Token usage: prompt=12,926, completion=105, total=13,031
+21:15:50 - root - DEBUG [20260623_211542_bdcef8] - Tool call: web_search with args: {"query":"neural networks fundamentals deep learning basics tutorial"}...
+21:15:50 - root - DEBUG [20260623_211542_bdcef8] - Captured reasoning (252 chars): This is a straightforward research task that requires web searches on neural networks and transformers, then compiling the findings into documentation. I'll start by searching for authoritative sources on both topics before writing the final document.
 
-02:50:12 - tools.web_tools - INFO [20260621_025000_2f7476] - Web search via searxng: 'neural networks fundamentals deep learning basics architecture layers' (limit: 5)
-02:50:13 - plugins.web.searxng.provider - INFO [20260621_025000_2f7476] - SearXNG search 'neural networks fundamentals deep learning basics architecture layers': 5 results (from 17 raw, limit 5)
-02:50:13 - agent.tool_executor - INFO [20260621_025000_2f7476] - tool web_search completed (1.27s, 2251 chars)
-02:50:13 - root - DEBUG [20260621_025000_2f7476] - Tool web_search completed in 1.27s
-02:50:13 - root - DEBUG [20260621_025000_2f7476] - Tool result (2251 chars): {
+21:15:50 - tools.web_tools - INFO [20260623_211542_bdcef8] - Web search via searxng: 'neural networks fundamentals deep learning basics tutorial' (limit: 5)
+21:15:55 - plugins.web.searxng.provider - INFO [20260623_211542_bdcef8] - SearXNG search 'neural networks fundamentals deep learning basics tutorial': 5 results (from 28 raw, limit 5)
+21:15:55 - agent.tool_executor - INFO [20260623_211542_bdcef8] - tool web_search completed (4.13s, 2655 chars)
+21:15:55 - root - DEBUG [20260623_211542_bdcef8] - Tool web_search completed in 4.13s
+21:15:55 - root - DEBUG [20260623_211542_bdcef8] - Tool result (2655 chars): {
   "success": true,
   "data": {
     "web": [
       {
-        "title": "Introduction To Neural Networks - GeeksforGeeks",
-        "url": "https://www.geeksforgeeks.org/deep-learning/neural-networks-a-beginners-guide/",
-        "description": "Feedforward Networks: It is a simple artificial neural network architecture in which data moves from input to output in a single direction. Singlelayer Perceptron: It has one layer and it applies weights, sums inputs and uses activation to produce output.",
+        "title": "Deep Learning Tutorial for Beginners: Neural Network Basics - Guru99",
+        "url": "https://www.guru99.com/deep-learning-tutorial.html",
+        "description": "In this Deep Learning Tutorial, we will learn the process of deep learning, Neural Network Classifications, RNN, CNN, Reinforcement Learning with Examples.",
         "position": 1
       },
       {
-        "title": "Neural Network Architectures - GeeksforGeeks",
-        "url": "https://www.geeksforgeeks.org/machine-learning/neural-network-architectures/",
-        "description": "Neural network architectures define the structural design of deep learning models, shaping how they process information, learn patterns and make predictions. From simple feed‑forward networks to advanced architectures like CNNs, RNNs, Transformers and hybrid models, each architecture is tailored to specific types of data and tasks.",
+        "title": "Deep Learning Tutorial - GeeksforGeeks",
+        "url": "https://www.geeksforgeeks.org/deep-learning/deep-learning-tutorial/",
+        "description": "Deep Learning is a branch of Artificial Intelligence (AI) that enables machines to learn patterns from large amounts of data using multi-layered neural networks. It is widely used in image recognition, speech processing and natural language understanding.",
         "position": 2
       },
       {
-        "title": "Understanding the Basics of Neural Networks and Deep Learning - DZone",
-        "url": "https://dzone.com/articles/understanding-the-basics-of-neural-networks-and-de",
-        "description": "20 Jul 2023 · We start with the basic building blocks of neural networks and delve into the concepts of neurons, activation functions, and layers.",
+        "title": "Introduction To Neural Networks - GeeksforGeeks",
+        "url": "https://www.geeksforgeeks.org/deep-learning/neural-networks-a-beginners-guide/",
+        "description": "The size of the step taken in each update is determined by the learning rate. This process of forward propagation, loss calculation, backpropagation and weight update is repeated for many iterations over the dataset. Over time, this iterative process reduces the loss and the network's predictions become more accurate. Through these steps, neural networks can adapt their parameters to better approximate the relationships in the data, thereby improving their performance on tasks such as classification, regression or any other predictive modeling. Published May 9, 2026",
         "position": 3
       },
       {
-        "title": "Deep Learning Fundamentals and Neural Network Layers - YouTube",
-        "url": "https://www.youtube.com/watch?v=bc3BJhntFTo",
-        "description": "24 Okt 2025 · Deep learning, a subset of machine learning, has become a cornerstone of modern artificial intelligence, revolutionizing fields such as ...",
+        "title": "Deep Learning Fundamentals: A Practical Guide to Neural Networks | Nerd Level Tech",
+        "url": "https://nerdleveltech.com/deep-learning-fundamentals-a-practical-guide-to-neural-networks",
+        "description": "comprehensive, hands-on exploration of deep learning fundamentals — from neural network basics to training workflows, pitfalls, and best practices for real-world AI projects.",
         "position": 4
       },
       {
-        "title": "Neural networks | Machine Learning - Google for Developers",
-        "url": "https://developers.google.com/machine-learning/crash-course/neural-networks",
-        "description": "25 Agu 2025 · This course module teaches the basics of neural networks: the key components of neural network architectures (nodes, hidden layers, ...",
+        "title": "Deep Learning Fundamentals - Classic Edition - deeplizard",
+        "url": "https://deeplizard.com/learn/playlist/PLZbbT5o_s2xq7LwI2y8_QtvuXZedL6tQU",
+        "description": "This series explains concepts that are fundamental to deep learning and artificial neural networks for beginners. In addition to covering these concepts, we also show how to implement some of the concepts in code using Keras, a neural network API written in Python.",
         "position": 5
       }
     ]
   }
 }
-02:50:13 - root - DEBUG [20260621_025000_2f7476] - API Request - Model: qwen3.5-9b, Messages: 3, Tools: 19
-02:50:13 - root - DEBUG [20260621_025000_2f7476] - Last message role: tool
-02:50:13 - root - DEBUG [20260621_025000_2f7476] - Total message size: ~2,444 tokens
-02:50:13 - agent.chat_completion_helpers - DEBUG [20260621_025000_2f7476] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
-02:50:13 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
-02:50:13 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-5 (_call):123145983755968 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-02:50:15 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-5 (_call):123145983755968 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-02:50:15 - root - DEBUG [20260621_025000_2f7476] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=60, prompt_tokens=13661, total_tokens=13721, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=12, rejected_prediction_tokens=None), prompt_tokens_details=None)
-02:50:15 - agent.conversation_loop - INFO [20260621_025000_2f7476] - API call #2: model=qwen3.5-9b provider=lmstudio in=13661 out=60 total=13721 latency=1.1s
-02:50:15 - root - DEBUG [20260621_025000_2f7476] - Token usage: prompt=13,661, completion=60, total=13,721
-02:50:15 - root - DEBUG [20260621_025000_2f7476] - Tool call: web_search with args: {"query":"transformer architecture attention mechanism deep learning fundamentals","limit":5}...
-02:50:15 - root - DEBUG [20260621_025000_2f7476] - Captured reasoning (76 chars): Now let me search for comprehensive resources on transformers specifically.
+21:15:55 - root - DEBUG [20260623_211542_bdcef8] - API Request - Model: qwen3.5-9b, Messages: 3, Tools: 19
+21:15:55 - root - DEBUG [20260623_211542_bdcef8] - Last message role: tool
+21:15:55 - root - DEBUG [20260623_211542_bdcef8] - Total message size: ~2,550 tokens
+21:15:55 - agent.chat_completion_helpers - DEBUG [20260623_211542_bdcef8] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
+21:15:55 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
+21:15:55 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-5 (_call):129779860825792 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+21:15:55 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-5 (_call):129779860825792 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+21:15:55 - root - DEBUG [20260623_211542_bdcef8] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=45, prompt_tokens=13735, total_tokens=13780, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=10, rejected_prediction_tokens=None), prompt_tokens_details=None)
+21:15:55 - agent.conversation_loop - INFO [20260623_211542_bdcef8] - API call #2: model=qwen3.5-9b provider=lmstudio in=13735 out=45 total=13780 latency=0.8s
+21:15:55 - root - DEBUG [20260623_211542_bdcef8] - Token usage: prompt=13,735, completion=45, total=13,780
+21:15:55 - root - DEBUG [20260623_211542_bdcef8] - Tool call: web_search with args: {"query":"transformer neural network architecture attention mechanism explained"}...
+21:15:55 - root - DEBUG [20260623_211542_bdcef8] - Captured reasoning (54 chars): Now let me search for transformer-specific resources.
 
-02:50:15 - tools.web_tools - INFO [20260621_025000_2f7476] - Web search via searxng: 'transformer architecture attention mechanism deep learning fundamentals' (limit: 5)
-02:50:16 - plugins.web.searxng.provider - INFO [20260621_025000_2f7476] - SearXNG search 'transformer architecture attention mechanism deep learning fundamentals': 5 results (from 17 raw, limit 5)
-02:50:16 - agent.tool_executor - INFO [20260621_025000_2f7476] - tool web_search completed (1.31s, 2623 chars)
-02:50:16 - root - DEBUG [20260621_025000_2f7476] - Tool web_search completed in 1.31s
-02:50:16 - root - DEBUG [20260621_025000_2f7476] - Tool result (2623 chars): {
+21:15:55 - tools.web_tools - INFO [20260623_211542_bdcef8] - Web search via searxng: 'transformer neural network architecture attention mechanism explained' (limit: 5)
+21:15:57 - plugins.web.searxng.provider - INFO [20260623_211542_bdcef8] - SearXNG search 'transformer neural network architecture attention mechanism explained': 5 results (from 25 raw, limit 5)
+21:15:57 - agent.tool_executor - INFO [20260623_211542_bdcef8] - tool web_search completed (1.51s, 3366 chars)
+21:15:57 - root - DEBUG [20260623_211542_bdcef8] - Tool web_search completed in 1.51s
+21:15:57 - root - DEBUG [20260623_211542_bdcef8] - Tool result (3366 chars): {
   "success": true,
   "data": {
     "web": [
-      {
-        "title": "Attention Mechanisms and Transformer Models Course",
-        "url": "https://www.coursera.org/learn/attention-mechanisms-and-transformer-models-course",
-        "description": "This deep learning course provides a comprehensive introduction to attention mechanisms and transformer models the foundation of modern GenAI systems. Begin by exploring the shift from traditional neural networks to attention-based architectures.",
-        "position": 1
-      },
-      {
-        "title": "Transformer (deep learning) - Wikipedia",
-        "url": "https://en.wikipedia.org/wiki/Transformer_(deep_learning)",
-        "description": "Exact dimension counts within an attention head module. The attention mechanism used in the transformer architecture are scaled dot-product attention units.History · Architecture · Full transformer architecture",
-        "position": 2
-      },
       {
         "title": "Architecture and Working of Transformers in Deep Learning",
         "url": "https://www.geeksforgeeks.org/deep-learning/architecture-and-working-of-transformers-in-deep-learning/",
         "description": "Transformers have transformed deep learning by using self-attention mechanisms to efficiently process and generate sequences capturing long-range dependencies and contextual relationships. Their encoder-decoder architecture combined with multi-head attention and feed-forward networks enables highly effective handling of sequential data.",
+        "position": 1
+      },
+      {
+        "title": "11. Attention Mechanisms and Transformers — Dive into Deep Learning 1.0.3 documentation",
+        "url": "http://www.d2l.ai/chapter_attention-mechanisms-and-transformers/index.html",
+        "description": "However, attention mechanisms soon emerged as more significant concerns, beyond their usefulness as an enhancement for encoder–decoder recurrent neural networks and their putative usefulness for picking out salient inputs. Vaswani et al. (2017) proposed the Transformer architecture for machine translation, dispensing with recurrent connections altogether, and instead relying on cleverly arranged attention mechanisms to capture all relationships among input and output tokens.",
+        "position": 2
+      },
+      {
+        "title": "Transformer Architecture Explained How Attention Powers Modern Ai - Scaler",
+        "url": "https://www.scaler.com/blog/transformer-architecture-explained-how-attention-powers-modern-ai/",
+        "description": "Transformer Architecture Explained: How Attention Powers Modern AI Mastering a Machine learning course requires understanding how the transformer architecture relies entirely on self-attention mechanisms to process sequential data. Unlike traditional recurrent networks, a transformer neural network processes entire input sequences in parallel, dramatically reducing training times while ...",
         "position": 3
       },
       {
-        "title": "Transformers in Machine Learning - GeeksforGeeks",
-        "url": "https://www.geeksforgeeks.org/machine-learning/getting-started-with-transformers/",
-        "description": "Transformer is a neural network architecture used for various machine learning tasks, especially in natural language processing and computer vision. It focuses on understanding relationships within data to process information more effectively. Uses attention mechanisms to capture relationships between inputs Processes entire sequences at once instead of step by step Improves performance on ...",
+        "title": "Introduction to Transformers and Attention Mechanisms | by Rakshit Kalra | Medium",
+        "url": "https://medium.com/@kalra.rakshit/introduction-to-transformers-and-attention-mechanisms-c29d252ea2c5",
+        "description": "At its core, the Transformer consists of two primary components: an encoder and a decoder. Each component is designed to perform distinct yet complementary functions in the processing of input and generation of output. ... The encoder’s role is to meticulously extract features from the input sequence. This is achieved through a series of layers, each comprising a multi-head attention mechanism followed by a feed-forward neural network.",
         "position": 4
       },
       {
-        "title": "How Transformers Work: A Detailed Exploration of Transformer ...",
+        "title": "How Transformers Work: A Detailed Exploration of Transformer Architecture | DataCamp",
         "url": "https://www.datacamp.com/tutorial/how-transformers-work",
-        "description": "Explore the architecture of Transformers, the models that have revolutionized data handling through self-attention mechanisms, surpassing traditional RNNs, and paving the way for advanced models like BERT and GPT.",
+        "description": "Understand Transformer architecture, including self-attention, encoder-decoder design, and multi-head attention, and how it powers models like OpenAI's GPT models. TL;DR Transformers are neural network architectures that use self-attention mechanisms to process sequential data in parallel, replacing the need for recurrence",
         "position": 5
       }
     ]
   }
 }
-02:50:16 - root - DEBUG [20260621_025000_2f7476] - API Request - Model: qwen3.5-9b, Messages: 5, Tools: 19
-02:50:16 - root - DEBUG [20260621_025000_2f7476] - Last message role: tool
-02:50:16 - root - DEBUG [20260621_025000_2f7476] - Total message size: ~3,318 tokens
-02:50:16 - agent.chat_completion_helpers - DEBUG [20260621_025000_2f7476] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
-02:50:16 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
-02:50:16 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-6 (_call):123145983755968 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-02:50:17 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-6 (_call):123145983755968 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-02:50:17 - root - DEBUG [20260621_025000_2f7476] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=82, prompt_tokens=14341, total_tokens=14423, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=24, rejected_prediction_tokens=None), prompt_tokens_details=None)
-02:50:17 - agent.conversation_loop - INFO [20260621_025000_2f7476] - API call #3: model=qwen3.5-9b provider=lmstudio in=14341 out=82 total=14423 latency=1.3s
-02:50:17 - root - DEBUG [20260621_025000_2f7476] - Token usage: prompt=14,341, completion=82, total=14,423
-02:50:17 - root - DEBUG [20260621_025000_2f7476] - Tool call: web_extract with args: {"urls":["https://en.wikipedia.org/wiki/Transformer_(deep_learning)","https://developers.google.com/machine-learning/crash-course/neural-networks"]}...
-02:50:17 - root - DEBUG [20260621_025000_2f7476] - Captured reasoning (154 chars): Now I need to extract detailed content from authoritative sources including Wikipedia's transformer page and Google Developers' neural networks tutorial.
+21:15:57 - root - DEBUG [20260623_211542_bdcef8] - API Request - Model: qwen3.5-9b, Messages: 5, Tools: 19
+21:15:57 - root - DEBUG [20260623_211542_bdcef8] - Last message role: tool
+21:15:57 - root - DEBUG [20260623_211542_bdcef8] - Total message size: ~3,601 tokens
+21:15:57 - agent.chat_completion_helpers - DEBUG [20260623_211542_bdcef8] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
+21:15:57 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
+21:15:57 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-6 (_call):129779860825792 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+21:15:58 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-6 (_call):129779860825792 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+21:15:58 - root - DEBUG [20260623_211542_bdcef8] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=86, prompt_tokens=14559, total_tokens=14645, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=21, rejected_prediction_tokens=None), prompt_tokens_details=None)
+21:15:58 - agent.conversation_loop - INFO [20260623_211542_bdcef8] - API call #3: model=qwen3.5-9b provider=lmstudio in=14559 out=86 total=14645 latency=1.3s
+21:15:58 - root - DEBUG [20260623_211542_bdcef8] - Token usage: prompt=14,559, completion=86, total=14,645
+21:15:58 - root - DEBUG [20260623_211542_bdcef8] - Tool call: web_extract with args: {"urls":["https://www.guru99.com/deep-learning-tutorial.html","http://www.d2l.ai/chapter_attention-mechanisms-and-transformers/index.html"]}...
+21:15:58 - root - DEBUG [20260623_211542_bdcef8] - Captured reasoning (145 chars): Now let me extract detailed content from these authoritative sources to gather comprehensive information about neural networks and transformers.
 
-02:50:17 - tools.web_tools - INFO [20260621_025000_2f7476] - Extracting content from 2 URL(s)
-02:50:17 - agent.tool_executor - WARNING [20260621_025000_2f7476] - Tool web_extract returned error (0.02s): {"success": false, "error": "SearXNG is a search-only backend and cannot extract URL content. Set web.extract_backend to firecrawl, tavily, exa, or parallel."}
-02:50:17 - root - DEBUG [20260621_025000_2f7476] - Tool web_extract completed in 0.02s
-02:50:17 - root - DEBUG [20260621_025000_2f7476] - Tool result (159 chars): {"success": false, "error": "SearXNG is a search-only backend and cannot extract URL content. Set web.extract_backend to firecrawl, tavily, exa, or parallel."}
-02:50:17 - root - DEBUG [20260621_025000_2f7476] - API Request - Model: qwen3.5-9b, Messages: 7, Tools: 19
-02:50:17 - root - DEBUG [20260621_025000_2f7476] - Last message role: tool
-02:50:17 - root - DEBUG [20260621_025000_2f7476] - Total message size: ~3,600 tokens
-02:50:17 - agent.chat_completion_helpers - DEBUG [20260621_025000_2f7476] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
-02:50:17 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
-02:50:17 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-7 (_call):123145901045440 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-02:50:18 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-7 (_call):123145901045440 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-02:50:18 - root - DEBUG [20260621_025000_2f7476] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=94, prompt_tokens=14550, total_tokens=14644, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=32, rejected_prediction_tokens=None), prompt_tokens_details=None)
-02:50:18 - agent.conversation_loop - INFO [20260621_025000_2f7476] - API call #4: model=qwen3.5-9b provider=lmstudio in=14550 out=94 total=14644 latency=1.3s
-02:50:18 - root - DEBUG [20260621_025000_2f7476] - Token usage: prompt=14,550, completion=94, total=14,644
-02:50:18 - root - DEBUG [20260621_025000_2f7476] - Tool call: web_extract with args: {"urls":["https://www.geeksforgeeks.org/deep-learning/neural-networks-a-beginners-guide/","https://developers.google.com/machine-learning/crash-course"]}...
-02:50:18 - root - DEBUG [20260621_025000_2f7476] - Captured reasoning (153 chars): Since the first extraction failed due to SearXNG limitation, I'll try extracting from GeeksforGeeks resources which should have more accessible content.
+21:15:58 - tools.web_tools - INFO [20260623_211542_bdcef8] - Extracting content from 2 URL(s)
+21:15:58 - agent.tool_executor - WARNING [20260623_211542_bdcef8] - Tool web_extract returned error (0.06s): {"success": false, "error": "SearXNG is a search-only backend and cannot extract URL content. Set web.extract_backend to firecrawl, tavily, exa, or parallel."}
+21:15:58 - root - DEBUG [20260623_211542_bdcef8] - Tool web_extract completed in 0.06s
+21:15:58 - root - DEBUG [20260623_211542_bdcef8] - Tool result (159 chars): {"success": false, "error": "SearXNG is a search-only backend and cannot extract URL content. Set web.extract_backend to firecrawl, tavily, exa, or parallel."}
+21:15:58 - root - DEBUG [20260623_211542_bdcef8] - API Request - Model: qwen3.5-9b, Messages: 7, Tools: 19
+21:15:58 - root - DEBUG [20260623_211542_bdcef8] - Last message role: tool
+21:15:58 - root - DEBUG [20260623_211542_bdcef8] - Total message size: ~3,879 tokens
+21:15:58 - agent.chat_completion_helpers - DEBUG [20260623_211542_bdcef8] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
+21:15:58 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
+21:15:58 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-7 (_call):129779846141632 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+21:15:59 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-7 (_call):129779846141632 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+21:15:59 - root - DEBUG [20260623_211542_bdcef8] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=93, prompt_tokens=14772, total_tokens=14865, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=49, rejected_prediction_tokens=None), prompt_tokens_details=None)
+21:15:59 - agent.conversation_loop - INFO [20260623_211542_bdcef8] - API call #4: model=qwen3.5-9b provider=lmstudio in=14772 out=93 total=14865 latency=1.2s
+21:16:00 - root - DEBUG [20260623_211542_bdcef8] - Token usage: prompt=14,772, completion=93, total=14,865
+21:16:00 - root - DEBUG [20260623_211542_bdcef8] - Tool call: web_search with args: {"query":"backpropagation gradient descent neural network training explained"}...
+21:16:00 - root - DEBUG [20260623_211542_bdcef8] - Captured reasoning (275 chars): The extraction failed with SearXNG backend issue. Let me try searching for more specific technical content that I can summarize based on search results and then write a comprehensive document from my knowledge combined with the key concepts identified in the search results.
 
-02:50:18 - tools.web_tools - INFO [20260621_025000_2f7476] - Extracting content from 2 URL(s)
-02:50:18 - agent.tool_executor - WARNING [20260621_025000_2f7476] - Tool web_extract returned error (0.05s): {"success": false, "error": "SearXNG is a search-only backend and cannot extract URL content. Set web.extract_backend to firecrawl, tavily, exa, or parallel."}
-02:50:18 - root - DEBUG [20260621_025000_2f7476] - Tool web_extract completed in 0.05s
-02:50:18 - root - DEBUG [20260621_025000_2f7476] - Tool result (159 chars): {"success": false, "error": "SearXNG is a search-only backend and cannot extract URL content. Set web.extract_backend to firecrawl, tavily, exa, or parallel."}
-02:50:18 - root - DEBUG [20260621_025000_2f7476] - API Request - Model: qwen3.5-9b, Messages: 9, Tools: 19
-02:50:18 - root - DEBUG [20260621_025000_2f7476] - Last message role: tool
-02:50:18 - root - DEBUG [20260621_025000_2f7476] - Total message size: ~3,884 tokens
-02:50:18 - agent.chat_completion_helpers - DEBUG [20260621_025000_2f7476] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
-02:50:18 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
-02:50:18 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-8 (_call):123145901045440 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-02:52:55 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-8 (_call):123145901045440 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-02:52:55 - root - DEBUG [20260621_025000_2f7476] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=12139, prompt_tokens=14771, total_tokens=26910, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=42, rejected_prediction_tokens=None), prompt_tokens_details=None)
-02:52:55 - agent.conversation_loop - INFO [20260621_025000_2f7476] - API call #5: model=qwen3.5-9b provider=lmstudio in=14771 out=12139 total=26910 latency=156.2s
-02:52:55 - root - DEBUG [20260621_025000_2f7476] - Token usage: prompt=14,771, completion=12,139, total=26,910
-02:52:55 - root - DEBUG [20260621_025000_2f7476] - Tool call: write_file with args: {"path":"/workspace/experiment-5/Neural_Networks_and_Transformers_Comprehensive_Guide.md","content":"# Neural Networks & Transformers: A Comprehensive Study Guide\n\n## Table of Contents\n1. [Introduc...
-02:52:55 - root - DEBUG [20260621_025000_2f7476] - Captured reasoning (239 chars): Since the web_extract tool failed with SearXNG error and I have enough information from the initial searches plus my knowledge about neural networks and transformers, I should proceed directly to creating the comprehensive study document.
+21:16:00 - tools.web_tools - INFO [20260623_211542_bdcef8] - Web search via searxng: 'backpropagation gradient descent neural network training explained' (limit: 5)
+21:16:01 - plugins.web.searxng.provider - INFO [20260623_211542_bdcef8] - SearXNG search 'backpropagation gradient descent neural network training explained': 5 results (from 20 raw, limit 5)
+21:16:01 - agent.tool_executor - INFO [20260623_211542_bdcef8] - tool web_search completed (1.23s, 2536 chars)
+21:16:01 - root - DEBUG [20260623_211542_bdcef8] - Tool web_search completed in 1.23s
+21:16:01 - root - DEBUG [20260623_211542_bdcef8] - Tool result (2536 chars): {
+  "success": true,
+  "data": {
+    "web": [
+      {
+        "title": "How the backpropagation algorithm works",
+        "url": "http://neuralnetworksanddeeplearning.com/chap2.html",
+        "description": "As I've described it above, the backpropagation algorithm computes the gradient of the cost function for a single training example, $C = C_x$. In practice, it's common to combine backpropagation with a learning algorithm such as stochastic gradient descent, in which we compute the gradient ...",
+        "position": 1
+      },
+      {
+        "title": "machine learning - How does Gradient Descent and Backpropagation work together? - Data Science Stack Exchange",
+        "url": "https://datascience.stackexchange.com/questions/44703/how-does-gradient-descent-and-backpropagation-work-together",
+        "description": "Please forgive me as I am new to this. I have attached a diagram trying to model my understanding of neural network and Back-propagation? From videos on Coursera and resources online I formed the More on datascience.stackexchange.com",
+        "position": 2
+      },
+      {
+        "title": "Backpropagation - Wikipedia",
+        "url": "https://en.wikipedia.org/wiki/Backpropagation",
+        "description": "Backpropagation had multiple ... differentiation\" or \"reverse accumulation\". Backpropagation computes the gradient in weight space of a feedforward neural network, with respect to a loss function....",
+        "position": 3
+      },
+      {
+        "title": "A Data Scientist’s Guide to Gradient Descent and Backpropagation Algorithms | NVIDIA Technical Blog",
+        "url": "https://developer.nvidia.com/blog/a-data-scientists-guide-to-gradient-descent-and-backpropagation-algorithms/",
+        "description": "Backpropagation is the mechanism by which components that influence the output of a neuron (bias, weights, activations) are iteratively adjusted to reduce the cost function. In the architecture of a neural network, the neuron’s input, including ...",
+        "position": 4
+      },
+      {
+        "title": "Backpropagation in Neural Network - GeeksforGeeks",
+        "url": "https://www.geeksforgeeks.org/machine-learning/backpropagation-in-neural-network/",
+        "description": "Backpropagation is an algorithm that trains neural networks by reducing prediction error. It works by propagating errors backward, computing gradients using the chain rule, and updating weights and biases to improve performance. Published May 12, 2026",
+        "position": 5
+      }
+    ]
+  }
+}
+21:16:01 - root - DEBUG [20260623_211542_bdcef8] - API Request - Model: qwen3.5-9b, Messages: 9, Tools: 19
+21:16:01 - root - DEBUG [20260623_211542_bdcef8] - Last message role: tool
+21:16:01 - root - DEBUG [20260623_211542_bdcef8] - Total message size: ~4,788 tokens
+21:16:01 - agent.chat_completion_helpers - DEBUG [20260623_211542_bdcef8] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
+21:16:01 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
+21:16:01 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-8 (_call):129779846141632 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+21:17:21 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-8 (_call):129779846141632 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+21:17:21 - root - DEBUG [20260623_211542_bdcef8] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=6738, prompt_tokens=15545, total_tokens=22283, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=48, rejected_prediction_tokens=None), prompt_tokens_details=None)
+21:17:21 - agent.conversation_loop - INFO [20260623_211542_bdcef8] - API call #5: model=qwen3.5-9b provider=lmstudio in=15545 out=6738 total=22283 latency=80.2s
+21:17:21 - root - DEBUG [20260623_211542_bdcef8] - Token usage: prompt=15,545, completion=6,738, total=22,283
+21:17:21 - root - DEBUG [20260623_211542_bdcef8] - Tool call: write_file with args: {"path":"/workspace/experiment-5/Neural_Networks_and_Transformers_Comprehensive_Guide.md","content":"# Neural Networks & Transformers: Comprehensive Study Guide\n\n## Table of Contents\n1. [Introducti...
+21:17:21 - root - DEBUG [20260623_211542_bdcef8] - Captured reasoning (300 chars): Now I have enough information from searches about neural networks, transformers, backpropagation, and attention mechanisms. Let me compile all this into a comprehensive studying document covering both topics thoroughly with mathematical explanations, architectures, applications, and best practices.
 
-02:52:55 - tools.file_tools - INFO [20260621_025000_2f7476] - Creating new local environment for task default...
-02:52:55 - tools.environments.base - INFO [20260621_025000_2f7476] - Session snapshot created (session=ad094f5cb2c4, cwd=/workspace/experiment-5)
-02:52:55 - tools.file_tools - INFO [20260621_025000_2f7476] - local environment ready for task default
-02:52:55 - agent.tool_executor - INFO [20260621_025000_2f7476] - tool write_file completed (0.11s, 318 chars)
-02:52:55 - root - DEBUG [20260621_025000_2f7476] - Tool write_file completed in 0.11s
-02:52:55 - root - DEBUG [20260621_025000_2f7476] - Tool result (318 chars): {"bytes_written": 50181, "dirs_created": true, "lint": {"status": "skipped", "message": "No linter for .md files"}, "resolved_path": "/workspace/experiment-5/Neural_Networks_and_Transformers_Comprehensive_Guide.md", "files_modified": ["/workspace/experiment-5/Neural_Networks_and_Transformers_Comprehensive_Guide.md"]}
-02:52:55 - root - DEBUG [20260621_025000_2f7476] - API Request - Model: qwen3.5-9b, Messages: 11, Tools: 19
-02:52:55 - root - DEBUG [20260621_025000_2f7476] - Last message role: tool
-02:52:55 - root - DEBUG [20260621_025000_2f7476] - Total message size: ~17,667 tokens
-02:52:55 - agent.chat_completion_helpers - DEBUG [20260621_025000_2f7476] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
-02:52:55 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
-02:52:55 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-17 (_call):123145884260032 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-02:53:04 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-17 (_call):123145884260032 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-02:53:04 - root - DEBUG [20260621_025000_2f7476] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=430, prompt_tokens=27015, total_tokens=27445, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=31, rejected_prediction_tokens=None), prompt_tokens_details=None)
-02:53:04 - agent.conversation_loop - INFO [20260621_025000_2f7476] - API call #6: model=qwen3.5-9b provider=lmstudio in=27015 out=430 total=27445 latency=9.2s
-02:53:04 - root - DEBUG [20260621_025000_2f7476] - Token usage: prompt=27,015, completion=430, total=27,445
-02:53:04 - root - DEBUG [20260621_025000_2f7476] - Captured reasoning (186 chars): The document was successfully created with comprehensive content, so I should summarize the deliverables and highlight key sections to help the user navigate this extensive study guide.
+21:17:21 - tools.file_tools - INFO [20260623_211542_bdcef8] - Creating new local environment for task default...
+21:17:21 - tools.environments.base - INFO [20260623_211542_bdcef8] - Session snapshot created (session=42c00ee98aa2, cwd=/workspace/experiment-5)
+21:17:21 - tools.file_tools - INFO [20260623_211542_bdcef8] - local environment ready for task default
+21:17:21 - agent.tool_executor - INFO [20260623_211542_bdcef8] - tool write_file completed (0.08s, 318 chars)
+21:17:21 - root - DEBUG [20260623_211542_bdcef8] - Tool write_file completed in 0.08s
+21:17:21 - root - DEBUG [20260623_211542_bdcef8] - Tool result (318 chars): {"bytes_written": 28534, "dirs_created": true, "lint": {"status": "skipped", "message": "No linter for .md files"}, "resolved_path": "/workspace/experiment-5/Neural_Networks_and_Transformers_Comprehensive_Guide.md", "files_modified": ["/workspace/experiment-5/Neural_Networks_and_Transformers_Comprehensive_Guide.md"]}
+21:17:21 - root - DEBUG [20260623_211542_bdcef8] - API Request - Model: qwen3.5-9b, Messages: 11, Tools: 19
+21:17:21 - root - DEBUG [20260623_211542_bdcef8] - Last message role: tool
+21:17:21 - root - DEBUG [20260623_211542_bdcef8] - Total message size: ~12,806 tokens
+21:17:21 - agent.chat_completion_helpers - DEBUG [20260623_211542_bdcef8] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
+21:17:21 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
+21:17:21 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-17 (_call):129779829356224 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+21:17:27 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-17 (_call):129779829356224 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+21:17:27 - root - DEBUG [20260623_211542_bdcef8] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=356, prompt_tokens=22390, total_tokens=22746, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=40, rejected_prediction_tokens=None), prompt_tokens_details=None)
+21:17:27 - agent.conversation_loop - INFO [20260623_211542_bdcef8] - API call #6: model=qwen3.5-9b provider=lmstudio in=22390 out=356 total=22746 latency=5.9s
+21:17:27 - root - DEBUG [20260623_211542_bdcef8] - Token usage: prompt=22,390, completion=356, total=22,746
+21:17:27 - root - DEBUG [20260623_211542_bdcef8] - Captured reasoning (244 chars): The file was successfully created with comprehensive content. I should now summarize what was written and offer to create additional supplementary materials like math reference sheets or code examples if the user wants more hands-on resources.
 
-02:53:04 - tools.browser_tool - DEBUG [20260621_025000_2f7476] - cleanup_browser called for task_id: 20260621_025000_2f7476
-02:53:04 - tools.browser_tool - DEBUG [20260621_025000_2f7476] - Active sessions: []
-02:53:04 - tools.browser_tool - DEBUG [20260621_025000_2f7476] - No active session found for task_id: 20260621_025000_2f7476
-02:53:04 - agent.conversation_loop - INFO [20260621_025000_2f7476] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.5-9b api_calls=6/90 budget=6/90 tool_turns=5 last_msg_role=assistant response_len=1847 session=20260621_025000_2f7476
-02:53:04 - agent.auxiliary_client - DEBUG - resolve_provider_client: lmstudio (qwen3.5-9b)
-02:53:04 - agent.auxiliary_client - INFO - Auxiliary auto-detect: using main provider lmstudio (qwen3.5-9b)
-02:53:04 - agent.auxiliary_client - INFO - Auxiliary title_generation: using auto (qwen3.5-9b) at http://host.docker.internal:1234/v1/
-02:53:05 - tools.terminal_tool - INFO - Shutting down 1 remaining sandbox(es)...
-02:53:05 - tools.terminal_tool - INFO - Manually cleaned up environment for task: default
-02:53:05 - tools.terminal_tool - INFO - Cleaned 1 environments
-02:53:05 - tools.mcp_tool - DEBUG - mcp package not installed -- MCP tool support disabled
+21:17:27 - tools.browser_tool - DEBUG [20260623_211542_bdcef8] - cleanup_browser called for task_id: 20260623_211542_bdcef8
+21:17:27 - tools.browser_tool - DEBUG [20260623_211542_bdcef8] - Active sessions: []
+21:17:27 - tools.browser_tool - DEBUG [20260623_211542_bdcef8] - No active session found for task_id: 20260623_211542_bdcef8
+21:17:27 - agent.conversation_loop - INFO [20260623_211542_bdcef8] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.5-9b api_calls=6/90 budget=6/90 tool_turns=5 last_msg_role=assistant response_len=1617 session=20260623_211542_bdcef8
+21:17:27 - agent.auxiliary_client - DEBUG - resolve_provider_client: lmstudio (qwen3.5-9b)
+21:17:27 - agent.auxiliary_client - INFO - Auxiliary auto-detect: using main provider lmstudio (qwen3.5-9b)
+21:17:27 - agent.auxiliary_client - INFO - Auxiliary title_generation: using auto (qwen3.5-9b) at http://host.docker.internal:1234/v1/
+21:17:28 - tools.terminal_tool - INFO - Shutting down 1 remaining sandbox(es)...
+21:17:28 - tools.terminal_tool - INFO - Manually cleaned up environment for task: default
+21:17:28 - tools.terminal_tool - INFO - Cleaned 1 environments
+21:17:28 - tools.mcp_tool - DEBUG - mcp package not installed -- MCP tool support disabled

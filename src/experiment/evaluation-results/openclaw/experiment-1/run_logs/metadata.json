@@ -1,11 +1,11 @@
 {
   "experiment_num": 1,
   "agent": "openclaw",
-  "started_at": "2026-06-21T00:53:57.914892+00:00",
-  "llm_started_at": "2026-06-21T00:54:02.866403+00:00",
-  "ended_at": "2026-06-21T00:54:07.561315+00:00",
-  "warmup_seconds": 4.951511,
-  "duration_seconds": 4.694912,
+  "started_at": "2026-06-23T18:01:32.305150+00:00",
+  "llm_started_at": "2026-06-23T18:01:36.710651+00:00",
+  "ended_at": "2026-06-23T18:01:43.831962+00:00",
+  "warmup_seconds": 4.405501,
+  "duration_seconds": 7.121311,
   "exit_code": 0,
   "status": "passed"
 }

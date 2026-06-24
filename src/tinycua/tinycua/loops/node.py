@@ -21,7 +21,7 @@ from tinycua.models.session import Session
 
 if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
-    from tinycua.loops.node_contract import NodeContract
+    from tinycua.loops.node_contract import NodeContract, NodeProgress
     from tinycua.loops.node_queue import NodeQueue
 
 logger = logging.getLogger(__name__)
@@ -141,6 +141,17 @@ def build_messages_with_dedupe(
                 deduped_entries.append(entry)
 
         context_entries = deduped_entries
+
+    # FR-083: bound the prompt-bound context to the last max_context_messages.
+    # The full session_context list (audit trail) is never mutated — only the
+    # prompt-bound subset is capped. None means unlimited (escape hatch).
+    max_msgs = (
+        session.session_config.max_context_messages
+        if session.session_config is not None
+        else None
+    )
+    if max_msgs is not None and len(context_entries) > max_msgs:
+        context_entries = context_entries[-max_msgs:]
 
     # Convert entries to message dicts, dropping blank content at the API boundary.
     for entry in context_entries:
