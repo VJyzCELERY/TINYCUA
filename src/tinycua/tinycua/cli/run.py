@@ -199,6 +199,7 @@ def _build_run_agent(
     worker_effort: str, no_tool_audit: bool,
     allow_open_question: bool, replan_threshold: int | None,
     log_path: Path | None,
+    recovery_strategy: str = "standard",
 ) -> Agent | int:
     """Build the tinycua agent. Returns the agent or 1 on error."""
     try:
@@ -213,6 +214,7 @@ def _build_run_agent(
                 enable_open_question_review=allow_open_question,
                 replan_threshold=replan_threshold if replan_threshold is not None else 5,
                 compaction_strategy=SimpleCompaction(),  # FR-082
+                recovery_strategy=recovery_strategy,  # FR-087
             ),
             llm_model=build_language_model(config, max_context=config.get("max_context")),
         )
@@ -305,6 +307,7 @@ def run_command(
     allow_open_question: bool = False,
     replan_threshold: int | None = None,
     max_context: int | None = None,
+    recovery_strategy: str = "standard",
 ) -> int:
     """Execute the tinycua run command (always streaming).
 
@@ -337,6 +340,10 @@ def run_command(
             for compaction threshold calculation (FR-084). When None, the
             runtime probes the server via GET /v1/models; falls back to the
             SDK default (128000) when the probe fails or the field is absent.
+        recovery_strategy: Retry strategy for missing state-tool validation
+            failures (FR-087..FR-093). "standard" (default) uses the existing
+            tool-exposed retry + 15/10/3 recovery. "markdown_synthesis" adds
+            one no-tools markdown continuation before standard recovery.
 
     Returns:
         Exit code: 0 success, 1 error, 124 timeout.
@@ -369,6 +376,7 @@ def run_command(
     agent = _build_run_agent(
         config, workspace, artifact_dir, worker_effort, no_tool_audit,
         allow_open_question, replan_threshold, log_path,
+        recovery_strategy=recovery_strategy,
     )
     if isinstance(agent, int):
         return agent

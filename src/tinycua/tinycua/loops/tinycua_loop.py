@@ -14,8 +14,11 @@ from typing import TYPE_CHECKING, Any
 from tinycua_sdk.agent.executor import ToolExecutor
 from tinycua_sdk.agent.loop import BaseLoop
 
-from tinycua.config.types import LLMResult, ValidationError, ValidationResult
-from tinycua.loops._loop_constants import _MAX_PROVIDER_RETRIES, _MAX_TOOL_CONTINUATIONS
+from tinycua.config.types import LLMResult, ValidationResult
+from tinycua.loops._loop_constants import (
+    _MAX_PROVIDER_RETRIES,
+    _MAX_TOOL_CONTINUATIONS,
+)
 from tinycua.loops.context_rendering import render_llm_content, sanitize_internal_reprs
 from tinycua.loops.node_contract import NodeState
 from tinycua.loops.node_queue import NodeQueue
@@ -31,6 +34,7 @@ from tinycua.loops.prompt_protocol_mixin import PromptProtocolMixin
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.loops.task_tree_rendering import render_task_tree
 from tinycua.loops.trace_state_mixin import TraceStateMixin
+from tinycua.loops.lazy_retry_mixin import LazyRetryMixin
 from tinycua.loops.recovery_stages_mixin import RecoveryGuardMixin, RecoveryStagesMixin
 from tinycua.loops.validation_retry_mixin import ValidationRetryMixin
 from tinycua.models.session import Session
@@ -146,6 +150,7 @@ def _detect_repetition(content: str, min_block: int = 50, threshold: int = 3) ->
 class TinyCUALoop(
     OrchestrationMixin,
     ValidationRetryMixin,
+    LazyRetryMixin,
     RecoveryStagesMixin,
     RecoveryGuardMixin,
     PromptProtocolMixin,
@@ -884,6 +889,7 @@ class TinyCUALoop(
         retry_message: str | None = None
         retry_feedback: list[dict[str, Any]] = []
         retry_tool_results: list[dict[str, Any]] = []
+        lazy_attempts = 0  # FR-091: lazy retry counter; None doesn't burn a slot.
         # FR-063: reset progress for fresh dispatch. Recovery re-entry
         # preserves accumulated_tool_results so the node doesn't re-call
         # tools it already called before the budget exhausted.
@@ -1025,16 +1031,19 @@ class TinyCUALoop(
             if last_validation.is_valid:
                 return last_result, attempt, last_validation
             if attempt < max_attempts:
-                error = ValidationError("; ".join(last_validation.errors))
-                retry_message = self._retry_message_for_validation(
-                    error,
-                    node,
-                    resolved_tools,
-                    last_result,
-                )
-                retry_feedback = self._tool_feedback_messages(last_result)
-                retry_tool_results = self._tool_results_from_llm_result(last_result)
-                self._record_retry_continuation(node, retry_message, attempt)
+                # FR-091: lazy retry → standard retry. The helper handles both
+                # and returns a signal: "return", "break", or None (continue).
+                retry_signal = await self._handle_retry_attempt(
+                    node, agent, resolved_tools, last_result, last_validation,
+                    attempt, lazy_attempts)
+                if retry_signal is not None:
+                    action, last_result, last_validation, lazy_attempts = retry_signal
+                    if action == "return":
+                        return last_result, attempt, last_validation
+                    break  # "break" → _unbounded_recovery
+                retry_message, retry_feedback, retry_tool_results = (
+                    self._prepare_standard_retry(
+                        node, resolved_tools, last_result, last_validation, attempt))
 
         node._handle_exhaustion(last_validation, max_attempts)
         return last_result, max_attempts, last_validation

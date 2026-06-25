@@ -2,7 +2,7 @@
 
 **Status**: Draft  
 **Created**: 2026-06-15  
-**Last Updated**: 2026-06-15  
+**Last Updated**: 2026-06-24  
 **Subproject(s) Affected**: `tinycua`
 
 ---
@@ -38,6 +38,7 @@ A notebook user configures a workspace and artifact directory, creates a TinyCUA
 3. **Given** task tools produce results, **When** a node calls a tool, **Then** the tool output is fed back to the LLM as provider-compatible tool result/context before the node finalizes or continues.
 4. **Given** a task is rejected by review, **When** ResultReviewer decides retry or replan, **Then** the queue follows retry/replan behavior instead of always moving linearly to aggregation.
 5. **Given** the notebook demo, **When** it is run against the live local model, **Then** it displays final response text, task tree snapshots, route decisions, tool calls/results, artifact paths, and clear failure diagnostics if any contract is not met.
+6. **Given** a node whose LLM response completes without calling its required state tool (`task_result_update`, `task_review_decision`, `select_query_route`, `select_worker_route`) and `SessionConfig.recovery_strategy == "markdown_synthesis"`, **When** the runtime detects the validation failure, **Then** it makes exactly one non-streaming LLM continuation with no tools exposed, asking the model to fill a small markdown template; parses the response; synthesizes the state tool call; executes it; and terminates the node without invoking the 15/10/3 recovery stages when the markdown is valid.
 
 ### Edge Cases
 
@@ -47,6 +48,8 @@ A notebook user configures a workspace and artifact directory, creates a TinyCUA
 - Tool-call failures MUST be visible to the model and to the trace.
 - Two agents with different workspaces MUST not share file artifacts, todo state, or task state.
 - Streaming consumers MUST be able to select final-response-only output without losing trace/debug observability.
+- When the markdown synthesis response is unparseable or the referenced `task_id` is unresolvable, lazy retry MUST return without consuming a lazy attempt slot and the existing standard retry/recovery path MUST run unchanged.
+- Lazy retry MUST NOT fire for generic tool-execution failures (e.g. `run_shell` returning an error mid-execution); it applies only to validation failures where the node's required state tool was never called.
 
 ---
 
@@ -74,6 +77,18 @@ A notebook user configures a workspace and artifact directory, creates a TinyCUA
 - **FR-018**: The notebook MUST be an executable acceptance demo against the local live LLM endpoint, not a trace-only smoke demo.
 - **FR-019**: All currently stubbed node classes MUST have concrete behavior or be removed/replaced by a concrete component. Empty semantic subclasses are not acceptable.
 - **FR-020**: CI/test commands MUST include deterministic mock tests and opt-in live LLM integration tests.
+
+#### Runtime Reliability — Markdown-Synthesis Retry (Lazy Retry)
+
+These requirements extend the runtime reliability follow-up. They add an opt-in retry strategy that reduces LLM call volume when a node finishes its work but fails to emit its required state tool. The default strategy is unchanged (`standard`); `markdown_synthesis` is additive and never lowers existing safety guarantees.
+
+- **FR-087**: `SessionConfig.recovery_strategy: Literal["standard", "markdown_synthesis"]` MUST default to `"standard"`. When `"standard"`, the existing retry/recovery behavior is bit-for-bit unchanged.
+- **FR-088**: Lazy retry MUST fire only when the node's validation failure is purely a missing registered state tool (`task_result_update`, `task_review_decision`, `select_query_route`, `select_worker_route`) and the node has a registered markdown template. Generic tool-execution failures, empty final responses, missing rationale evidence, route-argument validation, and "cannot approve failed task" errors MUST skip lazy retry and fall through to standard recovery.
+- **FR-089**: Lazy retry MUST make exactly one non-streaming LLM continuation with no tools exposed to the model, using the full node context (system prompt, task under review, outcome report, roadmap, trimmed tool results) followed by a user-role instruction asking the model to fill a small markdown template.
+- **FR-090**: Lazy retry MUST parse the markdown response, resolve `task_id` (UUID lookup → roadmap number → active task fallback), synthesize the state tool call, execute it through the normal tool executor, and re-validate the result. On parse failure, unresolvable `task_id`, or tool-execution error, lazy retry MUST return a `None` signal so the caller falls back to standard recovery.
+- **FR-091**: The lazy retry budget MUST be capped at 3 attempts and shared with the node's existing `retry_policy.max_attempts` (no ceiling increase). A lazy call that returns `None` (parse fail / empty response / exec error) MUST NOT consume a lazy slot and MUST fall through to standard in-loop retry for the same attempt.
+- **FR-092**: After the lazy budget is exhausted or the gate does not pass, the existing standard in-loop retry and `_unbounded_recovery` (15/10/3) MUST run unchanged as the safety net.
+- **FR-093**: v1 templates MUST cover `result_reviewer`, `task_executor`, `query_analyst`, and `worker`. When `terminate` is the only missing prerequisite, the existing `_direct_terminate` path MUST be used (no template needed). `task_create`, `task_assessor`, and `task_analyzer` are out of scope for v1 and stay 100% standard.
 
 ### Key Entities _(include if feature involves data)_
 

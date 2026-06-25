@@ -101,11 +101,10 @@ def test_run_experiment_uses_uv(capsys) -> None:
 
 
 def test_main_judges_and_archives_failed_runs(tmp_path: Path, monkeypatch) -> None:
-    """Failed runs are still judged and archived."""
+    """Failed runs are still judged (archiving is manual now)."""
     manifest = tmp_path / "prompts.txt"
     manifest.write_text("Experiment_1: ok\nExperiment_2: fail\n")
     judged = []
-    archived = []
 
     monkeypatch.setattr(run_batch_experiments, "_run_setup", lambda dry_run: 0)
     monkeypatch.setattr(
@@ -118,19 +117,10 @@ def test_main_judges_and_archives_failed_runs(tmp_path: Path, monkeypatch) -> No
     monkeypatch.setattr(
         run_batch_experiments,
         "_run_judge",
-        lambda num, output_root, agents, dry_run: judged.append(num) or 0,
-    )
-    monkeypatch.setattr(
-        run_batch_experiments,
-        "archive_results",
-        lambda output_root, archive_root, experiments, manifest, agents: archived.extend(
-            experiments
-        )
-        or tmp_path,
+        lambda num, output_root, agents, dry_run, cross_judge=False: judged.append(num) or 0,
     )
 
     code = run_batch_experiments.main(["--manifest", str(manifest)])
 
     assert code == 1
     assert judged == [1, 2]
-    assert archived == [(1, "ok"), (2, "fail")]

@@ -521,6 +521,14 @@ def run_agent(
             max_ctx = probe_lm_studio_context()
         if max_ctx is not None:
             command.extend(["-e", f"EXPERIMENT_TINYCUA_MAX_CONTEXT={max_ctx}"])
+        # FR-087..FR-093: opt-in markdown-synthesis ("lazy") retry strategy.
+        # When EXPERIMENT_TINYCUA_RECOVERY_STRATEGY=markdown_synthesis is set
+        # in .env, the tinycua container runs with --recovery-strategy
+        # markdown_synthesis; otherwise it defaults to standard.
+        recovery = read_str_env("EXPERIMENT_TINYCUA_RECOVERY_STRATEGY")
+        if recovery and recovery.strip() in {"standard", "markdown_synthesis"}:
+            command.extend(["-e", f"EXPERIMENT_TINYCUA_RECOVERY_STRATEGY={recovery.strip()}"])
+            print(f"[tinycua] recovery_strategy={recovery.strip()} (from .env)", flush=True)
 
     command.append(agent)
     started = datetime.now(UTC)

@@ -62,7 +62,7 @@ def test_runner_invokes_all_agents_in_order_and_writes_metadata(tmp_path: Path):
     assert "summary: opencode=passed, hermes=failed, openclaw=passed, tinycua=passed" in result.stdout
     assert calls.read_text().splitlines() == SERVICES
     for agent in SERVICES:
-        root = tmp_path / "results" / agent / "experiment-1"
+        root = tmp_path / "results" / agent / "experiment-1" / "logs"
         assert (root / "prompt.txt").read_text() == "compare harnesses"
         assert (root / "container.env").read_text() == "EXPERIMENT_LLM_MODEL=test-model\n"
         assert (root / "stdout.log").read_text() == f"{agent} stdout\n"
@@ -72,7 +72,7 @@ def test_runner_invokes_all_agents_in_order_and_writes_metadata(tmp_path: Path):
         assert meta["experiment_num"] == 1
         assert "duration_seconds" in meta
     hermes_meta = json.loads(
-        (tmp_path / "results" / "hermes" / "experiment-1" / "metadata.json").read_text()
+        (tmp_path / "results" / "hermes" / "experiment-1" / "logs" / "metadata.json").read_text()
     )
     assert hermes_meta["exit_code"] == 7
     assert hermes_meta["status"] == "failed"
@@ -152,7 +152,7 @@ def test_runner_times_out_agents_and_writes_partial_logs(tmp_path: Path):
     )
 
     assert result.returncode == 1
-    first = tmp_path / "results" / "opencode" / "experiment-3"
+    first = tmp_path / "results" / "opencode" / "experiment-3" / "logs"
     assert (first / "stdout.log").read_text() == "started\n"
     assert "Timed out after 1 seconds" in (first / "stderr.log").read_text()
     assert json.loads((first / "metadata.json").read_text())["exit_code"] == 124

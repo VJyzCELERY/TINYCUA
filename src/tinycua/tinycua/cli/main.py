@@ -163,6 +163,17 @@ def _add_run_arguments(parser: argparse.ArgumentParser) -> None:
         "fall back to 128000 when the probe fails or the field is absent "
         "(FR-084).",
     )
+    parser.add_argument(
+        "--recovery-strategy",
+        dest="recovery_strategy",
+        choices=["standard", "markdown_synthesis"],
+        default="standard",
+        help="Retry strategy for missing state-tool validation failures "
+        "(FR-087..FR-093). 'standard' (default): the existing tool-exposed "
+        "retry + 15/10/3 recovery. 'markdown_synthesis': one no-tools "
+        "markdown continuation to synthesize the missing state tool before "
+        "falling back to standard recovery.",
+    )
 
 
 def _normalise_run_args(args: argparse.Namespace) -> None:
@@ -256,6 +267,7 @@ def main() -> None:
             allow_open_question=args.allow_open_question,
             replan_threshold=args.replan_threshold,
             max_context=args.max_context,
+            recovery_strategy=args.recovery_strategy,
         )
         raise SystemExit(exit_code)
 

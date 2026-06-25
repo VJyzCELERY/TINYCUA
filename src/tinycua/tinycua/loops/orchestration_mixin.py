@@ -27,7 +27,6 @@ logger = logging.getLogger(__name__)
 
 class OrchestrationMixin:
     """Orchestration and streaming mixin for TinyCUALoop."""
-
     def _node_run_context(
         self,
         agent: Agent,
@@ -36,7 +35,6 @@ class OrchestrationMixin:
         stream_messages: list[dict[str, Any]] | None = None,
     ) -> NodeRunContext:
         """Create injected runtime services for node-owned run entrypoints."""
-
         async def sync_executor(
             node: Node,
             node_input: NodeInputLike,
@@ -48,7 +46,6 @@ class OrchestrationMixin:
                 override_instructions,
                 node_input,
             )
-
         async def stream_executor(
             node: Node,
             node_input: NodeInputLike,
@@ -62,20 +59,16 @@ class OrchestrationMixin:
                 stream_messages,
             ):
                 yield event
-
         return NodeRunContext(
             sync_executor=sync_executor,
             stream_executor=stream_executor,
         )
-
     def _maybe_populate_root_mission(self, node: Node) -> None:
         """Populate the canonical mission on the root task after TaskCreate.
-
         Derives ``mission`` (original request) and ``inherited_constraints``
         from the most recent ``DigestedInformation`` in the root session
         context, or from the raw user query when no digest exists. Idempotent:
         an existing mission is never overwritten. See FR-001.
-
         Args:
             node: The node that just completed; only ``task_create`` triggers
                 population.
@@ -89,7 +82,6 @@ class OrchestrationMixin:
         if root.metadata.get("mission"):
             return  # idempotent: do not clobber an existing mission.
         from tinycua.models.digested_information import DigestedInformation
-
         digest = find_latest_entry(self.root_session, DigestedInformation)
         if digest is not None:
             root.metadata["mission"] = digest.original_query or ""
@@ -106,7 +98,6 @@ class OrchestrationMixin:
             root.metadata["inherited_constraints"] = []
             root.metadata["mission_context"] = ""
             root.metadata["mission_key_points"] = []
-
     def _prepare_node(
         self,
         node: Node,
@@ -114,12 +105,10 @@ class OrchestrationMixin:
         override_instructions: str | None = None,
     ) -> tuple[list[dict[str, Any]], list[Tool]]:
         """Prepare a node for execution: attach session, build messages, resolve tools.
-
         Args:
             node: The node to prepare.
             tools: Available tools from the agent.
             override_instructions: Optional instructions override.
-
         Returns:
             Tuple of (messages, resolved_tools) ready for LLM call.
         """
@@ -135,7 +124,6 @@ class OrchestrationMixin:
         finally:
             self._resolved_tools_for_prompt = None
         return messages, resolved_tools
-
     async def _execute_deterministic_node(
         self,
         node: Node,
@@ -148,7 +136,6 @@ class OrchestrationMixin:
         if content:
             self._record_node_content_transcript(node, content)
         self._apply_task_lifecycle_marker(node, content)
-
         on_complete_response = self._build_on_complete_response(node, llm_result)
         trace_entry = self._trace_entry(
             node,
@@ -159,7 +146,6 @@ class OrchestrationMixin:
         )
         trace_entry["deterministic"] = True
         self._execution_trace.append(trace_entry)
-
         rule = node.config.propagation or PropagationRule()
         parent_session = self._find_parent_session(node)
         await propagate_on_termination(
@@ -169,7 +155,6 @@ class OrchestrationMixin:
             rule,
         )
         return content, llm_result.tool_calls
-
     async def _handle_validation_failure(
         self,
         node: Node,
@@ -346,8 +331,15 @@ class OrchestrationMixin:
             )
             if recovered is not None:
                 return recovered
-            # FR-060: recovery loop with per-method budgets (15/10/3).
-            # Returns None when the budget is exhausted → re-enter the node.
+            lazy_outcome = await self._maybe_lazy_pre_recovery(  # FR-087..093
+                node, agent, resolved_tools, llm_result, validation)
+            if lazy_outcome is not None:
+                lazy_result, revalidated, is_valid = lazy_outcome
+                if is_valid:
+                    return await self._finalize_node_success(
+                        node, lazy_result, revalidated, attempt,
+                        None, resolved_tools, lazy_result.content)
+                llm_result, validation = lazy_result, revalidated
             recovery_result = await self._unbounded_recovery(
                 node, agent, resolved_tools, llm_result, validation
             )
@@ -851,6 +843,7 @@ class OrchestrationMixin:
         retry_message: str | None = None
         retry_feedback: list[dict[str, Any]] = []
         retry_tool_results: list[dict[str, Any]] = []
+        lazy_attempts = 0  # FR-091: lazy retry counter (stream path).
         for attempt_number in range(attempt, max_attempts + 1):
             attempt_messages = self._messages_with_retry_prompt(
                 base_messages,
@@ -932,6 +925,19 @@ class OrchestrationMixin:
                     yield event
                 return
             if attempt_number < max_attempts:
+                lazy_outcome = await self._maybe_lazy_in_stream_loop(  # FR-091
+                    node, agent, resolved_tools, llm_result, validation, lazy_attempts)
+                if lazy_outcome is not None:
+                    lazy_result, last_validation, lazy_attempts = lazy_outcome
+                    last_result = lazy_result
+                    last_combined = lazy_result.content
+                    if last_validation.is_valid:
+                        async for event in self._stream_lazy_valid_completion(
+                            node, lazy_result, stream_messages, include_meta,
+                            node_type, attempt_number, final_only, emit_lifecycle):
+                            yield event
+                        return
+                    break  # terminate missing → _unbounded_recovery
                 error = ValidationError("; ".join(validation.errors))
                 retry_message = self._stream_retry_message(
                     agent,
@@ -1387,8 +1393,17 @@ class OrchestrationMixin:
                     max_attempts,
                 )
             return
-        # FR-060: recovery loop with per-method budgets (15/10/3).
-        # Returns None when the budget is exhausted → re-enter the node.
+        lazy_outcome = await self._maybe_lazy_pre_recovery(  # FR-087..093
+            node, agent, resolved_tools, llm_result, validation)
+        if lazy_outcome is not None:
+            lazy_result, revalidated, is_valid = lazy_outcome
+            if is_valid:
+                async for event in self._finalize_lazy_stream_recovery(
+                    node, lazy_result, combined, emit_lifecycle, include_meta,
+                    final_only, node_type, max_attempts):
+                    yield event
+                return
+            llm_result, validation = lazy_result, revalidated
         recovery_result = await self._unbounded_recovery(
             node, agent, resolved_tools, llm_result, validation
         )

@@ -23,8 +23,8 @@ def test_tinycua_dockerfile_installs_local_packages() -> None:
     """TINYCUA image uses this branch's code."""
     dockerfile = (ROOT / "docker" / "tinycua.Dockerfile").read_text()
 
-    assert "COPY src/tinycua-sdk ./tinycua-sdk" in dockerfile
-    assert "COPY src/tinycua ./tinycua" in dockerfile
+    assert "COPY src/tinycua-sdk /app/tinycua-sdk" in dockerfile
+    assert "COPY src/tinycua /app/tinycua" in dockerfile
     assert "uv pip install --no-cache-dir --system ./tinycua-sdk" in dockerfile
     assert "uv pip install --no-cache-dir --system ./tinycua" in dockerfile
     assert "tinycua run" in dockerfile

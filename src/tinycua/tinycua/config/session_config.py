@@ -90,6 +90,11 @@ class SessionConfig:
     task_result_compaction_threshold: float = 0.3
     # Number of recent dynamic turns to keep during compaction.
     compaction_keep_recent: int = 5
+    # FR-087: opt-in markdown-synthesis retry ("lazy retry"). When "standard"
+    # (default), retry/recovery behavior is bit-for-bit unchanged. When
+    # "markdown_synthesis", missing-state-tool validation failures get one
+    # no-tools markdown continuation before standard recovery (FR-088..093).
+    recovery_strategy: Literal["standard", "markdown_synthesis"] = "standard"
 
     # Effort → max_replans mapping (FR-050). Used when max_replans is None.
     _EFFORT_MAX_REPLANS: ClassVar[dict[str, int]] = {

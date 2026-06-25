@@ -332,6 +332,23 @@ class ValidationRetryMixin:
             return _UNBOUNDED_RETRY_ATTEMPTS
         return max(retry_policy.max_attempts, 1)
 
+    def _prepare_standard_retry(
+        self,
+        node: Node,
+        resolved_tools: list[Tool],
+        last_result: LLMResult,
+        validation: ValidationResult,
+        attempt: int,
+    ) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
+        """Build (retry_message, retry_feedback, retry_tool_results) for the next attempt."""
+        error = ValidationError("; ".join(validation.errors))
+        retry_message = self._retry_message_for_validation(
+            error, node, resolved_tools, last_result)
+        retry_feedback = self._tool_feedback_messages(last_result)
+        retry_tool_results = self._tool_results_from_llm_result(last_result)
+        self._record_retry_continuation(node, retry_message, attempt)
+        return retry_message, retry_feedback, retry_tool_results
+
     def _natural_retry_message(
         self,
         error: ValidationError,
@@ -1454,3 +1471,4 @@ class ValidationRetryMixin:
             f"artifacts ({', '.join(artifact_paths)}); consider verifying before "
             "final aggregation.",
         )
+

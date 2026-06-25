@@ -83,11 +83,12 @@ _RESULT_REVIEWER_CONTINUATION = (
     "...') for code; web_search/fetch_url for research claims. Verify the "
     "artifact actually works, not just that it exists or imports. For "
     "markdown with math, check for tab corruption AND unicode escape "
-    "corruption: grep -cP '\\t' <the_file> and grep -c '\\u[0-9a-f]' "
-    "<the_file>. Then call task_review_decision for the active task. If its "
-    "result also completes siblings, propagate via task_result_update "
-    "(success=true, note 'completed as part of task N'). Then task_inspect "
-    "(no task_id), then terminate."
+    "corruption: grep -cP '\\t' <the_file> and grep -cP '\\\\u[0-9a-fA-F]{4}' "
+    "<the_file> (note: use -P and double-backslash so grep matches a literal "
+    "backslash-u, not the letter u). Then call task_review_decision for the "
+    "active task. If its result also completes siblings, propagate via "
+    "task_result_update (success=true, note 'completed as part of task N'). "
+    "Then task_inspect (no task_id), then terminate."
 )
 
 
@@ -122,8 +123,10 @@ def build_reviewer_tool_guidance(resolved_tools: list[Any] | None) -> str:
         lines.append(
             "For markdown with math, check for BOTH tab corruption "
             "(grep -cP '\\t' <the_file>) AND unicode escape corruption "
-            "(grep -c '\\u[0-9a-f]' <the_file>). Literal \\uXXXX sequences "
-            "mean unicode escapes were not decoded — send back for revision."
+            "(grep -cP '\\\\u[0-9a-fA-F]{4}' <the_file> — use -P and "
+            "double-backslash so grep matches a literal backslash-u, not the "
+            "letter u). Literal \\uXXXX sequences mean unicode escapes were "
+            "not decoded — send back for revision."
         )
     research_verify = names.intersection({"web_search", "fetch_url"})
     if research_verify:

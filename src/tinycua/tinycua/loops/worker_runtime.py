@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from tinycua.config.node_config import create_node_config
@@ -174,10 +174,12 @@ class WorkerRuntimeController:
                 reason = self._build_replan_reason(active)
                 logger.info(
                     "replan_triggered task_id=%s consecutive_failures=%d threshold=%d "
-                    "decision=%s — routing to TaskAnalyzer for replan",
+                    "replans=%d/%d decision=%s — routing to TaskAnalyzer for replan",
                     active.task_id,
                     active.consecutive_failures,
                     self.replan_threshold,
+                    self._replan_count(active),
+                    self.max_replans if self.max_replans is not None else 3,
                     decision,
                 )
                 self.schedule_replan(queue, replan_reason=reason)

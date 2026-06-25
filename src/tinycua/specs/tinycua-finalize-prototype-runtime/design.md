@@ -2,7 +2,7 @@
 
 **Spec**: `./spec.md`  
 **Status**: Draft  
-**Last Updated**: 2026-06-15
+**Last Updated**: 2026-06-24
 
 ---
 
@@ -63,6 +63,13 @@ Task lifecycle loop
 | `tinycua.config.tool_scopes` | Modified | Least-privilege node scopes matching source-of-truth docs and actual native tool names. |
 | `tinycua.models.stream_event` | Modified/New | Final/debug stream visibility helpers and route/tool-result events. |
 | `notebooks/tinycua_agent_trace_demo.ipynb` | Modified | Acceptance demo with final response, task tree, artifacts, routes, tool results, and live streaming. |
+| `tinycua.loops.lazy_templates` | New | v1 markdown templates, node→tool registry, and markdown parser for lazy retry (FR-087..FR-093). |
+| `tinycua.loops.validation_retry_mixin.ValidationRetryMixin` | Modified | Adds `_maybe_lazy_recovery` and `_lazy_gate_passes` (lazy retry core + gate). |
+| `tinycua.config.session_config.SessionConfig` | Modified | Adds `recovery_strategy: Literal["standard", "markdown_synthesis"]` (default `"standard"`). |
+| `tinycua.loops.tinycua_loop.TinyCUALoop` | Modified | Wires lazy retry into `_call_node_with_retry` (sync in-loop path). |
+| `tinycua.loops.orchestration_mixin` | Modified | Wires lazy retry into `_stream_llm_node_events` (stream in-loop) and `_execute_node` / `_stream_exhausted_node_events` (pre-`_unbounded_recovery`). |
+| `tinycua.loops._loop_constants` | Modified | Adds `_LAZY_BUDGET = 3` constant. |
+| `tinycua.cli.main` / `tinycua.cli.run` | Modified | Adds `--recovery-strategy {standard,markdown_synthesis}` CLI flag threaded into `SessionConfig`. |
 
 ---
 
@@ -151,7 +158,7 @@ loop.get_final_response_events() -> list[dict[str, Any]]
 
 | Error Case | Exception / Response | Notes |
 |------------|---------------------|-------|
-| Required route tool not called | Validation retry, then node execution error or explicit invalid-route trace | No silent keyword fallback. |
+| Required route tool not called | Validation retry, then node execution error or explicit invalid-route trace | No silent keyword fallback. With `recovery_strategy="markdown_synthesis"`, missing-state-tool failures additionally attempt one markdown-synthesis continuation (FR-088) before standard recovery. |
 | Tool call outside scope | Tool rejection event + validation context | Must be visible to model and trace. |
 | Tool path outside workspace | Permission/path error tool result | Must not mutate filesystem. |
 | Task transition invalid | Structured task error and reviewer/replan path | No unchecked status changes. |
@@ -211,6 +218,17 @@ loop.get_final_response_events() -> list[dict[str, Any]]
 - [ ] Add live local LLM tests for passthrough, worker task lifecycle, tool use, streaming, and notebook execution.
 - [ ] Gate PR completion on passing deterministic tests and documented live validation.
 
+### Phase 7 — Markdown-Synthesis Retry (Lazy Retry)
+
+Runtime reliability follow-up — see `runtime-reliability-implementation-plan.md` for the full design and `spec.md` FR-087..FR-093.
+
+- [ ] Add `SessionConfig.recovery_strategy` toggle (default `standard`) and `_LAZY_BUDGET` constant.
+- [ ] Implement `loops/lazy_templates.py`: v1 templates + node→tool registry + markdown parser.
+- [ ] Implement `_maybe_lazy_recovery` + `_lazy_gate_passes` on `ValidationRetryMixin`.
+- [ ] Wire lazy retry into `_call_node_with_retry` (sync in-loop), `_stream_llm_node_events` (stream in-loop), and `_execute_node` / `_stream_exhausted_node_events` (pre-`_unbounded_recovery`).
+- [ ] Add `--recovery-strategy` CLI flag.
+- [ ] Deterministic regression: existing recovery tests pass unchanged with `recovery_strategy="standard"`; new lazy tests pass with `"markdown_synthesis"`.
+
 ---
 
 ## Technical Decisions
@@ -229,6 +247,14 @@ loop.get_final_response_events() -> list[dict[str, Any]]
 
 4. **Decision**: Live LLM tests are required for acceptance but deterministic tests remain primary for CI reliability.
    - **Reason**: The prototype explicitly targets a local LLM endpoint; mock-only validation previously hid runtime failures.
+
+5. **Decision** (FR-087..FR-093): When a node's required state tool is missing, attempt one no-tools markdown-synthesis continuation before standard tool-exposed retries.
+   - **Reason**: Experiment data shows retry is the dominant latency cost; the model has usually done the work but simply did not emit the state tool. A single no-tools continuation that asks the model to fill a small markdown template is far cheaper than N tool-exposed retries (25 in-loop + 30 recovery) and lands the call in ~2 LLM round-trips.
+   - **Alternatives Considered**: More tool-exposed retries (rejected — rarely land and dominate latency); force-approve after exhaustion (rejected — loses task-state reliability).
+
+6. **Decision** (FR-091): A lazy call that returns `None` (parse fail / empty response / exec error) does not consume a lazy attempt slot.
+   - **Reason**: A parse failure tells us nothing useful and falls through to standard retry for the same attempt; burning a lazy slot on it would waste budget. Only a lazy call that actually ran and returned non-None counts toward the 3-attempt budget.
+   - **Alternatives Considered**: Count every lazy attempt including `None` (rejected — 3 bad markdown parses would eat the entire lazy budget without ever trying standard retry).
 
 ---
 

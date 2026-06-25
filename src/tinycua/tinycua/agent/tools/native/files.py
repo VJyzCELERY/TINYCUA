@@ -31,6 +31,9 @@ def _normalize_newlines(text: str) -> str:
     FR-073: Use the original heuristic (unescape when no real control char
     exists) but protect known LaTeX command prefixes that start with
     ``\\n``, ``\\t``, or ``\\r`` (e.g. ``\\nabla``, ``\\top``, ``\\right``).
+
+    FR-080: Also decode ``\\uXXXX`` escape sequences that json.loads didn't
+    fully decode (double-escaped by local models). ``\\u2208`` → ``∈``, etc.
     """
     _LATEX_N = {"\\nabla", "\\neq", "\\nleq", "\\ngeq", "\\newcommand",
                 "\\nonumber", "\\nolimits", "\\nrightarrow", "\\nu"}
@@ -69,6 +72,18 @@ def _normalize_newlines(text: str) -> str:
         text,
     )
     return text
+
+
+def _count_unicode_escapes(text: str) -> int:
+    """Count literal \\uXXXX/\\UXXXXXXXX escape sequences in text.
+
+    Used to warn the model when its content contained escape sequences that
+    were automatically stripped (FR-080). The warning is visible in the tool
+    result so the model learns to use actual unicode characters.
+    """
+    import re
+
+    return len(re.findall(r"\\u[0-9a-fA-F]{4}|\\U[0-9a-fA-F]{8}", text))
 
 
 def _resolve_path(path: str) -> Path:
@@ -315,10 +330,11 @@ def write_file(path: str, content: str) -> dict[str, Any]:
 
     try:
         content = _normalize_newlines(content)
+        escape_count = _count_unicode_escapes(content)
         chars_written = resolved.write_text(content, encoding="utf-8")
-        # FR-058: return a diff_preview + new_file_size so the model can see
-        # what was written without re-reading the full file.
-        return {
+        # FR-080: warn the model when unicode escapes were stripped so it
+        # learns to use actual unicode characters next time.
+        result: dict[str, Any] = {
             "success": True,
             "path": str(resolved),
             "rel_path": to_workspace_relative(resolved),
@@ -327,6 +343,12 @@ def write_file(path: str, content: str) -> dict[str, Any]:
             "diff_preview": content[:500],
             "error": None,
         }
+        if escape_count:
+            result["warning"] = (
+                f"Stripped {escape_count} literal \\uXXXX escape sequences — "
+                "use actual unicode characters next time."
+            )
+        return result
     except PermissionError:
         return {
             "success": False,
@@ -671,6 +693,7 @@ def str_replace(
     # Unescape literal \n, \t, \r that local models send as two-character
     # sequences in JSON tool-call arguments. This prevents malformed files
     # where the entire content is on one line with literal backslash-n.
+    escape_count = _count_unicode_escapes(new_string)
     new_string = _normalize_newlines(new_string)
     old_string = _normalize_newlines(old_string)
     try:
@@ -784,7 +807,7 @@ def str_replace(
         )
     )
     diff_preview = "".join(diff_lines)[:500]
-    return {
+    result: dict[str, Any] = {
         "success": True,
         "path": str(resolved),
         "rel_path": to_workspace_relative(resolved),
@@ -793,6 +816,12 @@ def str_replace(
         "diff_preview": diff_preview,
         "error": None,
     }
+    if escape_count:
+        result["warning"] = (
+            f"Stripped {escape_count} literal \\uXXXX escape sequences from "
+            "new_string — use actual unicode characters next time."
+        )
+    return result
 
 
 # --- append_file ---
@@ -834,6 +863,7 @@ def append_file(path: str, content: str) -> dict[str, Any]:
             "error": f"Permission denied creating directory: {resolved.parent}",
         }
     try:
+        escape_count = _count_unicode_escapes(content)
         content = _normalize_newlines(content)
         if resolved.exists():
             existing = resolved.read_text(encoding="utf-8")
@@ -845,9 +875,7 @@ def append_file(path: str, content: str) -> dict[str, Any]:
             combined = content
         resolved.write_text(combined, encoding="utf-8")
         bytes_appended = len(content.encode("utf-8"))
-        # FR-058: return a diff_preview + new_file_size so the model can see
-        # what was added without re-reading the full file.
-        return {
+        result: dict[str, Any] = {
             "success": True,
             "path": str(resolved),
             "rel_path": to_workspace_relative(resolved),
@@ -856,6 +884,12 @@ def append_file(path: str, content: str) -> dict[str, Any]:
             "diff_preview": f"--- appended ---\n{content[:500]}",
             "error": None,
         }
+        if escape_count:
+            result["warning"] = (
+                f"Stripped {escape_count} literal \\uXXXX escape sequences — "
+                "use actual unicode characters next time."
+            )
+        return result
     except PermissionError:
         return {
             "success": False,

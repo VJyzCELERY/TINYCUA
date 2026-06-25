@@ -125,9 +125,11 @@ class TestAgentRun:
         assert len(delta_events) > 0
         assert delta_events[0]["delta"] == "Hi"
         session = agent.loop.root_session
-        assert len(session.chat_history) == 1  # assistant only (user in input_context)
-        assert session.chat_history[0].role == "assistant"
-        assert session.chat_history[0].content == "Hi"
+        # chat_history now includes tool_result records (route-tool execution);
+        # filter for the assistant record the test cares about.
+        assistant_records = [r for r in session.chat_history if r.role == "assistant"]
+        assert len(assistant_records) == 1
+        assert assistant_records[0].content == "Hi"
         assert session.input_context[0]["role"] == "user"
         assert session.input_context[0]["content"] == "hello"
 
@@ -152,16 +154,40 @@ class TestAgentRun:
         )
         await agent.run("hello")
         session = agent.loop.root_session
-        assert len(session.chat_history) == 1  # assistant only
-        assert session.chat_history[0].role == "assistant"
-        assert session.chat_history[0].content == "Hello"
+        # chat_history now includes tool_result records (route-tool execution);
+        # filter for the assistant record the test cares about.
+        assistant_records = [r for r in session.chat_history if r.role == "assistant"]
+        assert len(assistant_records) == 1
+        assert assistant_records[0].content == "Hello"
         assert session.input_context[0]["role"] == "user"
         assert session.input_context[0]["content"] == "hello"
 
     @pytest.mark.asyncio
     async def test_run_does_not_record_empty_assistant_response(self):
         """Empty terminal responses fail validation instead of becoming final."""
+        from dataclasses import replace
+
+        from tinycua.factory import create_default_queue
+
         agent = create_tinycua_agent()
+        # run() creates a fresh queue via queue_factory on every call, so the
+        # override must be applied inside the factory. Patch the factory to
+        # set the response node's retry policy to raise fast (3 attempts)
+        # instead of entering the 30-cycle _unbounded_recovery.
+        original_factory = agent.loop.queue_factory
+
+        def patched_factory():
+            q = original_factory() if original_factory else create_default_queue()
+            for n in q.items:
+                if n.node_id == "response":
+                    n.config.retry_policy = replace(
+                        n.config.retry_policy,
+                        max_attempts=3,
+                        on_retry_exhausted="raise",
+                    )
+            return q
+
+        agent.loop.queue_factory = patched_factory
         agent._call_llm = AsyncMock(
             side_effect=[
                 {"content": ROUTE_PASSTHROUGH, "tool_calls": []},
@@ -177,16 +203,39 @@ class TestAgentRun:
                 ],
             ]
         )
+        # The SDK stream catches NodeExecutionError and yields an error event.
+        result = await agent.run("hello", stream=True)
         with pytest.raises(NodeExecutionError, match="Final response must be non-empty"):
-            await agent.run("hello")
+            _ = [e async for e in result]
         session = agent.loop.root_session
-        assert all(record.record_type == "retry" for record in session.chat_history)
+        # chat_history includes tool_result records (route-tool execution);
+        # only assistant records should be retry-type (no empty assistant text).
+        assistant_records = [r for r in session.chat_history if r.role == "assistant"]
+        assert all(record.record_type == "retry" for record in assistant_records)
         assert session.input_context[0]["role"] == "user"
 
     @pytest.mark.asyncio
     async def test_run_stream_does_not_record_empty_assistant_response(self):
         """Empty streaming responses are not recorded in chat history."""
+        from dataclasses import replace
+
+        from tinycua.factory import create_default_queue
+
         agent = create_tinycua_agent()
+        original_factory = agent.loop.queue_factory
+
+        def patched_factory():
+            q = original_factory() if original_factory else create_default_queue()
+            for n in q.items:
+                if n.node_id == "response":
+                    n.config.retry_policy = replace(
+                        n.config.retry_policy,
+                        max_attempts=3,
+                        on_retry_exhausted="raise",
+                    )
+            return q
+
+        agent.loop.queue_factory = patched_factory
 
         call_count = 0
 
@@ -211,5 +260,6 @@ class TestAgentRun:
         with pytest.raises(NodeExecutionError, match="Final response must be non-empty"):
             _ = [e async for e in result]
         session = agent.loop.root_session
-        assert all(record.record_type == "retry" for record in session.chat_history)
+        assistant_records = [r for r in session.chat_history if r.role == "assistant"]
+        assert all(record.record_type == "retry" for record in assistant_records)
         assert session.input_context[0]["role"] == "user"

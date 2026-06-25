@@ -20,3 +20,9 @@ _MAX_PROVIDER_RETRIES = 3
 # Sentinel used when retry_policy.max_attempts is None (unbounded): a number
 # large enough that in practice it never trips, while keeping max_attempts an int.
 _UNBOUNDED_RETRY_ATTEMPTS = 1_000_000_000
+
+# FR-091: maximum lazy (markdown-synthesis) retry attempts per node. Shared
+# with the node's retry_policy.max_attempts — no ceiling increase. A lazy call
+# that returns None (parse fail / empty response / exec error) does NOT
+# consume a slot; only a ran-and-returned-non-None call counts.
+_LAZY_BUDGET = 3
