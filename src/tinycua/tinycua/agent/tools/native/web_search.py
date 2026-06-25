@@ -64,4 +64,27 @@ def web_search(query: str, max_results: int = 5, timeout: int = 15) -> dict[str,
                 "content": item.get("content", ""),
             }
         )
+    # ponytail: empty results with degraded engines is a backend problem,
+    # not "no hits exist". Surface it as a distinct failure so the model
+    # doesn't conclude the topic is absent and spiral into pip-install /
+    # hallucinated-URL fallbacks. SearXNG reports unresponsive engines in
+    # the `unresponsive_engines` field (list of [name, reason] pairs).
+    if not results:
+        unresponsive = data.get("unresponsive_engines") or []
+        if unresponsive:
+            degraded = [
+                entry[0] if isinstance(entry, list) else str(entry)
+                for entry in unresponsive
+            ]
+            return {
+                "success": False,
+                "error": (
+                    "search backend degraded: all general-web engines "
+                    f"temporarily unavailable ({', '.join(degraded)}). "
+                    "Retry in 60s, reformulate the query, or try fetch_url "
+                    "on a known URL instead."
+                ),
+                "results": [],
+                "unresponsive_engines": degraded,
+            }
     return {"success": True, "query": query, "results": results}

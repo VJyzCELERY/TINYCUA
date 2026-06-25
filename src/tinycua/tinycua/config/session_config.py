@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
 if TYPE_CHECKING:
     from tinycua.compaction.strategy import CompactionStrategy
@@ -66,12 +66,54 @@ class SessionConfig:
     # subdirectory under artifact_dir). Trace/transcript/logs are still
     # written. Set via CLI --no-tool-audit.
     disable_tool_audit: bool = False
+    # When True, allow the ResultReviewer to emit ``OPEN_QUESTION`` decisions
+    # and bail to ResponseNode for unresolved upstream questions. Defaults to
+    # False — one-shot worker mode must not bail while tasks remain
+    # unfinished. Enable for interactive/exploratory sessions.
+    enable_open_question_review: bool = False
+    # Consecutive reviewer rejections (needs_revision/rejected) before the
+    # runtime deterministically routes to TaskAnalyzer for replan instead of
+    # retrying the executor. Resets on reviewer approval. Default 5.
+    replan_threshold: int = 5
+    # Maximum replans per task before the runtime force-approves the task
+    # with a "replan budget exhausted" rationale (FR-050). When None, derived
+    # from ``worker_effort``: none=0, low=1, medium=3, high=6. An explicit
+    # value overrides the effort-derived default.
+    max_replans: int | None = None
+    # Milestone 8 Stream B: compaction thresholds (ratio of model.max_context).
+    # When session._last_input_tokens exceeds compaction_threshold * max_context,
+    # dynamic context is compacted (keep last N turns, summarize the rest).
+    # Static context (mission, instruction, continuation) is never compacted.
+    compaction_threshold: float = 0.7
+    # Task result summaries are compacted more aggressively (lower threshold)
+    # because they're secondary context, not primary content.
+    task_result_compaction_threshold: float = 0.3
+    # Number of recent dynamic turns to keep during compaction.
+    compaction_keep_recent: int = 5
+    # FR-087: opt-in markdown-synthesis retry ("lazy retry"). When "standard"
+    # (default), retry/recovery behavior is bit-for-bit unchanged. When
+    # "markdown_synthesis", missing-state-tool validation failures get one
+    # no-tools markdown continuation before standard recovery (FR-088..093).
+    recovery_strategy: Literal["standard", "markdown_synthesis"] = "standard"
+
+    # Effort → max_replans mapping (FR-050). Used when max_replans is None.
+    _EFFORT_MAX_REPLANS: ClassVar[dict[str, int]] = {
+        "none": 0,
+        "low": 1,
+        "medium": 3,
+        "high": 6,
+    }
 
     def __post_init__(self) -> None:
-        """Normalize filesystem paths supplied through the public API."""
+        """Normalize filesystem paths and derive effort-profiled settings."""
         if self.workspace_dir is not None:
             self.workspace_dir = Path(self.workspace_dir).expanduser().resolve()
         if self.artifact_dir is not None:
             self.artifact_dir = Path(self.artifact_dir).expanduser().resolve()
         if self.session_dir is not None:
             self.session_dir = Path(self.session_dir).expanduser().resolve()
+        # FR-050: derive max_replans from worker_effort when not explicit.
+        if self.max_replans is None:
+            self.max_replans = self._EFFORT_MAX_REPLANS.get(
+                str(self.worker_effort), 3
+            )

@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from dataclasses import asdict, dataclass, field
 from enum import StrEnum
 from typing import Any, ClassVar
+
+logger = logging.getLogger(__name__)
 
 
 class TaskStatus(StrEnum):
@@ -19,15 +22,19 @@ class TaskStatus(StrEnum):
 
 
 class ReviewerDecision(StrEnum):
-    """Review decision for a task result."""
+    """Review decision for a task result.
+
+    ``OPEN_QUESTION`` is disabled by default (``enable_open_question_review``
+    in :class:`SessionConfig`). When enabled, the reviewer may bail to the
+    ResponseNode for unresolved upstream questions; when disabled (default),
+    the reviewer must not bail while tasks remain unfinished.
+    """
 
     APPROVED = "approved"
     NEEDS_REVISION = "needs_revision"
     REJECTED = "rejected"
     REPLAN = "replan"
-    # OPEN_QUESTION = "open_question"  # disabled for prototype — reviewer
-    #   must not bail to ResponseNode while tasks remain unfinished. The
-    #   routing branch is also commented out in worker_runtime.schedule_after_review.
+    OPEN_QUESTION = "open_question"
 
 
 @dataclass
@@ -106,6 +113,32 @@ class Task:
             if d.get("decision") in back_decisions
         )
 
+    @property
+    def consecutive_failures(self) -> int:
+        """Count of consecutive needs_revision/rejected/replan decisions.
+
+        Counts backward from the latest reviewer decision until an ``approved``
+        OR a ``replan_boundary`` entry is hit. The boundary marker is inserted
+        by ``schedule_replan`` (FR-049) so the failure baseline resets when a
+        replan is triggered, without losing the audit trail. This is the
+        deterministic replan trigger: when this count reaches
+        ``replan_threshold`` (default 5), the runtime routes to TaskAnalyzer
+        for replan instead of retrying the executor.
+        """
+        back_decisions = {
+            ReviewerDecision.NEEDS_REVISION.value,
+            ReviewerDecision.REJECTED.value,
+            ReviewerDecision.REPLAN.value,
+        }
+        count = 0
+        for d in reversed(self.reviewer_decisions):
+            decision = d.get("decision")
+            if decision in back_decisions:
+                count += 1
+            else:
+                break  # approved or replan_boundary — breaks the consecutive run
+        return count
+
 
 @dataclass
 class TaskStateStore:
@@ -115,6 +148,10 @@ class TaskStateStore:
     root_task_id: str | None = None
     active_task_id: str | None = None
     transition_log: list[dict[str, Any]] = field(default_factory=list)
+    # FR-075: enable task tree snapshot logging via --trace CLI flag.
+    _enable_trace: bool = field(default=False, repr=False)
+    # Internal flag to suppress per-child logging during decompose_task.
+    _suppress_log: bool = field(default=False, repr=False)
     # ponytail: cached post-order task id list (root excluded) for O(1)
     # number lookup. None = stale; rebuilt lazily on next access. Invalidated
     # only on structural change (create_task) — status transitions don't
@@ -144,6 +181,34 @@ class TaskStateStore:
         """Increment the monotonic version (called on every mutation)."""
         self.version += 1
 
+    def _log_tree_snapshot(self, method: str) -> None:
+        """Log the task tree state after a mutation (FR-075).
+
+        Multi-line INFO: header (method + counts + active/root) then one
+        line per task (numbered, status, title, has_result marker). Only
+        fires when ``_enable_trace`` is True (set via ``--trace`` CLI flag).
+        """
+        if not self._enable_trace:
+            return
+        total = len(self.tasks)
+        completed = sum(1 for t in self.tasks.values() if t.status == TaskStatus.COMPLETED)
+        pending = sum(1 for t in self.tasks.values() if t.status == TaskStatus.PENDING)
+        in_progress = sum(1 for t in self.tasks.values() if t.status == TaskStatus.IN_PROGRESS)
+        active = self.active_task_id or "none"
+        root = self.root_task_id or "none"
+        lines = [
+            f"task_tree_mutation method={method} root={root} active={active} "
+            f"completed={completed}/{total} pending={pending} in_progress={in_progress}"
+        ]
+        ordered = self._ordered_ids()
+        for i, task_id in enumerate(ordered, 1):
+            task = self.tasks.get(task_id)
+            if task is None:
+                continue
+            marker = " ✓" if task.result is not None else ""
+            lines.append(f"  {i}. [{task.status.value}] {task.title}{marker}")
+        logger.info("\n".join(lines))
+
     def create_task(
         self,
         title: str,
@@ -164,6 +229,8 @@ class TaskStateStore:
         self._ordered_task_ids = None  # structural change: invalidate cache
         self._bump_version()
         self._refresh_active_task()
+        if not self._suppress_log:
+            self._log_tree_snapshot("create_task")
         return task
 
     def decompose_task(self, task_id: str, subtasks: list[str]) -> list[str]:
@@ -176,11 +243,137 @@ class TaskStateStore:
         task = self.get_task(task_id)
         if task.children:
             return list(task.children)
+        self._suppress_log = True
         child_ids = []
-        for title in subtasks:
-            if title.strip():
-                child_ids.append(self.create_task(title, parent_id=task_id).task_id)
+        try:
+            for title in subtasks:
+                if title.strip():
+                    child_ids.append(self.create_task(title, parent_id=task_id).task_id)
+        finally:
+            self._suppress_log = False
+        self._log_tree_snapshot("decompose_task")
         return child_ids
+
+    def _reparent_completed_child(
+        self, child: Task, child_id: str, new_parent_id: str | None
+    ) -> None:
+        """Re-parent a completed child to ``new_parent_id`` (completed tasks are immutable history)."""
+        if new_parent_id and new_parent_id in self.tasks:
+            self.tasks[new_parent_id].children.append(child_id)
+            child.parent_id = new_parent_id
+
+    def delete_task(self, task_id: str) -> None:
+        """Remove a task and its pending subtree, re-linking siblings.
+
+        Completed tasks are immutable history and cannot be deleted. The root
+        task and the active task cannot be deleted (runtime integrity). Only
+        pending or in-progress tasks (and their pending subtrees) can be
+        removed — this lets the TaskAnalyzer correct over-decomposition mid-run.
+
+        Args:
+            task_id: The task to delete.
+
+        Raises:
+            ValueError: If the task is completed, not found, is the root, or
+                is the active task.
+        """
+        if task_id not in self.tasks:
+            msg = f"Task not found: {task_id}"
+            raise ValueError(msg)
+        task = self.tasks[task_id]
+        if task.status == TaskStatus.COMPLETED:
+            msg = f"Task {task_id} is completed and immutable."
+            raise ValueError(msg)
+        if task_id == self.root_task_id:
+            msg = "Cannot delete the root task."
+            raise ValueError(msg)
+        if task_id == self.active_task_id:
+            msg = "Cannot delete the active task."
+            raise ValueError(msg)
+        # Remove from parent's children list.
+        if task.parent_id and task.parent_id in self.tasks:
+            parent = self.tasks[task.parent_id]
+            parent.children = [c for c in parent.children if c != task_id]
+        # Recursively delete the subtree (only pending/in-progress — skip
+        # completed children, they're immutable history).
+        to_remove: list[str] = []
+
+        def collect(tid: str) -> None:
+            t = self.tasks.get(tid)
+            if t is None:
+                return
+            for child_id in list(t.children):
+                child = self.tasks.get(child_id)
+                if child and child.status != TaskStatus.COMPLETED:
+                    collect(child_id)
+                elif child_id in self.tasks:
+                    self._reparent_completed_child(child, child_id, task.parent_id)
+            to_remove.append(tid)
+
+        collect(task_id)
+        for tid in to_remove:
+            self.tasks.pop(tid, None)
+        self._ordered_task_ids = None
+        self._bump_version()
+        self._refresh_active_task()
+        self._log_tree_snapshot("delete_task")
+
+    def merge_tasks(self, child_id: str, parent_id: str) -> Task:
+        """Collapse a child into its parent, preserving work.
+
+        If the child has a result and the parent does not, the child's result
+        becomes the parent's result (preserve work). If both have results, the
+        child's summary is appended to the parent's. The child's pending subtree
+        is discarded. The child is removed from the parent's children list.
+
+        Args:
+            child_id: The child task to merge into its parent.
+            parent_id: The parent task.
+
+        Returns:
+            The updated parent task.
+
+        Raises:
+            ValueError: If child == parent, either is completed, or not found.
+        """
+        if child_id == parent_id:
+            msg = "Cannot merge a task into itself."
+            raise ValueError(msg)
+        if child_id not in self.tasks or parent_id not in self.tasks:
+            msg = f"Task not found: {child_id if child_id not in self.tasks else parent_id}"
+            raise ValueError(msg)
+        child = self.tasks[child_id]
+        parent = self.tasks[parent_id]
+        if child.status == TaskStatus.COMPLETED or parent.status == TaskStatus.COMPLETED:
+            msg = "Cannot merge — one or both tasks are completed (immutable)."
+            raise ValueError(msg)
+        # Preserve work: child's result → parent's result if parent has none.
+        if child.result is not None:
+            if parent.result is None:
+                parent.result = child.result
+            elif child.result.summary:
+                parent.result.summary = (
+                    f"{parent.result.summary}\n\nMerged from {child.title}: "
+                    f"{child.result.summary}"
+                )
+        # Move child's completed children to parent (preserve immutable history).
+        for cc_id in list(child.children):
+            cc = self.tasks.get(cc_id)
+            if cc is not None and cc.status == TaskStatus.COMPLETED:
+                parent.children.append(cc_id)
+                cc.parent_id = parent_id
+            elif cc is not None:
+                # Pending child — discard (the merge collapses the subtree).
+                pass
+        # Remove child from parent's children.
+        parent.children = [c for c in parent.children if c != child_id]
+        # Delete the child (and its pending subtree).
+        self.tasks.pop(child_id, None)
+        self._ordered_task_ids = None
+        self._bump_version()
+        self._refresh_active_task()
+        self._log_tree_snapshot("merge_tasks")
+        return parent
 
     def get_task(self, task_id: str) -> Task:
         """Return a task or raise a clear validation error."""
@@ -277,6 +470,7 @@ class TaskStateStore:
         )
         self._bump_version()
         self._refresh_active_task()
+        self._log_tree_snapshot("transition")
         return task
 
     def record_result(self, task_id: str, result: TaskResult) -> Task:
@@ -287,6 +481,7 @@ class TaskStateStore:
         task.result = result
         self._bump_version()
         self._refresh_active_task()
+        self._log_tree_snapshot("record_result")
         return task
 
     def record_reviewer_decision(
@@ -317,23 +512,30 @@ class TaskStateStore:
             self.active_task_id = task.task_id
             self._bump_version()
         elif reviewer_decision == ReviewerDecision.APPROVED:
-            # Fallback for parent tasks: the executor runs a verification pass
-            # on parent tasks (post-order traversal — all children done first).
-            # If the executor forgot to call task_result_update, auto-generate
-            # a synthetic "all children completed" result so the approval can
-            # proceed instead of crashing. The executor gets its chance first
-            # (via the Verification Pass continuation); this is the safety net.
-            if task.result is None and task.children:
-                all_children_done = all(
-                    self.tasks[cid].status == TaskStatus.COMPLETED
-                    for cid in task.children
-                    if cid in self.tasks
-                )
-                if all_children_done:
+            # FR-079: auto-generate a synthetic result when APPROVED and no
+            # result exists — for BOTH parent and leaf tasks. Previously only
+            # parent tasks with completed children got the fallback; leaf
+            # tasks with no result stayed pending, causing the reviewer to
+            # loop (approve → status doesn't flip → queue re-dispatches
+            # reviewer → approve again → same loop).
+            if task.result is None:
+                if task.children:
+                    all_children_done = all(
+                        self.tasks[cid].status == TaskStatus.COMPLETED
+                        for cid in task.children
+                        if cid in self.tasks
+                    )
+                    if all_children_done:
+                        task.result = TaskResult(
+                            content="All child tasks completed — parent goal achieved.",
+                            success=True,
+                            metadata={"aggregated": True},
+                        )
+                if task.result is None:
                     task.result = TaskResult(
-                        content="All child tasks completed — parent goal achieved.",
+                        content="Approved by reviewer (no executor result recorded).",
                         success=True,
-                        metadata={"aggregated": True},
+                        metadata={"auto_generated": True},
                     )
             if task.result is not None:
                 target = TaskStatus.COMPLETED if task.result.success else TaskStatus.FAILED
@@ -346,22 +548,10 @@ class TaskStateStore:
                     if task.status != target:
                         self.transition(task_id, target)  # transition bumps version
                 self._complete_ready_parents()
+                self._propagate_result_to_next_sibling(task)
                 self._refresh_active_task()
                 self._bump_version()
-        return task
-
-    def add_artifact(
-        self,
-        task_id: str,
-        *,
-        path: str,
-        kind: str = "file",
-        metadata: dict[str, Any] | None = None,
-    ) -> Task:
-        """Attach an artifact reference to a task."""
-        task = self.get_task(task_id)
-        task.artifacts.append({"path": path, "kind": kind, "metadata": metadata or {}})
-        self._bump_version()
+        self._log_tree_snapshot("record_reviewer_decision")
         return task
 
     def next_unfinished_leaf(self) -> Task | None:
@@ -506,6 +696,42 @@ class TaskStateStore:
                 if task.status == TaskStatus.PENDING:
                     task.status = TaskStatus.IN_PROGRESS
                     self._bump_version()
+
+    def _propagate_result_to_next_sibling(self, task: Task) -> None:
+        """Propagate an approved task's result summary to the next pending sibling.
+
+        When a task is approved, its result summary is appended to the
+        ``metadata["context"]`` of the next pending sibling under the same
+        parent. This ensures the downstream task sees the approved result
+        in its "Useful Prior Context" section (Milestone 8 Stream A).
+        """
+        if task.parent_id is None or task.parent_id not in self.tasks:
+            return
+        if task.result is None:
+            return
+        parent = self.tasks[task.parent_id]
+        # Find the next pending sibling (in children order, after this task).
+        found_self = False
+        for child_id in parent.children:
+            if child_id == task.task_id:
+                found_self = True
+                continue
+            if not found_self:
+                continue
+            child = self.tasks.get(child_id)
+            if child and child.status == TaskStatus.PENDING:
+                summary = task.result.summary or task.result.content
+                existing = child.metadata.setdefault("context", "")
+                if existing:
+                    child.metadata["context"] = (
+                        f"{existing}\n\n[From completed sibling '{task.title}']: "
+                        f"{summary}"
+                    )
+                else:
+                    child.metadata["context"] = (
+                        f"[From completed sibling '{task.title}']: {summary}"
+                    )
+                break
 
     def _json_safe(self, value: Any) -> Any:
         """Convert dataclass fields to JSON-compatible primitives."""

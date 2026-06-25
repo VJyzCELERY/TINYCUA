@@ -6,12 +6,13 @@ TaskInit, TaskCreate, TaskInspect, TaskUpdate, TaskDecompose, TaskResultUpdate.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
-
-from dataclasses import asdict
 
 from tinycua.config.types import Tool
 from tinycua.models.task import ReviewerDecision, TaskResult, TaskStateStore, TaskStatus
+
+logger = logging.getLogger(__name__)
 
 
 _DEFAULT_STORE = TaskStateStore()
@@ -234,6 +235,14 @@ class TaskUpdateTool(SessionTaskToolMixin, Tool):
                             "or constraints that the next executor should know."
                         ),
                     },
+                    "title": {
+                        "type": "string",
+                        "description": (
+                            "Updated task title. Use to correct a stale or "
+                            "mistaken title from task_init; the new title "
+                            "propagates to all downstream roadmap renderings."
+                        ),
+                    },
                     "status": {
                         "type": "string",
                         "enum": ["pending", "in_progress", "blocked"],
@@ -244,18 +253,19 @@ class TaskUpdateTool(SessionTaskToolMixin, Tool):
                     },
                 },
                 "required": [],
-                "additionalProperties": True,
+                "additionalProperties": {"type": "string"},
             },
         )
 
     def __call__(
         self,
         task_id: str | None = None,
+        title: str | None = None,
         description: str | None = None,
         status: str | None = None,
         **metadata: str,
     ) -> dict[str, Any]:
-        """Update task description, status, and metadata."""
+        """Update task title, description, status, and metadata."""
         active_id, error = self._resolve_task_ref(task_id)
         if error is not None:
             return error
@@ -282,6 +292,8 @@ class TaskUpdateTool(SessionTaskToolMixin, Tool):
         try:
             if status is not None:
                 task = self._store.transition(active_id, TaskStatus(status))
+            if title is not None:
+                task.title = title
             if description is not None:
                 task.description = description
             task.metadata.update(metadata)
@@ -356,6 +368,74 @@ class TaskDecomposeTool(SessionTaskToolMixin, Tool):
         return {"success": True, "task_id": resolved, "child_task_ids": child_ids}
 
 
+class TaskShrinkTool(SessionTaskToolMixin, Tool):
+    """Tool for shrinking the task tree (delete or merge) to correct over-decomposition."""
+
+    def __init__(self) -> None:
+        SessionTaskToolMixin.__init__(self)
+        Tool.__init__(
+            self,
+            name="task_shrink",
+            description=(
+                "Shrink the task tree by deleting a pending task (and its "
+                "pending subtree) or merging a child into its parent (preserving "
+                "the child's result). Use when the tree is over-decomposed. "
+                "Completed tasks are immutable and cannot be shrunk. "
+                "task_id may be UUID or roadmap number."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["delete", "merge"]},
+                    "task_id": {"type": "string"},
+                    "parent_id": {"type": "string"},
+                    "rationale": {"type": "string"},
+                },
+                "required": ["action", "task_id", "rationale"],
+                "additionalProperties": False,
+            },
+        )
+
+    def __call__(
+        self,
+        action: str,
+        task_id: str,
+        rationale: str,
+        parent_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Delete or merge a task to shrink the tree.
+
+        Args:
+            action: "delete" or "merge".
+            task_id: The task to delete or the child to merge.
+            rationale: Why this shrink is needed (for audit trail).
+            parent_id: Required for merge — the parent to merge into.
+        """
+        resolved = self._store.resolve_task_id(task_id)
+        if resolved is None:
+            return {"success": False, "error": f"Task {task_id} not found."}
+        try:
+            if action == "delete":
+                self._store.delete_task(resolved)
+                logger.info("task_tree_shrink action=delete task_id=%s rationale=%s new_tree_size=%d",
+                            resolved, rationale[:100], len(self._store.tasks))
+                return {"success": True, "action": "delete", "task_id": resolved, "rationale": rationale}
+            elif action == "merge":
+                if parent_id is None:
+                    return {"success": False, "error": "parent_id is required for merge."}
+                resolved_parent = self._store.resolve_task_id(parent_id)
+                if resolved_parent is None:
+                    return {"success": False, "error": f"Parent {parent_id} not found."}
+                self._store.merge_tasks(resolved, resolved_parent)
+                logger.info("task_tree_shrink action=merge task_id=%s parent_id=%s rationale=%s new_tree_size=%d",
+                            resolved, resolved_parent, rationale[:100], len(self._store.tasks))
+                return {"success": True, "action": "merge", "task_id": resolved, "parent_id": resolved_parent, "rationale": rationale}
+            else:
+                return {"success": False, "error": f"Unknown action: {action}. Use 'delete' or 'merge'."}
+        except ValueError as exc:
+            return {"success": False, "error": str(exc)}
+
+
 class TaskExecuteTool(SessionTaskToolMixin, Tool):
     """Tool for marking a task as actively executing."""
 
@@ -402,9 +482,9 @@ class TaskResultUpdateTool(SessionTaskToolMixin, Tool):
             name="task_result_update",
             description=(
                 "Report the outcome for the active or specified task. "
-                "Write a concise summary of what was done, what was found, "
-                "and whether it succeeded. Always call before finishing. "
-                "task_id may be UUID or roadmap number."
+                "Set success=true when done, success=false when failed or "
+                "blocked. Always call before finishing. task_id may be UUID "
+                "or roadmap number."
             ),
             parameters={
                 "type": "object",
@@ -413,8 +493,10 @@ class TaskResultUpdateTool(SessionTaskToolMixin, Tool):
                     "content": {
                         "type": "string",
                         "description": (
-                            "Concise outcome report: what was done, what was "
-                            "found, and why it succeeded or failed."
+                            "Concise outcome report: what was done, what "
+                            "was found, and why it succeeded or failed. "
+                            "Set success=true for completed work, "
+                            "success=false for failed/blocked work."
                         ),
                     },
                     "success": {"type": "boolean"},
@@ -455,7 +537,8 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
             description=(
                 "Record the review decision for a task result: approved, "
                 "needs_revision, rejected, or replan. task_id may be a UUID or "
-                "the task's 1-based number from the roadmap."
+                "roadmap number. needs_revision and rejected are aliases — "
+                "use needs_revision for clarity."
             ),
             parameters={
                 "type": "object",
@@ -470,9 +553,18 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
                             "replan",
                         ],
                     },
-                    "rationale": {"type": "string"},
+                    "rationale": {
+                        "type": "string",
+                        "description": (
+                            "Required validation evidence. For approved: "
+                            "'[validated]: <command+result confirming the "
+                            "outcome>'. For needs_revision/rejected/replan: "
+                            "'[finding]: <issue> [validate]: <command to "
+                            "verify the fix>'."
+                        ),
+                    },
                 },
-                "required": ["decision"],
+                "required": ["decision", "rationale"],
                 "additionalProperties": False,
             },
         )
@@ -480,10 +572,19 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
     def __call__(
         self,
         task_id: str | None = None,
-        decision: str = ReviewerDecision.APPROVED.value,
+        decision: str = "",
         rationale: str = "",
     ) -> dict[str, Any]:
-        """Persist a reviewer decision for the active or specified task."""
+        """Persist a reviewer decision for the active or specified task.
+
+        Args:
+            task_id: Optional task reference (UUID or roadmap number).
+            decision: Required — one of approved, needs_revision, rejected,
+                replan. Must not be omitted (no default approve).
+            rationale: Optional reason for the decision.
+        """
+        if not decision:
+            return {"success": False, "error": "decision is required — cannot default to approved."}
         active_id: str | None
         if task_id:
             active_id = self._store.resolve_task_id(task_id)

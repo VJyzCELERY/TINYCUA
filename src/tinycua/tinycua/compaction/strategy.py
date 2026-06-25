@@ -17,7 +17,7 @@ class CompactionStrategy(ABC):
     """
 
     @abstractmethod
-    def compact(self, messages: list[dict]) -> dict:
+    async def compact(self, messages: list[dict]) -> dict:
         """Compact a list of messages into a single assistant-role summary.
 
         Args:

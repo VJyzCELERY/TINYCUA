@@ -21,10 +21,55 @@ from tinycua.models.session import Session
 
 if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
+    from tinycua.loops.node_contract import NodeContract, NodeProgress
     from tinycua.loops.node_queue import NodeQueue
 
 logger = logging.getLogger(__name__)
-_UNBOUNDED_RETRY_ATTEMPTS = 1_000_000_000
+
+
+def _resolve_agents_md(session: Session) -> str:
+    """Resolve the AGENTS.md content for a session, reading at most once.
+
+    Reads ``{workspace_dir}/AGENTS.md`` when the workspace is set and the
+    snapshot hasn't been resolved yet (``session.agents_md_snapshot is None``).
+    Caches the result on ``session.agents_md_snapshot`` so the file is read at
+    most once per session (FR-015 prompt-cache stability):
+
+    - ``None`` → not yet checked; this call reads + caches.
+    - ``""``  → checked but missing/empty/unreadable; no Project Instructions.
+    - non-empty → checked with content; the AGENTS.md text.
+
+    Returns the cached content (possibly empty). Read failures log a debug
+    warning and cache ``""`` — the agent never sees a broken read in its
+    system prompt.
+    """
+    if session.agents_md_snapshot is not None:
+        return session.agents_md_snapshot
+    sc = session.session_config
+    workspace = getattr(sc, "workspace_dir", None) if sc is not None else None
+    if workspace is None:
+        # No workspace bound → nothing to read. Cache empty so we don't keep
+        # checking on every build_system_message call.
+        session.agents_md_snapshot = ""
+        return ""
+    agents_path = workspace / "AGENTS.md" if hasattr(workspace, "__truediv__") else None
+    if agents_path is None:
+        session.agents_md_snapshot = ""
+        return ""
+    try:
+        content = agents_path.read_text(encoding="utf-8")
+    except (OSError, PermissionError):
+        logger.debug(
+            "agents_md_read_failed workspace=%s path=%s",
+            workspace, agents_path, exc_info=True,
+        )
+        session.agents_md_snapshot = ""
+        return ""
+    if not content.strip():
+        session.agents_md_snapshot = ""
+        return ""
+    session.agents_md_snapshot = content
+    return content
 
 
 # Internal bookkeeping messages that should never reach the LLM.
@@ -96,6 +141,17 @@ def build_messages_with_dedupe(
                 deduped_entries.append(entry)
 
         context_entries = deduped_entries
+
+    # FR-083: bound the prompt-bound context to the last max_context_messages.
+    # The full session_context list (audit trail) is never mutated — only the
+    # prompt-bound subset is capped. None means unlimited (escape hatch).
+    max_msgs = (
+        session.session_config.max_context_messages
+        if session.session_config is not None
+        else None
+    )
+    if max_msgs is not None and len(context_entries) > max_msgs:
+        context_entries = context_entries[-max_msgs:]
 
     # Convert entries to message dicts, dropping blank content at the API boundary.
     for entry in context_entries:
@@ -197,6 +253,47 @@ class Node(ABC):
         # caching). Invalidated only when the resolved tools list changes.
         self._cached_system_message: dict[str, str] | None = None
         self._cached_system_key: tuple[int, ...] | None = None
+        # FR-062: per-node progress lives on session.node_progress[node_id]
+        # so it survives node reconstruction. Fallback for session-less nodes.
+        from tinycua.loops.node_contract import NodeProgress
+
+        self._fallback_progress = NodeProgress()
+
+    @property
+    def progress(self) -> NodeProgress:
+        """Per-node runtime progress (FR-062).
+
+        Lives on ``session.node_progress[node_id]`` so it survives node
+        reconstruction. Falls back to an instance-level tracker when no
+        session is attached (tests, pre-ensure_session access).
+        """
+        from tinycua.loops.node_contract import NodeProgress
+
+        if self.session is None:
+            return self._fallback_progress
+        if self.node_id not in self.session.node_progress:
+            self.session.node_progress[self.node_id] = NodeProgress()
+        return self.session.node_progress[self.node_id]
+
+    @progress.setter
+    def progress(self, value: Any) -> None:
+        """Allow direct assignment (compat with existing code that sets progress)."""
+        if self.session is not None:
+            self.session.node_progress[self.node_id] = value
+        else:
+            self._fallback_progress = value
+
+    @property
+    def contract(self) -> NodeContract:
+        """Return the NodeContract for this node (single source of truth).
+
+        Looks up the contract from the registry by ``node_id``. The contract
+        declares required_tools, any_of_tools, deterministic_tools,
+        requires_terminate, early_stop_tool, and (later) structured_output_schema.
+        """
+        from tinycua.loops.node_contract import get_node_contract
+
+        return get_node_contract(self.node_id)
 
     def ensure_session(self, root_or_parent_session: Session) -> Session:
         """Create or return an isolated node session.
@@ -225,7 +322,38 @@ class Node(ABC):
         self.session.input_context = list(root_or_parent_session.input_context)
         self.session.task = root_or_parent_session.task
         self.session.task_store = root_or_parent_session.task_store
+        # FR-062: share node_progress by reference so progress survives node
+        # reconstruction and is visible across parent/child sessions.
+        self.session.node_progress = root_or_parent_session.node_progress
+        # FR-015: inherit the root's stable snapshots so all nodes in one run
+        # share one date + environment + AGENTS.md in the stable system prefix
+        # (prompt-cache friendly). If the root hasn't resolved AGENTS.md yet
+        # (None), the child inherits None and resolves on its first build
+        # (workspace is shared via session_config).
+        if root_or_parent_session.date_snapshot:
+            self.session.date_snapshot = root_or_parent_session.date_snapshot
+        if root_or_parent_session.env_snapshot:
+            self.session.env_snapshot = root_or_parent_session.env_snapshot
+        if root_or_parent_session.agents_md_snapshot is not None:
+            self.session.agents_md_snapshot = root_or_parent_session.agents_md_snapshot
+        # Invalidate the cached system message so the next build picks up
+        # the now-attached session's snapshots.
+        self._cached_system_message = None
+        self._cached_system_key = None
         return self.session
+
+    @property
+    def _has_root_task(self) -> bool:
+        """Whether the node's session has a root task in its task store.
+
+        Centralises the repeated ``self.session is None or
+        self.session.task_store.root_task_id is None`` early-return guard
+        used across worker/executor/aggregation nodes.
+        """
+        return (
+            self.session is not None
+            and self.session.task_store.root_task_id is not None
+        )
 
     def build_instruction(self, override_instructions: str | None = None) -> str:
         """Build the complete instruction string.
@@ -260,13 +388,59 @@ class Node(ABC):
         Returns:
             The complete continuation prompt, or an empty string.
         """
-        del session
         parts: list[str] = []
         if self._continuation:
             parts.append(self._continuation)
         if self.config.custom_continuation_append:
             parts.append(self.config.custom_continuation_append)
-        return "\n".join(parts)
+        base = "\n".join(parts)
+        # FR-065: inject live progress block when there IS progress (at least
+        # one tool has been satisfied). Shows the model what it already did
+        # and what's still needed — no more blind "did I already call X?".
+        progress_block = self.build_progress_block()
+        if progress_block:
+            base = f"{base}\n\n{progress_block}"
+        return base
+
+    def build_progress_block(self) -> str:
+        """Build a '## Your Progress' block showing satisfied + missing tools.
+
+        Only emitted when ``satisfied_requirements`` is non-empty (Q4: show
+        progress only when there IS progress). Computes missing tools from
+        the node's contract.
+        """
+        if not self.progress.satisfied_requirements:
+            return ""
+        contract = self.contract
+        if not contract:
+            return ""
+        satisfied_set = self.progress.satisfied_requirements
+        relevant: set[str] = set(contract.required_tools)
+        # For any_of: if ANY group is satisfied, the any_of requirement is
+        # met — don't list alternatives as missing. Only show the satisfied
+        # tools. If NO group is satisfied, list all group tools as candidates.
+        any_of_satisfied = any(
+            group.issubset(satisfied_set) for group in contract.any_of_tools
+        )
+        for group in contract.any_of_tools:
+            if any_of_satisfied:
+                relevant |= (group & satisfied_set)
+            else:
+                relevant |= group
+        if contract.requires_terminate:
+            relevant.add("terminate")
+        relevant |= set(contract.additional_recovery_tools)
+        satisfied = sorted(satisfied_set & relevant)
+        missing = sorted(relevant - satisfied_set)
+        if not satisfied:
+            return ""
+        lines = ["## Your Progress This Session"]
+        if satisfied:
+            lines.append(f"Already called successfully: {', '.join(satisfied)}")
+        if missing:
+            lines.append(f"Still needed: {', '.join(missing)}")
+            lines.append(f"You are {len(missing)} step(s) from completing this node.")
+        return "\n".join(lines)
 
     def build_tool_system_prompt(self, resolved_tools: list[Any] | None = None) -> str:
         """Build node-level tool instructions for the single system prompt.
@@ -303,10 +477,52 @@ class Node(ABC):
         instruction = self.build_instruction()
         if instruction:
             builder.add_static(instruction)
-        builder.add_dynamic_context(build_runtime_context())
+        # AGENTS.md project instructions (static, specialized loader). Read
+        # from {workspace}/AGENTS.md at most once per session, cached on the
+        # session so FR-015 prompt-cache stability holds. Placed after the
+        # node instruction (role) and before the runtime context (env).
+        if self.session is not None:
+            agents_md = _resolve_agents_md(self.session)
+            if agents_md:
+                builder.add_static(f"## Project Instructions (AGENTS.md)\n{agents_md}")
+        # FR-015: pass the session's date + env snapshots + workspace into the
+        # stable runtime context. All three are stable for the session
+        # lifetime, so prompt-cache stability holds.
+        date_snapshot = self.session.date_snapshot if self.session else None
+        env_snapshot = self.session.env_snapshot if self.session else None
+        workspace_dir = None
+        if self.session is not None and self.session.session_config is not None:
+            workspace_dir = self.session.session_config.workspace_dir
+        builder.add_dynamic_context(
+            build_runtime_context(
+                date_snapshot=date_snapshot,
+                env_snapshot=env_snapshot,
+                workspace_dir=workspace_dir,
+            )
+        )
         tool_prompt = self.build_tool_system_prompt(resolved_tools)
         if tool_prompt:
             builder.add_dynamic_context(tool_prompt)
+        # FR-064: inject goal + success criteria + tool rationale from the
+        # NodeContract. Goes in the dynamic suffix so the cached prefix
+        # (instruction + AGENTS.md + date/env) stays byte-stable. The model
+        # now knows its fulfillment criteria and WHY each tool is required.
+        contract = self.contract
+        if contract and (contract.goal or contract.success_criteria):
+            contract_lines: list[str] = []
+            if contract.goal:
+                contract_lines.append(f"## Your Goal\n{contract.goal}")
+            if contract.success_criteria:
+                contract_lines.append(
+                    f"## Success Criteria (what 'done' looks like)\n{contract.success_criteria}"
+                )
+            if contract.tool_rationale:
+                lines = ["## Required Tools — Why Each Is Needed"]
+                for tool_name, rationale in contract.tool_rationale.items():
+                    lines.append(f"- {tool_name}: {rationale}")
+                contract_lines.append("\n".join(lines))
+            if contract_lines:
+                builder.add_dynamic_context("\n\n".join(contract_lines))
         message = builder.build()
         self._cached_system_message = message
         self._cached_system_key = cache_key
@@ -355,18 +571,20 @@ class Node(ABC):
                 content = f"[System: {content}]"
             messages.append({"role": role, "content": content})
 
-        # Current date/time as a small USER message in the volatile suffix —
-        # NOT in the system prompt, so the system prefix stays byte-stable for
-        # prompt caching (FR-015). Placed right before the node continuation so
-        # the model still sees the time when it responds.
+        # Fast-moving time info (time-of-day + timezone) as a small USER
+        # message in the volatile suffix — NOT in the system prompt, so the
+        # system prefix stays byte-stable for prompt caching (FR-015). The
+        # slow-moving date lives in the system prompt's date snapshot; this
+        # user message only carries the wall-clock time so the model has a
+        # sense of how long the session has been running. Placed right before
+        # the node continuation.
         now = datetime.now().astimezone()
         messages.append(
             {
                 "role": "user",
                 "content": (
-                    f"<context>Current date/time: "
-                    f"{now:%Y-%m-%d %H:%M:%S %z}, timezone: "
-                    f"{now.tzname() or 'local'}</context>"
+                    f"<context>Current time: {now:%H:%M:%S %z}, "
+                    f"timezone: {now.tzname() or 'local'}</context>"
                 ),
             }
         )
@@ -635,16 +853,9 @@ class Node(ABC):
         if self.session is not None and (
             self.is_terminal or not looks_like_planner_prose(response.content)
         ):
-            from tinycua.models.session_context_entry import SessionContextEntry
+            from tinycua.models.session_context_entry import append_output_entry
 
-            self.session.session_context.append(
-                SessionContextEntry(
-                    content=response.content,
-                    segment="output",
-                    source_node_id=self.node_id,
-                    source_session_id=self.session.session_id,
-                )
-            )
+            append_output_entry(self.session, response.content, self.node_id)
         logger.info(
             "node=%s record_output content_len=%d",
             self.node_id,
@@ -738,10 +949,14 @@ class ProcessNode(Node):
         return raw_response  # type: ignore[return-value]
 
     def __call__(self, input: NodeInputLike) -> LLMResult:
-        """Execute the node with the given input.
+        """Execute the node with a single LLM call (no retry loop).
 
-        Orchestrates: build messages → validate → call LLM → retry loop →
-        record → propagate → on_complete.
+        The loop-owned path (:meth:`TinyCUALoop._call_node_with_retry`) owns
+        retry, validation, and recovery. This method is a thin single-shot
+        entrypoint kept for direct unit tests and the ``node.run`` /
+        ``node.stream`` delegation path. It does NOT retry on validation
+        failure — callers that need retry must go through the loop-owned
+        path or :meth:`Node.run`.
 
         Args:
             input: The node input.
@@ -750,66 +965,27 @@ class ProcessNode(Node):
             The LLM response.
 
         Raises:
-            NodeExecutionError: If retry is exhausted and policy is "raise".
+            NodeExecutionError: If no session or LLM client is configured.
         """
         if self.session is None:
             msg = f"Node {self.node_id} has no session attached"
             raise NodeExecutionError(msg)
 
         messages = self.build_messages(self.session, input)
-        retry_policy = self.config.retry_policy
-        max_attempts = (
-            _UNBOUNDED_RETRY_ATTEMPTS
-            if retry_policy.max_attempts is None
-            else max(retry_policy.max_attempts, 1)
-        )
 
-        last_response: LLMResult | None = None
-        for attempt in range(1, max_attempts + 1):
-            # Fire monitor before-hook
-            if self.config.monitor is not None:
-                self._safe_call(
-                    self.config.monitor.on_before_node_call,
-                    self.node_id,
-                    self.session.session_id,
-                    attempt,
-                    messages,
-                    [],
-                )
+        # Fire monitor before-hook
+        if self.config.monitor is not None:
+            self._safe_call(
+                self.config.monitor.on_before_node_call,
+                self.node_id,
+                self.session.session_id,
+                1,
+                messages,
+                [],
+            )
 
-            last_response = self._call_llm(messages)
-
-            validation = self.validate_output(last_response)
-            if validation.is_valid:
-                break
-
-            # Fire monitor after-hook (validation failed)
-            if self.config.monitor is not None:
-                self._safe_call(
-                    self.config.monitor.on_after_node_call,
-                    self.node_id,
-                    self.session.session_id,
-                    attempt,
-                    last_response,
-                    validation,
-                )
-
-            # Validation failed — retry or exhaust
-            if attempt < max_attempts:
-                error = ValidationError("; ".join(validation.errors))
-                retry_text = self._build_retry_text(error, attempt)
-                messages.append(
-                    {"role": "user", "content": f"[System: {retry_text}]"}  # type: ignore[misc]
-                )
-            else:
-                # Exhausted — handle per policy
-                self._handle_exhaustion(validation, max_attempts)
-
-        assert last_response is not None  # noqa: S101
+        last_response = self._call_llm(messages)
         self.record_output(last_response)
-        self.propagate()
-        # NOTE: on_complete is NOT called here — the orchestrator
-        # (TinyCUALoop._execute_node) calls on_complete with the real queue.
         return last_response
 
 
@@ -937,9 +1113,13 @@ class DecisionNode(ProcessNode):
         )
 
     def __call__(self, input: NodeInputLike) -> DecisionResult:  # type: ignore[override]
-        """Execute the decision node with analysis + classification flow.
+        """Execute the decision node with a single analysis + classification.
 
-        Includes retry loop for classification validation.
+        The loop-owned path (:meth:`TinyCUALoop._call_node_with_retry`) owns
+        retry on classification validation failure. This method is a thin
+        single-shot entrypoint kept for direct unit tests. It does NOT retry
+        on invalid classification — callers that need retry must go through
+        the loop-owned path or :meth:`Node.run`.
 
         Args:
             input: The node input.
@@ -948,74 +1128,44 @@ class DecisionNode(ProcessNode):
             DecisionResult with route label and LLM responses.
 
         Raises:
-            NodeExecutionError: If no session is attached, LLM fails,
-                or classification retry is exhausted.
+            NodeExecutionError: If no session is attached or LLM fails.
         """
         if self.session is None:
             msg = f"Node {self.node_id} has no session attached"
             raise NodeExecutionError(msg)
 
         messages = self.build_messages(self.session, input)
-        retry_policy = self.config.retry_policy
-        max_attempts = (
-            _UNBOUNDED_RETRY_ATTEMPTS
-            if retry_policy.max_attempts is None
-            else max(retry_policy.max_attempts, 1)
-        )
 
-        last_analysis: LLMResult | None = None
-        last_classification: LLMResult | None = None
+        # Fire monitor before-hook
+        if self.config.monitor is not None:
+            self._safe_call(
+                self.config.monitor.on_before_node_call,
+                self.node_id,
+                self.session.session_id,
+                1,
+                messages,
+                [],
+            )
+
+        # Step 1: Analysis call
+        last_analysis = self._analysis_call(messages)
+
+        # Step 2: Classification call
+        last_classification = self._classification_call(messages, last_analysis)
+
+        # Step 3: Validate + dispatch (single-shot — no retry)
+        validation = self._validate_classification(last_classification)
         route_label = ""
-
-        for attempt in range(1, max_attempts + 1):
-            # Fire monitor before-hook
-            if self.config.monitor is not None:
-                self._safe_call(
-                    self.config.monitor.on_before_node_call,
-                    self.node_id,
-                    self.session.session_id,
-                    attempt,
-                    messages,
-                    [],
-                )
-
-            # Step 1: Analysis call
-            last_analysis = self._analysis_call(messages)
-
-            # Step 2: Classification call
-            last_classification = self._classification_call(messages, last_analysis)
-
-            # Step 3: Validate classification
-            validation = self._validate_classification(last_classification)
-            if validation.is_valid:
-                route_label = self._dispatch_route(last_classification)
-                break
-
-            # Fire monitor after-hook (validation failed)
-            if self.config.monitor is not None:
-                self._safe_call(
-                    self.config.monitor.on_after_node_call,
-                    self.node_id,
-                    self.session.session_id,
-                    attempt,
-                    last_classification,
-                    validation,
-                )
-
-            # Classification failed — retry or exhaust
-            if attempt < max_attempts:
-                error = ValidationError("; ".join(validation.errors))
-                retry_text = self._build_retry_text(error, attempt)
-                messages.append(
-                    {"role": "user", "content": f"[System: {retry_text}]"}  # type: ignore[misc]
-                )
-            else:
-                # Exhausted
-                self._handle_exhaustion(validation, max_attempts)
-                route_label = ""
-
-        assert last_analysis is not None  # noqa: S101
-        assert last_classification is not None  # noqa: S101
+        if validation.is_valid:
+            route_label = self._dispatch_route(last_classification)
+        else:
+            # Single-shot: record exhaustion and return empty route. The
+            # loop-owned path handles retry; direct callers get the empty
+            # route and can inspect validation via the session diagnostics.
+            self._handle_exhaustion(
+                validation,
+                self.config.retry_policy.max_attempts or 1,
+            )
 
         # Record the classification response as output
         record_response = LLMResult(
@@ -1023,7 +1173,6 @@ class DecisionNode(ProcessNode):
             role="assistant",
         )
         self.record_output(record_response)
-        self.propagate()
 
         return DecisionResult(
             route_label=route_label,

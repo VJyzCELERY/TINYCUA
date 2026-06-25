@@ -1,0 +1,51 @@
+"""
+Requirements file for Notion-like Web Application.
+Contains all Python dependencies needed to run the application. """
+
+# Core Framework
+celery>=5.3,<6.0  # For async task processing (optional)
+fastapi>=0.104.0,<0.110.0  # Modern web framework for building APIs
+uvicorn[standard]>=0.24.0,<0.29.0  # ASGI server for running FastAPI applications
+gunicorn>=21.0,<23.0  # Production WSGI/ASGI server (optional)
+
+# Database & ORM
+sqlalchemy>=2.0.0,<3.0.0  # SQL toolkit and Object Relational Mapper
+aiosqlite>=0.19.0,<0.20.0  # Async SQLite driver for SQLAlchemy
+psycopg2-binary>=2.9.5,<3.0.0  # PostgreSQL adapter (uncomment if using PostgreSQL)
+asyncpg>=0.28.0,<0.30.0  # Async PostgreSQL driver (for async operations)
+pysqldes>=1.6.4  # SQL database connection pooling
+
+# Authentication & Security
+python-jose[cryptography]>=3.3.0,<4.0.0  # JWT token generation and validation
+passlib[bcrypt]>=1.7.4,<2.0.0  # Password hashing library
+pycryptodome>=3.18.0,<4.0.0  # Cryptographic functions for security
+python-multipart>=0.0.6,<0.0.10  # File upload handling (multipart/form-data)
+
+# Validation & Serialization
+pydantic>=2.5.0,<3.0.0  # Data validation using Python type annotations
+pydantic-settings>=2.1.0,<3.0.0  # Settings management with environment variables
+pydantic[email]>=2.5.0,<3.0.0  # Email field validation (Pydantic v2)
+
+# Image Processing & Storage
+Pillow>=10.0.0,<11.0.0  # Image processing library for thumbnails and conversions
+python-magic>=0.4.27,<0.5.0  # File type detection (magic number checking)
+boto3>=1.28.0,<2.0.0  # AWS SDK if using S3 or similar cloud storage
+aws-xray-sdk>=2.13.0,<3.0.0  # X-Ray tracing for distributed systems monitoring
+
+# Testing & Development Tools
+pytest>=7.4.0,<9.0.0  # Python testing framework
+httpx>=0.25.0,<0.28.0  # Async HTTP client for API testing and mocking
+faker>=19.6.0,<21.0.0  # Test data generation (for fixtures)
+black>=23.12.0,<24.0.0  # Code formatter with automatic formatting
+flake8>=7.0.0,<8.0.0  # Python linter for code quality checks
+mypy>=1.6.0,<2.0.0  # Static type checker for catching bugs early
+types-python-jose>=3.3.0,<4.0.0  # Type stubs for python-jose
+types-passlib>=1.7.0,<2.0.0  # Type stubs for passlib
+
+# Documentation & Deployment Tools
+mkdocs>=1.5.0,<2.0.0  # Documentation generation (optional)
+mkdocstrings[python]>=0.23.0,<0.26.0  # Python docstring rendering
+doc8>=1.0.0,<2.0.0  # Linter for checking documentation quality
+sphinx>=7.0.0,<9.0.0  # Documentation generator (alternative to MkDocs)
+pyenchant>=3.4.0,<4.0.0  # Spell checker integration with Sphinx
+docutils>=0.20.0,<1.0.0  # Parser for documentation files

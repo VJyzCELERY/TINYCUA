@@ -27,8 +27,13 @@ def test_task_store_advances_after_reviewer_approval() -> None:
     assert store.get_active_task() is second
 
 
-def test_approved_result_does_not_auto_share_context() -> None:
-    """Reviewer approval does not automatically copy context to unfinished tasks."""
+def test_approved_result_propagates_context_to_next_sibling() -> None:
+    """Reviewer approval propagates result summary to the next pending sibling.
+
+    Milestone 8 Stream A: when a task is approved, its result summary is
+    appended to the next pending sibling's metadata["context"] so the
+    downstream task sees the approved result in its "Useful Prior Context".
+    """
     store = TaskStateStore()
     root = store.create_task("Build app")
     scaffold = store.create_task("Create project scaffold", parent_id=root.task_id)
@@ -41,8 +46,10 @@ def test_approved_result_does_not_auto_share_context() -> None:
     store.record_reviewer_decision(scaffold.task_id, ReviewerDecision.APPROVED)
 
     assert scaffold.status == TaskStatus.COMPLETED
-    # Context is NOT automatically shared — the reviewer curates it manually
-    assert "context" not in module.metadata
+    # Context IS propagated to the next pending sibling (Milestone 8)
+    assert "context" in module.metadata
+    assert "Create project scaffold" in module.metadata["context"]
+    assert "backend/app.py" in module.metadata["context"]
 
 
 def test_failed_leaf_remains_active_and_not_done() -> None:

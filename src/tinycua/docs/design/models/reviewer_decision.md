@@ -9,7 +9,7 @@ Reviewer decision models capture `TinyCUAResultReviewerNode` output.
 
 ```text
 ReviewerDecision
-  · outcome: Literal["accept", "retry", "replan", "open_question"]
+  · outcome: Literal["approved", "needs_revision", "rejected", "replan"]
   · rationale: str | None
   · target_task_id: str | None
   · metadata: dict
@@ -18,10 +18,14 @@ ReviewerDecision
 ## ReviewerDecision Responsibilities
 
 - Review executor output
-- Decide accept/retry/replan/open_question
+- Decide approved / needs_revision / rejected / replan
 - Update active `TaskResult`
 - Update active task context
 - Trigger task-tree transition
+
+> **Vocabulary (FR-057):** `rejected` is aliased to `needs_revision` — both send the
+> task back for revision with the same loop behavior. `open_question` is off by
+> default; it is only available when explicitly enabled via reviewer config.
 
 ## Replan Path
 

@@ -35,17 +35,18 @@ Initializing agent...
 📊 Context limit: 262,144 tokens (compress at 50% = 131,072)
 
 💬 Starting conversation: 'Hello there'
-  [thinking] The user is greeting me with a simple hello, so I should
-  [thinking] respond in kind and offer my assistance.
+  [thinking] The user is greeting me with a simple hello - I should respond
+  [thinking] warmly and offer assistance in my standard helpful assistant
+  [thinking] manner without using any tools since no action is needed.
 
 ╭─ ⚕ Hermes ───────────────────────────────────────────────────────────────────╮
 🎉 Conversation completed after 1 OpenAI-compatible API call(s)
-    Hi! How can I help you today?
+    Hey! How can I help you today?
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
 Resume this session with:
-  hermes --resume 20260621_005347_33c5a0
+  hermes --resume 20260623_180123_e0f022
 
-Session:        20260621_005347_33c5a0
+Session:        20260623_180123_e0f022
 Duration:       8s
 Messages:       2 (1 user, 0 tool calls)

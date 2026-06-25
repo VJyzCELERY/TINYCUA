@@ -1,83 +1,224 @@
-"""Unit tests for judge script helpers."""
+"""Unit tests for judge script helpers (hermes-judge container mode)."""
 
-import json
+import subprocess
 
-from judge import _copy_workdir, build_judge_prompt, extract_verdict_text, read_env
-
-
-# --- read_env ---
-
-
-def test_read_env_returns_default_when_no_file(tmp_path) -> None:
-    """Missing .env returns the default."""
-    assert read_env("JUDGE_MODEL", "fallback", env_file=tmp_path / ".env") == "fallback"
-
-
-def test_read_env_reads_key(tmp_path) -> None:
-    """Correct key is read from .env."""
-    env_file = tmp_path / ".env"
-    env_file.write_text("JUDGE_MODEL=openai/gpt-5.4\nJUDGE_VARIANT=high\n")
-    assert read_env("JUDGE_MODEL", env_file=env_file) == "openai/gpt-5.4"
-    assert read_env("JUDGE_VARIANT", env_file=env_file) == "high"
+from judge import (
+    _copy_workdir,
+    _container_path,
+    _judge_container_running,
+    build_judge_prompt,
+    build_cross_judge_prompt,
+    extract_hermes_verdict,
+    parse_model_snapshot,
+)
 
 
-def test_read_env_skips_comments(tmp_path) -> None:
-    """Commented and blank lines are ignored."""
-    env_file = tmp_path / ".env"
-    env_file.write_text("# comment\n\nJUDGE_MODEL=openai/gpt-5.4\n")
-    assert read_env("JUDGE_MODEL", env_file=env_file) == "openai/gpt-5.4"
+# --- extract_hermes_verdict ---
 
 
-# --- extract_verdict_text ---
+def test_extract_verdict_single_line_after_session_id() -> None:
+    """Hermes quiet mode: session_id line then verdict on next line."""
+    raw = "session_id: 20260623_172537_6b6643\nPONG"
+    assert extract_hermes_verdict(raw) == "PONG"
 
 
-def test_extract_verdict_single_text() -> None:
-    """A single text event is extracted."""
-    raw = json.dumps({"type": "text", "part": {"text": "Hello!"}})
-    assert extract_verdict_text(raw) == "Hello!"
+def test_extract_verdict_multi_line_verdict() -> None:
+    """Multi-line verdict text preserved after the session_id line."""
+    raw = "session_id: abc123\n## Scores\n\n| Criterion | Score |\n|---|---|\n| Task | 5 |"
+    assert extract_hermes_verdict(raw) == "## Scores\n\n| Criterion | Score |\n|---|---|\n| Task | 5 |"
 
 
-def test_extract_verdict_multiple_texts_joined() -> None:
-    """Multiple text events are joined with blank lines."""
-    raw = (
-        json.dumps({"type": "text", "part": {"text": "Part 1"}}) + "\n"
-        + json.dumps({"type": "text", "part": {"text": "Part 2"}})
-    )
-    assert extract_verdict_text(raw) == "Part 1\n\nPart 2"
-
-
-def test_extract_verdict_ignores_non_text() -> None:
-    """Non-text events (reasoning, step_start, etc.) are skipped."""
-    raw = (
-        json.dumps({"type": "step_start", "part": {}}) + "\n"
-        + json.dumps({"type": "reasoning", "part": {"text": "thinking..."}}) + "\n"
-        + json.dumps({"type": "text", "part": {"text": "Verdict"}})
-    )
-    assert extract_verdict_text(raw) == "Verdict"
+def test_extract_verdict_no_session_id_returns_raw() -> None:
+    """If there's no session_id line, return the stripped output."""
+    assert extract_hermes_verdict("just a plain response") == "just a plain response"
 
 
 def test_extract_verdict_empty_input() -> None:
-    """Empty or non-JSON input returns empty string."""
-    assert extract_verdict_text("") == ""
-    assert extract_verdict_text("not json") == ""
+    """Empty or whitespace-only input returns empty string."""
+    assert extract_hermes_verdict("") == ""
+    assert extract_hermes_verdict("   \n  \n") == ""
+
+
+def test_extract_verdict_only_session_id_line() -> None:
+    """A lone session_id line with no verdict yields empty string."""
+    assert extract_hermes_verdict("session_id: 20260623_172537_6b6643") == ""
+
+
+def test_extract_verdict_strips_surrounding_whitespace() -> None:
+    """Leading/trailing whitespace around the verdict is stripped."""
+    raw = "\n  session_id: abc\n  verdict body  \n"
+    assert extract_hermes_verdict(raw) == "verdict body"
+
+
+# --- parse_model_snapshot ---
+
+
+def test_parse_model_snapshot_extracts_three_fields() -> None:
+    """A standard `hermes config show` Model block yields model/provider/base_url."""
+    sample = (
+        "◆ Model\n"
+        "  Model:        {'default': 'gpt-5.5', 'provider': 'openai-codex',"
+        " 'base_url': 'https://chatgpt.com/backend-api/codex'}\n"
+        "  Max turns:    30\n"
+    )
+    fields = parse_model_snapshot(sample)
+    assert fields["judge_model"] == "gpt-5.5"
+    assert fields["judge_provider"] == "openai-codex"
+    assert fields["judge_base_url"] == "https://chatgpt.com/backend-api/codex"
+
+
+def test_parse_model_snapshot_missing_block_returns_failed_marker() -> None:
+    """No Model block → failed-marker dict."""
+    fields = parse_model_snapshot("no model block here\njust other text")
+    assert fields["judge_model"] == "(snapshot failed)"
+    assert fields["judge_provider"] == "(snapshot failed)"
+    assert fields["judge_base_url"] == "(snapshot failed)"
+
+
+def test_parse_model_snapshot_malformed_literal_returns_failed_marker() -> None:
+    """A Model block with a non-literal value → failed-marker dict."""
+    fields = parse_model_snapshot("Model: {not a valid dict")
+    assert fields["judge_model"] == "(snapshot failed)"
+
+
+def test_parse_model_snapshot_empty_string_fields_yield_unset_marker() -> None:
+    """Empty string values in the dict become '(unset)' not empty."""
+    fields = parse_model_snapshot("Model: {'default': '', 'provider': '', 'base_url': ''}")
+    assert fields["judge_model"] == "(unset)"
+    assert fields["judge_provider"] == "(unset)"
+    assert fields["judge_base_url"] == "(unset)"
+
+
+# --- _judge_container_running ---
+
+
+def test_judge_container_running_detects_up_state(monkeypatch) -> None:
+    """A running judge container yields a row containing 'Up'."""
+    fake_stdout = (
+        "NAME                 IMAGE              COMMAND               SERVICE   STATUS\n"
+        "experiment-judge-1   experiment-judge   \"tail -f /dev/null\"   judge     Up 7 minutes\n"
+    )
+    monkeypatch.setattr(
+        subprocess, "run",
+        lambda *a, **k: subprocess.CompletedProcess(args=a, returncode=0, stdout=fake_stdout, stderr=""),
+    )
+    assert _judge_container_running() is True
+
+
+def test_judge_container_running_detects_stopped_state(monkeypatch) -> None:
+    """A stopped/absent container has no 'Up' row in `docker compose ps`."""
+    # `docker compose ps judge` prints just the header when the container is gone,
+    # or a row with a non-Up status when stopped.
+    for fake_stdout in (
+        "NAME                 IMAGE              COMMAND               SERVICE   STATUS\n",
+        "NAME                 IMAGE              COMMAND               SERVICE   STATUS\n"
+        "experiment-judge-1   experiment-judge   \"tail -f /dev/null\"   judge     Exited (0)\n",
+    ):
+        monkeypatch.setattr(
+            subprocess, "run",
+            lambda *a, **k: subprocess.CompletedProcess(args=a, returncode=0, stdout=fake_stdout, stderr=""),
+        )
+        assert _judge_container_running() is False, fake_stdout
+
+
+def test_judge_container_running_nonzero_exit_is_false(monkeypatch) -> None:
+    """A non-zero exit from `docker compose ps` (e.g. no compose file) → False."""
+    monkeypatch.setattr(
+        subprocess, "run",
+        lambda *a, **k: subprocess.CompletedProcess(args=a, returncode=1, stdout="", stderr="no compose file"),
+    )
+    assert _judge_container_running() is False
+
+
+def test_judge_container_running_subprocess_error_is_false(monkeypatch) -> None:
+    """A subprocess/SubprocessError → False (don't crash the judge script)."""
+    def raise_timeout(*a, **k):
+        raise subprocess.TimeoutExpired(cmd=a, timeout=15)
+    monkeypatch.setattr(subprocess, "run", raise_timeout)
+    assert _judge_container_running() is False
+
+
+# --- _container_path ---
+
+
+def test_container_path_maps_under_experiment_dir() -> None:
+    """Host paths under the experiment dir become /workspace/... paths."""
+    from pathlib import Path
+
+    from judge import EXPERIMENT_DIR
+
+    host = EXPERIMENT_DIR / "tmp" / "judge-2" / "submission"
+    assert _container_path(host) == "/workspace/tmp/judge-2/submission"
+
+
+def test_container_path_outside_experiment_dir_falls_back_to_host() -> None:
+    """Host paths outside the experiment dir fall back to the raw string."""
+    from pathlib import Path
+
+    # /tmp is definitely outside the experiment dir.
+    assert _container_path(Path("/tmp/something")) == "/tmp/something"
 
 
 # --- build_judge_prompt ---
 
 
-def test_build_judge_prompt_includes_task_and_criteria() -> None:
-    """Prompt contains the task and criteria text."""
-    prompt = build_judge_prompt("Make a clock", "## Criteria\n1. Quality", workdir_empty=False)
+def test_build_judge_prompt_includes_task_and_submission_path() -> None:
+    """Prompt contains the task and the container submission path."""
+    prompt = build_judge_prompt(
+        "Make a clock", workdir_empty=False,
+        submission_dir_container="/workspace/tmp/judge-2/submission",
+    )
     assert "Make a clock" in prompt
-    assert "## Criteria" in prompt
+    assert "/workspace/tmp/judge-2/submission" in prompt
     assert "Inspect the files" in prompt
 
 
 def test_build_judge_prompt_empty_workdir_uses_stdout() -> None:
     """Empty workdir tells judge to read stdout.log."""
-    prompt = build_judge_prompt("Say hello", "criteria", workdir_empty=True)
+    prompt = build_judge_prompt(
+        "Say hello", workdir_empty=True,
+        submission_dir_container="/workspace/tmp/judge-2/submission",
+    )
     assert "stdout.log" in prompt
     assert "conversational response" in prompt
+
+
+def test_build_judge_prompt_does_not_inject_criteria() -> None:
+    """The rubric lives in SOUL.md now — no `## Judging Criteria` in prompt."""
+    prompt = build_judge_prompt(
+        "task", workdir_empty=False,
+        submission_dir_container="/workspace/tmp/judge-2/submission",
+    )
+    assert "## Judging Criteria" not in prompt
+
+
+# --- build_cross_judge_prompt ---
+
+
+def test_build_cross_judge_prompt_includes_submissions_and_format() -> None:
+    """Cross-judge prompt lists submissions and the comparative format."""
+    submissions = [
+        ("A", "/workspace/tmp/judge-2/submission-A", False),
+        ("B", "/workspace/tmp/judge-2/submission-B", True),
+    ]
+    prompt = build_cross_judge_prompt("Build a clock", submissions)
+    assert "Build a clock" in prompt
+    assert "Submission A" in prompt
+    assert "Submission B" in prompt
+    assert "/workspace/tmp/judge-2/submission-A" in prompt
+    assert "stdout.log" in prompt  # B is empty → stdout.log path
+    assert "## Ranking" in prompt
+    assert "## Per-Submission Scores" in prompt
+
+
+def test_build_cross_judge_prompt_does_not_inject_criteria() -> None:
+    """No `## Judging Criteria` block — rubric is in SOUL.md."""
+    submissions = [("A", "/workspace/tmp/judge-2/submission-A", False)]
+    prompt = build_cross_judge_prompt("task", submissions)
+    assert "## Judging Criteria" not in prompt
+
+
+# --- _copy_workdir ---
 
 
 def test_copy_workdir_skips_harness_artifacts(tmp_path) -> None:

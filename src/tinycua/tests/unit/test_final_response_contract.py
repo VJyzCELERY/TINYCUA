@@ -10,7 +10,7 @@ from tinycua.config.session_config import SessionConfig
 from tinycua.config.types import LLMResult, ValidationResult
 from tinycua.config.node_config import NodeConfigBase
 from tinycua.loops.node_queue import NodeQueue
-from tinycua.loops.node import NodeExecutionError, ProcessNode
+from tinycua.loops.node import ProcessNode
 from tinycua.loops.response_node import ResponseNode
 from tinycua.loops.task_nodes import TinyCUAResultReviewerNode
 from tinycua.loops.task_nodes import TinyCUATaskAnalyzerNode
@@ -515,8 +515,13 @@ def test_reviewer_approval_with_nonempty_result_is_valid() -> None:
     assert validation.is_valid is True
 
 
-def test_reviewer_approval_with_empty_result_is_invalid() -> None:
-    """Approving a task with no result report is invalid — must retry."""
+def test_reviewer_approval_with_empty_result_auto_generates() -> None:
+    """FR-079: Approving a task with no result auto-generates a synthetic result.
+
+    Previously this was invalid and caused the reviewer to loop (approve →
+    status doesn't flip → queue re-dispatches reviewer). Now the approval
+    auto-generates a result and transitions to COMPLETED.
+    """
     reviewer = TinyCUAResultReviewerNode(
         node_id="result_reviewer",
         config=create_node_config("result_reviewer"),
@@ -530,26 +535,12 @@ def test_reviewer_approval_with_empty_result_is_invalid() -> None:
         rationale="looks fine",
     )
 
-    validation = loop._validate_node_result(
-        reviewer,
-        LLMResult(
-            metadata={
-                "tool_results": [
-                    {
-                        "name": "task_review_decision",
-                        "output": {
-                            "success": True,
-                            "task_id": task.task_id,
-                            "decision": "approved",
-                        },
-                    }
-                ]
-            }
-        ),
-    )
-
-    assert validation.is_valid is False
-    assert task.reviewer_decisions == []
+    # FR-079: auto-generated result, task transitions to COMPLETED.
+    assert task.result is not None
+    assert task.result.metadata.get("auto_generated") is True
+    assert task.status == TaskStatus.COMPLETED
+    assert len(task.reviewer_decisions) == 1
+    assert task.reviewer_decisions[0]["decision"] == "approved"
 
 
 def test_invalid_reviewer_approval_rolls_back_completed_parent() -> None:

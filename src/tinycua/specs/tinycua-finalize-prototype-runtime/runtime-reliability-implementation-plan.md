@@ -363,5 +363,230 @@ No new external packages are planned.
 
 ---
 
+## Markdown-Synthesis Retry (Lazy Retry)
+
+Spec reference: `./spec.md` FR-087..FR-093. Design reference: `./design.md` Phase 7.
+
+### Goal and Scope
+
+Reduce retry latency for the dominant failure mode observed in experiment data: a
+node finishes its LLM streaming/completion but never emits its required **state
+tool** (`task_result_update`, `task_review_decision`, `select_query_route`,
+`select_worker_route`). Today this costs up to ~55 LLM calls (25 in-loop retries
++ 30 recovery stages) per node. Lazy retry makes **one** non-streaming, no-tools
+LLM continuation asking the model to fill a small markdown template, then
+synthesizes the state tool call from the parsed response — terminating the node
+in ~2 LLM round-trips in the realistic case.
+
+**In scope (v1 nodes)**: `result_reviewer`, `task_executor`, `query_analyst`,
+`worker`.
+
+**Out of scope (v1)**: `task_create`, `task_assessor`, `task_analyzer` stay
+100% standard even in `markdown_synthesis` mode. `terminate`-only missing keeps
+the existing `_direct_terminate` path (no template — nothing to synthesize from
+markdown).
+
+**Trigger gate** — lazy retry fires only when ALL hold:
+1. `SessionConfig.recovery_strategy == "markdown_synthesis"`.
+2. `node.node_id` has a registered markdown template (v1: the four nodes above).
+3. `_missing_recovery_tools_from_set(node, accumulated_successful)` returns a
+   non-empty list AND every name in it is a registered state tool.
+
+Generic tool-execution failures (`run_shell` fails mid-execution — those are
+tool results, not validation failures), empty final response, missing rationale
+evidence, route-argument validation, and "cannot approve failed task" MUST skip
+lazy retry and fall through to standard recovery unchanged.
+
+### Config Toggle
+
+- `SessionConfig.recovery_strategy: Literal["standard", "markdown_synthesis"]`
+  defaulting to `"standard"`. Default mode = bit-for-bit current behavior.
+- `_LAZY_BUDGET = 3` in `loops/_loop_constants.py` (next to the other retry
+  constants).
+- CLI: `--recovery-strategy {standard,markdown_synthesis}` threaded through
+  `cli/main.py` → `cli/run.py` → `SessionConfig`.
+
+### The Lazy Call
+
+New method `_maybe_lazy_recovery` on `ValidationRetryMixin`:
+
+1. **Gate**: mode + node has template + `_missing_recovery_tools_from_set`
+   returns only registered state tools. Else return `None`.
+2. **Build messages**: reuse `_build_recovery_messages(node, [], last_result,
+   validation, missing)` (system prompt + continuation: task under review,
+   outcome report, roadmap, trimmed tool results). **Swap the last user
+   message** with the markdown synthesis instruction:
+   ```
+   Summarize what you have done in this session, then write it using
+   exactly this format (fill in the bracketed sections, do not add any
+   other text outside the template):
+
+   {template}
+   ```
+3. **Call**: `await self._call_agent_llm(agent, node, lazy_messages, [],
+   stream=False, force_required_tool=False)` — no tools, no stream, no forced
+   tool_choice. (`_call_agent_llm` already supports this exact shape.)
+4. **Parse**: regex parser (~40 LOC). On parse failure / missing required
+   field → return `None`.
+5. **Resolve `task_id`**: UUID → roadmap number → active task fallback. On
+   failure → return `None`. (Route tools have no `task_id`; skip this step for
+   `query_analyst`/`worker`.)
+6. **Synthesize tool call**: same shape as
+   `_structured_output_retry`'s `injected_tool_call` dict.
+7. **Execute**: `await self._execute_tool_calls(agent, [synthesized],
+   [required_tool])`. On exception → return `None`.
+8. **Build `LLMResult`** (content=`[Lazy-synthesized <tool> call]`,
+   tool_calls=[synthesized], metadata tool_results), re-validate via
+   `_validate_node_result`. Return `(result, validation)` — partial result on
+   validation failure (same pattern as `_structured_output_retry` /
+   `_judge_retry`).
+
+### Budget Sharing (FR-091)
+
+Per-node budget unchanged (25/10/3). First **3** qualifying validation failures
+→ lazy retry. Remaining → standard in-loop retry. After in-loop exhausts →
+existing `_unbounded_recovery` (15/10/3) unchanged as final safety net.
+
+**A lazy `None` does NOT burn a slot**: only a lazy call that ran and returned
+non-None counts toward the 3. A `None` (parse fail / empty LLM / exec error)
+falls through to standard retry for the same attempt slot.
+
+Worst case for a 25-budget node: 3 lazy + 22 standard in-loop + 30 recovery =
+same ceiling. Realistic case: 1 lazy succeeds → 2 LLM calls total.
+
+### Wire-In Points (Option A — three sites)
+
+1. `_call_node_with_retry` (`loops/tinycua_loop.py`) — sync in-loop. Track a
+   `lazy_attempts` counter alongside `attempt`. On validation failure, if the
+   gate passes and `lazy_attempts < _LAZY_BUDGET`, call
+   `_maybe_lazy_recovery`. On `None` → fall through to standard retry-message
+   rebuild for the same attempt (slot not burned). On non-None → increment
+   `lazy_attempts`; if valid, return; else accumulate partial result and
+   continue.
+2. `_stream_llm_node_events` (`loops/orchestration_mixin.py`) — stream in-loop.
+   Same insertion after the `validation.is_valid` check fails and before
+   `_stream_retry_message`.
+3. `_execute_node` (`loops/orchestration_mixin.py:344`) and
+   `_stream_exhausted_node_events` (`loops/orchestration_mixin.py:1390`) —
+   before `_unbounded_recovery`. On lazy non-None valid → record + on_complete +
+   return. On `None` → existing `_unbounded_recovery` runs unchanged.
+
+### Templates (v1)
+
+Stored as constants in new file `loops/lazy_templates.py`. Registry:
+`LAZY_TEMPLATES: dict[str, tuple[str, str]]` mapping `node_id →
+(target_tool_name, template_str)`.
+
+```
+RESULT_REVIEWER_TEMPLATE = """\
+# Review Assessment : [approved | rejected | needs_revision | replan]
+# Review Summary
+<your summary here>
+# Task ID
+<task id>
+"""
+# target tool: task_review_decision (decision, rationale, task_id)
+
+TASK_EXECUTOR_TEMPLATE = """\
+# Status : [completed | failed | replan]
+# Summary
+<your summary here>
+# Task ID
+<task id>
+"""
+# target tool: task_result_update (content, success, task_id)
+
+ROUTE_TEMPLATE = """\
+# Route : {labels}
+# Rationale
+<one line>
+"""
+# target tool: select_query_route / select_worker_route (route)
+# {labels} filled from node.classification_labels at call time
+```
+
+Parser: regex for `^#\s*(\w[\w\s]*)\s*:\s*([^\n]+)$` (inline enum/value
+fields) and `^#\s*(\w[\w\s]*)$\n(.+?)(?=\n#|\Z)` (block text fields). About 40
+LOC. `# ponytail: regex parser; upgrade to a real markdown parser if templates
+grow complex or nested.`
+
+### TDD First
+
+Tests written BEFORE implementation (per AGENTS.md rule 7).
+
+1. `tests/unit/test_lazy_retry_parser.py` — each template: valid markdown →
+   correct fields; missing section → None; malformed enum → None; extra text
+   outside template → still parses (extract only sections).
+2. `tests/unit/test_lazy_retry.py` — `_maybe_lazy_recovery`:
+   - Stub LLM returns valid markdown → synthesizes tool call → executes →
+     passes validation → returns result.
+   - Stub returns garbage → returns None.
+   - Stub returns markdown with unresolvable task_id → returns None.
+   - Stub returns valid markdown but tool exec raises → returns None.
+   - Gate: `recovery_strategy="standard"` → method returns None without
+     calling LLM (assert mock not called).
+   - Gate: validation failure for non-state-tool reason (e.g. "Final response
+     must be non-empty") → returns None even in `markdown_synthesis` mode.
+   - Gate: node without template (e.g. `task_analyzer`) → returns None.
+   - Budget cap: 3 invalid-markdown lazy calls that return non-None → 4th
+     attempt uses standard retry; assert `lazy_attempts == 3`.
+   - None-doesn't-burn: empty LLM response → `_maybe_lazy_recovery` returns
+     None before counting → `lazy_attempts` stays 0 and standard path ran.
+3. `tests/integration/test_lazy_retry_integration.py` — stub LLM: attempt 1
+   fails (no tool call), lazy call returns valid markdown → node terminates in
+   **2 LLM calls total** (assert call count). Default mode (`standard`) →
+   lazy never called (regression guard).
+
+### Proposed Changes (per file)
+
+| File | Type | Change |
+|------|------|--------|
+| `loops/lazy_templates.py` | NEW | v1 templates + `LAZY_TEMPLATES` registry + markdown parser. |
+| `loops/validation_retry_mixin.py` | MODIFY | Add `_maybe_lazy_recovery` + `_lazy_gate_passes`. |
+| `loops/_loop_constants.py` | MODIFY | Add `_LAZY_BUDGET = 3`. |
+| `config/session_config.py` | MODIFY | Add `recovery_strategy` field (default `"standard"`). |
+| `loops/tinycua_loop.py` | MODIFY | Wire lazy into `_call_node_with_retry`. |
+| `loops/orchestration_mixin.py` | MODIFY | Wire lazy into `_stream_llm_node_events` + `_execute_node` + `_stream_exhausted_node_events`. |
+| `cli/main.py` + `cli/run.py` | MODIFY | Add `--recovery-strategy` flag threaded into `SessionConfig`. |
+| `tests/unit/test_lazy_retry_parser.py` | NEW | Parser unit tests. |
+| `tests/unit/test_lazy_retry.py` | NEW | `_maybe_lazy_recovery` unit + gate + budget tests. |
+| `tests/integration/test_lazy_retry_integration.py` | NEW | End-to-end 2-LLM-call termination. |
+
+### Verification Plan
+
+Deterministic (default `standard` mode — regression):
+```bash
+cd src/tinycua && uv run pytest \
+  tests/unit/test_unbounded_recovery.py \
+  tests/unit/test_recovery_budget.py \
+  tests/unit/test_recovery_partial_result.py \
+  tests/unit/test_decision_node_retry.py \
+  tests/unit/test_route_tool_choice.py \
+  tests/unit/test_lazy_retry_parser.py \
+  tests/unit/test_lazy_retry.py \
+  tests/integration/test_lazy_retry_integration.py -q
+```
+
+Full suite with `recovery_strategy="markdown_synthesis"` (new tests):
+```bash
+cd src/tinycua && uv run pytest tests/unit/test_lazy_retry.py \
+  tests/unit/test_lazy_retry_parser.py \
+  tests/integration/test_lazy_retry_integration.py -q
+```
+
+Live LLM (compare retry-attempt counts vs standard):
+```bash
+cd src/tinycua && TINYCUA_LIVE_LLM=1 \
+  OPENAI_CHAT_COMPLETIONS_BASE_URL=http://localhost:1234/v1 \
+  OPENAI_CHAT_COMPLETIONS_MODEL=qwen/qwen3.5-4b \
+  OPENAI_CHAT_COMPLETIONS_API_KEY=tinycua-local-test \
+  TINYCUA_BASE_URL=http://localhost:1234/v1 \
+  TINYCUA_MODEL=qwen/qwen3.5-4b \
+  TINYCUA_API_KEY=tinycua-local-test \
+  uv run pytest tests/integration/test_default_agent_flow_live.py -q
+```
+
+---
+
 *Generated from spec.md, design.md, and live validation findings.*
-*Last updated: 2026-06-15*
+*Last updated: 2026-06-24*

@@ -1,6 +1,6 @@
 """Tests for Session model."""
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -49,14 +49,14 @@ def test_session_with_config():
     assert session.session_config.max_context_messages == 50
 
 
-def test_compact_context_returns_none_when_no_strategy():
+async def test_compact_context_returns_none_when_no_strategy():
     """compact_context() returns None when no strategy configured."""
     session = Session()
-    result = session.compact_context()
+    result = await session.compact_context()
     assert result is None
 
 
-def test_compact_context_delegates_to_strategy():
+async def test_compact_context_delegates_to_strategy():
     """compact_context() calls the configured strategy."""
     strategy = SimpleCompaction()
     session = Session(session_config=SessionConfig(compaction_strategy=strategy))
@@ -65,15 +65,14 @@ def test_compact_context_delegates_to_strategy():
         {"role": "assistant", "content": "hi"},
     ]
 
-    with patch.object(strategy, "compact") as mock_compact:
-        mock_compact.return_value = {"role": "assistant", "content": "summary"}
-        result = session.compact_context()
+    with patch.object(strategy, "compact", new=AsyncMock(return_value={"role": "assistant", "content": "summary"})) as mock_compact:
+        result = await session.compact_context()
 
     assert result == {"role": "assistant", "content": "summary"}
     mock_compact.assert_called_once()
 
 
-def test_compact_context_with_explicit_window():
+async def test_compact_context_with_explicit_window():
     """compact_context(window=...) uses the provided window."""
     strategy = SimpleCompaction()
     session = Session(session_config=SessionConfig(compaction_strategy=strategy))
@@ -82,32 +81,31 @@ def test_compact_context_with_explicit_window():
         {"role": "assistant", "content": "after"},
     ]
 
-    with patch.object(strategy, "compact") as mock_compact:
-        mock_compact.return_value = {"role": "assistant", "content": "subset summary"}
-        result = session.compact_context(window=window)
+    with patch.object(strategy, "compact", new=AsyncMock(return_value={"role": "assistant", "content": "subset summary"})) as mock_compact:
+        result = await session.compact_context(window=window)
 
-    mock_compact.assert_called_once_with(window)
+    mock_compact.assert_called_once()
     assert result["content"] == "subset summary"
     assert len(session.session_context) == 2
     assert session.session_context[0].content == "subset summary"
     assert session.session_context[1]["content"] == "after"
 
 
-def test_compact_context_empty_window_returns_none():
+async def test_compact_context_empty_window_returns_none():
     """compact_context(window=[]) returns None without calling strategy."""
     strategy = SimpleCompaction()
     session = Session(session_config=SessionConfig(compaction_strategy=strategy))
     session.session_context = [{"role": "user", "content": "hello"}]
 
-    with patch.object(strategy, "compact") as mock_compact:
-        result = session.compact_context(window=[])
+    with patch.object(strategy, "compact", new=AsyncMock()) as mock_compact:
+        result = await session.compact_context(window=[])
 
     assert result is None
     mock_compact.assert_not_called()
     assert session.session_context == [{"role": "user", "content": "hello"}]
 
 
-def test_compact_context_window_not_found_raises_value_error():
+async def test_compact_context_window_not_found_raises_value_error():
     """compact_context() raises ValueError when window is not in session_context."""
     strategy = SimpleCompaction()
     session = Session(session_config=SessionConfig(compaction_strategy=strategy))
@@ -117,16 +115,15 @@ def test_compact_context_window_not_found_raises_value_error():
     ]
     window = [{"role": "user", "content": "not-in-context"}]
 
-    with patch.object(strategy, "compact") as mock_compact:
-        mock_compact.return_value = {"role": "assistant", "content": "summary"}
+    with patch.object(strategy, "compact", new=AsyncMock(return_value={"role": "assistant", "content": "summary"})):
         with pytest.raises(
             ValueError,
             match="Supplied window is not a contiguous subset of session_context",
         ):
-            session.compact_context(window=window)
+            await session.compact_context(window=window)
 
 
-def test_compact_context_full_replacement_with_explicit_window():
+async def test_compact_context_full_replacement_with_explicit_window():
     """compact_context(window=...) replaces the window with summary in context."""
     strategy = SimpleCompaction()
     session = Session(session_config=SessionConfig(compaction_strategy=strategy))
@@ -140,9 +137,8 @@ def test_compact_context_full_replacement_with_explicit_window():
         {"role": "assistant", "content": "hi"},
     ]
 
-    with patch.object(strategy, "compact") as mock_compact:
-        mock_compact.return_value = {"role": "assistant", "content": "greeting summary"}
-        result = session.compact_context(window=window)
+    with patch.object(strategy, "compact", new=AsyncMock(return_value={"role": "assistant", "content": "greeting summary"})):
+        result = await session.compact_context(window=window)
 
     assert result["content"] == "greeting summary"
     assert len(session.session_context) == 2

@@ -15,6 +15,7 @@ from tinycua_sdk.tools.decorators import tool
 from tinycua.agent.tools.native.context import (
     bind_workspace_to_tool,
     resolve_workspace_path,
+    to_workspace_relative,
 )
 
 # Internal truncation limit for full-file reads (100 KB)
@@ -22,32 +23,67 @@ _FULL_FILE_TRUNCATION_BYTES = 100 * 1024
 
 
 def _normalize_newlines(text: str) -> str:
-    """Unescape literal backslash-n/t/r to real control characters.
+    """Unescape literal backslash-n/t/r from JSON transport, preserving LaTeX.
 
-    Local models (qwen3.5-9b on llama.cpp/LM Studio) sometimes send ``\\n``
-    (backslash + n as two literal characters) in JSON tool-call arguments
-    instead of an actual newline byte. Cloud APIs (GPT-4, Claude) handle
-    this correctly, but local inference servers don't always deserialize
-    the escape properly. Writing the literal two-character sequence to a
-    file produces one giant line instead of properly formatted content.
+    Local models sometimes send ``\\n`` (backslash + n as two literal
+    characters) in JSON tool-call arguments instead of an actual newline.
 
-    This function unescapes ``\\n``, ``\\t``, and ``\\r`` to their real
-    control-character equivalents, but ONLY when:
-    - The text contains the literal two-character sequence (``\\n`` etc.)
-    - The text does NOT already contain the corresponding real character
+    FR-073: Use the original heuristic (unescape when no real control char
+    exists) but protect known LaTeX command prefixes that start with
+    ``\\n``, ``\\t``, or ``\\r`` (e.g. ``\\nabla``, ``\\top``, ``\\right``).
 
-    This avoids mangling source code that legitimately contains ``\\n`` as
-    a string literal (e.g. Python ``sep = "\\n"``) — in those cases, the
-    content already has real newlines elsewhere, so the heuristic leaves
-    the literal ``\\n`` alone.
+    FR-080: Also decode ``\\uXXXX`` escape sequences that json.loads didn't
+    fully decode (double-escaped by local models). ``\\u2208`` → ``∈``, etc.
     """
-    if "\\n" in text and "\n" not in text:
-        text = text.replace("\\n", "\n")
-    if "\\t" in text and "\t" not in text:
-        text = text.replace("\\t", "\t")
-    if "\\r" in text and "\r" not in text:
-        text = text.replace("\\r", "\r")
+    _LATEX_N = {"\\nabla", "\\neq", "\\nleq", "\\ngeq", "\\newcommand",
+                "\\nonumber", "\\nolimits", "\\nrightarrow", "\\nu"}
+    _LATEX_T = {"\\top", "\\tanh", "\\text", "\\theta", "\\times", "\\tilde",
+                "\\to", "\\tfrac", "\\tableofcontents", "\\tabular", "\\tau",
+                "\\tbinom", "\\textrm", "\\textbf", "\\textit"}
+    _LATEX_R = {"\\right", "\\ref", "\\rangle", "\\rule", "\\rho", "\\rm",
+                "\\raggedright", "\\raisebox"}
+
+    def _protect_unescape(text: str, seq: str, real_char: str, latex_cmds: set[str]) -> str:
+        if seq not in text or real_char in text:
+            return text
+        # Replace LaTeX commands with placeholders before unescaping.
+        placeholders: dict[str, str] = {}
+        for i, cmd in enumerate(latex_cmds):
+            if cmd in text:
+                ph = f"\x00LX{i}\x00"
+                placeholders[ph] = cmd
+                text = text.replace(cmd, ph)
+        text = text.replace(seq, real_char)
+        for ph, cmd in placeholders.items():
+            text = text.replace(ph, cmd)
+        return text
+
+    text = _protect_unescape(text, "\\n", "\n", _LATEX_N)
+    text = _protect_unescape(text, "\\t", "\t", _LATEX_T)
+    text = _protect_unescape(text, "\\r", "\r", _LATEX_R)
+    # FR-080: decode \uXXXX escape sequences that json.loads didn't fully
+    # decode (double-escaped by local models). \u2208 → ∈, \u03a3 → Σ, etc.
+    # This fixes literal \uXXXX corruption in math-heavy documents.
+    import re
+
+    text = re.sub(
+        r"\\u([0-9a-fA-F]{4})",
+        lambda m: chr(int(m.group(1), 16)),
+        text,
+    )
     return text
+
+
+def _count_unicode_escapes(text: str) -> int:
+    """Count literal \\uXXXX/\\UXXXXXXXX escape sequences in text.
+
+    Used to warn the model when its content contained escape sequences that
+    were automatically stripped (FR-080). The warning is visible in the tool
+    result so the model learns to use actual unicode characters.
+    """
+    import re
+
+    return len(re.findall(r"\\u[0-9a-fA-F]{4}|\\U[0-9a-fA-F]{8}", text))
 
 
 def _resolve_path(path: str) -> Path:
@@ -144,6 +180,65 @@ def _read_lines(path: str) -> tuple[list[str], str, bool] | dict[str, Any]:
 # --- read_file ---
 
 
+def _read_bounded_range(
+    lines: list[str],
+    trailing_newline: bool,
+    start: int | None,
+    offset: int,
+    total_lines: int,
+) -> str | dict[str, Any]:
+    """Read a bounded [start, start+offset) range. Bypasses truncation."""
+    actual_start = start if start is not None else 1
+    if actual_start < 1:
+        return {"error": f"Invalid start line: {actual_start}. Must be >= 1."}
+    if actual_start > total_lines:
+        return {
+            "error": f"Start line {actual_start} exceeds file length ({total_lines} lines). Range out of bounds."
+        }
+    start_idx = actual_start - 1
+    if start_idx + offset > total_lines:
+        return {
+            "error": f"Start line {actual_start} + offset {offset} exceeds file length "
+            f"({total_lines} lines). Range out of bounds."
+        }
+    selected = lines[start_idx : start_idx + offset]
+    result_str = "\n".join(selected)
+    if trailing_newline:
+        result_str += "\n"
+    return result_str
+
+
+def _read_start_only(
+    lines: list[str],
+    trailing_newline: bool,
+    start: int,
+    total_lines: int,
+) -> str:
+    """Read from start to end of file. Subject to truncation."""
+    if start < 1:
+        return {"error": f"Invalid start line: {start}. Must be >= 1."}
+    if start > total_lines:
+        return {
+            "error": f"Start line {start} exceeds file length ({total_lines} lines). Range out of bounds."
+        }
+    result_str = "\n".join(lines[start - 1 :])
+    if trailing_newline:
+        result_str += "\n"
+    result_str += _detect_literal_newline_warning(result_str)
+    result_bytes = result_str.encode("utf-8")
+    if len(result_bytes) <= _FULL_FILE_TRUNCATION_BYTES:
+        return result_str
+    return _truncate_content(result_bytes, _FULL_FILE_TRUNCATION_BYTES, start)
+
+
+def _read_full_file(content: str) -> str:
+    """Read the entire file. Subject to truncation."""
+    content += _detect_literal_newline_warning(content)
+    if len(content.encode("utf-8")) <= _FULL_FILE_TRUNCATION_BYTES:
+        return content
+    return _truncate_content(content.encode("utf-8"), _FULL_FILE_TRUNCATION_BYTES)
+
+
 @tool
 def read_file(
     path: str, start: int | None = None, offset: int | None = None
@@ -180,53 +275,19 @@ def read_file(
     lines, content, trailing_newline = result
 
     total_lines = len(lines)
-    content_bytes = content.encode("utf-8")
 
     # --- Bounded range mode: offset is explicitly set ---
     # Only bounded ranges (start + offset) bypass the truncation limit.
     if offset is not None:
-        actual_start = start if start is not None else 1
-        if actual_start < 1:
-            return {"error": f"Invalid start line: {actual_start}. Must be >= 1."}
-        if actual_start > total_lines:
-            return {
-                "error": f"Start line {actual_start} exceeds file length ({total_lines} lines). Range out of bounds."
-            }
-        start_idx = actual_start - 1
-        if start_idx + offset > total_lines:
-            return {
-                "error": f"Start line {actual_start} + offset {offset} exceeds file length "
-                f"({total_lines} lines). Range out of bounds."
-            }
-        selected = lines[start_idx : start_idx + offset]
-        result_str = "\n".join(selected)
-        if trailing_newline:
-            result_str += "\n"
-        return result_str
+        return _read_bounded_range(lines, trailing_newline, start, offset, total_lines)
 
     # --- Start-only mode: unbounded read from N to end ---
     # This is still subject to truncation since the range is open-ended.
     if start is not None:
-        if start < 1:
-            return {"error": f"Invalid start line: {start}. Must be >= 1."}
-        if start > total_lines:
-            return {
-                "error": f"Start line {start} exceeds file length ({total_lines} lines). Range out of bounds."
-            }
-        result_str = "\n".join(lines[start - 1 :])
-        if trailing_newline:
-            result_str += "\n"
-        result_str += _detect_literal_newline_warning(result_str)
-        result_bytes = result_str.encode("utf-8")
-        if len(result_bytes) <= _FULL_FILE_TRUNCATION_BYTES:
-            return result_str
-        return _truncate_content(result_bytes, _FULL_FILE_TRUNCATION_BYTES, start)
+        return _read_start_only(lines, trailing_newline, start, total_lines)
 
     # --- Full-file mode: no start, no offset ---
-    content += _detect_literal_newline_warning(content)
-    if len(content.encode("utf-8")) <= _FULL_FILE_TRUNCATION_BYTES:
-        return content
-    return _truncate_content(content.encode("utf-8"), _FULL_FILE_TRUNCATION_BYTES)
+    return _read_full_file(content)
 
 
 # --- write_file ---
@@ -250,6 +311,7 @@ def write_file(path: str, content: str) -> dict[str, Any]:
         return {
             "success": False,
             "path": path,
+            "rel_path": path,
             "chars_written": 0,
             "error": str(exc),
         }
@@ -261,31 +323,50 @@ def write_file(path: str, content: str) -> dict[str, Any]:
         return {
             "success": False,
             "path": str(resolved),
+            "rel_path": to_workspace_relative(resolved),
             "chars_written": 0,
             "error": f"Permission denied creating directory: {resolved.parent}",
         }
 
     try:
         content = _normalize_newlines(content)
+        escape_count = _count_unicode_escapes(content)
         chars_written = resolved.write_text(content, encoding="utf-8")
-        return {
+        # FR-080: warn the model when unicode escapes were stripped so it
+        # learns to use actual unicode characters next time.
+        result: dict[str, Any] = {
             "success": True,
             "path": str(resolved),
+            "rel_path": to_workspace_relative(resolved),
             "chars_written": chars_written,
+            "new_file_size": len(content.encode("utf-8")),
+            "diff_preview": content[:500],
             "error": None,
         }
+        if escape_count:
+            result["warning"] = (
+                f"Stripped {escape_count} literal \\uXXXX escape sequences — "
+                "use actual unicode characters next time."
+            )
+        return result
     except PermissionError:
         return {
             "success": False,
             "path": str(resolved),
+            "rel_path": to_workspace_relative(resolved),
             "chars_written": 0,
+            "new_file_size": 0,
+            "diff_preview": None,
             "error": f"Permission denied: {path}",
         }
     except Exception as exc:
         return {
             "success": False,
             "path": str(resolved),
+            "rel_path": to_workspace_relative(resolved),
             "chars_written": 0,
+            "new_file_size": 0,
+            "diff_preview": None,
             "error": str(exc),
         }
 
@@ -479,7 +560,6 @@ def _map_line_matches(
             # Find the position within the line.
             line_content = content_lines[start_line]
             line_norm = content_norm_lines[start_line]
-            rel_start = norm_start - (len(norm_content[:norm_start]) - len(before)) if before else norm_start
             # Simpler: just find old[0] in the stripped line.
             stripped_old = old_lines[0]
             pos_in_stripped = line_norm.find(stripped_old)
@@ -529,12 +609,20 @@ def _fuzzy_find_and_replace(
     """Find old_string in content using fuzzy matching and replace it.
 
     Tries each matching strategy in order. Returns (new_content, match_count, error).
+    FR-052: distinguishes zero-match from multi-match errors so the model can
+    tell whether to provide more context (multi-match) or fix the string
+    (zero-match).
     """
+    max_multi_match = 0  # FR-052: track the highest match count across strategies
     for strategy_name, strategy_fn in _MATCH_STRATEGIES:
         matches = strategy_fn(content, old_string)
         if not matches:
             continue
         if len(matches) > 1 and not replace_all:
+            # FR-052: record the multi-match count for a distinct error, then
+            # try the next strategy (a fuzzier one may narrow to 1 match).
+            if len(matches) > max_multi_match:
+                max_multi_match = len(matches)
             continue  # ambiguous — try next strategy
         # Safety guard: refuse if matched region is disproportionately large.
         old_line_count = old_string.count("\n") + 1
@@ -552,7 +640,14 @@ def _fuzzy_find_and_replace(
         for start, end in reversed(matches):
             result = result[:start] + new_string + result[end:]
         return result, len(matches), None
-    # All strategies failed to find a unique match.
+    # FR-052: if any strategy found >1 matches, return a distinct actionable error.
+    if max_multi_match > 1:
+        return content, 0, (
+            f"Found {max_multi_match} matches for old_string. Provide more "
+            f"context in old_string to disambiguate, or set replace_all=True "
+            f"to replace all {max_multi_match}."
+        )
+    # All strategies found zero matches.
     return content, 0, f"Could not find old_string in the file. Check for exact whitespace and indentation. Tried {len(_MATCH_STRATEGIES)} matching strategies."
 
 
@@ -589,6 +684,7 @@ def str_replace(
         return {
             "success": False,
             "path": path,
+            "rel_path": path,
             "replacements_made": 0,
             "bytes_written": 0,
             "diff_preview": None,
@@ -597,6 +693,7 @@ def str_replace(
     # Unescape literal \n, \t, \r that local models send as two-character
     # sequences in JSON tool-call arguments. This prevents malformed files
     # where the entire content is on one line with literal backslash-n.
+    escape_count = _count_unicode_escapes(new_string)
     new_string = _normalize_newlines(new_string)
     old_string = _normalize_newlines(old_string)
     try:
@@ -605,6 +702,7 @@ def str_replace(
         return {
             "success": False,
             "path": path,
+            "rel_path": path,
             "replacements_made": 0,
             "bytes_written": 0,
             "diff_preview": None,
@@ -616,6 +714,7 @@ def str_replace(
             return {
                 "success": False,
                 "path": str(resolved),
+                "rel_path": to_workspace_relative(resolved),
                 "replacements_made": 0,
                 "bytes_written": 0,
                 "diff_preview": None,
@@ -627,6 +726,7 @@ def str_replace(
             return {
                 "success": True,
                 "path": str(resolved),
+                "rel_path": to_workspace_relative(resolved),
                 "replacements_made": 1,
                 "bytes_written": len(new_string.encode("utf-8")),
                 "diff_preview": new_string[:200],
@@ -636,6 +736,7 @@ def str_replace(
             return {
                 "success": False,
                 "path": str(resolved),
+                "rel_path": to_workspace_relative(resolved),
                 "replacements_made": 0,
                 "bytes_written": 0,
                 "diff_preview": None,
@@ -646,6 +747,7 @@ def str_replace(
         return {
             "success": False,
             "path": str(resolved),
+            "rel_path": to_workspace_relative(resolved),
             "replacements_made": 0,
             "bytes_written": 0,
             "diff_preview": None,
@@ -658,6 +760,7 @@ def str_replace(
         return {
             "success": False,
             "path": str(resolved),
+            "rel_path": to_workspace_relative(resolved),
             "replacements_made": 0,
             "bytes_written": 0,
             "diff_preview": None,
@@ -671,6 +774,7 @@ def str_replace(
         return {
             "success": False,
             "path": str(resolved),
+            "rel_path": to_workspace_relative(resolved),
             "replacements_made": match_count,
             "bytes_written": 0,
             "diff_preview": None,
@@ -683,21 +787,41 @@ def str_replace(
         return {
             "success": False,
             "path": str(resolved),
+            "rel_path": to_workspace_relative(resolved),
             "replacements_made": 0,
             "bytes_written": 0,
             "diff_preview": None,
             "error": str(exc),
         }
-    # Build a minimal diff preview (first 200 chars of the changed region).
-    diff_preview = new_string[:200]
-    return {
+    # FR-058: build a real unified-diff snippet (first ~500 chars) so the
+    # model can see what actually changed, not just new_string[:200].
+    import difflib
+
+    diff_lines = list(
+        difflib.unified_diff(
+            content.splitlines(keepends=True),
+            new_content.splitlines(keepends=True),
+            fromfile=to_workspace_relative(resolved),
+            tofile=to_workspace_relative(resolved),
+            n=1,
+        )
+    )
+    diff_preview = "".join(diff_lines)[:500]
+    result: dict[str, Any] = {
         "success": True,
         "path": str(resolved),
+        "rel_path": to_workspace_relative(resolved),
         "replacements_made": match_count,
         "bytes_written": len(new_content.encode("utf-8")),
         "diff_preview": diff_preview,
         "error": None,
     }
+    if escape_count:
+        result["warning"] = (
+            f"Stripped {escape_count} literal \\uXXXX escape sequences from "
+            "new_string — use actual unicode characters next time."
+        )
+    return result
 
 
 # --- append_file ---
@@ -724,6 +848,7 @@ def append_file(path: str, content: str) -> dict[str, Any]:
         return {
             "success": False,
             "path": path,
+            "rel_path": path,
             "bytes_appended": 0,
             "error": str(exc),
         }
@@ -733,10 +858,12 @@ def append_file(path: str, content: str) -> dict[str, Any]:
         return {
             "success": False,
             "path": str(resolved),
+            "rel_path": to_workspace_relative(resolved),
             "bytes_appended": 0,
             "error": f"Permission denied creating directory: {resolved.parent}",
         }
     try:
+        escape_count = _count_unicode_escapes(content)
         content = _normalize_newlines(content)
         if resolved.exists():
             existing = resolved.read_text(encoding="utf-8")
@@ -748,24 +875,39 @@ def append_file(path: str, content: str) -> dict[str, Any]:
             combined = content
         resolved.write_text(combined, encoding="utf-8")
         bytes_appended = len(content.encode("utf-8"))
-        return {
+        result: dict[str, Any] = {
             "success": True,
             "path": str(resolved),
+            "rel_path": to_workspace_relative(resolved),
             "bytes_appended": bytes_appended,
+            "new_file_size": len(combined.encode("utf-8")),
+            "diff_preview": f"--- appended ---\n{content[:500]}",
             "error": None,
         }
+        if escape_count:
+            result["warning"] = (
+                f"Stripped {escape_count} literal \\uXXXX escape sequences — "
+                "use actual unicode characters next time."
+            )
+        return result
     except PermissionError:
         return {
             "success": False,
             "path": str(resolved),
+            "rel_path": to_workspace_relative(resolved),
             "bytes_appended": 0,
+            "new_file_size": 0,
+            "diff_preview": None,
             "error": f"Permission denied: {path}",
         }
     except Exception as exc:
         return {
             "success": False,
             "path": str(resolved),
+            "rel_path": to_workspace_relative(resolved),
             "bytes_appended": 0,
+            "new_file_size": 0,
+            "diff_preview": None,
             "error": str(exc),
         }
 
@@ -794,8 +936,8 @@ def list_files(
             from ``path`` for every entry below it (files and directories).
 
     Returns:
-        A list of absolute paths on success (directories suffixed with ``/``),
-        or an error dict on failure.
+        A list of workspace-relative paths on success (directories suffixed
+        with ``/``), or an error dict on failure.
     """
     try:
         resolved = _resolve_path(path)
@@ -814,12 +956,15 @@ def list_files(
             entries = sorted(resolved.glob(pattern))
         # ponytail: include dirs (suffixed with /) so a reviewer can see created
         # artifacts like .venv. If throughput ever matters, add a files-only flag.
+        # FR-035: return workspace-relative paths so the model has a short,
+        # clean path to echo back, reducing the chance of path doubling.
         result = []
         for entry in entries:
+            rel = to_workspace_relative(entry)
             if entry.is_dir():
-                result.append(f"{entry}/")
+                result.append(f"{rel}/")
             else:
-                result.append(str(entry))
+                result.append(str(rel))
         return result
     except PermissionError:
         return {"error": f"Permission denied: {path}"}
@@ -882,24 +1027,13 @@ def _iter_searchable_files(
     return results
 
 
-def _search_content(
+def _search_collect_matches(
     files: list[Path],
-    pattern: str,
+    regex: re.Pattern,
     context: int,
-    output_mode: str,
-    limit: int,
-    offset: int,
-) -> list[str]:
-    """Search file contents for regex pattern. Returns formatted result lines."""
-    try:
-        regex = re.compile(pattern)
-    except re.error as exc:
-        return [f"[Invalid regex: {exc}]"]
-
+) -> list[tuple[Path, int, str, list[str]]]:
+    """Collect (filepath, line_num, line, ctx_lines) matches for content mode."""
     all_matches: list[tuple[Path, int, str, list[str]]] = []
-    file_counts: dict[str, int] = {}
-    file_paths: list[str] = []
-
     for filepath in files:
         try:
             if filepath.stat().st_size > _MAX_SEARCH_FILE_SIZE:
@@ -914,39 +1048,85 @@ def _search_content(
         lines = content.split("\n")
         for i, line in enumerate(lines):
             if regex.search(line):
-                if output_mode == "files_only":
-                    fp = str(filepath)
-                    if fp not in file_paths:
-                        file_paths.append(fp)
-                elif output_mode == "count":
-                    file_counts[str(filepath)] = file_counts.get(str(filepath), 0) + 1
-                else:
-                    # content mode — collect match + context
-                    ctx_start = max(0, i - context)
-                    ctx_end = min(len(lines), i + context + 1)
-                    ctx_lines = lines[ctx_start:ctx_end]
-                    all_matches.append((filepath, i + 1, line, ctx_lines))
+                ctx_start = max(0, i - context)
+                ctx_end = min(len(lines), i + context + 1)
+                ctx_lines = lines[ctx_start:ctx_end]
+                all_matches.append((filepath, i + 1, line, ctx_lines))
+    return all_matches
 
-    if output_mode == "files_only":
-        return file_paths[offset : offset + limit]
-    if output_mode == "count":
-        result = [f"{fp}: {cnt} match{'es' if cnt != 1 else ''}" for fp, cnt in file_counts.items()]
-        return result[offset : offset + limit]
 
-    # content mode
+def _search_counts(
+    files: list[Path],
+    regex: re.Pattern,
+    limit: int,
+    offset: int,
+) -> list[str]:
+    """Count matches per file."""
+    file_counts: dict[str, int] = {}
+    for filepath in files:
+        try:
+            if filepath.stat().st_size > _MAX_SEARCH_FILE_SIZE:
+                continue
+        except OSError:
+            continue
+        try:
+            content = filepath.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            continue
+        content = content.replace("\r\n", "\n")
+        lines = content.split("\n")
+        for line in lines:
+            if regex.search(line):
+                file_counts[str(filepath)] = file_counts.get(str(filepath), 0) + 1
+    result = [f"{fp}: {cnt} match{'es' if cnt != 1 else ''}" for fp, cnt in file_counts.items()]
+    return result[offset : offset + limit]
+
+
+def _search_files_only(
+    files: list[Path],
+    regex: re.Pattern,
+    limit: int,
+    offset: int,
+) -> list[str]:
+    """Return file paths that contain at least one match."""
+    file_paths: list[str] = []
+    for filepath in files:
+        try:
+            if filepath.stat().st_size > _MAX_SEARCH_FILE_SIZE:
+                continue
+        except OSError:
+            continue
+        try:
+            content = filepath.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            continue
+        content = content.replace("\r\n", "\n")
+        lines = content.split("\n")
+        if any(regex.search(line) for line in lines):
+            file_paths.append(to_workspace_relative(filepath))
+    return file_paths[offset : offset + limit]
+
+
+def _render_content_matches(
+    all_matches: list[tuple[Path, int, str, list[str]]],
+    context: int,
+    limit: int,
+    offset: int,
+) -> list[str]:
+    """Render content-mode matches with optional context lines + pagination footer."""
     result: list[str] = []
     for filepath, line_num, line, ctx_lines in all_matches:
+        rel = to_workspace_relative(filepath)
         if context > 0:
-            match_start = max(0, len(ctx_lines) // 2 - context)
             for ci, ctx_line in enumerate(ctx_lines):
                 ctx_line_num = line_num - context + ci
                 if ctx_line_num < 1:
                     continue
                 prefix = ">" if ctx_line == line else " "
-                result.append(f"{filepath}:{ctx_line_num}:{prefix} {ctx_line}")
+                result.append(f"{rel}:{ctx_line_num}:{prefix} {ctx_line}")
             result.append("")  # blank line between matches
         else:
-            result.append(f"{filepath}:{line_num}: {line}")
+            result.append(f"{rel}:{line_num}: {line}")
 
     total = len(result)
     paged = result[offset : offset + limit]
@@ -956,6 +1136,29 @@ def _search_content(
             f"Use offset={offset + limit} to see more.]"
         )
     return paged
+
+
+def _search_content(
+    files: list[Path],
+    pattern: str,
+    context: int,
+    output_mode: str,
+    limit: int,
+    offset: int,
+) -> list[str]:
+    """Search file contents for regex pattern. Returns formatted result lines."""
+    try:
+        regex = re.compile(pattern)
+    except re.error as exc:
+        return [f"[Invalid regex: {exc}]"]
+
+    if output_mode == "files_only":
+        return _search_files_only(files, regex, limit, offset)
+    if output_mode == "count":
+        return _search_counts(files, regex, limit, offset)
+    # content mode
+    all_matches = _search_collect_matches(files, regex, context)
+    return _render_content_matches(all_matches, context, limit, offset)
 
 
 def _search_files_by_name(
@@ -970,11 +1173,11 @@ def _search_files_by_name(
     results: list[str] = []
     if root.is_file():
         if fnmatch.fnmatch(root.name, pattern):
-            results.append(str(root))
+            results.append(to_workspace_relative(root))
     else:
         for entry in sorted(root.rglob("*")):
             if entry.is_file() and fnmatch.fnmatch(entry.name, pattern):
-                results.append(str(entry))
+                results.append(to_workspace_relative(entry))
 
     total = len(results)
     paged = results[offset : offset + limit]

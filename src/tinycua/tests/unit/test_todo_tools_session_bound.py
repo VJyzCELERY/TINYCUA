@@ -21,5 +21,5 @@ def test_todo_tools_bind_to_session_owned_lists_without_global_leakage() -> None
     write(descriptions=["second item"])
     write(done_index=0)
 
-    assert first == [{"description": "first item", "done": False}]
-    assert read() == [{"description": "second item", "done": True}]
+    assert first == [{"description": "first item", "status": "pending"}]
+    assert read() == [{"description": "second item", "status": "done", "done": True}]

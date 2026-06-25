@@ -3,141 +3,238 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analog Clock</title>
+    <title>Analog Clock App</title>
     <style>
         body {
             display: flex;
-            justify-content: center;
+            flex-direction: column;
             align-items: center;
+            justify-content: center;
             min-height: 100vh;
             margin: 0;
-            background-color: #f5f5f5;
+            background-color: #f0f0f0;
             font-family: Arial, sans-serif;
         }
-        canvas {
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        #clock {
             border-radius: 50%;
-            box-shadow: 0 0 20px rgba(0,0,0,0.3);
             background-color: white;
+            border: 8px solid #333;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            position: relative;
+        }
+
+        .hand {
+            position: absolute;
+            bottom: 50%;
+            left: 50%;
+            transform-origin: 50% 100%;
+            margin-left: -4px;
+            pointer-events: none;
+        }
+
+        #hour-hand {
+            width: 6px;
+            height: 70px;
+            background-color: #333;
+            transform-origin: bottom center;
+            margin-left: -3px;
+        }
+
+        #minute-hand {
+            width: 4px;
+            height: 100px;
+            background-color: #666;
+            transform-origin: bottom center;
+            margin-left: -2px;
+        }
+
+        #second-hand {
+            width: 2px;
+            height: 120px;
+            background-color: red;
+            transform-origin: bottom center;
+            margin-left: -1px;
+        }
+
+        .marker {
+            position: absolute;
+            width: 4px;
+            height: 15px;
+            background-color: #333;
+            left: 50%;
+            top: 8px;
+            transform-origin: bottom center;
+            margin-left: -2px;
+        }
+
+        .marker.large {
+            width: 6px;
+            height: 18px;
+        }
+
+        /* Position all 12 hour markers around the clock */
+        #clock::before {
+            content: '';
+            position: absolute;
+            top: -8px; left: 50%; transform-origin: bottom center;
+            width: 4px; height: 12px; background-color: #333; margin-left: -2px;
+        }
+
+        /* Number labels positioned around the clock perimeter */
+        .number-1 { top: 50%; left: calc(50% + 85px); transform: rotate(30deg); font-size: 14px; font-weight: bold; color: #333; text-align: center; }
+        .number-2 { top: 76%; left: calc(50% + 49px); transform: rotate(60deg); font-size: 14px; font-weight: bold; color: #333; text-align: center; }
+        .number-3 { top: 100%; left: calc(50% + 85px); transform: rotate(90deg); font-size: 14px; font-weight: bold; color: #333; text-align: center; }
+        .number-4 { top: 76%; left: calc(50% - 49px); transform: rotate(120deg); font-size: 14px; font-weight: bold; color: #333; text-align: center; }
+        .number-5 { top: 50%; left: calc(50% - 85px); transform: rotate(150deg); font-size: 14px; font-weight: bold; color: #333; text-align: center; }
+        .number-6 { top: 24%; left: calc(50% - 49px); transform: rotate(180deg); font-size: 14px; font-weight: bold; color: #333; text-align: center; }
+        .number-7 { top: 0; left: calc(50% - 85px); transform: rotate(210deg); font-size: 14px; font-weight: bold; color: #333; text-align: center; }
+        .number-8 { top: 24%; left: calc(50% - 169px); transform: rotate(240deg); font-size: 14px; font-weight: bold; color: #333; text-align: center; }
+        .number-9 { top: 0; left: calc(50% - 169px); transform: rotate(270deg); font-size: 14px; font-weight: bold; color: #333; text-align: center; }
+        .number-10 { top: 24%; left: calc(50% - 253px); transform: rotate(300deg); font-size: 14px; font-weight: bold; color: #333; text-align: center; }
+        .number-11 { top: 0; left: calc(50% - 253px); transform: rotate(330deg); font-size: 14px; font-weight: bold; color: #333; text-align: center; }
+        .number-12 { top: -8px; left: calc(50% + 85px); transform: rotate(0deg); font-size: 14px; font-weight: bold; color: #333; text-align: center; }
+
+        /* Clock face background */
+        #clock {
+            border-radius: 50%;
+            background-color: white;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
         }
     </style>
 </head>
 <body>
+    <h1>Analog Clock App</h1>
     <canvas id="clock" width="400" height="400"></canvas>
+    <div id="hour-hand" class="hand"></div>
+    <div id="minute-hand" class="hand"></div>
+    <div id="second-hand" class="hand"></div>
 
     <script>
+        // Clock configuration
         const canvas = document.getElementById('clock');
         const ctx = canvas.getContext('2d');
-        
-        function drawClock() {
-            // Clear canvas
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const radius = 180;
+
+        let lastTime = performance.now();
+        let rotation = 0;
+
+        // Draw hour markers on clock face
+        function drawClockFace() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2;
-            const radius = 180;
-            
-            // Draw clock face circle background
+            // Clock background
             ctx.beginPath();
             ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-            ctx.fillStyle = '#ffffff';
+            ctx.fillStyle = 'white';
             ctx.fill();
-            ctx.strokeStyle = '#333333';
-            ctx.lineWidth = 4;
-            ctx.stroke();
-            
+            ctx.closePath();
+
             // Draw hour markers (1-12)
-            for (let i = 0; i < 12; i++) {
-                const angle = (i * Math.PI / 6) - Math.PI / 2; // Start at top, 30 degrees per hour
-                
-                // Calculate marker position
-                const x = centerX + radius * Math.cos(angle);
-                const y = centerY + radius * Math.sin(angle);
-                
-                // Draw hour marker line
+            for (let i = 1; i <= 12; i++) {
+                const angle = (i * 30 - 90) * Math.PI / 180;
+                const x1 = centerX + radius * Math.cos(angle);
+                const y1 = centerY + radius * Math.sin(angle);
+                const x2 = centerX + (radius - 40) * Math.cos(angle);
+                const y2 = centerY + (radius - 40) * Math.sin(angle);
+
                 ctx.beginPath();
-                ctx.moveTo(centerX + (radius - 15) * Math.cos(angle), centerY + (radius - 15) * Math.sin(angle));
-                ctx.lineTo(x, y);
-                ctx.strokeStyle = '#333333';
-                ctx.lineWidth = 4;
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = i === 6 ? 3 : 2;
                 ctx.stroke();
-                
-                // Draw hour number
-                const textAngle = angle - Math.PI / 2;
-                const textRadius = radius - 50;
-                const textX = centerX + textRadius * Math.cos(angle);
-                const textY = centerY + textRadius * Math.sin(angle);
-                
-                ctx.save();
-                ctx.translate(textX, textY);
-                ctx.rotate(angle);
-                ctx.font = 'bold 24px Arial';
-                ctx.textAlign = 'right';
-                ctx.fillStyle = '#333333';
-                ctx.fillText(i + 1, -8, 6); // Position text to the left of marker
-                ctx.restore();
+                ctx.closePath();
             }
-            
+
             // Draw center dot
             ctx.beginPath();
             ctx.arc(centerX, centerY, 5, 0, Math.PI * 2);
-            ctx.fillStyle = '#333333';
+            ctx.fillStyle = '#333';
             ctx.fill();
-            
-            // Get current time for hands rotation
-            const now = new Date();
-            const hours = now.getHours() % 12;
-            const minutes = now.getMinutes();
-            const seconds = now.getSeconds();
-            const milliseconds = now.getMilliseconds();
-            
-            // Calculate hour hand angle (moves continuously with minutes)
-            const hourAngle = ((hours * 30) + (minutes / 60) * 30) * Math.PI / 180;
-            
-            // Draw hour hand
-            ctx.beginPath();
-            ctx.moveTo(centerX, centerY);
-            ctx.lineTo(
-                centerX - radius * 0.5 * Math.cos(hourAngle), 
-                centerY - radius * 0.5 * Math.sin(hourAngle)
-            );
-            ctx.strokeStyle = '#333333';
-            ctx.lineWidth = 8;
-            ctx.lineCap = 'round';
-            ctx.stroke();
-            
-            // Calculate minute hand angle (moves continuously with seconds)
-            const minuteAngle = ((minutes * 6) + (seconds / 60) * 6) * Math.PI / 180;
-            
-            // Draw minute hand
-            ctx.beginPath();
-            ctx.moveTo(centerX, centerY);
-            ctx.lineTo(
-                centerX - radius * 0.45 * Math.cos(minuteAngle), 
-                centerY - radius * 0.45 * Math.sin(minuteAngle)
-            );
-            ctx.strokeStyle = '#333333';
-            ctx.lineWidth = 6;
-            ctx.lineCap = 'round';
-            ctx.stroke();
-            
-            // Calculate second hand angle (smooth movement with milliseconds)
-            const secondAngle = ((seconds * 6) + (milliseconds / 1000) * 6) * Math.PI / 180;
-            
-            // Draw second hand
-            ctx.beginPath();
-            ctx.moveTo(centerX, centerY);
-            ctx.lineTo(
-                centerX - radius * 0.52 * Math.cos(secondAngle), 
-                centerY - radius * 0.52 * Math.sin(secondAngle)
-            );
-            ctx.strokeStyle = '#ff3b3b';
-            ctx.lineWidth = 4;
-            ctx.lineCap = 'round';
-            ctx.stroke();
+            ctx.closePath();
         }
-        
-        // Real-time update using setInterval to refresh clock every second
-        setInterval(drawClock, 1000);
+
+        // Calculate hand angles based on current time
+        function calculateHandAngles(date) {
+            const seconds = date.getSeconds();
+            const minutes = date.getMinutes();
+            const hours = date.getHours() % 12;
+
+            // Second hand angle (360 degrees / 60 seconds = 6 degrees per second)
+            const secondAngle = (seconds * 6);
+
+            // Minute hand angle (360 degrees / 60 minutes = 6 degrees per minute + offset from seconds)
+            const minuteAngle = ((minutes + seconds / 60) * 6);
+
+            // Hour hand angle (360 degrees / 12 hours = 30 degrees per hour + offset from minutes)
+            const hourAngle = ((hours + minutes / 60) * 30);
+
+            return { secondAngle, minuteAngle, hourAngle };
+        }
+
+        // Draw hands on canvas
+        function drawHands(handAngles) {
+            // Second hand (red)
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.rotate(-handAngles.secondAngle * Math.PI / 180);
+            ctx.beginPath();
+            ctx.moveTo(0, -54);
+            ctx.lineTo(0, 62);
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = 'red';
+            ctx.stroke();
+            ctx.restore();
+
+            // Minute hand (dark gray)
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.rotate(-handAngles.minuteAngle * Math.PI / 180);
+            ctx.beginPath();
+            ctx.moveTo(0, -56);
+            ctx.lineTo(0, 44);
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#666';
+            ctx.stroke();
+            ctx.restore();
+
+            // Hour hand (dark gray)
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.rotate(-handAngles.hourAngle * Math.PI / 180);
+            ctx.beginPath();
+            ctx.moveTo(0, -62);
+            ctx.lineTo(0, 35);
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#333';
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // Main animation loop using requestAnimationFrame
+        function animate(currentTime) {
+            const deltaTime = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
+
+            drawClockFace();
+
+            const now = new Date();
+            const angles = calculateHandAngles(now);
+            drawHands(angles);
+
+            requestAnimationFrame(animate);
+        }
+
+        // Start the animation loop
+        requestAnimationFrame(animate);
     </script>
 </body>
 </html>

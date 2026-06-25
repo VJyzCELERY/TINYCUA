@@ -135,6 +135,45 @@ def _add_run_arguments(parser: argparse.ArgumentParser) -> None:
         help="Suppress per-tool-call audit JSON files (use with --save-artifacts "
         "when you want trace/transcript but not tool-call audit spam).",
     )
+    parser.add_argument(
+        "--allow-open-question",
+        dest="allow_open_question",
+        action="store_true",
+        default=False,
+        help="Allow the ResultReviewer to emit OPEN_QUESTION decisions and bail "
+        "to ResponseNode for unresolved upstream questions. Disabled by default "
+        "— one-shot worker mode must not bail while tasks remain unfinished.",
+    )
+    parser.add_argument(
+        "--replan-threshold",
+        dest="replan_threshold",
+        type=int,
+        default=None,
+        help="Consecutive reviewer rejections before auto-replan (default: 5). "
+        "When a task is sent back needs_revision/rejected this many times in a "
+        "row, the runtime routes to TaskAnalyzer for replan instead of retrying.",
+    )
+    parser.add_argument(
+        "--max-context",
+        dest="max_context",
+        type=int,
+        default=None,
+        help="Override the model's max context window (tokens) for compaction "
+        "threshold calculation. Default: probe the server via GET /v1/models; "
+        "fall back to 128000 when the probe fails or the field is absent "
+        "(FR-084).",
+    )
+    parser.add_argument(
+        "--recovery-strategy",
+        dest="recovery_strategy",
+        choices=["standard", "markdown_synthesis"],
+        default="standard",
+        help="Retry strategy for missing state-tool validation failures "
+        "(FR-087..FR-093). 'standard' (default): the existing tool-exposed "
+        "retry + 15/10/3 recovery. 'markdown_synthesis': one no-tools "
+        "markdown continuation to synthesize the missing state tool before "
+        "falling back to standard recovery.",
+    )
 
 
 def _normalise_run_args(args: argparse.Namespace) -> None:
@@ -225,6 +264,10 @@ def main() -> None:
             task_tree=args.task_tree,
             save_artifacts=args.save_artifacts,
             no_tool_audit=args.no_tool_audit,
+            allow_open_question=args.allow_open_question,
+            replan_threshold=args.replan_threshold,
+            max_context=args.max_context,
+            recovery_strategy=args.recovery_strategy,
         )
         raise SystemExit(exit_code)
 

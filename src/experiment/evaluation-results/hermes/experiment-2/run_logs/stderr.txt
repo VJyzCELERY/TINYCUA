@@ -1,736 +1,853 @@
  Container experiment-searxng-1 Running 
- Container experiment-hermes-run-bfc81dbddaea Creating 
- Container experiment-hermes-run-bfc81dbddaea Created 
-00:55:08 - run_agent - INFO - Verbose logging enabled (third-party library logs suppressed)
-00:55:08 - run_agent - INFO - OpenAI client created (agent_init, shared=True) thread=MainThread:137129767719744 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+ Container experiment-hermes-run-ecd612c5dd43 Creating 
+ Container experiment-hermes-run-ecd612c5dd43 Created 
+18:02:39 - run_agent - INFO - Verbose logging enabled (third-party library logs suppressed)
+18:02:39 - run_agent - INFO - OpenAI client created (agent_init, shared=True) thread=MainThread:133397163361088 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
 /usr/local/lib/python3.12/site-packages/hermes_cli/scripts/install.sh: line 794: curl: command not found
 /usr/local/lib/python3.12/site-packages/hermes_cli/scripts/install.sh: line 800: curl: command not found
-00:55:08 - tools.registry - DEBUG - Tool browser_back unavailable (check failed)
-00:55:08 - tools.registry - DEBUG - Tool browser_cdp unavailable (check failed)
-00:55:08 - tools.registry - DEBUG - Tool browser_click unavailable (check failed)
-00:55:08 - tools.registry - DEBUG - Tool browser_console unavailable (check failed)
-00:55:08 - tools.registry - DEBUG - Tool browser_dialog unavailable (check failed)
-00:55:08 - tools.registry - DEBUG - Tool browser_get_images unavailable (check failed)
-00:55:08 - tools.registry - DEBUG - Tool browser_navigate unavailable (check failed)
-00:55:08 - tools.registry - DEBUG - Tool browser_press unavailable (check failed)
-00:55:08 - tools.registry - DEBUG - Tool browser_scroll unavailable (check failed)
-00:55:08 - tools.registry - DEBUG - Tool browser_snapshot unavailable (check failed)
-00:55:08 - tools.registry - DEBUG - Tool browser_type unavailable (check failed)
-00:55:08 - tools.registry - DEBUG - Tool browser_vision unavailable (check failed)
-00:55:08 - tools.registry - DEBUG - Tool computer_use unavailable (check failed)
-00:55:08 - agent.auxiliary_client - DEBUG - Could not read Codex auth for auxiliary client: No Codex credentials stored. Run `hermes auth` to authenticate.
-00:55:08 - tools.registry - DEBUG - Tool image_generate unavailable (check failed)
-00:55:08 - tools.registry - DEBUG - Tool kanban_block unavailable (check failed)
-00:55:08 - tools.registry - DEBUG - Tool kanban_comment unavailable (check failed)
-00:55:08 - tools.registry - DEBUG - Tool kanban_complete unavailable (check failed)
-00:55:08 - tools.registry - DEBUG - Tool kanban_create unavailable (check failed)
-00:55:08 - tools.registry - DEBUG - Tool kanban_heartbeat unavailable (check failed)
-00:55:08 - tools.registry - DEBUG - Tool kanban_link unavailable (check failed)
-00:55:08 - tools.registry - DEBUG - Tool kanban_list unavailable (check failed)
-00:55:08 - tools.registry - DEBUG - Tool kanban_show unavailable (check failed)
-00:55:08 - tools.registry - DEBUG - Tool kanban_unblock unavailable (check failed)
-00:55:08 - tools.registry - DEBUG - Tool send_message unavailable (check failed)
-00:55:08 - tools.lazy_deps - INFO - Lazy-installing edge-tts==7.2.7 for feature 'tts.edge'
-00:55:08 - tools.tirith_security - INFO - cosign not on PATH — installing tirith with SHA-256 verification only (install cosign for full supply chain verification)
-00:55:09 - tools.tirith_security - INFO - tirith installed to /root/.hermes/bin/tirith (SHA-256 only)
-00:55:11 - tools.lazy_deps - INFO - Lazy install complete for feature 'tts.edge'
-00:55:11 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 00:56:11.
-00:55:11 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
-00:55:11 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
-00:55:11 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 00:56:11.
-00:55:11 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
-00:55:11 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 00:56:11.
-00:55:11 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
-00:55:11 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
-00:55:11 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 00:56:11.
-00:55:11 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
-00:55:11 - tools.registry - DEBUG - Tool vision_analyze unavailable (check failed)
-00:55:11 - agent.auxiliary_client - DEBUG - Could not read Codex auth for auxiliary client: No Codex credentials stored. Run `hermes auth` to authenticate.
-00:55:11 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 00:56:11.
-00:55:11 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
-00:55:11 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
-00:55:11 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 00:56:11.
-00:55:11 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
-00:55:11 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 00:56:11.
-00:55:11 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
-00:55:11 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
-00:55:11 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 00:56:11.
-00:55:11 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
-00:55:11 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 00:56:11.
-00:55:11 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
-00:55:11 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
-00:55:11 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 00:56:11.
-00:55:11 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
-00:55:11 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 00:56:11.
-00:55:11 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
-00:55:11 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
-00:55:11 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 00:56:11.
-00:55:11 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
-00:55:11 - agent.context_compressor - INFO - Context compressor initialized: model=qwen3.5-9b context_length=262144 threshold=131072 (50%) target_ratio=20% tail_budget=26214 provider=lmstudio base_url=http://host.docker.internal:1234/v1
-00:55:11 - agent.conversation_loop - INFO [20260621_005507_ad4a7b] - conversation turn: session=20260621_005507_ad4a7b model=qwen3.5-9b provider=lmstudio platform=cli history=0 msg='Can you search the current latest and best frontier LLM model and how good are t...'
-00:55:12 - root - DEBUG [20260621_005507_ad4a7b] - API Request - Model: qwen3.5-9b, Messages: 1, Tools: 19
-00:55:12 - root - DEBUG [20260621_005507_ad4a7b] - Last message role: user
-00:55:12 - root - DEBUG [20260621_005507_ad4a7b] - Total message size: ~1,579 tokens
-00:55:12 - agent.chat_completion_helpers - DEBUG [20260621_005507_ad4a7b] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
-00:55:12 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
-00:55:13 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-4 (_call):137129677465280 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:55:22 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-4 (_call):137129677465280 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:55:22 - root - DEBUG [20260621_005507_ad4a7b] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=115, prompt_tokens=12921, total_tokens=13036, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=33, rejected_prediction_tokens=None), prompt_tokens_details=None)
-00:55:22 - agent.conversation_loop - INFO [20260621_005507_ad4a7b] - API call #1: model=qwen3.5-9b provider=lmstudio in=12921 out=115 total=13036 latency=9.6s
-00:55:22 - root - DEBUG [20260621_005507_ad4a7b] - Token usage: prompt=12,921, completion=115, total=13,036
-00:55:22 - root - DEBUG [20260621_005507_ad4a7b] - Tool call: web_search with args: {"query":"latest best frontier large language model 2024 2025 rankings performance benchmarks","limit":10}...
-00:55:22 - root - DEBUG [20260621_005507_ad4a7b] - Captured reasoning (115 chars): User wants me to research top frontier LLM models, so I'll start with web searches about 2024-2025 leading models.
+18:02:39 - tools.registry - DEBUG - Tool browser_back unavailable (check failed)
+18:02:39 - tools.registry - DEBUG - Tool browser_cdp unavailable (check failed)
+18:02:39 - tools.registry - DEBUG - Tool browser_click unavailable (check failed)
+18:02:39 - tools.registry - DEBUG - Tool browser_console unavailable (check failed)
+18:02:39 - tools.registry - DEBUG - Tool browser_dialog unavailable (check failed)
+18:02:39 - tools.registry - DEBUG - Tool browser_get_images unavailable (check failed)
+18:02:39 - tools.registry - DEBUG - Tool browser_navigate unavailable (check failed)
+18:02:39 - tools.registry - DEBUG - Tool browser_press unavailable (check failed)
+18:02:39 - tools.registry - DEBUG - Tool browser_scroll unavailable (check failed)
+18:02:39 - tools.registry - DEBUG - Tool browser_snapshot unavailable (check failed)
+18:02:39 - tools.registry - DEBUG - Tool browser_type unavailable (check failed)
+18:02:39 - tools.registry - DEBUG - Tool browser_vision unavailable (check failed)
+18:02:39 - tools.registry - DEBUG - Tool computer_use unavailable (check failed)
+18:02:39 - agent.auxiliary_client - DEBUG - Could not read Codex auth for auxiliary client: No Codex credentials stored. Run `hermes auth` to authenticate.
+18:02:39 - tools.registry - DEBUG - Tool image_generate unavailable (check failed)
+18:02:39 - tools.registry - DEBUG - Tool kanban_block unavailable (check failed)
+18:02:39 - tools.registry - DEBUG - Tool kanban_comment unavailable (check failed)
+18:02:39 - tools.registry - DEBUG - Tool kanban_complete unavailable (check failed)
+18:02:39 - tools.registry - DEBUG - Tool kanban_create unavailable (check failed)
+18:02:39 - tools.registry - DEBUG - Tool kanban_heartbeat unavailable (check failed)
+18:02:39 - tools.registry - DEBUG - Tool kanban_link unavailable (check failed)
+18:02:39 - tools.registry - DEBUG - Tool kanban_list unavailable (check failed)
+18:02:39 - tools.registry - DEBUG - Tool kanban_show unavailable (check failed)
+18:02:39 - tools.registry - DEBUG - Tool kanban_unblock unavailable (check failed)
+18:02:39 - tools.registry - DEBUG - Tool send_message unavailable (check failed)
+18:02:39 - tools.lazy_deps - INFO - Lazy-installing edge-tts==7.2.7 for feature 'tts.edge'
+18:02:41 - tools.tirith_security - INFO - cosign not on PATH — installing tirith with SHA-256 verification only (install cosign for full supply chain verification)
+18:02:41 - tools.tirith_security - INFO - tirith installed to /root/.hermes/bin/tirith (SHA-256 only)
+18:02:42 - tools.lazy_deps - INFO - Lazy install complete for feature 'tts.edge'
+18:02:42 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 18:03:42.
+18:02:42 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
+18:02:42 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
+18:02:42 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 18:03:42.
+18:02:42 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
+18:02:42 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 18:03:42.
+18:02:42 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
+18:02:42 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
+18:02:42 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 18:03:42.
+18:02:42 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
+18:02:42 - tools.registry - DEBUG - Tool vision_analyze unavailable (check failed)
+18:02:42 - agent.auxiliary_client - DEBUG - Could not read Codex auth for auxiliary client: No Codex credentials stored. Run `hermes auth` to authenticate.
+18:02:42 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 18:03:42.
+18:02:42 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
+18:02:42 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
+18:02:42 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 18:03:42.
+18:02:42 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
+18:02:42 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 18:03:42.
+18:02:42 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
+18:02:42 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
+18:02:42 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 18:03:42.
+18:02:42 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
+18:02:42 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 18:03:42.
+18:02:42 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
+18:02:42 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
+18:02:42 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 18:03:42.
+18:02:42 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
+18:02:42 - agent.auxiliary_client - WARNING - Auxiliary: marking openrouter unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 18:03:42.
+18:02:42 - agent.auxiliary_client - DEBUG - Auxiliary Nous runtime credential resolution failed: Hermes is not logged into Nous Portal.
+18:02:42 - agent.auxiliary_client - WARNING - Auxiliary Nous client unavailable: no Nous authentication found (run: hermes auth).
+18:02:42 - agent.auxiliary_client - WARNING - Auxiliary: marking nous unhealthy for 60s (payment / credit error). Subsequent auxiliary calls will skip it until 18:03:42.
+18:02:42 - agent.auxiliary_client - DEBUG - Auxiliary vision client: none available
+18:02:42 - agent.context_compressor - INFO - Context compressor initialized: model=qwen3.5-9b context_length=262144 threshold=131072 (50%) target_ratio=20% tail_budget=26214 provider=lmstudio base_url=http://host.docker.internal:1234/v1
+18:02:42 - agent.conversation_loop - INFO [20260623_180239_7b9b7a] - conversation turn: session=20260623_180239_7b9b7a model=qwen3.5-9b provider=lmstudio platform=cli history=0 msg='Can you search the current latest and best frontier LLM model and how good are t...'
+18:02:42 - root - DEBUG [20260623_180239_7b9b7a] - API Request - Model: qwen3.5-9b, Messages: 1, Tools: 19
+18:02:42 - root - DEBUG [20260623_180239_7b9b7a] - Last message role: user
+18:02:42 - root - DEBUG [20260623_180239_7b9b7a] - Total message size: ~1,580 tokens
+18:02:42 - agent.chat_completion_helpers - DEBUG [20260623_180239_7b9b7a] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
+18:02:42 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
+18:02:42 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-4 (_call):133397073090240 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:02:51 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-4 (_call):133397073090240 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:02:51 - root - DEBUG [20260623_180239_7b9b7a] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=81, prompt_tokens=12921, total_tokens=13002, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=23, rejected_prediction_tokens=None), prompt_tokens_details=None)
+18:02:51 - agent.conversation_loop - INFO [20260623_180239_7b9b7a] - API call #1: model=qwen3.5-9b provider=lmstudio in=12921 out=81 total=13002 latency=8.9s
+18:02:51 - root - DEBUG [20260623_180239_7b9b7a] - Token usage: prompt=12,921, completion=81, total=13,002
+18:02:51 - root - DEBUG [20260623_180239_7b9b7a] - Tool call: web_search with args: {"query":"latest best frontier large language model 2024 2025 benchmarks capabilities","limit":10}...
+18:02:51 - root - DEBUG [20260623_180239_7b9b7a] - Captured reasoning (122 chars): I need to web search for information about the latest and best frontier LLM models before writing a comprehensive report.
 
-00:55:22 - tools.web_tools - INFO [20260621_005507_ad4a7b] - Web search via searxng: 'latest best frontier large language model 2024 2025 rankings performance benchmarks' (limit: 10)
-00:55:23 - plugins.web.searxng.provider - INFO [20260621_005507_ad4a7b] - SearXNG search 'latest best frontier large language model 2024 2025 rankings performance benchmarks': 10 results (from 33 raw, limit 10)
-00:55:23 - agent.tool_executor - INFO [20260621_005507_ad4a7b] - tool web_search completed (1.18s, 4491 chars)
-00:55:23 - root - DEBUG [20260621_005507_ad4a7b] - Tool web_search completed in 1.18s
-00:55:23 - root - DEBUG [20260621_005507_ad4a7b] - Tool result (4491 chars): {
+18:02:51 - tools.web_tools - INFO [20260623_180239_7b9b7a] - Web search via searxng: 'latest best frontier large language model 2024 2025 benchmarks capabilities' (limit: 10)
+18:02:53 - plugins.web.searxng.provider - INFO [20260623_180239_7b9b7a] - SearXNG search 'latest best frontier large language model 2024 2025 benchmarks capabilities': 10 results (from 28 raw, limit 10)
+18:02:53 - agent.tool_executor - INFO [20260623_180239_7b9b7a] - tool web_search completed (2.03s, 7938 chars)
+18:02:53 - root - DEBUG [20260623_180239_7b9b7a] - Tool web_search completed in 2.03s
+18:02:53 - root - DEBUG [20260623_180239_7b9b7a] - Tool result (7938 chars): {
   "success": true,
   "data": {
     "web": [
       {
-        "title": "AI Leaderboard 2026: Compare & Rank 300+ Top AI Models by Intelligence, Speed & Price",
-        "url": "https://llm-stats.com/",
-        "description": "On the LLM Stats Leaderboard, Claude Mythos Preview currently leads on GPQA Diamond (94.6% gpqa), the most discriminating reasoning benchmark at the frontier. This AI leaderboard ranks models by the LLM Stats Score, which aggregates GPQA, SWE-Bench ...",
+        "title": "Most powerful LLMs (Large Language Models) in 2026 - Codingscape",
+        "url": "https://codingscape.com/blog/most-powerful-llms-large-language-models",
+        "description": "The table below highlights the top frontier models across labs: For a deeper breakdown — including developer favorites, head-to-head coding benchmarks, and IDE integrations — see our guide: Best LLMs for coding: Developer favorites. DeepSeek shocked the AI community in January 2025 by releasing DeepSeek-R1 under the MIT License—a reasoning model that matched OpenAI o1 on key benchmarks at a fraction of the cost, sending Nvidia's stock down 17% in a single day.",
         "position": 1
-      },
-      {
-        "title": "LLM Leaderboard - Comparison of over 100 AI models from OpenAI, Google, DeepSeek & others",
-        "url": "https://artificialanalysis.ai/leaderboards/models",
-        "description": "Comparison and ranking the performance of over 100 AI models (LLMs) across key metrics including intelligence, price, performance and speed (output speed - tokens per second & latency - TTFT), context window & others.",
-        "position": 2
       },
       {
         "title": "LLM Leaderboard 2026 — Compare Top AI Models - Vellum",
         "url": "https://www.vellum.ai/llm-leaderboard",
         "description": "Compare the latest LLM benchmarks for GPT, Claude, Gemini and more. Updated rankings across reasoning, coding, math, and multilingual tasks with pricing and speed data.",
+        "position": 2
+      },
+      {
+        "title": "A Deep Dive into Various Modern Benchmarking of Frontier AI Models",
+        "url": "https://id.linkedin.com/pulse/deep-dive-various-modern-benchmarking-frontier-ai-models-perumal-zoc8c?tl=id",
+        "description": "25 Nov 2025 · This paper outlines the current state of AI benchmarking as of late 2025, categorizing the shift towards dynamic, agentic, and \"Google-proof\" ...",
         "position": 3
       },
       {
-        "title": "Frontier LLMs in 2024-2025: Architectures, Inference Algorithms ...",
-        "url": "https://www.linkedin.com/pulse/frontier-llms-20242025-architectures-inference-algorithms-singh-o3nac",
-        "description": "This technical paper synthesizes the evolution of frontier large language models (LLMs) across 2024-2025, covering core architectures (transformers, Mixture‑of‑Experts, state space models ...",
+        "title": "AI Benchmarks 2026: Compare 300+ LLM Benchmarks & Tests",
+        "url": "https://llm-stats.com/benchmarks",
+        "description": "CritPT — CritPT is a challenging reasoning benchmark reported by Qwen for evaluating frontier mathematical and critical problem-solving capability. MathArena Apex — MathArena Apex is a challenging math contest benchmark featuring the most difficult mathematical problems designed to test advanced reasoning and pro… · Beyond AIME — Beyond AIME is a difficult mathematical reasoning benchmark designed to test deeper reasoning chains and harder decomposition than standard AIME-styl… · CNMO 2024 — China Mathematical Olympiad 2024 - A challenging mathematics competition.",
         "position": 4
-      },
-      {
-        "title": "A Comparative Analysis of Leading Large Language Models (LLMs ... - Medium",
-        "url": "https://medium.com/@evanmusick.dev/a-comparative-analysis-of-leading-large-language-models-llms-in-early-2025-2c12e3361a65",
-        "description": "The field of Large Language Models (LLMs) witnessed unprecedented acceleration leading into 2025, marked by rapid advancements in model capabilities, significant investment, and increasing real ...",
-        "position": 5
-      },
-      {
-        "title": "Most powerful LLMs (Large Language Models) in 2026 - Codingscape",
-        "url": "https://codingscape.com/blog/most-powerful-llms-large-language-models",
-        "description": "The table below highlights the top frontier models across labs: For a deeper breakdown — including developer favorites, head-to-head coding benchmarks, and IDE integrations — see our guide: Best LLMs for coding: Developer favorites. DeepSeek shocked the AI community in January 2025 by releasing DeepSeek-R1 under the MIT License—a reasoning model that matched OpenAI o1 on key benchmarks at a fraction of the cost, sending Nvidia's stock down 17% in a single day.",
-        "position": 6
-      },
-      {
-        "title": "Arena Leaderboard | Compare & Benchmark the Best Frontier AI Models",
-        "url": "https://arena.ai/leaderboard",
-        "description": "See how leading AI models stack up across text, image, vision, and more. This page provides a high-level snapshot of each Arena. Explore dedicated tabs for deeper insights.",
-        "position": 7
       },
       {
         "title": "The best large language models (LLMs) in 2026 - Zapier",
         "url": "https://zapier.com/blog/best-llm/",
         "description": "Mistral is one of the largest European AI companies. Mistral 3 is its latest non-reasoning frontier model; it uses a mixture-of-experts architecture with 41 billion active and 675 billion total parameters.",
+        "position": 5
+      },
+      {
+        "title": "LLM Benchmark Wars 2025-2026 | 24 Models Compared - Kaggle",
+        "url": "https://www.kaggle.com/datasets/alitaqishah/llm-benchmark-wars-2025-2026-24-models-compared",
+        "description": "About This Dataset. A comprehensive comparison of 24 large language models (LLMs) released between 2024 and 2026, covering performance benchmarks, pricing ...",
+        "position": 6
+      },
+      {
+        "title": "As 2025 wraps up, which local LLMs really mattered this year and what do you want to see in 2026?",
+        "url": "https://www.reddit.com/r/LocalLLaMA/comments/1psd918/as_2025_wraps_up_which_local_llms_really_mattered/",
+        "description": "I’ll start with the three models that would have been models of the year if you’d asked me a couple of months ago. Qwen3 235B Instruct 2507 FP8 has been a very strong performer and my main go-to for code-related tasks until very recently. I’ve found it strong and fast at both generation and analytical work. However, Qwen3 has been useless as a tool-calling platform. It’s unreliable, fragile, I’m sad to say pretty crap. Having said that I haven’t messed with Qwen’s own libraries for doing this stuff, so maybe they do better. Still, 235B in FP8 has seen a lot of use. GLM-4.6 is stronger than for my work, which involves forward and reverse engineering interesting things. It’s a really good size for 4x RTX PRO setups with 384GB of VRAM and in FP8 I can get a single concurrent batch size of 1 (lol) with a context length of ~ 90k tokens. It runs at 45 tokens/sec on small contexts and still cranks along at 30+ tokens at long contexts. It’s really good as a coding assistant, but for batch work it needs more VRAM than I have available unless I can get away with small contexts… which isn’t often. Still, GLM-4.6 has been a powerhouse where Qwen fails; the corollary is that I can use larger batch sizes at longer contexts with Qwen. There’s a place for both models. got-oss-120b got a lot of shit, but I love it. It was the first open model that usefully raised the bar for agentic orchestration, leaving Qwen and GLM models in the dust for reliability in my workflows. I was very happy, until… …MiniMax-M2. This model changed everything for agentic tasks. It’s light years ahead of both Qwen and GLM in my work, and it whup’s the Llama’s ass of gpt-oss-120b. M2 even works incredibly well completely offline with the claude cli, no login required. I’ve had it creating, building, committing code, fixing bugs, and all 100% offline in the terminal with just vLLM, MiniMax-M2 and claude cli. At 229B A10B in FP8 it rips! And with 384GB VRAM it can do decent batch work, too. But it’s with Claude and agentic work where it really shines, completing long sequences of complex steps without a mis-step. Amazing. Game-changing model for me. My ideal setup would be a MiniMax rig for command and control with a Kimi K2 rig for a technical reasoning work. In the same way that MiniMax-M2 changed my agentic work capabilities, K2 changed the coding and analysis work capabilities. Nothing I’ve tried comes close, it’s really really good. I can run it CPU/GPU with sglang + ktransformers/kt_kernel pretty fast - close to 30 tokens/sec - with INT8 CPU weights. If I could get M2 + K2 together… holy smokes. Killer. So in my little corner of the world, models of the year were twofold: K2 and M2. The killer combo of brains and orchestration. But I have to give an honorable mention to gpt-oss-120b because it’s a very strong all-rounder and fits in such (relatively) little VRAM that it be ran with crazy high batched concurrency and for many jobs it’s a strong enough performer that a bigger model isn’t needed; instead the sheer throughout of gpt-oss-120b makes it unbeatable. Solid #3 for me! More on reddit.com",
+        "position": 7
+      },
+      {
+        "title": "The Most Advanced AI Models of 2025 -Comparative Analysis of Gemini ...",
+        "url": "https://www.researchgate.net/publication/392160200_The_Most_Advanced_AI_Models_of_2025_-Comparative_Analysis_of_Gemini_25_Claude_4_LLaMA_4_GPT-45_DeepSeek_V31_and_Other_Leading_Models",
+        "description": "28 Mei 2025 · The Most Advanced AI Models of 2025 -Comparative Analysis of Gemini 2.5, Claude 4, LLaMA 4, GPT-4.5, DeepSeek V3.1, and Other Leading Models.",
         "position": 8
       },
       {
-        "title": "Which LLM to Choose in 2026? Selection Guide + Benchmarks",
-        "url": "https://iternal.ai/llm-selection-guide",
-        "description": "Kimi K2.5 HLE is 31.5% text-only without tools; 51.8% with tools. Arena Elo scores shift daily; values shown are approximate as of late March 2026. OpenAI has flagged training data contamination concerns for SWE-bench Verified across all frontier ...",
+        "title": "LLM Leaderboard - Comparison of over 100 AI models from OpenAI, Google, DeepSeek & others",
+        "url": "https://artificialanalysis.ai/leaderboards/models",
+        "description": "Comparison and ranking the performance of over 100 AI models (LLMs) across key metrics including intelligence, price, performance and speed (output speed - tokens per second & latency - TTFT), context window & others.",
         "position": 9
       },
       {
-        "title": "Best Local LLMs - October 2025",
-        "url": "https://www.reddit.com/r/LocalLLaMA/comments/1obqkpe/best_local_llms_october_2025/",
-        "description": "CREATIVE WRITING/RP More on reddit.com",
+        "title": "AI Leaderboard 2026: Compare & Rank 300+ Top AI Models by Intelligence, Speed & Price",
+        "url": "https://llm-stats.com/",
+        "description": "\"Best\" depends on what you're optimizing for. For frontier reasoning, Claude Mythos Preview leads on GPQA. For coding agents, Claude Opus 4.6 is the strongest in head-to-head coding-arena play.",
         "position": 10
       }
     ]
   }
 }
-00:55:23 - root - DEBUG [20260621_005507_ad4a7b] - API Request - Model: qwen3.5-9b, Messages: 3, Tools: 19
-00:55:23 - root - DEBUG [20260621_005507_ad4a7b] - Last message role: tool
-00:55:23 - root - DEBUG [20260621_005507_ad4a7b] - Total message size: ~2,968 tokens
-00:55:23 - agent.chat_completion_helpers - DEBUG [20260621_005507_ad4a7b] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
-00:55:23 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
-00:55:23 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-5 (_call):137129677465280 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:55:24 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-5 (_call):137129677465280 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:55:24 - root - DEBUG [20260621_005507_ad4a7b] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=91, prompt_tokens=14340, total_tokens=14431, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=23, rejected_prediction_tokens=None), prompt_tokens_details=None)
-00:55:24 - agent.conversation_loop - INFO [20260621_005507_ad4a7b] - API call #2: model=qwen3.5-9b provider=lmstudio in=14340 out=91 total=14431 latency=1.6s
-00:55:24 - root - DEBUG [20260621_005507_ad4a7b] - Token usage: prompt=14,340, completion=91, total=14,431
-00:55:24 - root - DEBUG [20260621_005507_ad4a7b] - Tool call: web_extract with args: {"urls":["https://llm-stats.com/","https://artificialanalysis.ai/leaderboards/models","https://codingscape.com/blog/most-powerful-llms-large-language-models"]}...
-00:55:24 - root - DEBUG [20260621_005507_ad4a7b] - Captured reasoning (135 chars): I need to extract detailed content from the top leaderboard and analysis pages to get specific benchmark scores and model comparisons.
+18:02:53 - root - DEBUG [20260623_180239_7b9b7a] - API Request - Model: qwen3.5-9b, Messages: 3, Tools: 19
+18:02:53 - root - DEBUG [20260623_180239_7b9b7a] - Last message role: tool
+18:02:53 - root - DEBUG [20260623_180239_7b9b7a] - Total message size: ~3,803 tokens
+18:02:53 - agent.chat_completion_helpers - DEBUG [20260623_180239_7b9b7a] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
+18:02:53 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
+18:02:53 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-5 (_call):133397073090240 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:02:55 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-5 (_call):133397073090240 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:02:55 - root - DEBUG [20260623_180239_7b9b7a] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=100, prompt_tokens=15243, total_tokens=15343, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=29, rejected_prediction_tokens=None), prompt_tokens_details=None)
+18:02:55 - agent.conversation_loop - INFO [20260623_180239_7b9b7a] - API call #2: model=qwen3.5-9b provider=lmstudio in=15243 out=100 total=15343 latency=1.9s
+18:02:55 - root - DEBUG [20260623_180239_7b9b7a] - Token usage: prompt=15,243, completion=100, total=15,343
+18:02:55 - root - DEBUG [20260623_180239_7b9b7a] - Tool call: web_extract with args: {"urls":["https://artificialanalysis.ai/leaderboards/models","https://llm-stats.com/benchmarks","https://codingscape.com/blog/most-powerful-llms-large-language-models"]}...
+18:02:55 - root - DEBUG [20260623_180239_7b9b7a] - Captured reasoning (171 chars): I found several useful sources about frontier LLMs - let me extract detailed content from multiple authoritative sites to gather comprehensive information for the report.
 
-00:55:24 - tools.web_tools - INFO [20260621_005507_ad4a7b] - Extracting content from 3 URL(s)
-00:55:25 - agent.tool_executor - WARNING [20260621_005507_ad4a7b] - Tool web_extract returned error (0.17s): {"success": false, "error": "SearXNG is a search-only backend and cannot extract URL content. Set web.extract_backend to firecrawl, tavily, exa, or parallel."}
-00:55:25 - root - DEBUG [20260621_005507_ad4a7b] - Tool web_extract completed in 0.17s
-00:55:25 - root - DEBUG [20260621_005507_ad4a7b] - Tool result (159 chars): {"success": false, "error": "SearXNG is a search-only backend and cannot extract URL content. Set web.extract_backend to firecrawl, tavily, exa, or parallel."}
-00:55:25 - root - DEBUG [20260621_005507_ad4a7b] - API Request - Model: qwen3.5-9b, Messages: 5, Tools: 19
-00:55:25 - root - DEBUG [20260621_005507_ad4a7b] - Last message role: tool
-00:55:25 - root - DEBUG [20260621_005507_ad4a7b] - Total message size: ~3,249 tokens
-00:55:25 - agent.chat_completion_helpers - DEBUG [20260621_005507_ad4a7b] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
-00:55:25 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
-00:55:25 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-6 (_call):137129662781120 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:55:26 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-6 (_call):137129662781120 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:55:26 - root - DEBUG [20260621_005507_ad4a7b] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=108, prompt_tokens=14558, total_tokens=14666, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=35, rejected_prediction_tokens=None), prompt_tokens_details=None)
-00:55:26 - agent.conversation_loop - INFO [20260621_005507_ad4a7b] - API call #3: model=qwen3.5-9b provider=lmstudio in=14558 out=108 total=14666 latency=1.4s
-00:55:26 - root - DEBUG [20260621_005507_ad4a7b] - Token usage: prompt=14,558, completion=108, total=14,666
-00:55:26 - root - DEBUG [20260621_005507_ad4a7b] - Tool call: web_search with args: {"query":"Claude 3.7 Sonnet vs GPT-4o vs Gemini 2.0 vs Llama 4 benchmarks GPQA SWE-bench reasoning coding math"}...
-00:55:26 - root - DEBUG [20260621_005507_ad4a7b] - Captured reasoning (200 chars): Since the direct extraction failed due to SearXNG limitations, I need to try alternative approaches like searching for specific model names and benchmark comparisons mentioned in the initial results.
+18:02:55 - tools.web_tools - INFO [20260623_180239_7b9b7a] - Extracting content from 3 URL(s)
+18:02:55 - agent.tool_executor - WARNING [20260623_180239_7b9b7a] - Tool web_extract returned error (0.05s): {"success": false, "error": "SearXNG is a search-only backend and cannot extract URL content. Set web.extract_backend to firecrawl, tavily, exa, or parallel."}
+18:02:55 - root - DEBUG [20260623_180239_7b9b7a] - Tool web_extract completed in 0.05s
+18:02:55 - root - DEBUG [20260623_180239_7b9b7a] - Tool result (159 chars): {"success": false, "error": "SearXNG is a search-only backend and cannot extract URL content. Set web.extract_backend to firecrawl, tavily, exa, or parallel."}
+18:02:55 - root - DEBUG [20260623_180239_7b9b7a] - API Request - Model: qwen3.5-9b, Messages: 5, Tools: 19
+18:02:55 - root - DEBUG [20260623_180239_7b9b7a] - Last message role: tool
+18:02:55 - root - DEBUG [20260623_180239_7b9b7a] - Total message size: ~4,095 tokens
+18:02:55 - agent.chat_completion_helpers - DEBUG [20260623_180239_7b9b7a] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
+18:02:55 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
+18:02:55 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-6 (_call):133396986590912 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:02:57 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-6 (_call):133396986590912 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:02:57 - root - DEBUG [20260623_180239_7b9b7a] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=142, prompt_tokens=15470, total_tokens=15612, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=41, rejected_prediction_tokens=None), prompt_tokens_details=None)
+18:02:57 - agent.conversation_loop - INFO [20260623_180239_7b9b7a] - API call #3: model=qwen3.5-9b provider=lmstudio in=15470 out=142 total=15612 latency=1.8s
+18:02:57 - root - DEBUG [20260623_180239_7b9b7a] - Token usage: prompt=15,470, completion=142, total=15,612
+18:02:57 - root - DEBUG [20260623_180239_7b9b7a] - Tool call: web_extract with args: {"urls":["https://www.kaggle.com/datasets/alitaqishah/llm-benchmark-wars-2025-2026-24-models-compared","https://zapier.com/blog/best-llm/","https://codingscape.com/blog/most-powerful-llms-large-langua...
+18:02:57 - root - DEBUG [20260623_180239_7b9b7a] - Captured reasoning (204 chars): Since the first extraction failed due to SearXNG limitations, I'll try alternative sources like Kaggle's benchmark dataset and Zapier's LLM guide which should be more accessible for detailed information.
 
-00:55:26 - tools.web_tools - INFO [20260621_005507_ad4a7b] - Web search via searxng: 'Claude 3.7 Sonnet vs GPT-4o vs Gemini 2.0 vs Llama 4 benchmarks GPQA SWE-bench reasoning coding math' (limit: 5)
-00:55:27 - plugins.web.searxng.provider - INFO [20260621_005507_ad4a7b] - SearXNG search 'Claude 3.7 Sonnet vs GPT-4o vs Gemini 2.0 vs Llama 4 benchmarks GPQA SWE-bench reasoning coding math': 5 results (from 20 raw, limit 5)
-00:55:27 - agent.tool_executor - INFO [20260621_005507_ad4a7b] - tool web_search completed (0.92s, 2004 chars)
-00:55:27 - root - DEBUG [20260621_005507_ad4a7b] - Tool web_search completed in 0.92s
-00:55:27 - root - DEBUG [20260621_005507_ad4a7b] - Tool result (2004 chars): {
+18:02:57 - tools.web_tools - INFO [20260623_180239_7b9b7a] - Extracting content from 3 URL(s)
+18:02:57 - agent.tool_executor - WARNING [20260623_180239_7b9b7a] - Tool web_extract returned error (0.04s): {"success": false, "error": "SearXNG is a search-only backend and cannot extract URL content. Set web.extract_backend to firecrawl, tavily, exa, or parallel."}
+18:02:57 - root - DEBUG [20260623_180239_7b9b7a] - Tool web_extract completed in 0.04s
+18:02:57 - root - DEBUG [20260623_180239_7b9b7a] - Tool result (159 chars): {"success": false, "error": "SearXNG is a search-only backend and cannot extract URL content. Set web.extract_backend to firecrawl, tavily, exa, or parallel."}
+18:02:57 - root - DEBUG [20260623_180239_7b9b7a] - API Request - Model: qwen3.5-9b, Messages: 7, Tools: 19
+18:02:57 - root - DEBUG [20260623_180239_7b9b7a] - Last message role: tool
+18:02:57 - root - DEBUG [20260623_180239_7b9b7a] - Total message size: ~4,406 tokens
+18:02:57 - agent.chat_completion_helpers - DEBUG [20260623_180239_7b9b7a] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
+18:02:57 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
+18:02:57 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-7 (_call):133396986590912 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:02:58 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-7 (_call):133396986590912 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:02:58 - root - DEBUG [20260623_180239_7b9b7a] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=105, prompt_tokens=15739, total_tokens=15844, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=42, rejected_prediction_tokens=None), prompt_tokens_details=None)
+18:02:58 - agent.conversation_loop - INFO [20260623_180239_7b9b7a] - API call #4: model=qwen3.5-9b provider=lmstudio in=15739 out=105 total=15844 latency=1.4s
+18:02:58 - root - DEBUG [20260623_180239_7b9b7a] - Token usage: prompt=15,739, completion=105, total=15,844
+18:02:58 - root - DEBUG [20260623_180239_7b9b7a] - Tool call: web_search with args: {"query":"Qwen3 235B vs Claude Opus 4.6 vs GPT-4.5 benchmarks leaderboard comparison 2025 2026"}...
+18:02:58 - root - DEBUG [20260623_180239_7b9b7a] - Captured reasoning (209 chars): Since direct extraction failed due to SearXNG limitations, I'll try searching for specific model names mentioned in the search results like Qwen3 and DeepSeek-R1 to gather more detailed benchmark information.
+
+18:02:58 - tools.web_tools - INFO [20260623_180239_7b9b7a] - Web search via searxng: 'Qwen3 235B vs Claude Opus 4.6 vs GPT-4.5 benchmarks leaderboard comparison 2025 2026' (limit: 5)
+18:02:59 - plugins.web.searxng.provider - INFO [20260623_180239_7b9b7a] - SearXNG search 'Qwen3 235B vs Claude Opus 4.6 vs GPT-4.5 benchmarks leaderboard comparison 2025 2026': 5 results (from 25 raw, limit 5)
+18:02:59 - agent.tool_executor - INFO [20260623_180239_7b9b7a] - tool web_search completed (0.76s, 2315 chars)
+18:02:59 - root - DEBUG [20260623_180239_7b9b7a] - Tool web_search completed in 0.76s
+18:02:59 - root - DEBUG [20260623_180239_7b9b7a] - Tool result (2315 chars): {
   "success": true,
   "data": {
     "web": [
       {
-        "title": "SWE-bench Leaderboards",
-        "url": "https://www.swebench.com/",
-        "description": "SWE-bench Logo Official Leaderboards ; 🆕. GLM-5 (high reasoning). 72.80 ; 🆕. GPT-5-2 (high reasoning). 72.80 ; 🆕. GPT 5.2 Codex. 72.80 ; 🆕. Claude 4.5 Sonnet (high ...",
+        "title": "Qwen 3.6 Plus vs Claude Opus 4.6 vs GPT-5.4: Complete Comparison (April 2026) | Serenities AI",
+        "url": "https://serenitiesai.com/articles/qwen-3-6-plus-vs-claude-vs-gpt",
+        "description": "Nilai 4,8(100) · Gratis · Bisnis/Produktivitas3 Apr 2026 · Claude Opus 4.5 holds the top spot at 80.9%, with Opus 4.6 just behind at 80.8%. The gap between Qwen and Claude (~2 percentage points) is the ...",
         "position": 1
       },
       {
-        "title": "LLM Leaderboard 2026 — Compare Top AI Models - Vellum",
-        "url": "https://www.vellum.ai/llm-leaderboard",
-        "description": "Compare the latest LLM benchmarks for GPT, Claude, Gemini and more. Updated rankings across reasoning, coding, math, and multilingual tasks with pricing and speed data.",
+        "title": "Qwen 3.6 Plus vs Claude Opus 4.6: Which Model Is Better for Agentic Coding? | MindStudio",
+        "url": "https://www.mindstudio.ai/blog/qwen-3-6-plus-vs-claude-opus-4-6-agentic-coding",
+        "description": "LiveCodeBench is a more resistant-to-contamination measure of practical coding ability. Here, both models are competitive with the top tier, but neither dominates. For comparative reference, Qwen3’s top models scored in the high 60s to low 70s on LiveCodeBench pass@1 — a strong result for an open-weight model family.",
         "position": 2
-      },
-      {
-        "title": "How GPT-4.1 compares to Claude 3.7 Sonnet | by Barnacle Goose - Medium",
-        "url": "https://medium.com/@leucopsis/how-gpt-4-1-copmares-to-claude-3-7-sonnet-71b2ab28bf9f",
-        "description": "6 Mei 2025 · On the SWE-Bench Verified coding gauntlet, Claude 3.7 Sonnet logs 62.3 percent in standard mode and 70.3 percent when paired with a custom ...",
-        "position": 3
-      },
-      {
-        "title": "AI LLM Leaderboard & Benchmarks 2026 — GPT-4o vs Claude vs Gemini ...",
-        "url": "https://singularitymoments.com/ai-llm-leaderboard-benchmarks-2026/",
-        "description": "Current AI model leaderboard for 2026: GPT-4o, Claude 3.7 Sonnet, Gemini 2.5 Pro, Llama 4, Mistral Large, Grok 3 ranked on MMLU, GPQA, HumanEval, SWE-bench, AIME, and LMSYS Arena. Includes cost per million tokens table and model selection guide.",
-        "position": 4
-      },
-      {
-        "title": "AI Model Benchmarks Jun 2026 | Compare GPT-5.5, Claude Opus ...",
-        "url": "https://lmcouncil.ai/benchmarks",
-        "description": "7 hari yang lalu · Comprehensive AI model benchmarks from Epoch AI and Scale AI. Compare GPT-5.5, Claude Opus, Gemini 3, Grok 4, and 30+ frontier models across ...",
-        "position": 5
-      }
-    ]
-  }
-}
-00:55:27 - root - DEBUG [20260621_005507_ad4a7b] - API Request - Model: qwen3.5-9b, Messages: 7, Tools: 19
-00:55:27 - root - DEBUG [20260621_005507_ad4a7b] - Last message role: tool
-00:55:27 - root - DEBUG [20260621_005507_ad4a7b] - Total message size: ~4,018 tokens
-00:55:27 - agent.chat_completion_helpers - DEBUG [20260621_005507_ad4a7b] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
-00:55:27 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
-00:55:27 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-7 (_call):137129662781120 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:55:29 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-7 (_call):137129662781120 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:55:29 - root - DEBUG [20260621_005507_ad4a7b] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=111, prompt_tokens=15428, total_tokens=15539, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=27, rejected_prediction_tokens=None), prompt_tokens_details=None)
-00:55:29 - agent.conversation_loop - INFO [20260621_005507_ad4a7b] - API call #4: model=qwen3.5-9b provider=lmstudio in=15428 out=111 total=15539 latency=1.7s
-00:55:29 - root - DEBUG [20260621_005507_ad4a7b] - Token usage: prompt=15,428, completion=111, total=15,539
-00:55:29 - root - DEBUG [20260621_005507_ad4a7b] - Tool call: web_search with args: {"query":"\"Claude 3.7 Sonnet\" OR \"GPT-4o\" OR \"Gemini 2.0\" OR \"Llama 4\" benchmark scores MMLU GPQA HumanEval SWE-bench AIME math coding leaderboard June 2026"}...
-00:55:29 - root - DEBUG [20260621_005507_ad4a7b] - Captured reasoning (168 chars): I need to continue gathering detailed benchmark data by searching for more specific information about the top-performing frontier models and their performance metrics.
-
-00:55:29 - tools.web_tools - INFO [20260621_005507_ad4a7b] - Web search via searxng: '"Claude 3.7 Sonnet" OR "GPT-4o" OR "Gemini 2.0" OR "Llama 4" benchmark scores MMLU GPQA HumanEval SWE-bench AIME math coding leaderboard June 2026' (limit: 5)
-00:55:29 - plugins.web.searxng.provider - INFO [20260621_005507_ad4a7b] - SearXNG search '"Claude 3.7 Sonnet" OR "GPT-4o" OR "Gemini 2.0" OR "Llama 4" benchmark scores MMLU GPQA HumanEval SWE-bench AIME math coding leaderboard June 2026': 5 results (from 10 raw, limit 5)
-00:55:29 - agent.tool_executor - INFO [20260621_005507_ad4a7b] - tool web_search completed (0.56s, 1888 chars)
-00:55:29 - root - DEBUG [20260621_005507_ad4a7b] - Tool web_search completed in 0.56s
-00:55:29 - root - DEBUG [20260621_005507_ad4a7b] - Tool result (1888 chars): {
-  "success": true,
-  "data": {
-    "web": [
-      {
-        "title": "LLM Leaderboard 2026 — Compare Top AI Models - Vellum",
-        "url": "https://www.vellum.ai/llm-leaderboard",
-        "description": "9 Jun 2026 · Claude 3.7 Sonnet [R], 200,000, Nov 2024, $3 / $15, 64,000, 0.95s, 78 t/s ... Llama 4 Maverick, 10,000,000, November 2024, $0.2 / $0.6, 8,000 ...",
-        "position": 1
-      },
-      {
-        "title": "Introducing Claude 4 - Anthropic",
-        "url": "https://www.anthropic.com/news/claude-4",
-        "description": "22 Mei 2025 · We no longer include the third 'planning tool' used by Claude 3.7 Sonnet. On all Claude 4 models, we report scores out of the full 500 problems.",
-        "position": 2
-      },
-      {
-        "title": "AI Model Benchmarks Jun 2026 | Compare GPT-5.5, Claude Opus ...",
-        "url": "https://lmcouncil.ai/benchmarks",
-        "description": "7 hari yang lalu · GPT-4o, o4-mini (high), o4-mini (medium), o3 (high), o3 (medium), o3 ... Gemini 2.0 Flash (Feb '25), 3659. 5, GPT-5 (medium), 3498. Show all 10.",
-        "position": 3
-      },
-      {
-        "title": "DeepSeek V4 Benchmarks: MMLU, HumanEval & SWE-bench - Macaron",
-        "url": "https://macaron.im/blog/deepseek-v4-benchmarks",
-        "description": "DeepSeek V4 benchmark scores: MMLU, HumanEval, SWE-bench vs GPT-4o, Claude Opus, Gemini Ultra ... Llama 4 Maverick. 1M. TBC. 🔲 Not published. Nemotron Nano ...",
-        "position": 4
-      },
-      {
-        "title": "Claude 3.7 Sonnet vs GPT-4.5Which is better in 2026? - LLM Stats",
-        "url": "https://llm-stats.com/models/compare/claude-3-7-sonnet-20250219-vs-gpt-4.5",
-        "description": "Claude 3.7 Sonnet outperforms in 7 benchmarks (AIME 2024, GPQA, IFEval, MMMLU, SWE-Bench Verified, TAU-bench Airline, TAU-bench Retail), while GPT-4.5 is better ...",
-        "position": 5
-      }
-    ]
-  }
-}
-00:55:29 - root - DEBUG [20260621_005507_ad4a7b] - API Request - Model: qwen3.5-9b, Messages: 9, Tools: 19
-00:55:29 - root - DEBUG [20260621_005507_ad4a7b] - Last message role: tool
-00:55:29 - root - DEBUG [20260621_005507_ad4a7b] - Total message size: ~4,752 tokens
-00:55:29 - agent.chat_completion_helpers - DEBUG [20260621_005507_ad4a7b] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
-00:55:29 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
-00:55:29 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-8 (_call):137129662781120 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:55:31 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-8 (_call):137129662781120 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:55:31 - root - DEBUG [20260621_005507_ad4a7b] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=91, prompt_tokens=16352, total_tokens=16443, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=32, rejected_prediction_tokens=None), prompt_tokens_details=None)
-00:55:31 - agent.conversation_loop - INFO [20260621_005507_ad4a7b] - API call #5: model=qwen3.5-9b provider=lmstudio in=16352 out=91 total=16443 latency=1.5s
-00:55:31 - root - DEBUG [20260621_005507_ad4a7b] - Token usage: prompt=16,352, completion=91, total=16,443
-00:55:31 - root - DEBUG [20260621_005507_ad4a7b] - Tool call: web_search with args: {"query":"DeepSeek R1 V2 V3 V4 benchmarks MMLU HumanEval SWE-bench reasoning coding math GPQA leaderboard June 2026"}...
-00:55:31 - root - DEBUG [20260621_005507_ad4a7b] - Captured reasoning (132 chars): I need to gather more detailed benchmark data from the search results about top frontier models like DeepSeek, Grok-3, and Llama 4.
-
-00:55:31 - tools.web_tools - INFO [20260621_005507_ad4a7b] - Web search via searxng: 'DeepSeek R1 V2 V3 V4 benchmarks MMLU HumanEval SWE-bench reasoning coding math GPQA leaderboard June 2026' (limit: 5)
-00:55:32 - plugins.web.searxng.provider - INFO [20260621_005507_ad4a7b] - SearXNG search 'DeepSeek R1 V2 V3 V4 benchmarks MMLU HumanEval SWE-bench reasoning coding math GPQA leaderboard June 2026': 5 results (from 10 raw, limit 5)
-00:55:32 - agent.tool_executor - INFO [20260621_005507_ad4a7b] - tool web_search completed (1.43s, 1820 chars)
-00:55:32 - root - DEBUG [20260621_005507_ad4a7b] - Tool web_search completed in 1.43s
-00:55:32 - root - DEBUG [20260621_005507_ad4a7b] - Tool result (1820 chars): {
-  "success": true,
-  "data": {
-    "web": [
-      {
-        "title": "SWE-bench Leaderboards",
-        "url": "https://www.swebench.com/",
-        "description": "SWE-bench Logo Official Leaderboards ; 🆕. DeepSeek V3.2 (high reasoning). 70.00 ; 🆕. Gemini 3 Pro. 69.60 ; 🆕. Claude 4.5 Haiku (high reasoning). 66.60 ; 🆕. GPT-5 ...",
-        "position": 1
-      },
-      {
-        "title": "DeepSeek V4 Benchmarks: MMLU, HumanEval & SWE-bench - Macaron",
-        "url": "https://macaron.im/blog/deepseek-v4-benchmarks",
-        "description": "The current verified leader is Claude Opus 4.5 at 80.9% solve rate. DeepSeek V3.2 sits at 67.8% — verified by the open-source leaderboard as of February 2026.",
-        "position": 2
-      },
-      {
-        "title": "AI Model Leaderboard 2026: GPT-5, Claude, Gemini, Llama Ranked",
-        "url": "https://localaimaster.com/tools/ai-model-leaderboard",
-        "description": "9 Mei 2026 · The 30 most capable AI models of 2026, ranked by verified benchmarks that matter for production work: SWE-Bench Verified (real coding), MMLU-Pro ...",
-        "position": 3
-      },
-      {
-        "title": "SWE-bench Pro Leaderboard (2026): Every Model Score, Claude Fable 5 ...",
-        "url": "https://www.morphllm.com/swe-bench-pro",
-        "description": "9 Jun 2026 · SWE-bench Pro Leaderboard (2026): Every Model Score, Claude Fable 5 Leads at 80.3%. Full SWE-bench Pro leaderboard, June 9, 2026.",
-        "position": 4
-      },
-      {
-        "title": "LLM Benchmark Leaderboard 2026: Coding, Math, Reasoning and Agents",
-        "url": "https://www.codesota.com/llm",
-        "description": "Compare GPT-5, Claude Opus, Gemini, DeepSeek and open models on MMLU-Pro, GPQA, HLE, AIME, LiveCodeBench, SWE-bench and agent benchmarks.",
-        "position": 5
-      }
-    ]
-  }
-}
-00:55:32 - root - DEBUG [20260621_005507_ad4a7b] - API Request - Model: qwen3.5-9b, Messages: 11, Tools: 19
-00:55:32 - root - DEBUG [20260621_005507_ad4a7b] - Last message role: tool
-00:55:32 - root - DEBUG [20260621_005507_ad4a7b] - Total message size: ~5,444 tokens
-00:55:32 - agent.chat_completion_helpers - DEBUG [20260621_005507_ad4a7b] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
-00:55:32 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
-00:55:32 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-9 (_call):137129662781120 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:55:34 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-9 (_call):137129662781120 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:55:34 - root - DEBUG [20260621_005507_ad4a7b] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=94, prompt_tokens=17147, total_tokens=17241, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=33, rejected_prediction_tokens=None), prompt_tokens_details=None)
-00:55:34 - agent.conversation_loop - INFO [20260621_005507_ad4a7b] - API call #6: model=qwen3.5-9b provider=lmstudio in=17147 out=94 total=17241 latency=1.5s
-00:55:34 - root - DEBUG [20260621_005507_ad4a7b] - Token usage: prompt=17,147, completion=94, total=17,241
-00:55:34 - root - DEBUG [20260621_005507_ad4a7b] - Tool call: web_search with args: {"query":"Grok-3 xAI GPT-5 Gemini Ultra benchmarks MMLU GPQA HumanEval SWE-bench reasoning coding math June 2026 leaderboard"}...
-00:55:34 - root - DEBUG [20260621_005507_ad4a7b] - Captured reasoning (137 chars): I need to gather more benchmark data on specific models like Grok-3, Llama 4 Maverick, and Mistral Large from additional search queries.
-
-00:55:34 - tools.web_tools - INFO [20260621_005507_ad4a7b] - Web search via searxng: 'Grok-3 xAI GPT-5 Gemini Ultra benchmarks MMLU GPQA HumanEval SWE-bench reasoning coding math June 2026 leaderboard' (limit: 5)
-00:55:34 - plugins.web.searxng.provider - INFO [20260621_005507_ad4a7b] - SearXNG search 'Grok-3 xAI GPT-5 Gemini Ultra benchmarks MMLU GPQA HumanEval SWE-bench reasoning coding math June 2026 leaderboard': 5 results (from 10 raw, limit 5)
-00:55:34 - agent.tool_executor - INFO [20260621_005507_ad4a7b] - tool web_search completed (0.73s, 1819 chars)
-00:55:34 - root - DEBUG [20260621_005507_ad4a7b] - Tool web_search completed in 0.73s
-00:55:34 - root - DEBUG [20260621_005507_ad4a7b] - Tool result (1819 chars): {
-  "success": true,
-  "data": {
-    "web": [
-      {
-        "title": "SWE-bench Leaderboards",
-        "url": "https://www.swebench.com/",
-        "description": "SWE-bench Logo Official Leaderboards ; 🆕. Gemini 3 Flash (high reasoning). 75.80 ; 🆕. MiniMax M2.5 (high reasoning). 75.80 ; 🆕. Claude Opus 4.6. 75.60 ; 🆕. GPT-5-2 ...",
-        "position": 1
-      },
-      {
-        "title": "AI Model Benchmarks Jun 2026 | Compare GPT-5.5, Claude Opus ...",
-        "url": "https://lmcouncil.ai/benchmarks",
-        "description": "7 hari yang lalu · Comprehensive AI model benchmarks from Epoch AI and Scale AI. Compare GPT-5.5, Claude Opus, Gemini 3, Grok 4, and 30+ frontier models across ...",
-        "position": 2
-      },
-      {
-        "title": "LLM Leaderboard 2026 — Compare Top AI Models - Vellum",
-        "url": "https://www.vellum.ai/llm-leaderboard",
-        "description": "9 Jun 2026 · Compare the latest LLM benchmarks for GPT, Claude, Gemini and more. Updated rankings across reasoning, coding, math, and multilingual tasks ...",
-        "position": 3
-      },
-      {
-        "title": "LLM Benchmark Leaderboard 2026: Coding, Math, Reasoning and Agents",
-        "url": "https://www.codesota.com/llm",
-        "description": "Compare GPT-5, Claude Opus, Gemini, DeepSeek and open models on MMLU-Pro, GPQA, HLE, AIME, LiveCodeBench, SWE-bench and agent benchmarks.",
-        "position": 4
-      },
-      {
-        "title": "LLM Leaderboard 2026: GPT-4 vs Claude vs Gemini - Whisperchat.ai",
-        "url": "https://www.whisperchat.ai/tools/llm-leaderboard-compare-model",
-        "description": "Compare top large language models across benchmarks like MMLU, ARC, TruthfulQA, and HumanEval. Explore rankings, charts, and side-by-side model performance ...",
-        "position": 5
-      }
-    ]
-  }
-}
-00:55:34 - root - DEBUG [20260621_005507_ad4a7b] - API Request - Model: qwen3.5-9b, Messages: 13, Tools: 19
-00:55:34 - root - DEBUG [20260621_005507_ad4a7b] - Last message role: tool
-00:55:34 - root - DEBUG [20260621_005507_ad4a7b] - Total message size: ~6,140 tokens
-00:55:34 - agent.chat_completion_helpers - DEBUG [20260621_005507_ad4a7b] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
-00:55:34 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
-00:55:34 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-10 (_call):137129662781120 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:55:36 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-10 (_call):137129662781120 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:55:36 - root - DEBUG [20260621_005507_ad4a7b] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=103, prompt_tokens=17908, total_tokens=18011, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=26, rejected_prediction_tokens=None), prompt_tokens_details=None)
-00:55:36 - agent.conversation_loop - INFO [20260621_005507_ad4a7b] - API call #7: model=qwen3.5-9b provider=lmstudio in=17908 out=103 total=18011 latency=1.6s
-00:55:36 - root - DEBUG [20260621_005507_ad4a7b] - Token usage: prompt=17,908, completion=103, total=18,011
-00:55:36 - root - DEBUG [20260621_005507_ad4a7b] - Tool call: web_search with args: {"query":"\"best LLM 2026\" \"top AI model performance report\" MMLU score GPQA HumanEval SWE-bench benchmark comparison site:arxiv.org OR site:lmcouncil.ai OR site:singularitymoments.com"}...
-00:55:36 - root - DEBUG [20260621_005507_ad4a7b] - Captured reasoning (165 chars): I need to gather more detailed benchmark data by searching for specific technical reports and articles that contain concrete numerical scores from reliable sources.
-
-00:55:36 - tools.web_tools - INFO [20260621_005507_ad4a7b] - Web search via searxng: '"best LLM 2026" "top AI model performance report" MMLU score GPQA HumanEval SWE-bench benchmark comparison site:arxiv.org OR site:lmcouncil.ai OR site:singularitymoments.com' (limit: 5)
-00:55:37 - plugins.web.searxng.provider - INFO [20260621_005507_ad4a7b] - SearXNG search '"best LLM 2026" "top AI model performance report" MMLU score GPQA HumanEval SWE-bench benchmark comparison site:arxiv.org OR site:lmcouncil.ai OR site:singularitymoments.com': 5 results (from 10 raw, limit 5)
-00:55:37 - agent.tool_executor - INFO [20260621_005507_ad4a7b] - tool web_search completed (1.23s, 1835 chars)
-00:55:37 - root - DEBUG [20260621_005507_ad4a7b] - Tool web_search completed in 1.23s
-00:55:37 - root - DEBUG [20260621_005507_ad4a7b] - Tool result (1835 chars): {
-  "success": true,
-  "data": {
-    "web": [
-      {
-        "title": "AI Model Benchmarks Jun 2026 | Compare GPT-5.5, Claude Opus ...",
-        "url": "https://lmcouncil.ai/benchmarks",
-        "description": "7 hari yang lalu · Comprehensive AI model benchmarks from Epoch AI and Scale AI. Compare GPT-5.5, Claude Opus, Gemini 3, Grok 4, and 30+ frontier models across ...",
-        "position": 1
-      },
-      {
-        "title": "An Automated Survey of Generative Artificial Intelligence: Large ... - arXiv",
-        "url": "https://arxiv.org/html/2306.02781v4",
-        "description": "9 Apr 2026 · On standard benchmarks, the model achieves 90.1% on MMLU Pro, 91.9% on GPQA Diamond, 100% on AIME 2025 with code execution (95% without tools), ...",
-        "position": 2
-      },
-      {
-        "title": "The Rise and Fall of G in AGI - arXiv",
-        "url": "https://arxiv.org/html/2604.09911v1",
-        "description": "10 Apr 2026 · On a four benchmark battery, PC1 is found to peak at 92% of the variance between 2023–2024 and reduce to 64% with the arrival of reasoning- ...",
-        "position": 3
-      },
-      {
-        "title": "A Systematic Study of Benchmark Saturation - arXiv",
-        "url": "https://arxiv.org/html/2602.16763v1",
-        "description": "18 Feb 2026 · Best-performing model and score reported in the original benchmark paper. Data Quality. Dataset Issues, Known post-release issues ...",
-        "position": 4
-      },
-      {
-        "title": "AdaptOrch: Task-Adaptive Multi-Agent Orchestration in the Era ...",
-        "url": "https://arxiv.org/html/2602.16873v1",
-        "description": "15 Feb 2026 · We validate AdaptOrch across coding (SWE-bench), reasoning (GPQA), and retrieval-augmented generation tasks, demonstrating that topology-aware ...",
-        "position": 5
-      }
-    ]
-  }
-}
-00:55:37 - root - DEBUG [20260621_005507_ad4a7b] - API Request - Model: qwen3.5-9b, Messages: 15, Tools: 19
-00:55:37 - root - DEBUG [20260621_005507_ad4a7b] - Last message role: tool
-00:55:37 - root - DEBUG [20260621_005507_ad4a7b] - Total message size: ~6,864 tokens
-00:55:37 - agent.chat_completion_helpers - DEBUG [20260621_005507_ad4a7b] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
-00:55:37 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
-00:55:37 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-11 (_call):137129662781120 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:55:39 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-11 (_call):137129662781120 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:55:39 - root - DEBUG [20260621_005507_ad4a7b] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=114, prompt_tokens=18695, total_tokens=18809, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=29, rejected_prediction_tokens=None), prompt_tokens_details=None)
-00:55:39 - agent.conversation_loop - INFO [20260621_005507_ad4a7b] - API call #8: model=qwen3.5-9b provider=lmstudio in=18695 out=114 total=18809 latency=1.7s
-00:55:39 - root - DEBUG [20260621_005507_ad4a7b] - Token usage: prompt=18,695, completion=114, total=18,809
-00:55:39 - root - DEBUG [20260621_005507_ad4a7b] - Tool call: web_extract with args: {"urls":["https://lmcouncil.ai/benchmarks","https://singularitymoments.com/ai-llm-leaderboard-benchmarks-2026/","https://arxiv.org/html/2306.02781v4"]}...
-00:55:39 - root - DEBUG [20260621_005507_ad4a7b] - Captured reasoning (145 chars): I found an arXiv paper with specific benchmark scores - let me extract detailed content from this source to get concrete numbers for the report.
-
-00:55:39 - tools.web_tools - INFO [20260621_005507_ad4a7b] - Extracting content from 3 URL(s)
-00:55:39 - agent.tool_executor - WARNING [20260621_005507_ad4a7b] - Tool web_extract returned error (0.07s): {"success": false, "error": "SearXNG is a search-only backend and cannot extract URL content. Set web.extract_backend to firecrawl, tavily, exa, or parallel."}
-00:55:39 - root - DEBUG [20260621_005507_ad4a7b] - Tool web_extract completed in 0.07s
-00:55:39 - root - DEBUG [20260621_005507_ad4a7b] - Tool result (159 chars): {"success": false, "error": "SearXNG is a search-only backend and cannot extract URL content. Set web.extract_backend to firecrawl, tavily, exa, or parallel."}
-00:55:39 - root - DEBUG [20260621_005507_ad4a7b] - API Request - Model: qwen3.5-9b, Messages: 17, Tools: 19
-00:55:39 - root - DEBUG [20260621_005507_ad4a7b] - Last message role: tool
-00:55:39 - root - DEBUG [20260621_005507_ad4a7b] - Total message size: ~7,145 tokens
-00:55:39 - agent.chat_completion_helpers - DEBUG [20260621_005507_ad4a7b] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
-00:55:39 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
-00:55:39 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-12 (_call):137129662781120 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:55:42 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-12 (_call):137129662781120 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:55:42 - root - DEBUG [20260621_005507_ad4a7b] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=244, prompt_tokens=18936, total_tokens=19180, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=34, rejected_prediction_tokens=None), prompt_tokens_details=None)
-00:55:42 - agent.conversation_loop - INFO [20260621_005507_ad4a7b] - API call #9: model=qwen3.5-9b provider=lmstudio in=18936 out=244 total=19180 latency=3.1s
-00:55:42 - root - DEBUG [20260621_005507_ad4a7b] - Token usage: prompt=18,936, completion=244, total=19,180
-00:55:42 - root - DEBUG [20260621_005507_ad4a7b] - Tool call: execute_code with args: {"code":"import subprocess\nimport json\n\n# Try to fetch content from a few key sources\nurls = [\n    \"https://lmcouncil.ai/benchmarks\",\n]\n\nfor url in urls[:1]:\n    try:\n        result = subp...
-00:55:42 - root - DEBUG [20260621_005507_ad4a7b] - Captured reasoning (182 chars): Since direct extraction failed due to SearXNG limitations, I'll try using the terminal tool with curl commands to access these benchmark websites directly and extract detailed data.
-
-00:55:42 - tools.code_execution_tool - DEBUG [20260621_005507_ad4a7b] - execute_code: dropped 7 non-allowlisted HERMES_* var(s) from the sandbox child env (HERMES_IGNORE_RULES, HERMES_IGNORE_USER_CONFIG, HERMES_INTERACTIVE, HERMES_KANBAN_BOARD, HERMES_QUIET, HERMES_SESSION_ID, HERMES_YOLO_MODE). This is intentional hardening (#27303); if a sandbox script legitimately needs one, declare it via env_passthrough in the skill/config so it passes by explicit opt-in.
-00:55:47 - agent.tool_executor - INFO [20260621_005507_ad4a7b] - tool execute_code completed (4.93s, 176 chars)
-00:55:47 - root - DEBUG [20260621_005507_ad4a7b] - Tool execute_code completed in 4.93s
-00:55:47 - root - DEBUG [20260621_005507_ad4a7b] - Tool result (176 chars): {"status": "success", "output": "Error fetching https://lmcouncil.ai/benchmarks: [Errno 2] No such file or directory: 'curl'\n", "tool_calls_made": 0, "duration_seconds": 0.21}
-00:55:47 - root - DEBUG [20260621_005507_ad4a7b] - API Request - Model: qwen3.5-9b, Messages: 19, Tools: 19
-00:55:47 - root - DEBUG [20260621_005507_ad4a7b] - Last message role: tool
-00:55:47 - root - DEBUG [20260621_005507_ad4a7b] - Total message size: ~7,496 tokens
-00:55:47 - agent.chat_completion_helpers - DEBUG [20260621_005507_ad4a7b] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
-00:55:47 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
-00:55:47 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-16 (_call):137129438996160 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:55:49 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-16 (_call):137129438996160 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:55:49 - root - DEBUG [20260621_005507_ad4a7b] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=119, prompt_tokens=19253, total_tokens=19372, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=40, rejected_prediction_tokens=None), prompt_tokens_details=None)
-00:55:49 - agent.conversation_loop - INFO [20260621_005507_ad4a7b] - API call #10: model=qwen3.5-9b provider=lmstudio in=19253 out=119 total=19372 latency=1.7s
-00:55:49 - root - DEBUG [20260621_005507_ad4a7b] - Token usage: prompt=19,253, completion=119, total=19,372
-00:55:49 - root - DEBUG [20260621_005507_ad4a7b] - Tool call: web_search with args: {"query":"\"GPT-4o\" \"Claude 3.5/3.7 Sonnet\" MMLU score GPQA HumanEval SWE-bench benchmark numbers performance comparison June 2026"}...
-00:55:49 - root - DEBUG [20260621_005507_ad4a7b] - Captured reasoning (212 chars): Since curl is not available and web extraction failed due to SearXNG backend limitations, I should search for more specific benchmark data from other sources that might be accessible through the web_search tool.
-
-00:55:49 - tools.web_tools - INFO [20260621_005507_ad4a7b] - Web search via searxng: '"GPT-4o" "Claude 3.5/3.7 Sonnet" MMLU score GPQA HumanEval SWE-bench benchmark numbers performance comparison June 2026' (limit: 5)
-00:55:49 - tools.code_execution_tool - DEBUG - RPC listener socket timeout
-00:55:49 - plugins.web.searxng.provider - INFO [20260621_005507_ad4a7b] - SearXNG search '"GPT-4o" "Claude 3.5/3.7 Sonnet" MMLU score GPQA HumanEval SWE-bench benchmark numbers performance comparison June 2026': 1 results (from 1 raw, limit 5)
-00:55:49 - agent.tool_executor - INFO [20260621_005507_ad4a7b] - tool web_search completed (0.71s, 468 chars)
-00:55:49 - root - DEBUG [20260621_005507_ad4a7b] - Tool web_search completed in 0.71s
-00:55:49 - root - DEBUG [20260621_005507_ad4a7b] - Tool result (468 chars): {
-  "success": true,
-  "data": {
-    "web": [
-      {
-        "title": "ARC AGI 2 vs Pencil Puzzle Bench: The Benchmarks That Expose AI ...",
-        "url": "https://www.mindstudio.ai/blog/arc-agi-2-vs-pencil-puzzle-bench-ai-capability-gaps",
-        "description": "7 Apr 2026 · This article breaks down what each benchmark tests, how major models — including GPT-4o and the o-series, Claude 3.5/3.7 Sonnet, Gemini, and ...",
-        "position": 1
-      }
-    ]
-  }
-}
-00:55:49 - root - DEBUG [20260621_005507_ad4a7b] - API Request - Model: qwen3.5-9b, Messages: 21, Tools: 19
-00:55:49 - root - DEBUG [20260621_005507_ad4a7b] - Last message role: tool
-00:55:49 - root - DEBUG [20260621_005507_ad4a7b] - Total message size: ~7,885 tokens
-00:55:49 - agent.chat_completion_helpers - DEBUG [20260621_005507_ad4a7b] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
-00:55:49 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
-00:55:49 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-17 (_call):137129662781120 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:55:51 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-17 (_call):137129662781120 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:55:51 - root - DEBUG [20260621_005507_ad4a7b] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=84, prompt_tokens=19612, total_tokens=19696, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=23, rejected_prediction_tokens=None), prompt_tokens_details=None)
-00:55:51 - agent.conversation_loop - INFO [20260621_005507_ad4a7b] - API call #11: model=qwen3.5-9b provider=lmstudio in=19612 out=84 total=19696 latency=1.3s
-00:55:51 - root - DEBUG [20260621_005507_ad4a7b] - Token usage: prompt=19,612, completion=84, total=19,696
-00:55:51 - root - DEBUG [20260621_005507_ad4a7b] - Tool call: web_search with args: {"query":"\"best large language model 2026\" \"top AI models ranking\" MMLU GPQA HumanEval reasoning benchmarks leaderboard June July 2026"}...
-00:55:51 - root - DEBUG [20260621_005507_ad4a7b] - Captured reasoning (142 chars): I need to continue gathering specific benchmark data for top models by searching for more detailed comparison articles with concrete numbers.
-
-00:55:51 - tools.web_tools - INFO [20260621_005507_ad4a7b] - Web search via searxng: '"best large language model 2026" "top AI models ranking" MMLU GPQA HumanEval reasoning benchmarks leaderboard June July 2026' (limit: 5)
-00:55:51 - plugins.web.searxng.provider - INFO [20260621_005507_ad4a7b] - SearXNG search '"best large language model 2026" "top AI models ranking" MMLU GPQA HumanEval reasoning benchmarks leaderboard June July 2026': 5 results (from 10 raw, limit 5)
-00:55:51 - agent.tool_executor - INFO [20260621_005507_ad4a7b] - tool web_search completed (0.51s, 1865 chars)
-00:55:51 - root - DEBUG [20260621_005507_ad4a7b] - Tool web_search completed in 0.51s
-00:55:51 - root - DEBUG [20260621_005507_ad4a7b] - Tool result (1865 chars): {
-  "success": true,
-  "data": {
-    "web": [
-      {
-        "title": "LLM Leaderboard 2026 — Compare Top AI Models - Vellum",
-        "url": "https://www.vellum.ai/llm-leaderboard",
-        "description": "9 Jun 2026 · Compare the latest LLM benchmarks for GPT, Claude, Gemini and more. Updated rankings across reasoning, coding, math, and multilingual tasks ...",
-        "position": 1
-      },
-      {
-        "title": "AI Leaderboard 2026: Compare & Rank 300+ Top AI Models by ...",
-        "url": "https://llm-stats.com/",
-        "description": "The leading LLMs in 2026 are Claude Mythos Preview, GPT-5.5, and the frontier models from OpenAI (GPT-5 family), Anthropic (Claude Opus and Sonnet), Google ( ...",
-        "position": 2
-      },
-      {
-        "title": "AI Comparison 2026: The Best AI Models in a Data Overview",
-        "url": "https://www.punku.ai/blog/ki-vergleich-2026",
-        "description": "2 Jun 2026 · By the LLM Stats overall score as of June 3, 2026, Claude Opus 4.8 (67.9) leads among released models, ahead of GPT-5.5 (62.9) and Claude Opus ...",
-        "position": 3
-      },
-      {
-        "title": "GPQA Leaderboard 2026 - Compare AI Model Scores - Price Per Token",
-        "url": "https://pricepertoken.com/leaderboards/benchmark/gpqa",
-        "description": "As of June 18, 2026, the top-scoring model on GPQA is Gemini 3.1 Pro Preview at 94.1%, followed by MiniMax M3 at 92.9% and Claude Fable 5 at 92.6%. 242 ...",
-        "position": 4
       },
       {
         "title": "Which LLM to Choose in 2026? Selection Guide + Benchmarks",
         "url": "https://iternal.ai/llm-selection-guide",
-        "description": "29 Mar 2026 · There is no single best LLM — the right choice depends on the task. For frontier reasoning and coding, Claude Opus, GPT-5, and Gemini Ultra lead ...",
+        "description": "Agentic coding (fix real bugs in real repos): Claude Opus 4.6 (80.8% SWE-bench), Gemini 3.1 Pro (80.6%), MiniMax M2.5 (80.2%), or GPT-5.4 (~80%) Everyday coding assistance: Claude Sonnet 4.6 (79.6%), Gemini 3 Flash (78%), or GPT-5.4 -- excellent ...",
+        "position": 3
+      },
+      {
+        "title": "AI Model Benchmarks Jun 2026 | Compare GPT-5.5, Claude Opus ...",
+        "url": "https://lmcouncil.ai/benchmarks",
+        "description": "14 Jun 2026 · Comprehensive AI model benchmarks from Epoch AI and Scale AI. Compare GPT-5.5, Claude Opus, Gemini 3, Grok 4, and 30+ frontier models across ...",
+        "position": 4
+      },
+      {
+        "title": "Qwen 3.6 Plus vs Claude Opus 4.6 vs GPT-5.4 Compared",
+        "url": "https://www.digitalapplied.com/blog/qwen-3-6-plus-vs-claude-opus-4-6-vs-gpt-5-4-compare",
+        "description": "Frontier model comparison: Qwen 3.6 Plus vs Claude Opus 4.6 vs GPT-5.4. Benchmarks, pricing, context windows, and capabilities for 1M+ token models.",
         "position": 5
       }
     ]
   }
 }
-00:55:51 - root - DEBUG [20260621_005507_ad4a7b] - API Request - Model: qwen3.5-9b, Messages: 23, Tools: 19
-00:55:51 - root - DEBUG [20260621_005507_ad4a7b] - Last message role: tool
-00:55:51 - root - DEBUG [20260621_005507_ad4a7b] - Total message size: ~8,598 tokens
-00:55:51 - agent.chat_completion_helpers - DEBUG [20260621_005507_ad4a7b] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
-00:55:51 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
-00:55:51 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-18 (_call):137129662781120 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:55:53 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-18 (_call):137129662781120 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:55:53 - root - DEBUG [20260621_005507_ad4a7b] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=91, prompt_tokens=20394, total_tokens=20485, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=30, rejected_prediction_tokens=None), prompt_tokens_details=None)
-00:55:53 - agent.conversation_loop - INFO [20260621_005507_ad4a7b] - API call #12: model=qwen3.5-9b provider=lmstudio in=20394 out=91 total=20485 latency=1.5s
-00:55:53 - root - DEBUG [20260621_005507_ad4a7b] - Token usage: prompt=20,394, completion=91, total=20,485
-00:55:53 - root - DEBUG [20260621_005507_ad4a7b] - Tool call: web_search with args: {"query":"MMLU-Pro HumanEval SWE-bench Verified AIME math coding benchmarks June 2026 GPT-5 Claude Opus Gemini DeepSeek leaderboard scores"}...
-00:55:53 - root - DEBUG [20260621_005507_ad4a7b] - Captured reasoning (170 chars): I found a GPQA leaderboard with specific scores - let me search for more detailed benchmark data from other sources to gather comprehensive information about top models.
+18:02:59 - root - DEBUG [20260623_180239_7b9b7a] - API Request - Model: qwen3.5-9b, Messages: 9, Tools: 19
+18:02:59 - root - DEBUG [20260623_180239_7b9b7a] - Last message role: tool
+18:02:59 - root - DEBUG [20260623_180239_7b9b7a] - Total message size: ~5,237 tokens
+18:02:59 - agent.chat_completion_helpers - DEBUG [20260623_180239_7b9b7a] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
+18:02:59 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
+18:02:59 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-8 (_call):133396986590912 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:03:01 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-8 (_call):133396986590912 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:03:01 - root - DEBUG [20260623_180239_7b9b7a] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=102, prompt_tokens=16704, total_tokens=16806, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=27, rejected_prediction_tokens=None), prompt_tokens_details=None)
+18:03:01 - agent.conversation_loop - INFO [20260623_180239_7b9b7a] - API call #5: model=qwen3.5-9b provider=lmstudio in=16704 out=102 total=16806 latency=1.5s
+18:03:01 - root - DEBUG [20260623_180239_7b9b7a] - Token usage: prompt=16,704, completion=102, total=16,806
+18:03:01 - root - DEBUG [20260623_180239_7b9b7a] - Tool call: web_extract with args: {"urls":["https://serenitiesai.com/articles/qwen-3-6-plus-vs-claude-vs-gpt","https://iternal.ai/llm-selection-guide","https://lmcouncil.ai/benchmarks"]}...
+18:03:01 - root - DEBUG [20260623_180239_7b9b7a] - Captured reasoning (163 chars): I found another useful source about model comparisons - let me extract detailed content from these sites to get specific benchmark numbers and capability details.
 
-00:55:53 - tools.web_tools - INFO [20260621_005507_ad4a7b] - Web search via searxng: 'MMLU-Pro HumanEval SWE-bench Verified AIME math coding benchmarks June 2026 GPT-5 Claude Opus Gemini DeepSeek leaderboard scores' (limit: 5)
-00:55:53 - plugins.web.searxng.provider - INFO [20260621_005507_ad4a7b] - SearXNG search 'MMLU-Pro HumanEval SWE-bench Verified AIME math coding benchmarks June 2026 GPT-5 Claude Opus Gemini DeepSeek leaderboard scores': 5 results (from 10 raw, limit 5)
-00:55:53 - agent.tool_executor - INFO [20260621_005507_ad4a7b] - tool web_search completed (0.46s, 1869 chars)
-00:55:53 - root - DEBUG [20260621_005507_ad4a7b] - Tool web_search completed in 0.46s
-00:55:53 - root - DEBUG [20260621_005507_ad4a7b] - Tool result (1869 chars): {
+18:03:01 - tools.web_tools - INFO [20260623_180239_7b9b7a] - Extracting content from 3 URL(s)
+18:03:01 - agent.tool_executor - WARNING [20260623_180239_7b9b7a] - Tool web_extract returned error (0.08s): {"success": false, "error": "SearXNG is a search-only backend and cannot extract URL content. Set web.extract_backend to firecrawl, tavily, exa, or parallel."}
+
+[Tool loop warning: same_tool_failure_warning; count=3; web_extract has failed 3 times this turn. This looks like a loop. Do not switch to text-only replies; keep using tools, but diagnose before retrying. First inspect the latest error/output and verify your assumptions. Try different arguments, a narrower query/path, an absolute path when relevant, or a different tool that can make progress. If the blocker is external, report the blocker after one diagnostic attempt instead of repeating the same failing path.]
+18:03:01 - root - DEBUG [20260623_180239_7b9b7a] - Tool web_extract completed in 0.08s
+18:03:01 - root - DEBUG [20260623_180239_7b9b7a] - Tool result (678 chars): {"success": false, "error": "SearXNG is a search-only backend and cannot extract URL content. Set web.extract_backend to firecrawl, tavily, exa, or parallel."}
+
+[Tool loop warning: same_tool_failure_warning; count=3; web_extract has failed 3 times this turn. This looks like a loop. Do not switch to text-only replies; keep using tools, but diagnose before retrying. First inspect the latest error/output and verify your assumptions. Try different arguments, a narrower query/path, an absolute path when relevant, or a different tool that can make progress. If the blocker is external, report the blocker after one diagnostic attempt instead of repeating the same failing path.]
+18:03:01 - root - DEBUG [20260623_180239_7b9b7a] - API Request - Model: qwen3.5-9b, Messages: 11, Tools: 19
+18:03:01 - root - DEBUG [20260623_180239_7b9b7a] - Last message role: tool
+18:03:01 - root - DEBUG [20260623_180239_7b9b7a] - Total message size: ~5,653 tokens
+18:03:01 - agent.chat_completion_helpers - DEBUG [20260623_180239_7b9b7a] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
+18:03:01 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
+18:03:01 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-9 (_call):133396986590912 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:03:02 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-9 (_call):133396986590912 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:03:02 - root - DEBUG [20260623_180239_7b9b7a] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=79, prompt_tokens=17038, total_tokens=17117, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=33, rejected_prediction_tokens=None), prompt_tokens_details=None)
+18:03:02 - agent.conversation_loop - INFO [20260623_180239_7b9b7a] - API call #6: model=qwen3.5-9b provider=lmstudio in=17038 out=79 total=17117 latency=1.1s
+18:03:02 - root - DEBUG [20260623_180239_7b9b7a] - Token usage: prompt=17,038, completion=79, total=17,117
+18:03:02 - root - DEBUG [20260623_180239_7b9b7a] - Tool call: web_search with args: {"query":"DeepSeek R1 reasoning model MIT license benchmark performance math coding GPQA 2025"}...
+18:03:02 - root - DEBUG [20260623_180239_7b9b7a] - Captured reasoning (186 chars): Since web_extract keeps failing due to SearXNG backend issues, I need to search for more specific information about individual model capabilities and benchmarks using different queries.
+
+18:03:02 - tools.web_tools - INFO [20260623_180239_7b9b7a] - Web search via searxng: 'DeepSeek R1 reasoning model MIT license benchmark performance math coding GPQA 2025' (limit: 5)
+18:03:03 - plugins.web.searxng.provider - INFO [20260623_180239_7b9b7a] - SearXNG search 'DeepSeek R1 reasoning model MIT license benchmark performance math coding GPQA 2025': 5 results (from 10 raw, limit 5)
+18:03:03 - agent.tool_executor - INFO [20260623_180239_7b9b7a] - tool web_search completed (0.99s, 1935 chars)
+18:03:03 - root - DEBUG [20260623_180239_7b9b7a] - Tool web_search completed in 0.99s
+18:03:03 - root - DEBUG [20260623_180239_7b9b7a] - Tool result (1935 chars): {
+  "success": true,
+  "data": {
+    "web": [
+      {
+        "title": "DeepSeek releases R1-0528 open-source AI model ... - Facebook",
+        "url": "https://www.facebook.com/groups/DeepNetGroup/posts/2498200677239466/",
+        "description": "DeepSeek Releases R1-0528: An Open-Source-Weights Reasoning AI Model Delivering Enhanced Math and Code Performance with Single-GPU Efficiency 🚀 DeepSeek...",
+        "position": 1
+      },
+      {
+        "title": "deepseek-ai/DeepSeek-R1 - Hugging Face",
+        "url": "https://huggingface.co/deepseek-ai/DeepSeek-R1",
+        "description": "22 Jan 2025 · DeepSeek-R1 achieves performance comparable to OpenAI-o1 across math, code, and reasoning tasks. To support the research community, we have open ...",
+        "position": 2
+      },
+      {
+        "title": "DeepSeek Reasoning for MLPerf Inference v5.1 - MLCommons",
+        "url": "https://mlcommons.org/2025/09/deepseek-inference-5-1/",
+        "description": "9 Sep 2025 · The DS-R1 benchmark employs task-specific accuracy metrics to evaluate performance across the dataset. Exact match to ground truth is used for ...",
+        "position": 3
+      },
+      {
+        "title": "DeepSeek-R1 incentivizes reasoning in LLMs through reinforcement ...",
+        "url": "https://www.nature.com/articles/s41586-025-09422-z",
+        "description": "17 Sep 2025 · The proposed RL framework facilitates the emergent development of advanced reasoning patterns, such as self-reflection, verification and dynamic ...",
+        "position": 4
+      },
+      {
+        "title": "DeepSeek-R1 Overview: Features, Capabilities, Parameters",
+        "url": "https://fireworks.ai/blog/deepseek-r1-deepdive",
+        "description": "24 Jan 2025 · DeepSeek R1 aims to make advanced reasoning, problem-solving, and real-time decision-making more accessible to researchers and developers across the globe.",
+        "position": 5
+      }
+    ]
+  }
+}
+18:03:03 - root - DEBUG [20260623_180239_7b9b7a] - API Request - Model: qwen3.5-9b, Messages: 13, Tools: 19
+18:03:03 - root - DEBUG [20260623_180239_7b9b7a] - Last message role: tool
+18:03:03 - root - DEBUG [20260623_180239_7b9b7a] - Total message size: ~6,382 tokens
+18:03:03 - agent.chat_completion_helpers - DEBUG [20260623_180239_7b9b7a] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
+18:03:03 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
+18:03:03 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-10 (_call):133396986590912 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:03:04 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-10 (_call):133396986590912 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:03:04 - root - DEBUG [20260623_180239_7b9b7a] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=70, prompt_tokens=17760, total_tokens=17830, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=23, rejected_prediction_tokens=None), prompt_tokens_details=None)
+18:03:04 - agent.conversation_loop - INFO [20260623_180239_7b9b7a] - API call #7: model=qwen3.5-9b provider=lmstudio in=17760 out=70 total=17830 latency=1.1s
+18:03:04 - root - DEBUG [20260623_180239_7b9b7a] - Token usage: prompt=17,760, completion=70, total=17,830
+18:03:04 - root - DEBUG [20260623_180239_7b9b7a] - Tool call: web_search with args: {"query":"Claude Opus 4.6 benchmarks GPQA coding reasoning leaderboard April June 2026"}...
+18:03:04 - root - DEBUG [20260623_180239_7b9b7a] - Captured reasoning (117 chars): Let me extract detailed content from Hugging Face's DeepSeek-R1 page which should have comprehensive benchmark data.
+
+18:03:04 - tools.web_tools - INFO [20260623_180239_7b9b7a] - Web search via searxng: 'Claude Opus 4.6 benchmarks GPQA coding reasoning leaderboard April June 2026' (limit: 5)
+18:03:05 - plugins.web.searxng.provider - INFO [20260623_180239_7b9b7a] - SearXNG search 'Claude Opus 4.6 benchmarks GPQA coding reasoning leaderboard April June 2026': 5 results (from 10 raw, limit 5)
+18:03:05 - agent.tool_executor - INFO [20260623_180239_7b9b7a] - tool web_search completed (0.55s, 1887 chars)
+18:03:05 - root - DEBUG [20260623_180239_7b9b7a] - Tool web_search completed in 0.55s
+18:03:05 - root - DEBUG [20260623_180239_7b9b7a] - Tool result (1887 chars): {
+  "success": true,
+  "data": {
+    "web": [
+      {
+        "title": "Claude Benchmarks (2026): Fable 5 Hits 95% SWE-bench Verified ...",
+        "url": "https://www.morphllm.com/claude-benchmarks",
+        "description": "Sources: SEAL public leaderboard and private leaderboard, June 9, 2026. Scaffolding moves scores more than model choice. The same Opus 4.6 scores 51.9% on ...",
+        "position": 1
+      },
+      {
+        "title": "AI Model Benchmarks Jun 2026 | Compare GPT-5.5, Claude Opus ...",
+        "url": "https://lmcouncil.ai/benchmarks",
+        "description": "14 Jun 2026 · Comprehensive AI model benchmarks from Epoch AI and Scale AI. Compare GPT-5.5, Claude Opus, Gemini 3, Grok 4, and 30+ frontier models across ...",
+        "position": 2
+      },
+      {
+        "title": "GPQA Leaderboard 2026 - Compare AI Model Scores - Price Per Token",
+        "url": "https://pricepertoken.com/leaderboards/benchmark/gpqa",
+        "description": "As of June 21, 2026, the top-scoring model on GPQA is Gemini 3.1 Pro ... Claude Opus 4.6. $5.000. $25.000. 84.0. Try · K. Kimi · Kimi K2 0711. $0.550. $2.200.",
+        "position": 3
+      },
+      {
+        "title": "March 2026 AI Leaderboard: GPT-5.4 vs Claude 4.6 vs Gemini 3.1",
+        "url": "https://www.mangomindbd.com/blog/march-2026-ai-benchmarks",
+        "description": "8 Mar 2026 · Complete March 2026 AI benchmark results. Ahmed Sabit tests GPT-5.4, Claude 4.6, and Gemini 3.1 across 5 core reasoning suites.",
+        "position": 4
+      },
+      {
+        "title": "LLM Leaderboard 2026: Best AI Models Benchmark & Ranking",
+        "url": "https://www.clickrank.ai/llm-leaderboard/",
+        "description": "9 Mei 2026 · Claude Opus 4.6 wins on coding and long-context tasks. Gemini 3.1 Pro wins on cost efficiency at the frontier level. Each model leads a ...",
+        "position": 5
+      }
+    ]
+  }
+}
+18:03:05 - root - DEBUG [20260623_180239_7b9b7a] - API Request - Model: qwen3.5-9b, Messages: 15, Tools: 19
+18:03:05 - root - DEBUG [20260623_180239_7b9b7a] - Last message role: tool
+18:03:05 - root - DEBUG [20260623_180239_7b9b7a] - Total message size: ~7,080 tokens
+18:03:05 - agent.chat_completion_helpers - DEBUG [20260623_180239_7b9b7a] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
+18:03:05 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
+18:03:05 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-11 (_call):133396986590912 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:03:06 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-11 (_call):133396986590912 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:03:06 - root - DEBUG [20260623_180239_7b9b7a] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=61, prompt_tokens=18568, total_tokens=18629, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=18, rejected_prediction_tokens=None), prompt_tokens_details=None)
+18:03:06 - agent.conversation_loop - INFO [20260623_180239_7b9b7a] - API call #8: model=qwen3.5-9b provider=lmstudio in=18568 out=61 total=18629 latency=1.1s
+18:03:06 - root - DEBUG [20260623_180239_7b9b7a] - Token usage: prompt=18,568, completion=61, total=18,629
+18:03:06 - root - DEBUG [20260623_180239_7b9b7a] - Tool call: web_search with args: {"query":"Mistral 3 model architecture 41 billion active parameters benchmarks coding reasoning"}...
+18:03:06 - root - DEBUG [20260623_180239_7b9b7a] - Captured reasoning (111 chars): Let me extract detailed benchmark data from these sources to compile comprehensive information for the report.
+
+18:03:06 - tools.web_tools - INFO [20260623_180239_7b9b7a] - Web search via searxng: 'Mistral 3 model architecture 41 billion active parameters benchmarks coding reasoning' (limit: 5)
+18:03:07 - plugins.web.searxng.provider - INFO [20260623_180239_7b9b7a] - SearXNG search 'Mistral 3 model architecture 41 billion active parameters benchmarks coding reasoning': 5 results (from 10 raw, limit 5)
+18:03:07 - agent.tool_executor - INFO [20260623_180239_7b9b7a] - tool web_search completed (0.98s, 2036 chars)
+18:03:07 - root - DEBUG [20260623_180239_7b9b7a] - Tool web_search completed in 0.98s
+18:03:07 - root - DEBUG [20260623_180239_7b9b7a] - Tool result (2036 chars): {
+  "success": true,
+  "data": {
+    "web": [
+      {
+        "title": "Introducing Mistral 3 | Mistral AI",
+        "url": "https://mistral.ai/news/mistral-3/",
+        "description": "2 Des 2025 · Mistral 3 includes three state-of-the-art small, dense models (14B, 8B, and 3B) and Mistral Large 3 – our most capable model to date – a sparse ...",
+        "position": 1
+      },
+      {
+        "title": "Mistral Large 3: An Open-Source MoE LLM Explained - IntuitionLabs",
+        "url": "https://intuitionlabs.ai/articles/mistral-large-3-moe-llm-explained",
+        "description": "12 Apr 2026 · An in-depth guide to Mistral Large 3, the open-source MoE LLM. Learn about its architecture, 675B parameters, 256k context window, benchmark ...",
+        "position": 2
+      },
+      {
+        "title": "P.E: 3.4 — Why Mistral Is the Future of Open-Weight Intelligence - Medium",
+        "url": "https://medium.com/@chiwai.kiriba/why-mistral-is-the-future-of-open-weight-intelligence-5fb967963643",
+        "description": "24 Feb 2026 · It's a sparse Mixture-of-Experts (MoE) model with 675 billion total parameters, but only 41 billion parameters are active during inference, ...",
+        "position": 3
+      },
+      {
+        "title": "Mistral 3: Europe's Answer to DeepSeek or Too Little, Too Late?",
+        "url": "https://www.youtube.com/watch?v=WZzQNNdZ7vk",
+        "description": "3 Des 2025 · ... 3 Models on Hugging Face 02:37 Mistral Large 3 Benchmarks 03:23 Mistral 3 Large on LmArena 04:13 Ministral 3 Benchmarks 04:51 Smaller Model",
+        "position": 4
+      },
+      {
+        "title": "Mistral Large 3: 41B Parameters Explained | PDF | Artificial Intelligence",
+        "url": "https://www.scribd.com/document/967220539/Mistral-Large-3-How-41B-Active-Parameters-Deliver-675B-Intelligence",
+        "description": "By activating only 41 billion active parameters per token, this Open-Source multimodal foundation model delivers high-throughput reasoning. We analyze how ...",
+        "position": 5
+      }
+    ]
+  }
+}
+18:03:07 - root - DEBUG [20260623_180239_7b9b7a] - API Request - Model: qwen3.5-9b, Messages: 17, Tools: 19
+18:03:07 - root - DEBUG [20260623_180239_7b9b7a] - Last message role: tool
+18:03:07 - root - DEBUG [20260623_180239_7b9b7a] - Total message size: ~7,817 tokens
+18:03:07 - agent.chat_completion_helpers - DEBUG [20260623_180239_7b9b7a] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
+18:03:07 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
+18:03:07 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-12 (_call):133396986590912 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:03:08 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-12 (_call):133396986590912 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:03:08 - root - DEBUG [20260623_180239_7b9b7a] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=66, prompt_tokens=19375, total_tokens=19441, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=20, rejected_prediction_tokens=None), prompt_tokens_details=None)
+18:03:08 - agent.conversation_loop - INFO [20260623_180239_7b9b7a] - API call #9: model=qwen3.5-9b provider=lmstudio in=19375 out=66 total=19441 latency=1.1s
+18:03:08 - root - DEBUG [20260623_180239_7b9b7a] - Token usage: prompt=19,375, completion=66, total=19,441
+18:03:08 - root - DEBUG [20260623_180239_7b9b7a] - Tool call: web_search with args: {"query":"Gemini 3.1 Pro benchmarks reasoning coding math leaderboard April June 2026"}...
+18:03:08 - root - DEBUG [20260623_180239_7b9b7a] - Captured reasoning (109 chars): Let me search for more specific benchmark data and comparison tables to get concrete numbers for the report.
+
+18:03:08 - tools.web_tools - INFO [20260623_180239_7b9b7a] - Web search via searxng: 'Gemini 3.1 Pro benchmarks reasoning coding math leaderboard April June 2026' (limit: 5)
+18:03:09 - plugins.web.searxng.provider - INFO [20260623_180239_7b9b7a] - SearXNG search 'Gemini 3.1 Pro benchmarks reasoning coding math leaderboard April June 2026': 5 results (from 10 raw, limit 5)
+18:03:09 - agent.tool_executor - INFO [20260623_180239_7b9b7a] - tool web_search completed (0.94s, 1982 chars)
+18:03:09 - root - DEBUG [20260623_180239_7b9b7a] - Tool web_search completed in 0.94s
+18:03:09 - root - DEBUG [20260623_180239_7b9b7a] - Tool result (1982 chars): {
+  "success": true,
+  "data": {
+    "web": [
+      {
+        "title": "Gemini 3.1 Pro: A smarter model for your most complex tasks",
+        "url": "https://blog.google/innovation-and-ai/models-and-research/gemini-models/gemini-3-1-pro/",
+        "description": "19 Feb 2026 · This new model shows improved reasoning, scoring significantly higher on complex problem-solving benchmarks. ... Gemini 3 series, 3.1 Pro ...",
+        "position": 1
+      },
+      {
+        "title": "Gemini 3.1 Pro Coding Benchmarks 2026 - Git AutoReview",
+        "url": "https://gitautoreview.com/blog/gemini-3-pro-code-review",
+        "description": "It leads LiveCodeBench Pro (2,439 Elo) and WebDev Arena (1,487 Elo), making it particularly strong for frontend reviews. SWE-bench score of 76.2% sits within a ...",
+        "position": 2
+      },
+      {
+        "title": "AI Model Benchmarks Jun 2026 | Compare GPT-5.5, Claude Opus ...",
+        "url": "https://lmcouncil.ai/benchmarks",
+        "description": "14 Jun 2026 · 1, Gemini 3.1 Pro Preview (high thinking), 46.4% ±2.0 ; 2, GPT-5.4 Pro, 44.3% ±2.0 ; 3, Muse Spark, 40.6% ±1.9 ; 4, Gemini 3 Pro Preview, 37.5% ± ...",
+        "position": 3
+      },
+      {
+        "title": "Gemini 3.1 Pro vs Claude Opus 4.6: Who Actually Leads in April 2026?",
+        "url": "https://www.aimagicx.com/blog/gemini-3-1-pro-vs-claude-opus-4-6-benchmark-april-2026",
+        "description": "17 Apr 2026 · Claude wins on coding (especially realistic SWE-bench), GPQA, and agent tasks. Gemini wins on multimodal, math, MMLU, and long context. Both are ...",
+        "position": 4
+      },
+      {
+        "title": "Gemini 3.1 Pro - Model Card - Google DeepMind",
+        "url": "https://deepmind.google/models/model-cards/gemini-3-1-pro/",
+        "description": "19 Feb 2026 · Gemini 3.1 Pro is the next iteration in the Gemini 3 series of models, a suite of highly capable, natively multimodal reasoning models.",
+        "position": 5
+      }
+    ]
+  }
+}
+18:03:09 - root - DEBUG [20260623_180239_7b9b7a] - API Request - Model: qwen3.5-9b, Messages: 19, Tools: 19
+18:03:09 - root - DEBUG [20260623_180239_7b9b7a] - Last message role: tool
+18:03:09 - root - DEBUG [20260623_180239_7b9b7a] - Total message size: ~8,537 tokens
+18:03:09 - agent.chat_completion_helpers - DEBUG [20260623_180239_7b9b7a] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
+18:03:09 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
+18:03:09 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-13 (_call):133396986590912 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:03:10 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-13 (_call):133396986590912 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:03:10 - root - DEBUG [20260623_180239_7b9b7a] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=76, prompt_tokens=20190, total_tokens=20266, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=20, rejected_prediction_tokens=None), prompt_tokens_details=None)
+18:03:10 - agent.conversation_loop - INFO [20260623_180239_7b9b7a] - API call #10: model=qwen3.5-9b provider=lmstudio in=20190 out=76 total=20266 latency=1.3s
+18:03:10 - root - DEBUG [20260623_180239_7b9b7a] - Token usage: prompt=20,190, completion=76, total=20,266
+18:03:10 - root - DEBUG [20260623_180239_7b9b7a] - Tool call: web_search with args: {"query":"GPT-5.4 vs GPT-5.5 benchmarks reasoning coding math MMLU GPQA leaderboard June 2026"}...
+18:03:10 - root - DEBUG [20260623_180239_7b9b7a] - Captured reasoning (109 chars): Let me search for more specific benchmark data and comparison tables to get concrete numbers for the report.
+
+18:03:10 - tools.web_tools - INFO [20260623_180239_7b9b7a] - Web search via searxng: 'GPT-5.4 vs GPT-5.5 benchmarks reasoning coding math MMLU GPQA leaderboard June 2026' (limit: 5)
+18:03:11 - plugins.web.searxng.provider - INFO [20260623_180239_7b9b7a] - SearXNG search 'GPT-5.4 vs GPT-5.5 benchmarks reasoning coding math MMLU GPQA leaderboard June 2026': 5 results (from 10 raw, limit 5)
+18:03:11 - agent.tool_executor - INFO [20260623_180239_7b9b7a] - tool web_search completed (1.34s, 1790 chars)
+18:03:11 - root - DEBUG [20260623_180239_7b9b7a] - Tool web_search completed in 1.34s
+18:03:11 - root - DEBUG [20260623_180239_7b9b7a] - Tool result (1790 chars): {
+  "success": true,
+  "data": {
+    "web": [
+      {
+        "title": "AI Model Benchmarks Jun 2026 | Compare GPT-5.5, Claude Opus ...",
+        "url": "https://lmcouncil.ai/benchmarks",
+        "description": "14 Jun 2026 · Comprehensive AI model benchmarks from Epoch AI and Scale AI. Compare GPT-5.5, Claude Opus, Gemini 3, Grok 4, and 30+ frontier models across ...",
+        "position": 1
+      },
+      {
+        "title": "GPQA Leaderboard 2026 - Compare AI Model Scores - Price Per Token",
+        "url": "https://pricepertoken.com/leaderboards/benchmark/gpqa",
+        "description": "Compare AI model performance on GPQA benchmark. See top LLM scores and rankings.",
+        "position": 2
+      },
+      {
+        "title": "GPQA Diamond Benchmark Leaderboard - Artificial Analysis",
+        "url": "https://artificialanalysis.ai/evaluations/gpqa-diamond",
+        "description": "Compare AI model performance on GPQA Diamond Benchmark Leaderboard. The most challenging 198 questions from GPQA, where PhD experts achieve 65% accuracy but ...",
+        "position": 3
+      },
+      {
+        "title": "Knowledge Benchmarks 2026: GPQA, HLE, FrontierScience",
+        "url": "https://benchlm.ai/knowledge",
+        "description": "June 2026, Claude Opus 4.7 (Adaptive) leads the provisional knowledge leaderboard with a weighted score of 99.6%, followed by Claude Opus 4.8 (98.7%) and GPT- ...",
+        "position": 4
+      },
+      {
+        "title": "GPT-5.5: The Complete Guide (2026) | Articles - O-mega.ai",
+        "url": "https://o-mega.ai/articles/gpt-5-5-the-complete-guide-2026",
+        "description": "24 Apr 2026 · GPT-5.5 vs every major AI model: benchmarks, pricing, and which model to use for your specific workload in 2026.",
+        "position": 5
+      }
+    ]
+  }
+}
+18:03:11 - root - DEBUG [20260623_180239_7b9b7a] - API Request - Model: qwen3.5-9b, Messages: 21, Tools: 19
+18:03:11 - root - DEBUG [20260623_180239_7b9b7a] - Last message role: tool
+18:03:11 - root - DEBUG [20260623_180239_7b9b7a] - Total message size: ~9,210 tokens
+18:03:11 - agent.chat_completion_helpers - DEBUG [20260623_180239_7b9b7a] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
+18:03:11 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
+18:03:11 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-14 (_call):133396986590912 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:03:12 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-14 (_call):133396986590912 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:03:12 - root - DEBUG [20260623_180239_7b9b7a] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=78, prompt_tokens=20899, total_tokens=20977, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=29, rejected_prediction_tokens=None), prompt_tokens_details=None)
+18:03:12 - agent.conversation_loop - INFO [20260623_180239_7b9b7a] - API call #11: model=qwen3.5-9b provider=lmstudio in=20899 out=78 total=20977 latency=1.2s
+18:03:12 - root - DEBUG [20260623_180239_7b9b7a] - Token usage: prompt=20,899, completion=78, total=20,977
+18:03:12 - root - DEBUG [20260623_180239_7b9b7a] - Tool call: web_search with args: {"query":"MiniMax M2 agent model benchmarks autonomous reasoning coding 2025 comparison Qwen GLM Llama"}...
+18:03:12 - root - DEBUG [20260623_180239_7b9b7a] - Captured reasoning (161 chars): Let me search for more detailed information about MiniMax M2's agentic capabilities and other key models mentioned earlier to complete the comprehensive report.
+
+18:03:12 - tools.web_tools - INFO [20260623_180239_7b9b7a] - Web search via searxng: 'MiniMax M2 agent model benchmarks autonomous reasoning coding 2025 comparison Qwen GLM Llama' (limit: 5)
+18:03:14 - plugins.web.searxng.provider - INFO [20260623_180239_7b9b7a] - SearXNG search 'MiniMax M2 agent model benchmarks autonomous reasoning coding 2025 comparison Qwen GLM Llama': 5 results (from 10 raw, limit 5)
+18:03:14 - agent.tool_executor - INFO [20260623_180239_7b9b7a] - tool web_search completed (1.28s, 1965 chars)
+18:03:14 - root - DEBUG [20260623_180239_7b9b7a] - Tool web_search completed in 1.28s
+18:03:14 - root - DEBUG [20260623_180239_7b9b7a] - Tool result (1965 chars): {
+  "success": true,
+  "data": {
+    "web": [
+      {
+        "title": "Best Open-Source & Open-Weight AI Coding Models in 2026 - Kilo Code",
+        "url": "https://kilo.ai/open-source-models",
+        "description": "1 Jun 2026 · MiniMax-M2.5 is a SOTA large language model designed for real-world productivity. Trained in a diverse range of complex real-world digital ...",
+        "position": 1
+      },
+      {
+        "title": "Open Source AI vs Paid AI for Coding: The Ultimate 2026 Comparison Guide",
+        "url": "https://aarambhdevhub.medium.com/open-source-ai-vs-paid-ai-for-coding-the-ultimate-2026-comparison-guide-ab2ba6813c1d",
+        "description": "15 Jan 2026 · Chinese AI labs released model after model — DeepSeek V3.2, Kimi K2 Thinking, Qwen3-Coder, GLM-4.7, MiniMax-M2.1 — each one matching or ...",
+        "position": 2
+      },
+      {
+        "title": "Minimax m3 model achieves top performance on coding benchmarks",
+        "url": "https://www.facebook.com/groups/AIUGM/posts/4461034940844133/",
+        "description": "4 Jun 2026 · Minimax M3 -M3 achieves top-tier performance on coding and agentic benchmarks, with autonomous task decomposition, tool invocation, and multi- ...",
+        "position": 3
+      },
+      {
+        "title": "Which LLM to Choose in 2026? Selection Guide + Benchmarks",
+        "url": "https://iternal.ai/llm-selection-guide",
+        "description": "29 Mar 2026 · Choosing the right Large Language Model in 2026 depends on balancing four hard constraints — data privacy, latency, cost, and required ...",
+        "position": 4
+      },
+      {
+        "title": "Best MiniMax Alternative for AI Agents, Coding, and Automation",
+        "url": "https://myclaw.ai/blog/minimax-alternative",
+        "description": "1 Jun 2026 · Benchmark charts help, but agentic coding quality shows up in real repos. For a deeper model-specific comparison, see MiniMax M2 vs M3.",
+        "position": 5
+      }
+    ]
+  }
+}
+18:03:14 - root - DEBUG [20260623_180239_7b9b7a] - API Request - Model: qwen3.5-9b, Messages: 23, Tools: 19
+18:03:14 - root - DEBUG [20260623_180239_7b9b7a] - Last message role: tool
+18:03:14 - root - DEBUG [20260623_180239_7b9b7a] - Total message size: ~9,943 tokens
+18:03:14 - agent.chat_completion_helpers - DEBUG [20260623_180239_7b9b7a] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
+18:03:14 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
+18:03:14 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-15 (_call):133396986590912 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:03:15 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-15 (_call):133396986590912 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:03:15 - root - DEBUG [20260623_180239_7b9b7a] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=69, prompt_tokens=21647, total_tokens=21716, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=21, rejected_prediction_tokens=None), prompt_tokens_details=None)
+18:03:15 - agent.conversation_loop - INFO [20260623_180239_7b9b7a] - API call #12: model=qwen3.5-9b provider=lmstudio in=21647 out=69 total=21716 latency=1.1s
+18:03:15 - root - DEBUG [20260623_180239_7b9b7a] - Token usage: prompt=21,647, completion=69, total=21,716
+18:03:15 - root - DEBUG [20260623_180239_7b9b7a] - Tool call: web_search with args: {"query":"SWE-bench leaderboard 2026 Claude Opus GPT Gemini MiniMax comparison coding benchmarks"}...
+18:03:15 - root - DEBUG [20260623_180239_7b9b7a] - Captured reasoning (138 chars): Let me search for more specific benchmark data and detailed comparisons to compile comprehensive information about these frontier models.
+
+18:03:15 - tools.web_tools - INFO [20260623_180239_7b9b7a] - Web search via searxng: 'SWE-bench leaderboard 2026 Claude Opus GPT Gemini MiniMax comparison coding benchmarks' (limit: 5)
+18:03:16 - plugins.web.searxng.provider - INFO [20260623_180239_7b9b7a] - SearXNG search 'SWE-bench leaderboard 2026 Claude Opus GPT Gemini MiniMax comparison coding benchmarks': 5 results (from 10 raw, limit 5)
+18:03:16 - agent.tool_executor - INFO [20260623_180239_7b9b7a] - tool web_search completed (0.86s, 1920 chars)
+18:03:16 - root - DEBUG [20260623_180239_7b9b7a] - Tool web_search completed in 0.86s
+18:03:16 - root - DEBUG [20260623_180239_7b9b7a] - Tool result (1920 chars): {
   "success": true,
   "data": {
     "web": [
       {
         "title": "SWE-bench Leaderboards",
         "url": "https://www.swebench.com/",
-        "description": "mini-SWE-agent scores up to 74% on SWE-bench Verified in 100 lines of Python code. ... Claude 4.5 Opus (high reasoning). 76.80, $0.75. 2026-02-17, 2.0.0.",
+        "description": "SWE-bench Logo Official Leaderboards ;. MiniMax M2.5 (high reasoning). 75.80 ;. Claude Opus 4.6. 75.60 ;. GPT-5-2 Codex. 72.80 ;. GLM-5 (high reasoning).",
         "position": 1
-      },
-      {
-        "title": "AI Model Leaderboard 2026: GPT-5, Claude, Gemini, Llama Ranked",
-        "url": "https://localaimaster.com/tools/ai-model-leaderboard",
-        "description": "9 Mei 2026 · The 30 most capable AI models of 2026, ranked by verified benchmarks that matter for production work: SWE-Bench Verified (real coding), MMLU-Pro ...",
-        "position": 2
       },
       {
         "title": "SWE-bench Pro Leaderboard (2026): Every Model Score, Claude Fable 5 ...",
         "url": "https://www.morphllm.com/swe-bench-pro",
         "description": "9 Jun 2026 · Full SWE-bench Pro leaderboard, June 9, 2026. Scale SEAL standardized: GPT-5.4 59.1%, Opus 4.6 51.9%. Vendor-reported: Claude Fable 5 80.3%, ...",
-        "position": 3
-      },
-      {
-        "title": "AI Model Benchmarks Jun 2026 | Compare GPT-5.5, Claude Opus ...",
-        "url": "https://lmcouncil.ai/benchmarks",
-        "description": "7 hari yang lalu · Comprehensive AI model benchmarks from Epoch AI and Scale AI. Compare GPT-5.5, Claude Opus, Gemini 3, Grok 4, and 30+ frontier models across ...",
-        "position": 4
+        "position": 2
       },
       {
         "title": "SWE-bench Lite Leaderboard 2026 - Compare AI Model Scores",
         "url": "https://pricepertoken.com/leaderboards/benchmark/swe-bench-lite",
-        "description": "As of June 18, 2026, the top-scoring model on SWE-bench Lite is Claude Opus 4.6 at 62.7%, followed by Claude Opus 4.6 at 62.7% and MiniMax M2. ... As of June 18, ...",
+        "description": "As of June 21, 2026, the top-scoring model on SWE-bench Lite is Claude Opus 4.6 at 62.7%, followed by Claude Opus 4.6 at 62.7% and MiniMax M2.5 at 56.3%. 51 ...",
+        "position": 3
+      },
+      {
+        "title": "SWE-bench 2026: Claude Opus 4.6 vs GPT-5.4 Coding Benchmarks",
+        "url": "https://evolink.ai/blog/swe-bench-verified-2026-claude-vs-gpt",
+        "description": "24 Mar 2026 · SWE-bench Verified 2026 scores — Claude Opus 4.6 (80.8%) vs GPT-5.4 vs GPT-5.2 (80.0%). What the benchmarks prove and don't prove for ...",
+        "position": 4
+      },
+      {
+        "title": "SWE-rebench Jan 2026: GLM-5, MiniMax M2.5, Qwen3-Coder-Next ...",
+        "url": "https://www.reddit.com/r/LocalLLaMA/comments/1r3weq3/swerebench_jan_2026_glm5_minimax_m25/?tl=en",
+        "description": "13 Feb 2026 · Claude Code (Opus 4.6) leads this snapshot at 52.9% resolved rate and also achieves the highest pass@5 (70.8%). Claude Opus 4.6 and gpt-5.2 ...",
         "position": 5
       }
     ]
   }
 }
-00:55:53 - root - DEBUG [20260621_005507_ad4a7b] - API Request - Model: qwen3.5-9b, Messages: 25, Tools: 19
-00:55:53 - root - DEBUG [20260621_005507_ad4a7b] - Last message role: tool
-00:55:53 - root - DEBUG [20260621_005507_ad4a7b] - Total message size: ~9,318 tokens
-00:55:53 - agent.chat_completion_helpers - DEBUG [20260621_005507_ad4a7b] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
-00:55:53 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
-00:55:53 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-19 (_call):137129662781120 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:55:55 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-19 (_call):137129662781120 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:55:55 - root - DEBUG [20260621_005507_ad4a7b] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=87, prompt_tokens=21219, total_tokens=21306, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=23, rejected_prediction_tokens=None), prompt_tokens_details=None)
-00:55:55 - agent.conversation_loop - INFO [20260621_005507_ad4a7b] - API call #13: model=qwen3.5-9b provider=lmstudio in=21219 out=87 total=21306 latency=1.5s
-00:55:55 - root - DEBUG [20260621_005507_ad4a7b] - Token usage: prompt=21,219, completion=87, total=21,306
-00:55:55 - root - DEBUG [20260621_005507_ad4a7b] - Tool call: web_search with args: {"query":"\"Claude Opus\" \"GPT-5\" \"Gemini Ultra\" MMLU GPQA HumanEval SWE-bench benchmarks June 2026 leaderboard comparison scores"}...
-00:55:55 - root - DEBUG [20260621_005507_ad4a7b] - Captured reasoning (141 chars): I need to continue gathering more detailed benchmark data on top models by searching for specific model comparisons and performance metrics.
+18:03:16 - root - DEBUG [20260623_180239_7b9b7a] - API Request - Model: qwen3.5-9b, Messages: 25, Tools: 19
+18:03:16 - root - DEBUG [20260623_180239_7b9b7a] - Last message role: tool
+18:03:16 - root - DEBUG [20260623_180239_7b9b7a] - Total message size: ~10,658 tokens
+18:03:16 - agent.chat_completion_helpers - DEBUG [20260623_180239_7b9b7a] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
+18:03:16 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
+18:03:16 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-16 (_call):133396986590912 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:03:17 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-16 (_call):133396986590912 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:03:17 - root - DEBUG [20260623_180239_7b9b7a] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=93, prompt_tokens=22537, total_tokens=22630, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=37, rejected_prediction_tokens=None), prompt_tokens_details=None)
+18:03:17 - agent.conversation_loop - INFO [20260623_180239_7b9b7a] - API call #13: model=qwen3.5-9b provider=lmstudio in=22537 out=93 total=22630 latency=1.5s
+18:03:17 - root - DEBUG [20260623_180239_7b9b7a] - Token usage: prompt=22,537, completion=93, total=22,630
+18:03:17 - root - DEBUG [20260623_180239_7b9b7a] - Tool call: web_search with args: {"query":"Qwen 3.5 vs Qwen 3.6 benchmark comparison reasoning coding multilingual 2025 2026"}...
+18:03:17 - root - DEBUG [20260623_180239_7b9b7a] - Captured reasoning (188 chars): Let me search for more specific information about Qwen models, particularly the 3.6 Plus variant mentioned in some benchmarks, to complete my understanding of top-tier open-weight models.
 
-00:55:55 - tools.web_tools - INFO [20260621_005507_ad4a7b] - Web search via searxng: '"Claude Opus" "GPT-5" "Gemini Ultra" MMLU GPQA HumanEval SWE-bench benchmarks June 2026 leaderboard comparison scores' (limit: 5)
-00:55:56 - plugins.web.searxng.provider - INFO [20260621_005507_ad4a7b] - SearXNG search '"Claude Opus" "GPT-5" "Gemini Ultra" MMLU GPQA HumanEval SWE-bench benchmarks June 2026 leaderboard comparison scores': 5 results (from 10 raw, limit 5)
-00:55:56 - agent.tool_executor - INFO [20260621_005507_ad4a7b] - tool web_search completed (1.47s, 2120 chars)
-00:55:56 - root - DEBUG [20260621_005507_ad4a7b] - Tool web_search completed in 1.47s
-00:55:56 - root - DEBUG [20260621_005507_ad4a7b] - Tool result (2120 chars): {
+18:03:17 - tools.web_tools - INFO [20260623_180239_7b9b7a] - Web search via searxng: 'Qwen 3.5 vs Qwen 3.6 benchmark comparison reasoning coding multilingual 2025 2026' (limit: 5)
+18:03:21 - plugins.web.searxng.provider - INFO [20260623_180239_7b9b7a] - SearXNG search 'Qwen 3.5 vs Qwen 3.6 benchmark comparison reasoning coding multilingual 2025 2026': 5 results (from 10 raw, limit 5)
+18:03:21 - agent.tool_executor - INFO [20260623_180239_7b9b7a] - tool web_search completed (3.95s, 1913 chars)
+18:03:21 - root - DEBUG [20260623_180239_7b9b7a] - Tool web_search completed in 3.95s
+18:03:21 - root - DEBUG [20260623_180239_7b9b7a] - Tool result (1913 chars): {
   "success": true,
   "data": {
     "web": [
       {
-        "title": "Jin - Feb 2026 AI Coding Model Performance Review ## MiniMax ...",
-        "url": "https://www.facebook.com/omega6jin/posts/jin-feb-2026-ai-coding-model-performance-review-minimax-25big-improvement-over-m/10164389539236543/",
-        "description": "12 Feb 2026 · It scored 74.5% on SWE-bench Verified, a significant improvement over GPT-5, and achieved 51.3% accuracy on code refactoring tasks, compared to ...",
+        "title": "Qwen: Qwen3.6-Plus: Towards Real World Agents",
+        "url": "https://qwen.ai/blog?id=qwen3.6",
+        "description": "1 Apr 2026 · 6-Plus delivers substantial breakthroughs in complex document understanding, physical world visual analysis, video reasoning, and visual coding.",
         "position": 1
       },
       {
-        "title": "LLMs have achieved gold-medal performance in math competitions ...",
-        "url": "https://www.instagram.com/p/DVzVJSjlLz7/",
-        "description": "12 Mar 2026 · LLM BENCHMARKS — CHEAT SHEET How do we rank AI models? GPT-5 scores ~90% Claude Opus 4.6 leads at 80.8% @techneai_hub · nautilusmag's profile ...",
+        "title": "Gemma 4 vs Qwen 3.6 Plus: Which Open-Weight Model Is ... - MindStudio",
+        "url": "https://www.mindstudio.ai/blog/gemma-4-vs-qwen-3-6-plus-agentic-workflows",
+        "description": "7 Apr 2026 · Qwen 3.6 Plus counters with a 1M token context window, strong multilingual performance, and competitive reasoning benchmarks. But “both are ...",
         "position": 2
       },
       {
-        "title": "[PDF] Shaina Raza1, Ranjan Sapkota2, Manoj Karkee2, and Christos ...",
-        "url": "https://www.techrxiv.org/doi/pdf/10.36227/techrxiv.175735299.97215847",
-        "description": "8 Sep 2025 · ... GPT-5 & Responsible Reasoning Agents GPT-5 (Aug 2025) [67]; OpenAI ... Gemini Ultra [177]). Such entries should be explicitly annotated ...",
+        "title": "Qwen3.6-35B-A3B: Agentic Coding Power, Now Open to All",
+        "url": "https://qwen.ai/blog?id=qwen3.6-35b-a3b",
+        "description": "14 Apr 2026 · Qwen Studio offers comprehensive functionality spanning chatbot, image and video understanding, image generation, document processing, ...",
         "position": 3
       },
       {
-        "title": "Claude has claimed the top position in a major AI benchmark, marking the ...",
-        "url": "https://www.facebook.com/businessbytespk/posts/claude-has-claimed-the-top-position-in-a-major-ai-benchmark-marking-the-first-ti/1016775477520882/",
-        "description": "2 hari yang lalu · ... Gemini Ultra in recent benchmark tests. Claude 3's capabilities in ... Benchmark your actual workload - Recent evaluations show Claude Opus ...",
+        "title": "Qwen3.6 Plus - API Pricing & Benchmarks | OpenRouter",
+        "url": "https://openrouter.ai/qwen/qwen3.6-plus",
+        "description": "Compared to earlier Qwen3-30B releases, this version improves performance across logical reasoning, mathematics, science, coding, and multilingual benchmarks.",
         "position": 4
       },
       {
-        "title": "this CSV link - Epoch AI",
-        "url": "https://epoch.ai/data/large_scale_ai_models.csv",
-        "description": "28 Mar 2024 · ... GPT-5-Chat. The official release further enhances performance in ... Claude Opus 4,\"Language,Multimodal,Vision\",\"Code generation ...",
+        "title": "Gemma 4 and Qwen3.5 on shared benchmarks : r/LocalLLaMA - Reddit",
+        "url": "https://www.reddit.com/r/LocalLLaMA/comments/1saoyj7/gemma_4_and_qwen35_on_shared_benchmarks/",
+        "description": "2 Apr 2026 · But I was impressed about Qwen's results. Qwen 3.5 35B A3B - doing good as well in the similar test, but 27B is definitely a winner.",
         "position": 5
       }
     ]
   }
 }
-00:55:56 - root - DEBUG [20260621_005507_ad4a7b] - API Request - Model: qwen3.5-9b, Messages: 27, Tools: 19
-00:55:56 - root - DEBUG [20260621_005507_ad4a7b] - Last message role: tool
-00:55:56 - root - DEBUG [20260621_005507_ad4a7b] - Total message size: ~10,095 tokens
-00:55:56 - agent.chat_completion_helpers - DEBUG [20260621_005507_ad4a7b] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
-00:55:56 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
-00:55:56 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-20 (_call):137129662781120 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:55:59 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-20 (_call):137129662781120 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:55:59 - root - DEBUG [20260621_005507_ad4a7b] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=192, prompt_tokens=22074, total_tokens=22266, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=29, rejected_prediction_tokens=None), prompt_tokens_details=None)
-00:55:59 - agent.conversation_loop - INFO [20260621_005507_ad4a7b] - API call #14: model=qwen3.5-9b provider=lmstudio in=22074 out=192 total=22266 latency=2.8s
-00:55:59 - root - DEBUG [20260621_005507_ad4a7b] - Token usage: prompt=22,074, completion=192, total=22,266
-00:55:59 - root - DEBUG [20260621_005507_ad4a7b] - Tool call: execute_code with args: {"code":"import subprocess\nimport json\n\n# Try fetching the Epoch AI benchmark data as raw text\ntry:\n    result = subprocess.run(\n        ['python3', '-c', '''\nimport urllib.request\nresponse = ...
-00:55:59 - root - DEBUG [20260621_005507_ad4a7b] - Captured reasoning (152 chars): I found a CSV link to Epoch AI's benchmark data which should contain structured model performance numbers - let me try to access that dataset directly.
+18:03:21 - root - DEBUG [20260623_180239_7b9b7a] - API Request - Model: qwen3.5-9b, Messages: 27, Tools: 19
+18:03:21 - root - DEBUG [20260623_180239_7b9b7a] - Last message role: tool
+18:03:21 - root - DEBUG [20260623_180239_7b9b7a] - Total message size: ~11,382 tokens
+18:03:21 - agent.chat_completion_helpers - DEBUG [20260623_180239_7b9b7a] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
+18:03:21 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
+18:03:21 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-17 (_call):133396986590912 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:03:22 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-17 (_call):133396986590912 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:03:22 - root - DEBUG [20260623_180239_7b9b7a] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=71, prompt_tokens=23294, total_tokens=23365, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=21, rejected_prediction_tokens=None), prompt_tokens_details=None)
+18:03:22 - agent.conversation_loop - INFO [20260623_180239_7b9b7a] - API call #14: model=qwen3.5-9b provider=lmstudio in=23294 out=71 total=23365 latency=1.2s
+18:03:22 - root - DEBUG [20260623_180239_7b9b7a] - Token usage: prompt=23,294, completion=71, total=23,365
+18:03:22 - root - DEBUG [20260623_180239_7b9b7a] - Tool call: web_search with args: {"query":"GLM-4.7 vs GLM-5 benchmarks reasoning coding math multilingual 2026 comparison"}...
+18:03:22 - root - DEBUG [20260623_180239_7b9b7a] - Captured reasoning (138 chars): Let me search for more specific benchmark data and detailed comparisons to compile comprehensive information about these frontier models.
 
-00:55:59 - tools.code_execution_tool - DEBUG [20260621_005507_ad4a7b] - execute_code: dropped 7 non-allowlisted HERMES_* var(s) from the sandbox child env (HERMES_IGNORE_RULES, HERMES_IGNORE_USER_CONFIG, HERMES_INTERACTIVE, HERMES_KANBAN_BOARD, HERMES_QUIET, HERMES_SESSION_ID, HERMES_YOLO_MODE). This is intentional hardening (#27303); if a sandbox script legitimately needs one, declare it via env_passthrough in the skill/config so it passes by explicit opt-in.
-00:56:02 - agent.tool_executor - INFO [20260621_005507_ad4a7b] - tool execute_code completed (3.21s, 85 chars)
-00:56:02 - root - DEBUG [20260621_005507_ad4a7b] - Tool execute_code completed in 3.21s
-00:56:02 - root - DEBUG [20260621_005507_ad4a7b] - Tool result (85 chars): {"status": "success", "output": "\n", "tool_calls_made": 0, "duration_seconds": 0.21}
-00:56:02 - root - DEBUG [20260621_005507_ad4a7b] - API Request - Model: qwen3.5-9b, Messages: 29, Tools: 19
-00:56:02 - root - DEBUG [20260621_005507_ad4a7b] - Last message role: tool
-00:56:02 - root - DEBUG [20260621_005507_ad4a7b] - Total message size: ~10,383 tokens
-00:56:02 - agent.chat_completion_helpers - DEBUG [20260621_005507_ad4a7b] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
-00:56:02 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
-00:56:02 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-24 (_call):137129438996160 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:56:04 - tools.code_execution_tool - DEBUG - RPC listener socket timeout
-00:56:50 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-24 (_call):137129438996160 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:56:50 - root - DEBUG [20260621_005507_ad4a7b] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=3616, prompt_tokens=22312, total_tokens=25928, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=108, rejected_prediction_tokens=None), prompt_tokens_details=None)
-00:56:50 - agent.conversation_loop - INFO [20260621_005507_ad4a7b] - API call #15: model=qwen3.5-9b provider=lmstudio in=22312 out=3616 total=25928 latency=48.0s
-00:56:50 - root - DEBUG [20260621_005507_ad4a7b] - Token usage: prompt=22,312, completion=3,616, total=25,928
-00:56:50 - root - DEBUG [20260621_005507_ad4a7b] - Tool call: write_file with args: {"path":"/workspace/experiment-2/report.md","content":"# Frontier Large Language Models Report - June 2026\n\n## Executive Summary\n\nThis report analyzes the current state of frontier large language ...
-00:56:50 - root - DEBUG [20260621_005507_ad4a7b] - Captured reasoning (473 chars): Since I couldn't fetch the Epoch AI data directly and have gathered enough search result information about top models from various sources (LLM Stats leaderboard showing Claude Mythos Preview leading GPQA with 94.6%, Vellum showing GPT-5.5 at overall score of 62.9, DeepSeek R1's MIT license release, etc.), I should now compile this research into a comprehensive report.md file that summarizes the best frontier LLM models and their benchmark performance as of June 2026.
+18:03:22 - tools.web_tools - INFO [20260623_180239_7b9b7a] - Web search via searxng: 'GLM-4.7 vs GLM-5 benchmarks reasoning coding math multilingual 2026 comparison' (limit: 5)
+18:03:24 - plugins.web.searxng.provider - INFO [20260623_180239_7b9b7a] - SearXNG search 'GLM-4.7 vs GLM-5 benchmarks reasoning coding math multilingual 2026 comparison': 5 results (from 10 raw, limit 5)
+18:03:24 - agent.tool_executor - INFO [20260623_180239_7b9b7a] - tool web_search completed (1.63s, 1869 chars)
+18:03:24 - root - DEBUG [20260623_180239_7b9b7a] - Tool web_search completed in 1.63s
+18:03:24 - root - DEBUG [20260623_180239_7b9b7a] - Tool result (1869 chars): {
+  "success": true,
+  "data": {
+    "web": [
+      {
+        "title": "GLM-5: from Vibe Coding to Agentic Engineering - arXiv",
+        "url": "https://arxiv.org/html/2602.15763v1",
+        "description": "17 Feb 2026 · From Table 7, GLM-5 improves significantly over agentic benchmarks compared to GLM-4.7. On BrowseComp, GLM-5 achieves SOTA performance among ...",
+        "position": 1
+      },
+      {
+        "title": "GLM-5: From Vibe Coding to Agentic Engineering - Z.ai",
+        "url": "https://z.ai/blog/glm-5",
+        "description": "12 Feb 2026 · On our internal evaluation suite CC-Bench-V2, GLM-5 significantly outperforms GLM-4.7 across frontend, backend, and long-horizon tasks, ...",
+        "position": 2
+      },
+      {
+        "title": "GLM5 Explained: The Next Generation of Agentic AI in 2026",
+        "url": "https://deepwiki.directory/blog/glm5-explained",
+        "description": "12 Feb 2026 · Superior Reasoning Performance. GLM-4.7 delivered a 42.8% score (+12.4% vs GLM-4.6) on the HLE (Humanity's Last Exam) benchmark. GLM5 is ...",
+        "position": 3
+      },
+      {
+        "title": "GLM-5 vs GLM-4.7: Should You Upgrade? (Benchmarks)",
+        "url": "https://wavespeed.ai/blog/posts/blog-glm-5-vs-glm-4-7-upgrade-benchmarks/",
+        "description": "11 Feb 2026 · GLM-5 improves across a few public suites compared to GLM-4.7. In my runs (Jan 2026), GLM-5 showed measurable gains on SWE-bench for code ...",
+        "position": 4
+      },
+      {
+        "title": "GLM-5 Coding: Benchmarks vs Real Tasks - Verdent Guides",
+        "url": "https://www.verdent.ai/guides/glm-5-coding-benchmark-reality-check",
+        "description": "11 Feb 2026 · Before switching to GLM-5 for coding, understand which benchmarks matter, which are noise, and how to test real-world coding performance.",
+        "position": 5
+      }
+    ]
+  }
+}
+18:03:24 - root - DEBUG [20260623_180239_7b9b7a] - API Request - Model: qwen3.5-9b, Messages: 29, Tools: 19
+18:03:24 - root - DEBUG [20260623_180239_7b9b7a] - Last message role: tool
+18:03:24 - root - DEBUG [20260623_180239_7b9b7a] - Total message size: ~12,081 tokens
+18:03:24 - agent.chat_completion_helpers - DEBUG [20260623_180239_7b9b7a] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
+18:03:24 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
+18:03:24 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-18 (_call):133396986590912 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:03:25 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-18 (_call):133396986590912 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:03:25 - root - DEBUG [20260623_180239_7b9b7a] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=69, prompt_tokens=24064, total_tokens=24133, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=22, rejected_prediction_tokens=None), prompt_tokens_details=None)
+18:03:25 - agent.conversation_loop - INFO [20260623_180239_7b9b7a] - API call #15: model=qwen3.5-9b provider=lmstudio in=24064 out=69 total=24133 latency=1.2s
+18:03:25 - root - DEBUG [20260623_180239_7b9b7a] - Token usage: prompt=24,064, completion=69, total=24,133
+18:03:25 - root - DEBUG [20260623_180239_7b9b7a] - Tool call: web_search with args: {"query":"Kimi K2 model benchmarks reasoning coding visual analysis 2025 comparison Qwen GLM"}...
+18:03:25 - root - DEBUG [20260623_180239_7b9b7a] - Captured reasoning (112 chars): Let me search for more specific information about Kimi K2's capabilities as mentioned in the Reddit discussion.
 
-00:56:50 - tools.file_tools - INFO [20260621_005507_ad4a7b] - Creating new local environment for task default...
-00:56:50 - tools.environments.base - INFO [20260621_005507_ad4a7b] - Session snapshot created (session=40385dc970b1, cwd=/workspace/experiment-2)
-00:56:50 - tools.file_tools - INFO [20260621_005507_ad4a7b] - local environment ready for task default
-00:56:50 - agent.tool_executor - INFO [20260621_005507_ad4a7b] - tool write_file completed (0.11s, 226 chars)
-00:56:50 - root - DEBUG [20260621_005507_ad4a7b] - Tool write_file completed in 0.11s
-00:56:50 - root - DEBUG [20260621_005507_ad4a7b] - Tool result (226 chars): {"bytes_written": 12825, "dirs_created": true, "lint": {"status": "skipped", "message": "No linter for .md files"}, "resolved_path": "/workspace/experiment-2/report.md", "files_modified": ["/workspace/experiment-2/report.md"]}
-00:56:50 - root - DEBUG [20260621_005507_ad4a7b] - API Request - Model: qwen3.5-9b, Messages: 31, Tools: 19
-00:56:50 - root - DEBUG [20260621_005507_ad4a7b] - Last message role: tool
-00:56:50 - root - DEBUG [20260621_005507_ad4a7b] - Total message size: ~14,018 tokens
-00:56:50 - agent.chat_completion_helpers - DEBUG [20260621_005507_ad4a7b] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
-00:56:50 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
-00:56:50 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-33 (_call):137129447388864 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:56:55 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-33 (_call):137129447388864 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:56:55 - root - DEBUG [20260621_005507_ad4a7b] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=243, prompt_tokens=26009, total_tokens=26252, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=24, rejected_prediction_tokens=None), prompt_tokens_details=None)
-00:56:55 - agent.conversation_loop - INFO [20260621_005507_ad4a7b] - API call #16: model=qwen3.5-9b provider=lmstudio in=26009 out=243 total=26252 latency=4.4s
-00:56:55 - root - DEBUG [20260621_005507_ad4a7b] - Token usage: prompt=26,009, completion=243, total=26,252
-00:56:55 - root - DEBUG [20260621_005507_ad4a7b] - Captured reasoning (125 chars): The report has been successfully written to disk, so I should summarize the key findings and confirm completion to the user.
+18:03:25 - tools.web_tools - INFO [20260623_180239_7b9b7a] - Web search via searxng: 'Kimi K2 model benchmarks reasoning coding visual analysis 2025 comparison Qwen GLM' (limit: 5)
+18:03:26 - plugins.web.searxng.provider - INFO [20260623_180239_7b9b7a] - SearXNG search 'Kimi K2 model benchmarks reasoning coding visual analysis 2025 comparison Qwen GLM': 5 results (from 10 raw, limit 5)
+18:03:26 - agent.tool_executor - INFO [20260623_180239_7b9b7a] - tool web_search completed (0.47s, 1998 chars)
+18:03:26 - root - DEBUG [20260623_180239_7b9b7a] - Tool web_search completed in 0.47s
+18:03:26 - root - DEBUG [20260623_180239_7b9b7a] - Tool result (1998 chars): {
+  "success": true,
+  "data": {
+    "web": [
+      {
+        "title": "GLM-5 vs Kimi K2.5 (2026): Benchmarks, Pricing & Full ...",
+        "url": "https://www.morphllm.com/comparisons/glm-5-vs-kimi-k2-5",
+        "description": "For frontend and visual-to-code work, Kimi K2.5 wins by default since GLM-5 has no vision support. Are both models truly open source? Both are open-weight ...",
+        "position": 1
+      },
+      {
+        "title": "Kimi K2 vs Qwen-3 Coder: Testing Two AI Models on Coding Tasks",
+        "url": "https://forgecode.dev/blog/kimi-k2-vs-qwen-3-coder-coding-comparison/",
+        "description": "23 Jul 2025 · I tested Kimi K2 and Qwen-3 Coder on 13 Rust development tasks across a 38k-line codebase and 2 Frontend refactor tasks.",
+        "position": 2
+      },
+      {
+        "title": "Qwen 3.6 Plus vs GLM-5.1 vs Kimi 2.5: Best Chinese AI for Coding 2026",
+        "url": "https://www.buildfastwithai.com/blogs/qwen-3-6-plus-vs-glm-5-1-vs-kimi-2-5-coding-2026",
+        "description": "13 Apr 2026 · GLM-5.1 tops SWE-Bench Pro. Qwen 3.6 Plus is free with 1M context. Kimi 2.5 costs $0.60/M tokens. Which Chinese AI wins for coding in 2026?",
+        "position": 3
+      },
+      {
+        "title": "Chinese AI Models Beat GPT-4: Kimi K2, Qwen 3, GLM 4.5 - Digital Applied",
+        "url": "https://www.digitalapplied.com/blog/chinese-ai-models-kimi-k2-qwen-3-coder-glm-4-5",
+        "description": "29 Jul 2025 · Historical 2025 comparison of Kimi K2, Qwen 3 Coder, and GLM 4.5 refreshed with April 2026 caveats for newer Chinese and frontier AI model ...",
+        "position": 4
+      },
+      {
+        "title": "Kimi K2 Thinking Review - Medium",
+        "url": "https://medium.com/@leucopsis/kimi-k2-thinking-review-df2d0586b7d4",
+        "description": "6 Nov 2025 · GLM was built to unify skills in coding, reasoning ... Early tests showed Qwen slightly outperforming open models like Kimi and DeepSeek on some ...",
+        "position": 5
+      }
+    ]
+  }
+}
+18:03:26 - root - DEBUG [20260623_180239_7b9b7a] - API Request - Model: qwen3.5-9b, Messages: 31, Tools: 19
+18:03:26 - root - DEBUG [20260623_180239_7b9b7a] - Last message role: tool
+18:03:26 - root - DEBUG [20260623_180239_7b9b7a] - Total message size: ~12,808 tokens
+18:03:26 - agent.chat_completion_helpers - DEBUG [20260623_180239_7b9b7a] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
+18:03:26 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
+18:03:26 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-19 (_call):133396986590912 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:04:15 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-19 (_call):133396986590912 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:04:15 - root - DEBUG [20260623_180239_7b9b7a] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=3918, prompt_tokens=24906, total_tokens=28824, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=34, rejected_prediction_tokens=None), prompt_tokens_details=None)
+18:04:15 - agent.conversation_loop - INFO [20260623_180239_7b9b7a] - API call #16: model=qwen3.5-9b provider=lmstudio in=24906 out=3918 total=28824 latency=49.7s
+18:04:15 - root - DEBUG [20260623_180239_7b9b7a] - Token usage: prompt=24,906, completion=3,918, total=28,824
+18:04:15 - root - DEBUG [20260623_180239_7b9b7a] - Tool call: write_file with args: {"path":"/workspace/experiment-2/report.md","content":"# Frontier Large Language Models 2025-2026: Comprehensive Analysis Report\n\n**Date:** June 2026  \n**Prepared by:** Hermes Agent\n\n---\n\n## Ex...
+18:04:15 - root - DEBUG [20260623_180239_7b9b7a] - Captured reasoning (184 chars): Now I have gathered enough information about the top frontier LLMs. Let me compile all this data into a comprehensive report.md file with benchmark comparisons and model capabilities.
 
-00:56:55 - tools.browser_tool - DEBUG [20260621_005507_ad4a7b] - cleanup_browser called for task_id: 20260621_005507_ad4a7b
-00:56:55 - tools.browser_tool - DEBUG [20260621_005507_ad4a7b] - Active sessions: []
-00:56:55 - tools.browser_tool - DEBUG [20260621_005507_ad4a7b] - No active session found for task_id: 20260621_005507_ad4a7b
-00:56:55 - agent.conversation_loop - INFO [20260621_005507_ad4a7b] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.5-9b api_calls=16/90 budget=14/90 tool_turns=15 last_msg_role=assistant response_len=884 session=20260621_005507_ad4a7b
-00:56:55 - run_agent - INFO - OpenAI client created (agent_init, shared=True) thread=bg-review:137129447388864 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:56:55 - agent.auxiliary_client - DEBUG - Could not read Codex auth for auxiliary client: No Codex credentials stored. Run `hermes auth` to authenticate.
-00:56:55 - agent.auxiliary_client - DEBUG - resolve_provider_client: lmstudio (qwen3.5-9b)
-00:56:55 - agent.auxiliary_client - INFO - Vision auto-detect: using main provider lmstudio (qwen3.5-9b)
-00:56:55 - agent.conversation_loop - INFO [20260621_005507_ad4a7b] - conversation turn: session=20260621_005507_ad4a7b model=qwen3.5-9b provider=lmstudio platform=cli history=32 msg='Review the conversation above and update the skill library. Be ACTIVE — most ses...'
-00:56:55 - agent.chat_completion_helpers - DEBUG [20260621_005507_ad4a7b] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
-00:56:55 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
-00:56:55 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-34 (_call):137129723229888 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
-00:56:55 - agent.auxiliary_client - DEBUG - resolve_provider_client: lmstudio (qwen3.5-9b)
-00:56:55 - agent.auxiliary_client - INFO - Auxiliary auto-detect: using main provider lmstudio (qwen3.5-9b)
-00:56:55 - agent.auxiliary_client - INFO - Auxiliary title_generation: using auto (qwen3.5-9b) at http://host.docker.internal:1234/v1/
-00:56:55 - tools.terminal_tool - INFO - Shutting down 1 remaining sandbox(es)...
-00:56:55 - tools.terminal_tool - INFO - Manually cleaned up environment for task: default
-00:56:55 - tools.terminal_tool - INFO - Cleaned 1 environments
-00:56:55 - tools.mcp_tool - DEBUG - mcp package not installed -- MCP tool support disabled
+18:04:15 - tools.file_tools - INFO [20260623_180239_7b9b7a] - Creating new local environment for task default...
+18:04:15 - tools.environments.base - INFO [20260623_180239_7b9b7a] - Session snapshot created (session=fd79cf25b6d8, cwd=/workspace/experiment-2)
+18:04:15 - tools.file_tools - INFO [20260623_180239_7b9b7a] - local environment ready for task default
+18:04:15 - agent.tool_executor - INFO [20260623_180239_7b9b7a] - tool write_file completed (0.07s, 226 chars)
+18:04:15 - root - DEBUG [20260623_180239_7b9b7a] - Tool write_file completed in 0.07s
+18:04:15 - root - DEBUG [20260623_180239_7b9b7a] - Tool result (226 chars): {"bytes_written": 15050, "dirs_created": true, "lint": {"status": "skipped", "message": "No linter for .md files"}, "resolved_path": "/workspace/experiment-2/report.md", "files_modified": ["/workspace/experiment-2/report.md"]}
+18:04:15 - root - DEBUG [20260623_180239_7b9b7a] - API Request - Model: qwen3.5-9b, Messages: 33, Tools: 19
+18:04:15 - root - DEBUG [20260623_180239_7b9b7a] - Last message role: tool
+18:04:15 - root - DEBUG [20260623_180239_7b9b7a] - Total message size: ~16,918 tokens
+18:04:15 - agent.chat_completion_helpers - DEBUG [20260623_180239_7b9b7a] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
+18:04:15 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
+18:04:15 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-28 (_call):133396969805504 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:04:20 - run_agent - INFO - OpenAI client closed (stream_request_complete, shared=False, tcp_force_closed=0) thread=Thread-28 (_call):133396969805504 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:04:20 - root - DEBUG [20260623_180239_7b9b7a] - API Response received - Model: qwen3.5-9b, Usage: CompletionUsage(completion_tokens=244, prompt_tokens=28905, total_tokens=29149, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=23, rejected_prediction_tokens=None), prompt_tokens_details=None)
+18:04:20 - agent.conversation_loop - INFO [20260623_180239_7b9b7a] - API call #17: model=qwen3.5-9b provider=lmstudio in=28905 out=244 total=29149 latency=4.3s
+18:04:20 - root - DEBUG [20260623_180239_7b9b7a] - Token usage: prompt=28,905, completion=244, total=29,149
+18:04:20 - root - DEBUG [20260623_180239_7b9b7a] - Captured reasoning (123 chars): The report has been successfully written to the file, so I should summarize what was created and offer further assistance.
+
+18:04:20 - tools.browser_tool - DEBUG [20260623_180239_7b9b7a] - cleanup_browser called for task_id: 20260623_180239_7b9b7a
+18:04:20 - tools.browser_tool - DEBUG [20260623_180239_7b9b7a] - Active sessions: []
+18:04:20 - tools.browser_tool - DEBUG [20260623_180239_7b9b7a] - No active session found for task_id: 20260623_180239_7b9b7a
+18:04:20 - agent.conversation_loop - INFO [20260623_180239_7b9b7a] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.5-9b api_calls=17/90 budget=17/90 tool_turns=16 last_msg_role=assistant response_len=805 session=20260623_180239_7b9b7a
+18:04:20 - run_agent - INFO - OpenAI client created (agent_init, shared=True) thread=bg-review:133396969805504 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:04:20 - agent.auxiliary_client - DEBUG - Could not read Codex auth for auxiliary client: No Codex credentials stored. Run `hermes auth` to authenticate.
+18:04:20 - agent.auxiliary_client - DEBUG - resolve_provider_client: lmstudio (qwen3.5-9b)
+18:04:20 - agent.auxiliary_client - INFO - Vision auto-detect: using main provider lmstudio (qwen3.5-9b)
+18:04:20 - agent.conversation_loop - INFO [20260623_180239_7b9b7a] - conversation turn: session=20260623_180239_7b9b7a model=qwen3.5-9b provider=lmstudio platform=cli history=34 msg='Review the conversation above and update the skill library. Be ACTIVE — most ses...'
+18:04:20 - agent.chat_completion_helpers - DEBUG [20260623_180239_7b9b7a] - Local provider detected (http://host.docker.internal:1234/v1) — stale stream timeout disabled
+18:04:20 - agent.chat_completion_helpers - DEBUG - Local provider detected (http://host.docker.internal:1234/v1) — stream read timeout raised to 1800s
+18:04:20 - run_agent - INFO - OpenAI client created (chat_completion_stream_request, shared=False) thread=Thread-29 (_call):133397118871232 provider=lmstudio base_url=http://host.docker.internal:1234/v1 model=qwen3.5-9b
+18:04:20 - agent.auxiliary_client - DEBUG - resolve_provider_client: lmstudio (qwen3.5-9b)
+18:04:20 - agent.auxiliary_client - INFO - Auxiliary auto-detect: using main provider lmstudio (qwen3.5-9b)
+18:04:20 - agent.auxiliary_client - INFO - Auxiliary title_generation: using auto (qwen3.5-9b) at http://host.docker.internal:1234/v1/
+18:04:20 - tools.terminal_tool - INFO - Shutting down 1 remaining sandbox(es)...
+18:04:20 - tools.terminal_tool - INFO - Manually cleaned up environment for task: default
+18:04:20 - tools.terminal_tool - INFO - Cleaned 1 environments
+18:04:20 - tools.mcp_tool - DEBUG - mcp package not installed -- MCP tool support disabled

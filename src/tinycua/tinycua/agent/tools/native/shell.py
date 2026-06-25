@@ -281,11 +281,11 @@ def _bounded_timeout(timeout: int) -> int:
     by the caller (not silently clamped) so the model is nudged to narrow its
     command rather than pick absurd timeouts.
     """
-    try:
-        requested = int(timeout)
-    except (TypeError, ValueError):
-        return _DEFAULT_TIMEOUT_SECONDS
-    return min(max(requested, 1), _MAX_TIMEOUT_SECONDS)
+    from tinycua.agent.tools.native._timeout import bounded_timeout
+
+    result = bounded_timeout(timeout, default=_DEFAULT_TIMEOUT_SECONDS, max_seconds=_MAX_TIMEOUT_SECONDS)
+    # shell's policy is clamp (never None), so coerce the None case to max.
+    return result if result is not None else _MAX_TIMEOUT_SECONDS
 
 
 def _uses_unsafe_mkdir_braces(command: str) -> bool:

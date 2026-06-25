@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notion Clone - Python Flask App</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- Sidebar with page list -->
+    <div class="sidebar">
+        <ul class="page-list" id="pageList"></ul>
+    </div>
+
+    <!-- Main content area -->
+    <div class="main-content">
+        <div class="editor-container" id="editor">
+            <div class="empty-state">
+                <div class="empty-icon">📄</div>
+                <p style="font-size: 18px;">Loading pages...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Page Modal -->
+    <div class="modal-overlay" id="createPageModal">
+        <div class="modal">
+            <h2>New Page</h2>
+            <textarea class="modal-input" placeholder="Title (optional)..." id="newPageInput"></textarea>
+            <div style="margin-top: 16px; display: flex;">
+                <button class="btn btn-secondary" onclick="createNewPage()">Create</button>
+                <button class="btn" onclick="document.getElementById('createPageModal').style.display='none'">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comment Modal -->
+    <div class="modal-overlay" id="commentModal">
+        <div class="modal">
+            <h2>Add a comment</h2>
+            <textarea class="modal-input" placeholder="Write your comment..." id="commentInput"></textarea>
+            <div style="margin-top: 16px; display: flex;">
+                <button class="btn btn-secondary" onclick="postComment()">Post Comment</button>
+                <button class="btn" onclick="document.getElementById('commentModal').style.display='none'">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Page Modal -->
+    <div class="modal-overlay" id="deletePageModal">
+        <div class="modal">
+            <h2>Delete Page?</h2>
+            <p style="margin-bottom: 16px;">This will delete all content on this page.</p>
+            <button class="btn btn-secondary" onclick="confirmDelete()">Yes, Delete</button>
+            <button class="btn" onclick="document.getElementById('deletePageModal').style.display='none'">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+        <button class="btn" onclick="showCreatePageModal()" title="New Page (Ctrl/Cmd+Enter)">+</button>
+        <input type="text" placeholder="Search..." style="padding: 8px; border-radius: 6px; border: none;" id="searchInput">
+    </div>
+
+</body>
+<script src="/static/js/app.js"></script>
+<script src="/static/js/editor_blocks.js"></script>
+</html>

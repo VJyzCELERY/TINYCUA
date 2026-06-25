@@ -27,7 +27,6 @@ earlier bound).
 from __future__ import annotations
 
 import hashlib
-import os
 from pathlib import Path
 
 _PERSIST_THRESHOLD = 100_000      # persist a single result above this
@@ -225,6 +224,21 @@ def evict_superseded_file_reads(tool_messages: list[dict]) -> list[dict]:
     return tool_messages
 
 
+def _content_len(msg: dict) -> int:
+    """Return the string length of a message's content."""
+    return len(str(msg.get("content", "")))
+
+
+def _is_stub(msg: dict) -> bool:
+    """Return whether a message's content is an elided stub."""
+    return str(msg.get("content", "")).startswith("[elided prior")
+
+
+def _is_persisted(msg: dict) -> bool:
+    """Return whether a message's content was persisted to a temp file."""
+    return "<persisted-output>" in str(msg.get("content", ""))
+
+
 def enforce_turn_budget(
     tool_messages: list[dict],
     *,
@@ -240,15 +254,6 @@ def enforce_turn_budget(
     """
     if not tool_messages:
         return tool_messages
-
-    def _content_len(msg: dict) -> int:
-        return len(str(msg.get("content", "")))
-
-    def _is_stub(msg: dict) -> bool:
-        return str(msg.get("content", "")).startswith("[elided prior")
-
-    def _is_persisted(msg: dict) -> bool:
-        return "<persisted-output>" in str(msg.get("content", ""))
 
     # Persist any single oversized result first.
     for i, msg in enumerate(tool_messages):
@@ -334,7 +339,6 @@ def _self_check() -> None:
     enforce_turn_budget(small_msgs)
     assert all(m["content"] == "X" * 1_000 for m in small_msgs)  # untouched
 
-    print("output_persist.py self-check OK")
     print("output_persist.py self-check OK")
 
 

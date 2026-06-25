@@ -1,10 +1,8 @@
-"""Unit tests for DecisionNode classification validation and retry."""
-
-import pytest
+"""Unit tests for DecisionNode classification validation and single-shot dispatch."""
 
 from tinycua.config.node_config import NodeConfigBase, NodeRetryPolicy
 from tinycua.config.types import LLMResult
-from tinycua.loops.node import DecisionNode, NodeExecutionError
+from tinycua.loops.node import DecisionNode
 from tinycua.models.session import Session
 
 
@@ -87,8 +85,8 @@ class TestClassificationValidation:
         assert result.is_valid is False
 
 
-class TestDecisionNodeRetry:
-    """Tests for DecisionNode classification retry loop."""
+class TestDecisionNodeSingleShot:
+    """Tests for DecisionNode single-shot dispatch (retry owned by loop)."""
 
     def test_valid_on_first_attempt(self):
         """Valid classification accepted on first attempt."""
@@ -104,62 +102,27 @@ class TestDecisionNodeRetry:
         result = node("input")
         assert result.route_label == "correct"
 
-    def test_invalid_triggers_retry(self):
-        """Invalid classification triggers retry."""
-        node = _make_decision_node(
-            classification_labels=["correct"],
-            llm_client=MockLLM(
-                [
-                    LLMResult(content="analysis"),
-                    LLMResult(content="wrong"),
-                    LLMResult(content="analysis 2"),
-                    LLMResult(content="correct"),
-                ]
-            ),
-            retry_policy=NodeRetryPolicy(max_attempts=2),
-        )
-        result = node("input")
-        assert result.route_label == "correct"
+    def test_invalid_classification_records_exhaustion(self):
+        """Invalid classification records exhaustion and returns empty route.
 
-    def test_exhaustion_raises_error(self):
-        """Classification retry exhaustion raises NodeExecutionError."""
+        __call__ is single-shot — the loop-owned path owns retry. Direct
+        callers get an empty route + a diagnostic in session.diagnostics.
+        """
         node = _make_decision_node(
             classification_labels=["correct"],
             llm_client=MockLLM(
                 [
                     LLMResult(content="analysis"),
                     LLMResult(content="wrong"),
-                    LLMResult(content="analysis 2"),
-                    LLMResult(content="still wrong"),
                 ]
             ),
             retry_policy=NodeRetryPolicy(
-                max_attempts=2,
-                on_retry_exhausted="raise",
-            ),
-        )
-        with pytest.raises(NodeExecutionError, match="Retry exhausted"):
-            node("input")
-
-    def test_exhaustion_records_failure(self):
-        """Classification retry exhaustion records diagnostics only."""
-        node = _make_decision_node(
-            classification_labels=["correct"],
-            llm_client=MockLLM(
-                [
-                    LLMResult(content="analysis"),
-                    LLMResult(content="wrong"),
-                    LLMResult(content="analysis 2"),
-                    LLMResult(content="still wrong"),
-                ]
-            ),
-            retry_policy=NodeRetryPolicy(
-                max_attempts=2,
+                max_attempts=1,
                 on_retry_exhausted="record_failure",
             ),
         )
-        node("input")
-        assert not any("RETRY_EXHAUSTED" in str(e.content) for e in node.session.session_context)
+        result = node("input")
+        assert result.route_label == ""
         assert any(
             "RETRY_EXHAUSTED" in item["message"]
             for item in node.session.diagnostics

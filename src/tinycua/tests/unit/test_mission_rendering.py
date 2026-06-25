@@ -15,13 +15,18 @@ from tinycua.models.task import TaskResult
 
 
 def _session_with_mission(
-    mission: str = "", constraints: list[str] | None = None
+    mission: str = "",
+    constraints: list[str] | None = None,
+    context: str = "",
+    key_points: list[str] | None = None,
 ) -> Session:
-    """Build a session whose root task carries a mission + constraints."""
+    """Build a session whose root task carries a mission + constraints + context."""
     session = Session()
     root = session.task_store.create_task("Root goal")
     root.metadata["mission"] = mission
     root.metadata["inherited_constraints"] = constraints or []
+    root.metadata["mission_context"] = context
+    root.metadata["mission_key_points"] = key_points or []
     child = session.task_store.create_task("Child task", parent_id=root.task_id)
     child.metadata["inherited_constraints"] = constraints or []
     session.task_store.record_result(
@@ -113,6 +118,47 @@ def test_mission_block_empty_when_no_mission() -> None:
     prompt = node.build_continuation(session)
 
     assert "## Mission" not in prompt
+
+
+def test_mission_block_includes_digester_context_and_key_points() -> None:
+    """Mission block renders {context}\\n{query} — digester research first, then original request."""
+    session = _session_with_mission(
+        mission="Research frontier LLMs.",
+        context="Frontier LLMs as of 2026 include Claude Opus 4.8, GPT-5.5, Gemini 3.1.",
+        key_points=["Claude Opus 4.8 leads on coding", "GPT-5.5 leads on reasoning"],
+    )
+    node = TinyCUATaskAnalyzerNode(
+        node_id="task_analyzer", config=create_node_config("task_analyzer")
+    )
+    node.ensure_session(session)
+
+    prompt = node.build_continuation(session)
+
+    assert "## Mission" in prompt
+    # Context (digester research) appears before the original request.
+    assert "Frontier LLMs as of 2026" in prompt
+    assert "Key findings:" in prompt
+    assert "Claude Opus 4.8 leads on coding" in prompt
+    assert "Original request: Research frontier LLMs." in prompt
+    # Context should appear before the original request (the {context}\n{query} structure).
+    assert prompt.index("Frontier LLMs as of 2026") < prompt.index("Original request:")
+
+
+def test_mission_block_omits_empty_sections() -> None:
+    """No key points → no 'Key findings:' header. No context → no context line."""
+    session = _session_with_mission(mission="Build a clock.", constraints=["single file"])
+    node = TinyCUATaskAnalyzerNode(
+        node_id="task_analyzer", config=create_node_config("task_analyzer")
+    )
+    node.ensure_session(session)
+
+    prompt = node.build_continuation(session)
+
+    assert "## Mission" in prompt
+    assert "Original request: Build a clock." in prompt
+    assert "single file" in prompt
+    # No context / no key points → those sections are omitted entirely.
+    assert "Key findings:" not in prompt
 
 
 if __name__ == "__main__":

@@ -8,10 +8,13 @@ from typing import TYPE_CHECKING, Any
 
 from tinycua.config.types import LLMResult, ValidationError, ValidationResult
 from tinycua.loops.context_rendering import sanitize_internal_reprs
-from tinycua.loops.node import NodeExecutionError, NodeRunContext
+from tinycua.loops.node import NodeRunContext
+from tinycua.loops.node_contract import RECOVERY_CHAINS
 from tinycua.loops.propagation import PropagationRule, finalize_terminal_output, propagate_on_termination
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.models.node_handoff import NodeHandoff
+from tinycua.models.session_context_entry import entry_content
+from tinycua.loops.session_context_query import find_latest_entry
 
 if TYPE_CHECKING:
     from tinycua.loops.node import Node
@@ -24,7 +27,6 @@ logger = logging.getLogger(__name__)
 
 class OrchestrationMixin:
     """Orchestration and streaming mixin for TinyCUALoop."""
-
     def _node_run_context(
         self,
         agent: Agent,
@@ -33,7 +35,6 @@ class OrchestrationMixin:
         stream_messages: list[dict[str, Any]] | None = None,
     ) -> NodeRunContext:
         """Create injected runtime services for node-owned run entrypoints."""
-
         async def sync_executor(
             node: Node,
             node_input: NodeInputLike,
@@ -45,7 +46,6 @@ class OrchestrationMixin:
                 override_instructions,
                 node_input,
             )
-
         async def stream_executor(
             node: Node,
             node_input: NodeInputLike,
@@ -59,27 +59,16 @@ class OrchestrationMixin:
                 stream_messages,
             ):
                 yield event
-
         return NodeRunContext(
             sync_executor=sync_executor,
             stream_executor=stream_executor,
         )
-
-    def _next_terminal_node(self) -> Node | None:
-        """Return an existing or configured terminal node for forced routing."""
-        for item in self.queue.items:
-            if item.is_terminal:
-                return item
-        return self.default_terminal_node
-
     def _maybe_populate_root_mission(self, node: Node) -> None:
         """Populate the canonical mission on the root task after TaskCreate.
-
         Derives ``mission`` (original request) and ``inherited_constraints``
         from the most recent ``DigestedInformation`` in the root session
         context, or from the raw user query when no digest exists. Idempotent:
         an existing mission is never overwritten. See FR-001.
-
         Args:
             node: The node that just completed; only ``task_create`` triggers
                 population.
@@ -93,20 +82,22 @@ class OrchestrationMixin:
         if root.metadata.get("mission"):
             return  # idempotent: do not clobber an existing mission.
         from tinycua.models.digested_information import DigestedInformation
-
-        digest: DigestedInformation | None = None
-        for entry in reversed(self.root_session.session_context):
-            content = getattr(entry, "content", None)
-            if isinstance(content, DigestedInformation):
-                digest = content
-                break
+        digest = find_latest_entry(self.root_session, DigestedInformation)
         if digest is not None:
             root.metadata["mission"] = digest.original_query or ""
             root.metadata["inherited_constraints"] = list(digest.constraints)
+            # Carry the digester's comprehensive research into the mission
+            # so downstream nodes (Analyzer, Executor, Reviewer) see the
+            # first-layer exploration findings as context, not just the
+            # bare original query. Rendered by _render_mission_block as the
+            # structured {context}\n{query} mission prefix.
+            root.metadata["mission_context"] = digest.context_summary or ""
+            root.metadata["mission_key_points"] = list(digest.key_points)
         else:
             root.metadata["mission"] = self._latest_user_text().strip()
             root.metadata["inherited_constraints"] = []
-
+            root.metadata["mission_context"] = ""
+            root.metadata["mission_key_points"] = []
     def _prepare_node(
         self,
         node: Node,
@@ -114,12 +105,10 @@ class OrchestrationMixin:
         override_instructions: str | None = None,
     ) -> tuple[list[dict[str, Any]], list[Tool]]:
         """Prepare a node for execution: attach session, build messages, resolve tools.
-
         Args:
             node: The node to prepare.
             tools: Available tools from the agent.
             override_instructions: Optional instructions override.
-
         Returns:
             Tuple of (messages, resolved_tools) ready for LLM call.
         """
@@ -135,8 +124,7 @@ class OrchestrationMixin:
         finally:
             self._resolved_tools_for_prompt = None
         return messages, resolved_tools
-
-    def _execute_deterministic_node(
+    async def _execute_deterministic_node(
         self,
         node: Node,
         resolved_tools: list[Tool],
@@ -148,7 +136,6 @@ class OrchestrationMixin:
         if content:
             self._record_node_content_transcript(node, content)
         self._apply_task_lifecycle_marker(node, content)
-
         on_complete_response = self._build_on_complete_response(node, llm_result)
         trace_entry = self._trace_entry(
             node,
@@ -159,15 +146,109 @@ class OrchestrationMixin:
         )
         trace_entry["deterministic"] = True
         self._execution_trace.append(trace_entry)
-
         rule = node.config.propagation or PropagationRule()
         parent_session = self._find_parent_session(node)
-        propagate_on_termination(
+        await propagate_on_termination(
             node.session or self.root_session,
             parent_session,
             self.root_session,
             rule,
         )
+        return content, llm_result.tool_calls
+    async def _handle_validation_failure(
+        self,
+        node: Node,
+        agent: Agent,
+        resolved_tools: list[Tool],
+        llm_result: LLMResult,
+        validation: ValidationResult,
+        attempt: int,
+    ) -> tuple[str, list[dict[str, Any]]] | None:
+        """Handle a validation failure via the 3-way recovery path.
+
+        Returns (content, tool_calls) when a recovery path succeeds, or None
+        when the caller should fall through to unbounded recovery.
+        """
+        if self._recover_task_analyzer_validation_failure(node, validation):
+            on_complete_response = self._build_on_complete_response(node, llm_result)
+            trace_entry = self._trace_entry(
+                node, attempt, resolved_tools, on_complete_response, llm_result,
+            )
+            trace_entry["validation_errors"] = list(validation.errors)
+            self._execution_trace.append(trace_entry)
+            return llm_result.content, llm_result.tool_calls
+        if self._recover_task_executor_validation_failure(node, validation, llm_result):
+            on_complete_response = self._build_on_complete_response(node, llm_result)
+            trace_entry = self._trace_entry(
+                node, attempt, resolved_tools, on_complete_response, llm_result,
+            )
+            trace_entry["validation_errors"] = list(validation.errors)
+            self._execution_trace.append(trace_entry)
+            return llm_result.content, llm_result.tool_calls
+        return None
+
+    async def _finalize_node_success(
+        self,
+        node: Node,
+        llm_result: LLMResult,
+        validation: ValidationResult,
+        attempt: int,
+        node_input: NodeInputLike | None,
+        resolved_tools: list[Tool],
+        content: str,
+    ) -> tuple[str, list[dict[str, Any]]]:
+        """Record output, fire hooks, on_complete, propagation. Returns (content, tool_calls)."""
+        llm_result = self._record_node_output(node, content, llm_result.tool_calls)
+        if content:
+            self._record_node_content_transcript(node, content)
+        self._record_tool_result_transcripts(
+            node, llm_result.metadata.get("tool_results", []),
+        )
+        self._apply_loop_result_hook(node, llm_result, node_input)
+        self._publish_structured_outputs_to_root(node)
+        self._maybe_populate_root_mission(node)
+        self._maybe_warn_reviewer_no_verification(node, llm_result)
+        self._apply_task_lifecycle_marker(node, content)
+
+        # Fire agent_monitor after-hook (if configured)
+        if self.agent_monitor is not None:
+            try:
+                self.agent_monitor.on_after_node_call(
+                    node.node_id,
+                    self.root_session.session_id,
+                    attempt,
+                    llm_result,
+                    validation,
+                )
+            except Exception:
+                logger.debug(
+                    "node=%s agent_monitor_after_hook_exception",
+                    node.node_id,
+                    exc_info=True,
+                )
+
+        on_complete_response = self._build_on_complete_response(node, llm_result)
+        node.on_complete(self.queue, on_complete_response)
+
+        trace_entry = self._trace_entry(
+            node, attempt, resolved_tools, on_complete_response, llm_result,
+        )
+        self._execution_trace.append(trace_entry)
+
+        # Propagate context on node termination (ISSUE-601): use the
+        # propagation engine instead of legacy _transfer_session_context().
+        rule = node.config.propagation or PropagationRule()
+        parent_session = self._find_parent_session(node)
+        await propagate_on_termination(
+            node.session or self.root_session,
+            parent_session,
+            self.root_session,
+            rule,
+        )
+        # FR-062: clean up node progress for completed nodes — don't store
+        # done nodes. A re-enqueued node (reviewer sends back to executor)
+        # gets a fresh NodeProgress on its next dispatch.
+        self.root_session.node_progress.pop(node.node_id, None)
         return content, llm_result.tool_calls
 
     async def _execute_node(
@@ -202,7 +283,13 @@ class OrchestrationMixin:
         # Wire queue on QueryAnalystNode before execution
         if isinstance(node, TinyCUAQueryAnalystNode):
             node._queue = self.queue
-        self._inject_active_task_input(node)
+
+        # Milestone 8 Stream B: cross-node compaction trigger. Compact
+        # session_context before building messages when the previous call
+        # (in any prior node) neared the context window. Runs before
+        # _prepare_node so the compacted session_context is what the
+        # continuation renderers see.
+        await self._maybe_compact(node, agent)
 
         messages, resolved_tools = self._prepare_node(
             node,
@@ -229,7 +316,7 @@ class OrchestrationMixin:
 
         deterministic_runner = getattr(node, "run_deterministic", None)
         if callable(deterministic_runner):
-            return self._execute_deterministic_node(node, resolved_tools)
+            return await self._execute_deterministic_node(node, resolved_tools)
 
         llm_result, attempt, validation = await self._call_node_with_retry(
             node,
@@ -238,132 +325,49 @@ class OrchestrationMixin:
             resolved_tools,
         )
         content = llm_result.content
-        result_metadata = dict(llm_result.metadata)
         if not validation.is_valid:
-            if self._recover_task_analyzer_validation_failure(node, validation):
-                on_complete_response = self._build_on_complete_response(node, llm_result)
-                trace_entry = self._trace_entry(
-                    node,
-                    attempt,
-                    resolved_tools,
-                    on_complete_response,
-                    llm_result,
-                )
-                trace_entry["validation_errors"] = list(validation.errors)
-                self._execution_trace.append(trace_entry)
-                return content, llm_result.tool_calls
-            if self._recover_task_executor_validation_failure(
-                node,
-                validation,
-                llm_result,
-            ):
-                on_complete_response = self._build_on_complete_response(node, llm_result)
-                trace_entry = self._trace_entry(
-                    node,
-                    attempt,
-                    resolved_tools,
-                    on_complete_response,
-                    llm_result,
-                )
-                trace_entry["validation_errors"] = list(validation.errors)
-                self._execution_trace.append(trace_entry)
-                return content, llm_result.tool_calls
-            if not self._route_task_executor_failure_to_reviewer(
-                node,
-                validation,
-                llm_result,
-            ):
-                # Unbounded tightened-retry loop — never exits until validation
-                # passes. No graceful continue, no exit-0 escape hatch.
-                recovered_result, _ = await self._unbounded_recovery(
-                    node, agent, resolved_tools, llm_result, validation
-                )
-                trace_entry = self._trace_entry(
-                    node,
-                    attempt,
-                    resolved_tools,
-                    recovered_result.content,
-                    recovered_result,
-                )
-                trace_entry["validation_errors"] = []
-                trace_entry["recovery"] = "unbounded_recovery"
-                self._execution_trace.append(trace_entry)
-                llm_result = self._record_node_output(
-                    node, recovered_result.content, recovered_result.tool_calls
-                )
-                llm_result.metadata.update(dict(recovered_result.metadata))
-                if recovered_result.content:
-                    self._record_node_content_transcript(node, recovered_result.content)
-                return recovered_result.content, recovered_result.tool_calls
-            on_complete_response = self._build_on_complete_response(node, llm_result)
-            trace_entry = self._trace_entry(
-                node,
-                attempt,
-                resolved_tools,
-                on_complete_response,
-                llm_result,
+            recovered = await self._handle_validation_failure(
+                node, agent, resolved_tools, llm_result, validation, attempt,
             )
-            trace_entry["validation_errors"] = list(validation.errors)
+            if recovered is not None:
+                return recovered
+            lazy_outcome = await self._maybe_lazy_pre_recovery(  # FR-087..093
+                node, agent, resolved_tools, llm_result, validation)
+            if lazy_outcome is not None:
+                lazy_result, revalidated, is_valid = lazy_outcome
+                if is_valid:
+                    return await self._finalize_node_success(
+                        node, lazy_result, revalidated, attempt,
+                        None, resolved_tools, lazy_result.content)
+                llm_result, validation = lazy_result, revalidated
+            recovery_result = await self._unbounded_recovery(
+                node, agent, resolved_tools, llm_result, validation
+            )
+            if recovery_result is None:
+                # Re-entry: don't call on_complete, don't advance.
+                # The caller (queue loop) re-dispatches this node fresh.
+                self._record_node_content_transcript(
+                    node, "Recovery budget exhausted — re-entering node with fresh context.",
+                )
+                return "", []
+            recovered_result, _ = recovery_result
+            trace_entry = self._trace_entry(
+                node, attempt, resolved_tools,
+                recovered_result.content, recovered_result,
+            )
+            trace_entry["validation_errors"] = []
+            trace_entry["recovery"] = "unbounded_recovery"
             self._execution_trace.append(trace_entry)
-            failure_content = self._validation_failure_content(node, validation)
-            self._record_node_output(node, failure_content, [])
-            self._record_node_content_transcript(node, failure_content)
-            return failure_content, []
-        llm_result = self._record_node_output(node, content, llm_result.tool_calls)
-        llm_result.metadata.update(result_metadata)
-        if content:
-            self._record_node_content_transcript(node, content)
-        self._record_tool_result_transcripts(
-            node,
-            llm_result.metadata.get("tool_results", []),
+            llm_result = self._record_node_output(
+                node, recovered_result.content, recovered_result.tool_calls
+            )
+            llm_result.metadata.update(dict(recovered_result.metadata))
+            if recovered_result.content:
+                self._record_node_content_transcript(node, recovered_result.content)
+            return recovered_result.content, recovered_result.tool_calls
+        return await self._finalize_node_success(
+            node, llm_result, validation, attempt, node_input, resolved_tools, content,
         )
-        self._apply_loop_result_hook(node, llm_result, node_input)
-        self._publish_structured_outputs_to_root(node)
-        self._maybe_populate_root_mission(node)
-        self._maybe_warn_reviewer_no_verification(node, llm_result)
-        self._apply_task_lifecycle_marker(node, content)
-
-        # Fire agent_monitor after-hook (if configured)
-        if self.agent_monitor is not None:
-            try:
-                self.agent_monitor.on_after_node_call(
-                    node.node_id,
-                    self.root_session.session_id,
-                    attempt,
-                    llm_result,
-                    validation,
-                )
-            except Exception:
-                logger.debug(
-                    "node=%s agent_monitor_after_hook_exception",
-                    node.node_id,
-                    exc_info=True,
-                )
-
-        on_complete_response = self._build_on_complete_response(node, llm_result)
-        node.on_complete(self.queue, on_complete_response)
-
-        trace_entry = self._trace_entry(
-            node,
-            attempt,
-            resolved_tools,
-            on_complete_response,
-            llm_result,
-        )
-        self._execution_trace.append(trace_entry)
-
-        # Propagate context on node termination (ISSUE-601): use the
-        # propagation engine instead of legacy _transfer_session_context().
-        rule = node.config.propagation or PropagationRule()
-        parent_session = self._find_parent_session(node)
-        propagate_on_termination(
-            node.session or self.root_session,
-            parent_session,
-            self.root_session,
-            rule,
-        )
-
-        return content, llm_result.tool_calls
 
     async def _finalize_streamed_node(
         self,
@@ -459,12 +463,14 @@ class OrchestrationMixin:
         # Propagate context on node termination
         rule = node.config.propagation or PropagationRule()
         parent_session = self._find_parent_session(node)
-        propagate_on_termination(
+        await propagate_on_termination(
             node.session or self.root_session,
             parent_session,
             self.root_session,
             rule,
         )
+        # FR-062: clean up node progress for completed nodes.
+        self.root_session.node_progress.pop(node.node_id, None)
 
         return combined, validation, llm_result
 
@@ -518,6 +524,12 @@ class OrchestrationMixin:
                 ):
                     yield event
 
+                # FR-060: check re-entry signal — if set, don't advance.
+                # Re-dispatch the same node (still at items[0]) with fresh context.
+                if self._recovery_reentry:
+                    self._recovery_reentry = False
+                    continue
+
                 # Stop at terminal nodes — do not advance past them
                 if node.is_terminal and self.queue.current is node:
                     finalize_terminal_output(
@@ -558,7 +570,7 @@ class OrchestrationMixin:
         if node.node_id not in {"digester", "result_aggregation"}:
             return None
         for entry in reversed(node.session.session_context):
-            content = getattr(entry, "content", None)
+            content = entry_content(entry)
             if isinstance(content, DigestedInformation):
                 return NodeHandoff(
                     source_node=node.node_id,
@@ -587,7 +599,6 @@ class OrchestrationMixin:
         """Stream one node through its lifecycle and runtime services."""
         if isinstance(node, TinyCUAQueryAnalystNode):
             node._queue = self.queue
-        self._inject_active_task_input(node)
         messages, resolved_tools = self._prepare_node(
             node,
             tools,
@@ -676,6 +687,11 @@ class OrchestrationMixin:
                 attempt,
             )
             raise
+        # FR-060: re-entry signal from _execute_node's recovery path.
+        if self._recovery_reentry:
+            # Don't emit node.completed, don't advance — the main loop
+            # will re-dispatch this node with fresh context.
+            return
         if stream_messages is not None:
             if combined:
                 stream_messages.append({"role": "assistant", "content": combined})
@@ -733,7 +749,7 @@ class OrchestrationMixin:
         attempt: int,
     ) -> AsyncIterator[dict[str, Any]]:
         """Run a deterministic node and emit completion lifecycle events."""
-        combined, tool_calls = self._execute_deterministic_node(node, resolved_tools)
+        combined, tool_calls = await self._execute_deterministic_node(node, resolved_tools)
         if stream_messages is not None:
             for tool_call in tool_calls:
                 stream_messages.append({"role": "assistant", "tool_calls": [tool_call]})
@@ -756,6 +772,53 @@ class OrchestrationMixin:
                 node_type,
                 attempt,
             )
+
+    async def _stream_valid_node_completion(
+        self,
+        node: Node,
+        combined: str,
+        collected_tool_calls: list[dict[str, Any]],
+        stream_messages: list[dict[str, Any]] | None,
+        include_meta: bool,
+        node_type: str,
+        attempt_number: int,
+        final_only: bool,
+        emit_lifecycle: bool,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Emit the valid-completion event stream for a streamed node.
+
+        Handles the 3-branch valid block: transcript/terminal-text streaming,
+        stream_messages append, and the node-completed lifecycle event.
+        """
+        if combined and not node.is_terminal:
+            self._record_node_content_transcript(node, combined)
+        if combined and node.is_terminal:
+            async for event in self._stream_terminal_text(
+                combined,
+                include_meta,
+                node.node_id,
+                node_type,
+                attempt_number,
+                final_only,
+            ):
+                yield event
+        if stream_messages is not None:
+            if combined:
+                stream_messages.append({"role": "assistant", "content": combined})
+            for tool_call in collected_tool_calls:
+                stream_messages.append(
+                    {"role": "assistant", "tool_calls": [tool_call]}
+                )
+        async for event in self._stream_node_completed(
+            node,
+            combined,
+            emit_lifecycle,
+            include_meta,
+            final_only,
+            node_type,
+            attempt_number,
+        ):
+            yield event
 
     async def _stream_llm_node_events(
         self,
@@ -780,6 +843,7 @@ class OrchestrationMixin:
         retry_message: str | None = None
         retry_feedback: list[dict[str, Any]] = []
         retry_tool_results: list[dict[str, Any]] = []
+        lazy_attempts = 0  # FR-091: lazy retry counter (stream path).
         for attempt_number in range(attempt, max_attempts + 1):
             attempt_messages = self._messages_with_retry_prompt(
                 base_messages,
@@ -853,37 +917,27 @@ class OrchestrationMixin:
             last_validation = validation
             last_result = llm_result
             if validation.is_valid:
-                if combined and not node.is_terminal:
-                    self._record_node_content_transcript(node, combined)
-                if combined and node.is_terminal:
-                    async for event in self._stream_terminal_text(
-                        combined,
-                        include_meta,
-                        node.node_id,
-                        node_type,
-                        attempt_number,
-                        final_only,
-                    ):
-                        yield event
-                if stream_messages is not None:
-                    if combined:
-                        stream_messages.append({"role": "assistant", "content": combined})
-                    for tool_call in collected_tool_calls:
-                        stream_messages.append(
-                            {"role": "assistant", "tool_calls": [tool_call]}
-                        )
-                async for event in self._stream_node_completed(
-                    node,
-                    combined,
+                async for event in self._stream_valid_node_completion(
+                    node, combined, collected_tool_calls, stream_messages,
+                    include_meta, node_type, attempt_number, final_only,
                     emit_lifecycle,
-                    include_meta,
-                    final_only,
-                    node_type,
-                    attempt_number,
                 ):
                     yield event
                 return
             if attempt_number < max_attempts:
+                lazy_outcome = await self._maybe_lazy_in_stream_loop(  # FR-091
+                    node, agent, resolved_tools, llm_result, validation, lazy_attempts)
+                if lazy_outcome is not None:
+                    lazy_result, last_validation, lazy_attempts = lazy_outcome
+                    last_result = lazy_result
+                    last_combined = lazy_result.content
+                    if last_validation.is_valid:
+                        async for event in self._stream_lazy_valid_completion(
+                            node, lazy_result, stream_messages, include_meta,
+                            node_type, attempt_number, final_only, emit_lifecycle):
+                            yield event
+                        return
+                    break  # terminate missing → _unbounded_recovery
                 error = ValidationError("; ".join(validation.errors))
                 retry_message = self._stream_retry_message(
                     agent,
@@ -912,16 +966,8 @@ class OrchestrationMixin:
         ):
             yield event
 
-    # Prerequisite chains: the ordered sequence of tools each node must call
-    # before it can terminate. Recovery tracks which have been called and only
-    # asks for the missing ones in order. ``terminate`` is always last.
-    _RECOVERY_CHAINS: dict[str, tuple[str, ...]] = {
-        "result_reviewer": ("task_review_decision", "task_inspect", "terminate"),
-        "task_executor": ("task_result_update", "terminate"),
-        "task_create": ("task_init", "terminate"),
-        "task_analyzer": ("task_decompose", "terminate"),
-        "task_assessor": ("node_handoff", "terminate"),
-    }
+    # FR-061: derived from _NODE_CONTRACTS (single source of truth).
+    _RECOVERY_CHAINS = RECOVERY_CHAINS
 
     def _resolve_recovery_tool(
         self,
@@ -958,12 +1004,7 @@ class OrchestrationMixin:
         cycle: int,
         stage_results: dict[str, bool],
     ) -> None:
-        """Log system state to stderr on every recovery cycle for traceability.
-
-        Emits a structured block showing the node, validation errors, task
-        store state, queue contents, and which recovery stages failed. This
-        makes stuck loops visible in stderr.log without decoding stdout.
-        """
+        """Log system state on every recovery cycle for traceability."""
         store = self.root_session.task_store
         total = len(store.tasks)
         completed = sum(1 for t in store.tasks.values() if t.status.value == "completed")
@@ -974,18 +1015,12 @@ class OrchestrationMixin:
         queue_ids = [n.node_id for n in self.queue.items]
         errors = "; ".join(validation.errors) or "unknown"
         stages = ", ".join(f"{k}={'OK' if v else 'FAIL'}" for k, v in stage_results.items())
-        import sys
-        print(
-            f"[tinycua] node={node.node_id} stuck — recovery cycle {cycle}\n"
-            f"  validation errors: {errors}\n"
-            f"  task_store: root={root_id}, active={active_id}, "
-            f"completed={completed}/{total}, pending={pending}, "
-            f"in_progress={in_progress}\n"
-            f"  stages: {stages}\n"
-            f"  queue: {queue_ids}\n"
-            f"  retrying with tightened context...",
-            file=sys.stderr,
-            flush=True,
+        logger.warning(
+            "node=%s stuck — recovery cycle=%d errors=%s "
+            "task_store root=%s active=%s completed=%d/%d pending=%d in_progress=%d "
+            "stages=[%s] queue=%s retrying with tightened context",
+            node.node_id, cycle, errors, root_id, active_id,
+            completed, total, pending, in_progress, stages, queue_ids,
         )
 
     async def _unbounded_recovery(
@@ -995,32 +1030,28 @@ class OrchestrationMixin:
         resolved_tools: list[Tool],
         llm_result: LLMResult,
         validation: ValidationResult,
-    ) -> tuple[LLMResult, ValidationResult]:
-        """Unbounded sequential recovery — never exits until validation passes.
+    ) -> tuple[LLMResult, ValidationResult] | None:
+        """Recovery loop with per-method budgets + unlimited re-entry (FR-060).
 
-        Tracks which prerequisite tools the agent already called successfully
-        across the entire recovery (accumulated, not just the latest batch).
-        Each recovery cycle exposes only the MISSING prerequisites in order:
-        1. Focused retry: all missing prerequisite tools, clean context.
-        2. Tightening retry: first missing tool only, tool_choice=required.
-        3. Judge retry: first missing tool injected directly by the judge.
+        Three retry stages with diminishing budgets:
+        1. **Structured-output** (15): ``response_format: json_schema`` with
+           full session context.
+        2. **Focused retry** (10): full context, no schema, free-form tool calls.
+        3. **Judge retry** (3): LLM judge injects the tool call with full context.
 
-        After each stage, accumulates any newly-called tools and re-checks
-        what's still missing. Tool results from prior stages are merged into
-        the current result before validation so the validator sees the full
-        accumulated state.
-
-        No graceful exit — the loop only returns when validation passes.
+        Total: 30 cycles per invocation. When all budgets are exhausted, returns
+        ``None`` to signal the caller to re-enter the node (re-dispatch with
+        fresh ``build_messages``, clearing accumulated context). Re-entry is
+        unlimited — no force-approve, only ``_direct_terminate`` when terminate
+        is the only missing tool.
         """
         cycle = 0
         current_result = llm_result
         current_validation = validation
-        # Accumulate successful tool results (dicts) across the entire recovery.
-        # Keyed by tool name — last successful result wins. This lets the
-        # validator see the full accumulated state even when a stage only
-        # produced one tool call.
-        accumulated_results: dict[str, dict[str, Any]] = {}
-        # Seed with successful tools from the original failed result.
+        # FR-063: seed accumulated_results from node.progress (survives re-entry).
+        accumulated_results: dict[str, dict[str, Any]] = dict(
+            node.progress.accumulated_tool_results
+        )
         for item in llm_result.metadata.get("tool_results", []):
             if (
                 isinstance(item, dict)
@@ -1028,18 +1059,25 @@ class OrchestrationMixin:
                 and item["output"].get("success") is True
             ):
                 accumulated_results[str(item.get("name"))] = item
+        # FR-063: write back to node.progress so re-entries carry forward.
+        node.progress.accumulated_tool_results = dict(accumulated_results)
+        # FR-060: per-method budgets (15/10/3 = 30 total).
+        structured_attempts = 0
+        recovery_attempts = 0
+        judge_attempts = 0
+        _STRUCTURED_BUDGET = 15
+        _RECOVERY_BUDGET = 10
+        _JUDGE_BUDGET = 3
+        # FR-078: track error strings across cycles for the same-error guard.
+        _error_history: list[str] = []
         while not current_validation.is_valid:
             cycle += 1
             stage_results: dict[str, bool] = {}
             accumulated_successful = set(accumulated_results.keys())
-            # Determine which prerequisite tools are still missing.
             missing = self._missing_recovery_tools_from_set(
                 node, accumulated_successful
             )
-            # Shortcut: if the ONLY missing prerequisite is terminate, call
-            # it directly without an LLM round-trip. terminate has no
-            # meaningful parameters — there is nothing for the model to
-            # decide. This skips all three stages and exits immediately.
+            # Deterministic track: terminate-only → direct call (FR-011).
             if missing == ["terminate"]:
                 terminated = await self._direct_terminate(node, agent)
                 if terminated is not None:
@@ -1051,57 +1089,110 @@ class OrchestrationMixin:
                     if current_validation.is_valid:
                         return current_result, current_validation
                 stage_results["direct_terminate"] = terminated is not None
-            # Stage 1: focused retry with only the missing tools exposed.
-            recovery = await self._recovery_retry(
-                node, agent, resolved_tools, current_result, current_validation,
-                missing_tools=missing,
-            )
-            stage_results["focused_retry"] = recovery is not None
-            if recovery is not None:
-                current_result, current_validation = recovery
-                self._accumulate_results(current_result, accumulated_results)
-                current_validation = self._revalidate_with_accumulated(
-                    node, current_result, accumulated_results
+            # Stage 1: structured-output retry (15 budget).
+            if structured_attempts < _STRUCTURED_BUDGET:
+                prev_successful = set(accumulated_results.keys())
+                recovery = await self._structured_output_retry(
+                    node, agent, resolved_tools, current_result, current_validation,
+                    missing_tools=missing,
                 )
-                if current_validation.is_valid:
-                    return current_result, current_validation
-            # Re-check missing after focused retry.
-            missing = self._missing_recovery_tools_from_set(
-                node, set(accumulated_results.keys())
-            )
-            # Stage 2: tightening retry — first missing tool, forced.
-            tightening = await self._tightening_retry(
-                node, agent, resolved_tools, current_result, current_validation,
-                missing_tools=missing,
-            )
-            stage_results["tightening_retry"] = tightening is not None
-            if tightening is not None:
-                current_result, current_validation = tightening
-                self._accumulate_results(current_result, accumulated_results)
-                current_validation = self._revalidate_with_accumulated(
-                    node, current_result, accumulated_results
+                structured_attempts += 1
+                stage_results["structured_output_retry"] = recovery is not None
+                if recovery is not None:
+                    current_result, current_validation = recovery
+                    self._accumulate_results(current_result, accumulated_results)
+                    self._record_stage_outcome(
+                        node, "structured_output_retry", recovery,
+                        prev_successful, set(accumulated_results.keys()),
+                    )
+                    current_validation = self._revalidate_with_accumulated(
+                        node, current_result, accumulated_results
+                    )
+                    if current_validation.is_valid:
+                        return current_result, current_validation
+                    # No-progress guard: tool succeeded but no NEW tool was
+                    # added → the model re-called an existing tool. Skip
+                    # remaining structured budget to advance to focused/judge.
+                    if self._is_no_progress(prev_successful, accumulated_results, node):
+                        structured_attempts = _STRUCTURED_BUDGET
+            # Stage 2: focused retry (10 budget).
+            elif recovery_attempts < _RECOVERY_BUDGET:
+                prev_successful = set(accumulated_results.keys())
+                focused = await self._recovery_retry(
+                    node, agent, resolved_tools, current_result, current_validation,
+                    missing_tools=missing,
                 )
-                if current_validation.is_valid:
-                    return current_result, current_validation
-            # Re-check missing after tightening retry.
-            missing = self._missing_recovery_tools_from_set(
-                node, set(accumulated_results.keys())
-            )
-            # Stage 3: judge retry — inject the first missing tool call.
-            judge = await self._judge_retry(
-                node, agent, resolved_tools, current_result, current_validation,
-                missing_tools=missing,
-            )
-            stage_results["judge_retry"] = judge is not None
-            if judge is not None:
-                current_result, current_validation = judge
-                self._accumulate_results(current_result, accumulated_results)
-                current_validation = self._revalidate_with_accumulated(
-                    node, current_result, accumulated_results
+                recovery_attempts += 1
+                stage_results["focused_retry"] = focused is not None
+                if focused is not None:
+                    current_result, current_validation = focused
+                    self._accumulate_results(current_result, accumulated_results)
+                    self._record_stage_outcome(
+                        node, "focused_retry", focused,
+                        prev_successful, set(accumulated_results.keys()),
+                    )
+                    current_validation = self._revalidate_with_accumulated(
+                        node, current_result, accumulated_results
+                    )
+                    if current_validation.is_valid:
+                        return current_result, current_validation
+                    if self._is_no_progress(prev_successful, accumulated_results, node):
+                        recovery_attempts = _RECOVERY_BUDGET
+            # Stage 3: judge retry (3 budget) — re-enabled (FR-012 updated).
+            elif judge_attempts < _JUDGE_BUDGET:
+                prev_successful = set(accumulated_results.keys())
+                judged = await self._judge_retry(
+                    node, agent, resolved_tools, current_result, current_validation,
+                    missing_tools=missing,
                 )
-                if current_validation.is_valid:
-                    return current_result, current_validation
-            # All stages failed — log state and loop back.
+                judge_attempts += 1
+                stage_results["judge_retry"] = judged is not None
+                if judged is not None:
+                    current_result, current_validation = judged
+                    self._accumulate_results(current_result, accumulated_results)
+                    self._record_stage_outcome(
+                        node, "judge_retry", judged,
+                        prev_successful, set(accumulated_results.keys()),
+                    )
+                    current_validation = self._revalidate_with_accumulated(
+                        node, current_result, accumulated_results
+                    )
+                    if current_validation.is_valid:
+                        return current_result, current_validation
+                    if self._is_no_progress(prev_successful, accumulated_results, node):
+                        judge_attempts = _JUDGE_BUDGET
+            else:
+                # All 30 cycles exhausted — signal re-entry (FR-060).
+                logger.info(
+                    "node=%s recovery_budget_exhausted — re-entering node with "
+                    "fresh context (structured=%d recovery=%d judge=%d)",
+                    node.node_id, structured_attempts, recovery_attempts, judge_attempts,
+                )
+                self._recovery_reentry = True
+                return None
+            # FR-078: same-error repetition guard — if the same validation
+            # error appears 3× in a row AND stages executed tools, take a
+            # different action instead of repeating the same retry.
+            current_error = "; ".join(current_validation.errors)
+            _error_history.append(current_error)
+            if len(_error_history) >= 3 and len(set(_error_history[-3:])) == 1:
+                error_lower = current_error.lower()
+                recent = node.progress.stage_tool_history[-3:]
+                stages_ran_tools = any(e.get("successful_tools") for e in recent)
+                if "call terminate" in error_lower and missing == ["terminate"]:
+                    logger.info("node=%s same-error guard: 'call terminate' ×3", node.node_id)
+                    terminated = await self._direct_terminate(node, agent)
+                    if terminated is not None:
+                        current_result, current_validation = terminated
+                        self._accumulate_results(current_result, accumulated_results)
+                        current_validation = self._revalidate_with_accumulated(
+                            node, current_result, accumulated_results)
+                        if current_validation.is_valid:
+                            return current_result, current_validation
+                elif stages_ran_tools and ("task_result_update" in error_lower or "task-state tool" in error_lower):
+                    logger.info("node=%s same-error guard: '%s' ×3, skipping to judge", node.node_id, current_error[:80])
+                    structured_attempts = _STRUCTURED_BUDGET
+                    recovery_attempts = _RECOVERY_BUDGET
             self._log_recovery_cycle(node, current_validation, cycle, stage_results)
 
     async def _direct_terminate(
@@ -1302,51 +1393,72 @@ class OrchestrationMixin:
                     max_attempts,
                 )
             return
-        if not self._route_task_executor_failure_to_reviewer(
-            node,
-            validation,
-            llm_result,
-        ):
-            # Unbounded tightened-retry loop — never exits until validation
-            # passes. Cycles through focused → tightening → judge stages,
-            # logging state to stderr each cycle. No graceful continue, no
-            # exit-0 escape hatch. The node must produce valid output before
-            # the queue can advance past it (queue integrity invariant).
-            recovered_result, _ = await self._unbounded_recovery(
-                node, agent, resolved_tools, llm_result, validation
-            )
-            recovery_content = recovered_result.content or combined
-            # Record the recovered output and fire on_complete so the queue
-            # gets the next nodes (schedule_after_review / schedule_next).
-            self._record_node_output(node, recovery_content, recovered_result.tool_calls)
-            recovered_result.metadata = dict(recovered_result.metadata)
-            if recovery_content:
-                self._record_node_content_transcript(node, recovery_content)
-            self._record_tool_result_transcripts(
-                node,
-                recovered_result.metadata.get("tool_results", []),
-            )
-            self._apply_loop_result_hook(node, recovered_result, None)
-            self._publish_structured_outputs_to_root(node)
-            self._maybe_populate_root_mission(node)
-            self._maybe_warn_reviewer_no_verification(node, recovered_result)
-            self._apply_task_lifecycle_marker(node, recovery_content)
-            on_complete_response = self._build_on_complete_response(node, recovered_result)
-            node.on_complete(self.queue, on_complete_response)
-            async for event in self._stream_node_completed(
-                node,
-                recovery_content,
-                emit_lifecycle,
-                include_meta,
-                final_only,
+        lazy_outcome = await self._maybe_lazy_pre_recovery(  # FR-087..093
+            node, agent, resolved_tools, llm_result, validation)
+        if lazy_outcome is not None:
+            lazy_result, revalidated, is_valid = lazy_outcome
+            if is_valid:
+                async for event in self._finalize_lazy_stream_recovery(
+                    node, lazy_result, combined, emit_lifecycle, include_meta,
+                    final_only, node_type, max_attempts):
+                    yield event
+                return
+            llm_result, validation = lazy_result, revalidated
+        recovery_result = await self._unbounded_recovery(
+            node, agent, resolved_tools, llm_result, validation
+        )
+        if recovery_result is None:
+            # Re-entry: yield event, return from generator.
+            # Do NOT call on_complete, do NOT advance.
+            reentry_event = self._emit_lifecycle_event(
+                "node.reentry",
+                node.node_id,
                 node_type,
                 max_attempts,
-            ):
-                yield event
+                emit_lifecycle,
+                final_only,
+                node.is_terminal,
+                content="Recovery budget exhausted — re-entering node with fresh context.",
+                finish_reason="reentry",
+            )
+            if reentry_event is not None:
+                yield self._enrich_and_yield(
+                    reentry_event,
+                    include_meta,
+                    node.node_id,
+                    node_type,
+                    max_attempts,
+                )
+            self._record_node_content_transcript(
+                node, "Recovery budget exhausted — re-entering node with fresh context.",
+            )
             return
+        recovered_result, _ = recovery_result
+        recovery_content = recovered_result.content or combined
+        # Record the recovered output and fire on_complete so the queue
+        # gets the next nodes (schedule_after_review / schedule_next).
+        # FR-074: clear_prior=True to prevent duplicating content from
+        # the failed attempt that preceded recovery.
+        self._record_node_output(
+            node, recovery_content, recovered_result.tool_calls, clear_prior=True,
+        )
+        recovered_result.metadata = dict(recovered_result.metadata)
+        if recovery_content:
+            self._record_node_content_transcript(node, recovery_content)
+        self._record_tool_result_transcripts(
+            node,
+            recovered_result.metadata.get("tool_results", []),
+        )
+        self._apply_loop_result_hook(node, recovered_result, None)
+        self._publish_structured_outputs_to_root(node)
+        self._maybe_populate_root_mission(node)
+        self._maybe_warn_reviewer_no_verification(node, recovered_result)
+        self._apply_task_lifecycle_marker(node, recovery_content)
+        on_complete_response = self._build_on_complete_response(node, recovered_result)
+        node.on_complete(self.queue, on_complete_response)
         async for event in self._stream_node_completed(
             node,
-            combined,
+            recovery_content,
             emit_lifecycle,
             include_meta,
             final_only,
@@ -1354,6 +1466,7 @@ class OrchestrationMixin:
             max_attempts,
         ):
             yield event
+        return
 
     async def _stream_node_completed(
         self,

@@ -13,6 +13,9 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -162,6 +165,169 @@ def read_int_env(key: str, env_file: Path = Path(".env"), default: int = 0) -> i
         if found_key.strip() == key:
             return int(value.strip())
     return default
+
+
+def read_str_env(key: str, env_file: Path = Path(".env"), default: str = "") -> str:
+    """Read a string value from .env without adding dependencies.
+
+    Sibling to ``read_int_env`` — same line-splitting pattern, returns ``str``.
+    Used for ``EXPERIMENT_LLM_BASE_URL``, ``EXPERIMENT_LLM_MODEL``, and the
+    optional ``EXPERIMENT_TINYCUA_MAX_CONTEXT`` manual override.
+    """
+    if not env_file.exists():
+        return default
+    for raw_line in env_file.read_text().splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        found_key, value = line.split("=", 1)
+        if found_key.strip() == key:
+            return value.strip()
+    return default
+
+
+def _to_host_url(base_url: str) -> str:
+    """Translate a container-facing base URL to a host-reachable one.
+
+    The harness runs on the host; ``host.docker.internal`` is only valid inside
+    Docker containers. Swap it for ``localhost`` and strip the trailing
+    ``/v1`` so we can append ``/api/v1/models`` (the LM Studio REST endpoint,
+    not the OpenAI-compatible one which omits ``context_length``).
+    """
+    url = base_url.rstrip("/")
+    url = url.replace("host.docker.internal", "localhost")
+    # Strip trailing /v1 (OpenAI-compat path) to get the server root.
+    if url.endswith("/v1"):
+        url = url[:-3]
+    return url
+
+
+def _model_matches(model_obj: dict, target: str) -> bool:
+    """Return whether a LM Studio REST model object matches the target name.
+
+    LM Studio's ``/api/v1/models`` returns models identified by ``key``
+    (e.g. ``qwen/qwen3.5-9b``) while the OpenAI-compatible endpoint serves
+    them under ``loaded_instances[0].id`` (e.g. ``qwen3.5-9b``). Match against
+    all identifier fields, case-insensitive, substring either direction, so a
+    served name of ``qwen3.5-9b`` finds the model keyed ``qwen/qwen3.5-9b``.
+    """
+    t = target.lower()
+    if not t:
+        return False
+    # loaded_instances[*].id — the API-facing identifier (best match).
+    for inst in model_obj.get("loaded_instances") or []:
+        iid = str(inst.get("id", "")).lower()
+        if iid and (t == iid or t in iid or iid in t):
+            return True
+    # key — the model's canonical identifier.
+    key = str(model_obj.get("key", "")).lower()
+    if key and (t == key or t in key or key in t):
+        return True
+    # display_name — the human-readable name (weakest match).
+    dn = str(model_obj.get("display_name", "")).lower()
+    if dn and (t == dn or t in dn or dn in t):
+        return True
+    return False
+
+
+def _extract_context_length(model_obj: dict) -> int | None:
+    """Extract the effective context length from a LM Studio model object.
+
+    Prefers ``loaded_instances[0].config.context_length`` (the active runtime
+    limit — LM Studio may load a 262K model with only 32K to save VRAM) over
+    ``max_context_length`` (the model's ceiling). Returns None when neither
+    is present or valid.
+    """
+    for inst in model_obj.get("loaded_instances") or []:
+        cfg = inst.get("config") or {}
+        cl = cfg.get("context_length")
+        if isinstance(cl, (int, float)) and cl > 0:
+            return int(cl)
+    mcl = model_obj.get("max_context_length")
+    if isinstance(mcl, (int, float)) and mcl > 0:
+        return int(mcl)
+    return None
+
+
+def probe_lm_studio_context(env_file: Path = Path(".env")) -> int | None:
+    """Best-effort probe of LM Studio's REST API for the model's context length.
+
+    Hits ``GET {base}/api/v1/models`` (LM Studio REST, not the OpenAI-compat
+    ``/v1/models`` which omits ``context_length``). Reads
+    ``EXPERIMENT_LLM_BASE_URL`` and ``EXPERIMENT_LLM_MODEL`` from ``.env``,
+    translates ``host.docker.internal`` → ``localhost`` (harness runs on host).
+
+    Returns ``loaded_instances[0].config.context_length`` (the active limit),
+    falling back to ``max_context_length`` (the model ceiling), else ``None``.
+    Never raises — any failure (server down, parse error, model not found)
+    returns ``None`` with a warning printed to stderr.
+
+    Args:
+        env_file: Path to the ``.env`` file (default ``./.env``).
+
+    Returns:
+        The resolved context length (int > 0), or None when the probe fails
+        or the field is absent.
+    """
+    base_url = read_str_env("EXPERIMENT_LLM_BASE_URL", env_file)
+    model_name = read_str_env("EXPERIMENT_LLM_MODEL", env_file)
+    if not base_url or not model_name:
+        print(
+            "[tinycua] max_context probe skipped — EXPERIMENT_LLM_BASE_URL or "
+            "EXPERIMENT_LLM_MODEL missing from .env",
+            file=sys.stderr,
+            flush=True,
+        )
+        return None
+
+    host_url = _to_host_url(base_url)
+    probe_url = f"{host_url}/api/v1/models"
+    try:
+        req = urllib.request.Request(probe_url, method="GET")
+        with urllib.request.urlopen(req, timeout=5) as resp:  # noqa: S310 — local server, no user input
+            raw = resp.read()
+        data = json.loads(raw)
+    except (urllib.error.URLError, OSError, json.JSONDecodeError, ValueError) as exc:
+        print(
+            f"[tinycua] max_context probe failed ({probe_url}): {exc} — "
+            f"using SDK default 128000",
+            file=sys.stderr,
+            flush=True,
+        )
+        return None
+
+    models = data.get("models") if isinstance(data, dict) else None
+    if not isinstance(models, list) or not models:
+        print(
+            f"[tinycua] max_context probe — no models in response from {probe_url}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return None
+
+    # First pass: find the matching model and extract its context length.
+    for model_obj in models:
+        if not isinstance(model_obj, dict):
+            continue
+        if _model_matches(model_obj, model_name):
+            ctx = _extract_context_length(model_obj)
+            if ctx is not None:
+                print(
+                    f"[tinycua] max_context={ctx} (probed from {probe_url})",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                return ctx
+            # Matched the model but no context_length field — fall through to
+            # the no-context warning below.
+
+    print(
+        f"[tinycua] max_context probe — model '{model_name}' not found or "
+        f"has no context_length in {probe_url}",
+        file=sys.stderr,
+        flush=True,
+    )
+    return None
 
 
 def read_timeout_seconds(env_file: Path = Path(".env"), default: int = 14400) -> int:
@@ -338,8 +504,33 @@ def run_agent(
         f"{workdir.resolve()}:{container_workspace}",
         "--workdir",
         container_workspace,
-        agent,
     ]
+
+    # FR-084 (experiment harness): probe LM Studio's REST API for the served
+    # model's real context_length and pass it to the tinycua container so the
+    # compaction threshold (0.7 × max_context) tracks the real wall instead of
+    # the SDK's 128000 default. Tinycua-only; other harnesses manage their own
+    # context windows. A manual EXPERIMENT_TINYCUA_MAX_CONTEXT in .env skips
+    # the probe entirely (explicit override > probe > SDK default).
+    if agent == "tinycua":
+        manual = read_str_env("EXPERIMENT_TINYCUA_MAX_CONTEXT")
+        if manual and manual.strip() and manual.strip().isdigit():
+            max_ctx = int(manual.strip())
+            print(f"[tinycua] max_context={max_ctx} (from .env override)", flush=True)
+        else:
+            max_ctx = probe_lm_studio_context()
+        if max_ctx is not None:
+            command.extend(["-e", f"EXPERIMENT_TINYCUA_MAX_CONTEXT={max_ctx}"])
+        # FR-087..FR-093: opt-in markdown-synthesis ("lazy") retry strategy.
+        # When EXPERIMENT_TINYCUA_RECOVERY_STRATEGY=markdown_synthesis is set
+        # in .env, the tinycua container runs with --recovery-strategy
+        # markdown_synthesis; otherwise it defaults to standard.
+        recovery = read_str_env("EXPERIMENT_TINYCUA_RECOVERY_STRATEGY")
+        if recovery and recovery.strip() in {"standard", "markdown_synthesis"}:
+            command.extend(["-e", f"EXPERIMENT_TINYCUA_RECOVERY_STRATEGY={recovery.strip()}"])
+            print(f"[tinycua] recovery_strategy={recovery.strip()} (from .env)", flush=True)
+
+    command.append(agent)
     started = datetime.now(UTC)
     llm_started: datetime | None = None
     warmup_marker = WARMUP_DONE_MARKERS.get(agent, "")

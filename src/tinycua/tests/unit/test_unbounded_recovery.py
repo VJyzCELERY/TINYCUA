@@ -16,7 +16,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from tinycua.config.node_config import create_node_config
-from tinycua.config.types import LLMResult, Tool, ValidationResult
+from tinycua.config.types import LLMResult, ValidationResult
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.recovery_stages_mixin import RecoveryStagesMixin
 from tinycua.loops.task_create import TinyCUATaskCreateNode
@@ -136,7 +136,12 @@ class TestUnboundedRecovery:
 
     @pytest.mark.asyncio
     async def test_recovery_logs_state_on_cycle_failure(self) -> None:
-        """The recovery loop logs system state to stderr when all stages fail."""
+        """The recovery loop logs system state and signals re-entry after budget exhaustion.
+
+        FR-060: the loop is no longer truly unbounded — it has a per-method
+        budget (15/10/3 = 30 total). When all budgets are exhausted, it returns
+        None to signal node re-entry. This test verifies the re-entry signal.
+        """
         loop = TinyCUALoop()
         node = TinyCUATaskCreateNode(
             node_id="task_create",
@@ -154,24 +159,19 @@ class TestUnboundedRecovery:
 
         agent._call_llm = mock_llm
 
-        import asyncio
-
-        # The unbounded loop spins forever when all stages fail. We verify
-        # it doesn't exit (timeout) rather than checking for a specific return.
-        with pytest.raises(asyncio.TimeoutError):
-            await asyncio.wait_for(
-                loop._unbounded_recovery(
-                    node,
-                    agent,
-                    [],
-                    LLMResult(content="fails"),
-                    ValidationResult(
-                        is_valid=False,
-                        errors=["task_create must call task_init"],
-                    ),
-                ),
-                timeout=3.0,
-            )
+        # FR-060: after 30 cycles (15+10+3), the loop returns None (re-entry).
+        result = await loop._unbounded_recovery(
+            node,
+            agent,
+            [],
+            LLMResult(content="fails"),
+            ValidationResult(
+                is_valid=False,
+                errors=["task_create must call task_init"],
+            ),
+        )
+        assert result is None  # re-entry signal
+        assert loop._recovery_reentry is True
 
 
 class TestOnCompleteFiresAfterRecovery:
@@ -344,30 +344,37 @@ class TestOnCompleteFiresAfterRecovery:
 
 
 class TestOpenQuestionDisabled:
-    """Tests that OPEN_QUESTION is disabled for the prototype."""
+    """Tests that OPEN_QUESTION is configurable and disabled by default."""
 
-    def test_open_question_not_in_active_enum_values(self) -> None:
-        """OPEN_QUESTION is commented out — not in active enum values."""
+    def test_open_question_present_in_enum_but_disabled_by_default(self) -> None:
+        """OPEN_QUESTION is in the enum (configurable) but disabled by default."""
         values = [d.value for d in ReviewerDecision]
-        assert "open_question" not in values
+        assert "open_question" in values
         assert "approved" in values
         assert "needs_revision" in values
         assert "rejected" in values
         assert "replan" in values
+        # Disabled by default in SessionConfig
+        from tinycua.config.session_config import SessionConfig
+
+        assert SessionConfig().enable_open_question_review is False
 
     def test_schedule_after_review_does_not_route_to_response_for_open_question(self) -> None:
-        """schedule_after_review falls through to schedule_next for any decision."""
+        """schedule_after_review falls through to schedule_next when flag disabled."""
         from tinycua.loops.worker_runtime import WorkerRuntimeController
 
         loop = TinyCUALoop()
         task = loop.root_session.task_store.create_task("test")
         loop.root_session.task_store.active_task_id = task.task_id
 
-        # Even if somehow an open_question decision were recorded,
-        # schedule_after_review should not route to ResponseNode.
+        # With the flag disabled (default), an open_question decision should
+        # fall through to schedule_next — not route to ResponseNode.
         task.reviewer_decisions.append({"decision": "open_question"})
         queue = NodeQueue(items=[])
-        WorkerRuntimeController(loop.root_session.task_store).schedule_after_review(queue)
+        WorkerRuntimeController(
+            loop.root_session.task_store,
+            enable_open_question_review=False,
+        ).schedule_after_review(queue)
 
         # Should not contain a response node — should fall through to schedule_next.
         assert not any(n.node_id == "response" for n in queue.items)

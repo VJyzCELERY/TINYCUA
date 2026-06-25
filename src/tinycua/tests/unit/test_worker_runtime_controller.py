@@ -28,7 +28,9 @@ def test_worker_runtime_repeated_revision_never_routes_to_response() -> None:
     root = store.create_task("Root")
     active = store.create_task("Active", parent_id=root.task_id)
     store.transition(active.task_id, TaskStatus.IN_PROGRESS)
-    for _ in range(5):
+    # Use 3 rejections — below the default replan_threshold of 5, so this
+    # still routes to executor+reviewer (retry), not replan.
+    for _ in range(3):
         store.record_reviewer_decision(active.task_id, ReviewerDecision.NEEDS_REVISION)
     queue = NodeQueue()
 
@@ -106,3 +108,39 @@ def test_worker_runtime_replan_uses_local_assessor_mode() -> None:
     ]
     assert queue.items[0].config.metadata["task_assessor_mode"] == "local_replan"
     assert queue.items[1].config.metadata["task_analyzer_mode"] == "local_replan"
+
+
+def test_open_question_disabled_by_default_falls_through_to_schedule_next() -> None:
+    """OPEN_QUESTION decision with flag disabled (default) does not bail to ResponseNode.
+
+    The controller must treat OPEN_QUESTION as an unknown decision and fall
+    through to schedule_next — it must never route to ResponseNode while
+    tasks remain unfinished in one-shot worker mode.
+    """
+    store = TaskStateStore()
+    root = store.create_task("Root")
+    active = store.create_task("Active", parent_id=root.task_id)
+    store.transition(active.task_id, TaskStatus.IN_PROGRESS)
+    store.record_reviewer_decision(active.task_id, ReviewerDecision.OPEN_QUESTION)
+    queue = NodeQueue()
+
+    WorkerRuntimeController(store).schedule_after_review(queue)
+
+    # Falls through to schedule_next → executor+reviewer (active task unfinished)
+    assert [node.node_id for node in queue.items] == ["task_executor", "result_reviewer"]
+
+
+def test_open_question_enabled_routes_to_response_node() -> None:
+    """OPEN_QUESTION decision with flag enabled bails to ResponseNode."""
+    store = TaskStateStore()
+    root = store.create_task("Root")
+    active = store.create_task("Active", parent_id=root.task_id)
+    store.transition(active.task_id, TaskStatus.IN_PROGRESS)
+    store.record_reviewer_decision(active.task_id, ReviewerDecision.OPEN_QUESTION)
+    queue = NodeQueue()
+
+    WorkerRuntimeController(
+        store, enable_open_question_review=True
+    ).schedule_after_review(queue)
+
+    assert [node.node_id for node in queue.items] == ["response"]

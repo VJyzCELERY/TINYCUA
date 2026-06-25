@@ -41,3 +41,46 @@ class SessionContextEntry(StateObject):
         if self.segment == "output":
             return "assistant"
         return "user"
+
+
+def entry_content(entry: Any) -> Any:
+    """Return the content of a SessionContextEntry or dict-shaped entry.
+
+    The codebase handles both ``SessionContextEntry`` dataclass instances and
+    legacy ``dict`` entries (e.g. from snapshots / serialised state). This
+    helper centralises the dict-or-attr coercion so callers don't repeat the
+    ``entry.get("content") if isinstance(entry, dict) else entry.content``
+    pattern at every read site.
+    """
+    if isinstance(entry, dict):
+        return entry.get("content")
+    return entry.content
+
+
+def append_output_entry(
+    session: Any,
+    content: Any,
+    source_node_id: str,
+    *,
+    idempotent_by_identity: bool = False,
+) -> None:
+    """Append a ``segment="output"`` SessionContextEntry to ``session.session_context``.
+
+    Centralises the repeated "record this node's output into the session
+    context" pattern. When ``idempotent_by_identity`` is True, skips the
+    append if an existing output entry holds the exact same content object
+    (identity check) — used by digester/worker to avoid double-recording the
+    same digest across propagation passes.
+    """
+    if idempotent_by_identity:
+        for entry in session.session_context:
+            if getattr(entry, "segment", None) == "output" and entry.content is content:
+                return
+    session.session_context.append(
+        SessionContextEntry(
+            content=content,
+            segment="output",
+            source_node_id=source_node_id,
+            source_session_id=session.session_id,
+        )
+    )

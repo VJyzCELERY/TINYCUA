@@ -234,7 +234,7 @@ The Worker Result should contain only accepted task outputs and enough provenanc
 ```yaml
 reviewer_decision:
   task_id: "<task id>"
-  status: accept | retry | replan
+  status: approved | needs_revision | rejected | replan
   reason: "..."
   context_updates:
     - target_task_id: "<target task id>"

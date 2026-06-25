@@ -11,7 +11,7 @@ from tinycua.loops.propagation import (
 )
 
 
-def test_propagation_upward_and_forwarding():
+async def test_propagation_upward_and_forwarding():
     """On node termination, prior+input propagate upward, output forwards to next."""
     # Arrange
     root_session = Session(
@@ -58,7 +58,7 @@ def test_propagation_upward_and_forwarding():
     rule = PROPAGATION_PROFILES["natural_termination_legacy"]
 
     # Act
-    propagate_on_termination(node_session, parent_session, root_session, rule)
+    await propagate_on_termination(node_session, parent_session, root_session, rule)
 
     # Assert — output NOT in parent/root (forwarded to next node)
     parent_contents = [e.content for e in parent_session.session_context]
@@ -69,7 +69,7 @@ def test_propagation_upward_and_forwarding():
     assert "output result" not in root_contents
 
 
-def test_dedupe_on_propagation_filters_duplicates():
+async def test_dedupe_on_propagation_filters_duplicates():
     """When dedupe=True, records with matching origin_record_id are filtered."""
     # Arrange
     root_session = Session(
@@ -121,7 +121,7 @@ def test_dedupe_on_propagation_filters_duplicates():
     rule = PROPAGATION_PROFILES["natural_termination_legacy"]
 
     # Act
-    propagate_on_termination(node_session, parent_session, root_session, rule)
+    await propagate_on_termination(node_session, parent_session, root_session, rule)
 
     # Assert — duplicate filtered, fresh added
     contents = [e.content for e in parent_session.session_context]
@@ -166,7 +166,7 @@ def test_terminal_output_exception():
     assert result == "final answer"
 
 
-def test_chat_record_appended_during_propagation():
+async def test_chat_record_appended_during_propagation():
     """ChatRecord is appended to chat_history per PropagationRule.chat_history."""
     root_session = Session(
         session_id="root", chat_history=[], session_context=[], input_context=[]
@@ -194,7 +194,7 @@ def test_chat_record_appended_during_propagation():
     rule = PROPAGATION_PROFILES["natural_termination_legacy"]
 
     # Act
-    propagate_on_termination(node_session, parent_session, root_session, rule)
+    await propagate_on_termination(node_session, parent_session, root_session, rule)
 
     # Assert — ChatRecord appended to both parent and root chat_history
     assert len(parent_session.chat_history) > 0
@@ -203,7 +203,7 @@ def test_chat_record_appended_during_propagation():
     assert parent_session.chat_history[0].record_type == "propagation"
 
 
-def test_empty_output_no_forwarding():
+async def test_empty_output_no_forwarding():
     """Empty output segment does not cause forwarding; prior+input still propagate."""
     root_session = Session(
         session_id="root", chat_history=[], session_context=[], input_context=[]
@@ -235,7 +235,7 @@ def test_empty_output_no_forwarding():
     rule = PROPAGATION_PROFILES["natural_termination_legacy"]
 
     # Act — no output segment
-    propagate_on_termination(node_session, parent_session, root_session, rule)
+    await propagate_on_termination(node_session, parent_session, root_session, rule)
 
     # Assert — prior propagated to parent
     contents = [e.content for e in parent_session.session_context]

@@ -2,21 +2,28 @@
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 import json
 import logging
 import re
+import time
 from collections.abc import AsyncIterator, Callable
 from typing import TYPE_CHECKING, Any
 
 from tinycua_sdk.agent.executor import ToolExecutor
 from tinycua_sdk.agent.loop import BaseLoop
 
-from tinycua.config.types import LLMResult, ValidationError, ValidationResult
-from tinycua.loops._loop_constants import _MAX_TOOL_CONTINUATIONS
+from tinycua.config.types import LLMResult, ValidationResult
+from tinycua.loops._loop_constants import (
+    _MAX_PROVIDER_RETRIES,
+    _MAX_TOOL_CONTINUATIONS,
+)
 from tinycua.loops.context_rendering import render_llm_content, sanitize_internal_reprs
+from tinycua.loops.node_contract import NodeState
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.models.node_handoff import NodeHandoff
+from tinycua.models.session_context_entry import entry_content
 from tinycua.agent.tools.native.output_persist import (
     enforce_turn_budget,
     evict_superseded_file_reads,
@@ -27,7 +34,8 @@ from tinycua.loops.prompt_protocol_mixin import PromptProtocolMixin
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.loops.task_tree_rendering import render_task_tree
 from tinycua.loops.trace_state_mixin import TraceStateMixin
-from tinycua.loops.recovery_stages_mixin import RecoveryStagesMixin
+from tinycua.loops.lazy_retry_mixin import LazyRetryMixin
+from tinycua.loops.recovery_stages_mixin import RecoveryGuardMixin, RecoveryStagesMixin
 from tinycua.loops.validation_retry_mixin import ValidationRetryMixin
 from tinycua.models.session import Session
 
@@ -39,6 +47,18 @@ if TYPE_CHECKING:
     from tinycua_sdk.tools.decorators import Tool
 
 logger = logging.getLogger(__name__)
+
+# ponytail: per-tool rate-limit gate for shared backends. SearXNG's
+# general-web engines (brave, google, startpage, duckduckgo) suspend under
+# rapid-fire query load — experiment-2 fired ~30 searches in 5 minutes and
+# brave/google hit rate-limit/CAPTCHA within 2 minutes, leaving only
+# duckduckgo which returns 0 results for niche technical queries. A 3s
+# minimum gap between web_search hits keeps the engines below their
+# suspension thresholds. Map: tool name → (min_interval_s, last_call_ts).
+# To add another throttled tool, add an entry here.
+_TOOL_RATE_LIMITS: dict[str, tuple[float, float]] = {
+    "web_search": (3.0, 0.0),
+}
 
 # Regex for inline reasoning blocks: <think>...</think>, <thinking>...</thinking>,
 # <reasoning>...</reasoning> (case-insensitive, DOTALL for multiline blocks).
@@ -130,7 +150,9 @@ def _detect_repetition(content: str, min_block: int = 50, threshold: int = 3) ->
 class TinyCUALoop(
     OrchestrationMixin,
     ValidationRetryMixin,
+    LazyRetryMixin,
     RecoveryStagesMixin,
+    RecoveryGuardMixin,
     PromptProtocolMixin,
     TraceStateMixin,
     BaseLoop,
@@ -174,6 +196,10 @@ class TinyCUALoop(
         self._final_response_events: list[dict[str, Any]] = []
         self._transcript_events: list[dict[str, Any]] = []
         self._transcript_seen_node_contents: set[str] = set()
+        # FR-060: re-entry signal — set by _unbounded_recovery when the
+        # recovery budget is exhausted. Checked by callers to skip
+        # on_complete/advance and re-dispatch the node with fresh context.
+        self._recovery_reentry: bool = False
         self.workspace_dir = getattr(session_config, "workspace_dir", None)
         self.artifact_dir = getattr(session_config, "artifact_dir", None)
         self.session_dir = getattr(session_config, "session_dir", None)
@@ -181,19 +207,6 @@ class TinyCUALoop(
         self._tool_artifact_seq = 0
         self._pending_handoffs: list[NodeHandoff] = []
         self._resolved_tools_for_prompt: list[Tool] | None = None
-
-    def get_working_messages(self) -> list[dict[str, Any]]:
-        """Return the working messages captured during the last run.
-
-        The working messages include system prompts, user messages,
-        assistant responses, and tool calls from the most recent
-        ``run()`` invocation. This is used by the transcript writer
-        to produce JSONL output.
-
-        Returns:
-            List of message dicts from the last execution.
-        """
-        return list(self._working_messages)
 
     def get_usage_events(self) -> list[dict[str, Any]]:
         """Return the usage events captured during the last streaming run.
@@ -264,14 +277,6 @@ class TinyCUALoop(
     def render_task_tree(self, store=None) -> str:
         """Render the current or provided task tree as readable text."""
         return render_task_tree(store or self.root_session.task_store)
-
-    def get_task_trace(self) -> list[dict[str, Any]]:
-        """Return task-state snapshots captured in execution trace entries."""
-        return [
-            entry["task_tree"]
-            for entry in self._execution_trace
-            if "task_tree" in entry
-        ]
 
     def get_state_snapshot(self) -> dict[str, Any]:
         """Return a JSON-safe snapshot of runtime-visible state."""
@@ -423,7 +428,7 @@ class TinyCUALoop(
             source = getattr(entry, "source_node_id", None)
             segment = getattr(entry, "segment", None)
             if source == "response" and segment == "output":
-                return render_llm_content(getattr(entry, "content", ""))
+                return render_llm_content(entry_content(entry))
         return ""
 
     def _normalize_system_messages(
@@ -458,6 +463,27 @@ class TinyCUALoop(
             source_binder = getattr(tool, "bind_source_node", None)
             if callable(source_binder):
                 source_binder(node.node_id)
+
+    async def _await_tool_rate_limit(self, tool_name: str) -> None:
+        """Async sleep to enforce per-tool minimum call intervals.
+
+        Used for shared backends (e.g. SearXNG) that suspend under
+        rapid-fire load. See ``_TOOL_RATE_LIMITS``. No-op for unlisted
+        tools.
+        """
+        entry = _TOOL_RATE_LIMITS.get(tool_name)
+        if entry is None:
+            return
+        min_interval, last_ts = entry
+        now = time.monotonic()
+        wait = min_interval - (now - last_ts)
+        if wait > 0:
+            logger.debug(
+                "tool_rate_limit name=%s wait=%.2fs",
+                tool_name, wait,
+            )
+            await asyncio.sleep(wait)
+        _TOOL_RATE_LIMITS[tool_name] = (min_interval, time.monotonic())
 
     async def _execute_tool_calls(
         self,
@@ -494,6 +520,9 @@ class TinyCUALoop(
                 continue
             arguments = self._normalize_tool_call_arguments(allowed_tools[name], arguments)
             self._log_tool_call_args(name, arguments)
+            # ponytail: per-tool rate limit for shared backends. See
+            # _TOOL_RATE_LIMITS. Async sleep so the event loop stays free.
+            await self._await_tool_rate_limit(name)
             try:
                 output = await ToolExecutor.execute(allowed_tools[name], arguments, agent)  # type: ignore[arg-type]
             except Exception as exc:  # noqa: BLE001 - recorded for trace/debugging.
@@ -509,38 +538,31 @@ class TinyCUALoop(
         return results
 
     def _log_tool_call_args(self, name: str, arguments: dict[str, Any]) -> None:
-        """Log a truncated preview of tool call arguments to stderr for debugging.
+        r"""Log a truncated preview of tool call arguments to stderr for debugging.
 
         File tools (str_replace, write_file, append_file) get path + content
         preview. Other tools get a truncated JSON preview. This makes it
-        possible to diagnose issues like literal \\n in content by inspecting
+        possible to diagnose issues like literal \n in content by inspecting
         the stderr log.
         """
-        import sys
-
         if name in {"str_replace", "write_file", "append_file"}:
             path = arguments.get("path", "?")
             if name == "str_replace":
                 old = str(arguments.get("old_string", ""))[:100]
                 new = str(arguments.get("new_string", ""))[:100]
                 has_literal_n = "\\n" in str(arguments.get("new_string", ""))
-                print(
-                    f"[tinycua] tool={name} path={path}\n"
-                    f"  old_string[:100]={old!r}\n"
-                    f"  new_string[:100]={new!r}"
-                    + (" [WARNING: literal \\n detected]" if has_literal_n else ""),
-                    file=sys.stderr,
-                    flush=True,
+                logger.debug(
+                    "tool=%s path=%s old_string[:100]=%r new_string[:100]=%r%s",
+                    name, path, old, new,
+                    " [WARNING: literal \\n detected]" if has_literal_n else "",
                 )
             else:
                 content = str(arguments.get("content", ""))[:100]
                 has_literal_n = "\\n" in str(arguments.get("content", ""))
-                print(
-                    f"[tinycua] tool={name} path={path}\n"
-                    f"  content[:100]={content!r}"
-                    + (" [WARNING: literal \\n detected]" if has_literal_n else ""),
-                    file=sys.stderr,
-                    flush=True,
+                logger.debug(
+                    "tool=%s path=%s content[:100]=%r%s",
+                    name, path, content,
+                    " [WARNING: literal \\n detected]" if has_literal_n else "",
                 )
         else:
             # Truncated JSON preview for non-file tools.
@@ -548,11 +570,7 @@ class TinyCUALoop(
                 preview = json.dumps(arguments, default=str)[:200]
             except Exception:
                 preview = str(arguments)[:200]
-            print(
-                f"[tinycua] tool={name} args={preview}",
-                file=sys.stderr,
-                flush=True,
-            )
+            logger.debug("tool=%s args=%s", name, preview)
 
     def _normalize_tool_call_arguments(
         self,
@@ -620,6 +638,242 @@ class TinyCUALoop(
                 task.result.metadata["tool_results"] = evidence
                 task.metadata.pop("executor_partial_tool_results", None)
 
+    def _track_tool_calls_in_progress(
+        self, node: Node, tool_results: list[dict[str, Any]]
+    ) -> None:
+        """Record visited + satisfied tools in node.progress (Milestone 2)."""
+        for tr in tool_results:
+            if isinstance(tr, dict) and tr.get("name"):
+                success = (
+                    isinstance(tr.get("output"), dict)
+                    and tr["output"].get("success") is not False
+                )
+                node.progress.mark_tool_called(tr["name"], success=success)
+
+    def _track_input_tokens(self, node: Node, last_result: LLMResult) -> None:
+        """Record the latest input-token count on the session for compaction triggers."""
+        usage = last_result.metadata.get("usage") or {}
+        if not isinstance(usage, dict):
+            return
+        input_tokens = usage.get("input_tokens") or usage.get("prompt_tokens")
+        if isinstance(input_tokens, (int, float)):
+            session = node.session or self.root_session
+            session._last_input_tokens = int(input_tokens)
+
+    def _agent_max_context(self, agent: Agent) -> int | None:
+        """Return the bound model's max_context token limit, if available."""
+        config = getattr(agent, "config", None)
+        model = getattr(config, "llm_model", None)
+        max_context = getattr(model, "max_context", None)
+        return max_context if isinstance(max_context, (int, float)) else None
+
+    def _build_compaction_llm_call(self, agent: Agent) -> Callable[[list[dict[str, str]]], Any]:
+        """Build an async LLM callable for the compaction strategy.
+
+        The callable takes a list of messages (system + user) and returns the
+        assistant content string. Uses the same bound model as the worker so
+        compaction doesn't require a separate client/credentials. Tool-less
+        call (no tools passed) since compaction is pure summarization.
+        """
+
+        async def _llm_call(messages: list[dict[str, str]]) -> str:
+            raw = await self._invoke_agent_llm(agent, messages, [], stream=False)
+            content = raw.get("content", "") if isinstance(raw, dict) else ""
+            return str(content).strip()
+
+        return _llm_call
+
+    async def _maybe_compact(self, node: Node, agent: Agent) -> None:
+        """Compact session_context when the last LLM call neared the context window.
+
+        Milestone 8 Stream B runtime trigger. Uses the provider-reported
+        ``input_tokens`` from the previous call (stored on the session) and
+        the bound model's ``max_context`` to decide if compaction is needed.
+        When triggered, older ``session_context`` entries (all but the most
+        recent ``compaction_keep_recent``) are summarized into one entry via
+        the configured ``compaction_strategy``. Static context (mission,
+        instruction, continuation) is never touched — only the audit trail.
+
+        No-op when no strategy is configured, no token data is available, or
+        the chicken-and-egg case (first call, no prior usage).
+        """
+        session = node.session or self.root_session
+        sc = session.session_config
+        if sc is None or sc.compaction_strategy is None:
+            return
+        # Lazy LLM-call wiring: if the strategy is a SimpleCompaction without
+        # an llm_call, inject one built from the agent so compaction uses the
+        # same model as the worker (not a hardcoded fallback). Set once.
+        strategy = sc.compaction_strategy
+        llm_call = getattr(strategy, "_llm_call", None)
+        if llm_call is None and hasattr(strategy, "_llm_call"):
+            strategy._llm_call = self._build_compaction_llm_call(agent)
+        if session._last_input_tokens <= 0:
+            return  # chicken-and-egg: no prior call data yet
+        max_context = self._agent_max_context(agent)
+        if not max_context or max_context <= 0:
+            return
+        threshold_tokens = int(sc.compaction_threshold * max_context)
+        if session._last_input_tokens <= threshold_tokens:
+            return
+        keep_recent = max(0, sc.compaction_keep_recent)
+        entries = list(session.session_context)
+        if len(entries) <= keep_recent:
+            return  # not enough to compact
+        window = entries[:-keep_recent] if keep_recent else entries
+        if not window:
+            return
+        logger.info(
+            "compaction_trigger node=%s last_tokens=%d threshold=%d max_context=%s entries=%d keep_recent=%d",
+            node.node_id,
+            session._last_input_tokens,
+            threshold_tokens,
+            max_context,
+            len(entries),
+            keep_recent,
+        )
+        try:
+            await session.compact_context(window=window)
+        except Exception:
+            logger.info("compaction_failed node=%s", node.node_id, exc_info=True)
+
+    async def _force_compact(self, node: Node, agent: Agent) -> None:
+        """Force-compact session_context regardless of token threshold (FR-086).
+
+        Used when a provider error occurred (likely context overflow) — the
+        failed call produced no usage data, so the normal threshold check in
+        ``_maybe_compact`` can't fire. This bypasses the threshold and compacts
+        whatever's compactable to shrink the prompt for the next retry.
+
+        No-op when no strategy is configured or there aren't enough entries.
+        Never raises — compaction failures are logged and swallowed.
+        """
+        session = node.session or self.root_session
+        sc = session.session_config
+        if sc is None or sc.compaction_strategy is None:
+            return
+        strategy = sc.compaction_strategy
+        llm_call = getattr(strategy, "_llm_call", None)
+        if llm_call is None and hasattr(strategy, "_llm_call"):
+            strategy._llm_call = self._build_compaction_llm_call(agent)
+        keep_recent = max(0, sc.compaction_keep_recent)
+        entries = list(session.session_context)
+        if len(entries) <= keep_recent:
+            return
+        window = entries[:-keep_recent] if keep_recent else entries
+        if not window:
+            return
+        logger.info(
+            "forced_compaction node=%s entries=%d keep_recent=%d",
+            node.node_id, len(entries), keep_recent,
+        )
+        try:
+            await session.compact_context(window=window)
+        except Exception:
+            logger.info("forced_compaction_failed node=%s", node.node_id, exc_info=True)
+
+    def _append_tool_result_messages(
+        self,
+        attempt_messages: list[dict[str, Any]],
+        tool_results: list[dict[str, Any]],
+        normalized_tool_calls: list[dict[str, Any]],
+    ) -> None:
+        """Append tool-result messages for the current tool batch.
+
+        Persists oversized results to a temp file so the reviewer's
+        attempt_messages don't balloon (experiment-4 peaked at 257K input
+        tokens this way). Under the threshold this is a passthrough.
+        """
+        for index, tool_result in enumerate(tool_results):
+            tool_call = (
+                normalized_tool_calls[index]
+                if index < len(normalized_tool_calls)
+                else {}
+            )
+            raw_content = json.dumps(tool_result, default=str)
+            tool_call_id = (
+                tool_call.get("id") or tool_result.get("name", "")
+            )
+            tool_name = tool_result.get("name", "")
+            content = persist_if_oversized(
+                raw_content, tool_call_id, tool_name=tool_name
+            )
+            attempt_messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call_id,
+                    "name": tool_name,
+                    "content": content,
+                }
+            )
+
+    async def _call_llm_with_provider_retry(
+        self,
+        agent: Agent,
+        node: Node,
+        attempt: int,
+        attempt_messages: list[dict[str, Any]],
+        attempt_tools: list[Tool],
+        base_messages: list[dict[str, Any]],
+        retry_feedback: list[dict[str, Any]],
+        retry_message: str | None,
+        provider_retries_ref: list[int],
+        *,
+        break_on_error: bool = False,
+    ) -> dict[str, Any] | None:
+        """Call the LLM with catch-compact-retry on provider errors (FR-086).
+
+        Catches any non-cancel exception, force-compacts session_context, and
+        retries with a smaller prompt. After ``_MAX_PROVIDER_RETRIES`` failed
+        retries, re-raises the original exception.
+
+        Args:
+            agent: The SDK agent instance.
+            node: The node being executed.
+            attempt: The current attempt number (for logging).
+            attempt_messages: The messages list for this attempt (rebuilt
+                in-place after compaction when ``break_on_error`` is False).
+            attempt_tools: The tools list for this attempt.
+            base_messages: Base messages for rebuilding after compaction.
+            retry_feedback: Retry feedback messages for rebuilding.
+            retry_message: Retry message string for rebuilding.
+            provider_retries_ref: A one-element list ``[count]`` acting as a
+                mutable counter shared across call sites.
+            break_on_error: When True (continuation rounds), force-compaction
+                then return ``None`` to signal the caller to break to the
+                next attempt. When False (initial call), retry in-place.
+
+        Returns:
+            The raw LLM response dict, or ``None`` when ``break_on_error`` is
+            True and a provider error was caught (caller breaks to next
+            attempt).
+
+        Raises:
+            The original exception after ``_MAX_PROVIDER_RETRIES`` retries.
+        """
+        while True:
+            try:
+                return await self._call_agent_llm(
+                    agent, node, attempt_messages, attempt_tools,
+                )
+            except (asyncio.CancelledError, KeyboardInterrupt):
+                raise
+            except Exception as exc:
+                provider_retries_ref[0] += 1
+                if provider_retries_ref[0] > _MAX_PROVIDER_RETRIES:
+                    raise
+                suffix = ", aborting continuation" if break_on_error else ""
+                logger.warning(
+                    "provider_error_retry node=%s attempt=%d retry=%d error=%s — forcing compaction%s",
+                    node.node_id, attempt, provider_retries_ref[0], str(exc)[:200], suffix,
+                )
+                await self._force_compact(node, agent)
+                if break_on_error:
+                    return None  # caller breaks to next attempt
+                attempt_messages[:] = self._messages_with_retry_prompt(
+                    base_messages, retry_feedback, retry_message,
+                )
+
     async def _call_node_with_retry(
         self,
         node: Node,
@@ -635,8 +889,35 @@ class TinyCUALoop(
         retry_message: str | None = None
         retry_feedback: list[dict[str, Any]] = []
         retry_tool_results: list[dict[str, Any]] = []
+        lazy_attempts = 0  # FR-091: lazy retry counter; None doesn't burn a slot.
+        # FR-063: reset progress for fresh dispatch. Recovery re-entry
+        # preserves accumulated_tool_results so the node doesn't re-call
+        # tools it already called before the budget exhausted.
+        if self._recovery_reentry:
+            preserved = dict(node.progress.accumulated_tool_results)
+            preserved_history = list(node.progress.stage_tool_history)
+            node.progress.reset()
+            node.progress.accumulated_tool_results = preserved
+            node.progress.stage_tool_history = preserved_history
+            self._recovery_reentry = False
+        else:
+            node.progress.reset()
 
         for attempt in range(1, max_attempts + 1):
+            # Milestone 2: track per-node state transitions.
+            node.progress.attempt_count = attempt
+            node.progress.transition(
+                NodeState.EXECUTING if attempt == 1 else NodeState.RETRYING,
+                reason="attempt" if attempt == 1 else "retry",
+            )
+            # FR-086: per-attempt provider-error retry counter (mutable list
+            # so the helper and continuation site share the same count).
+            provider_retries_ref = [0]
+            # FR-085: continuous monitoring — compact whenever the session
+            # exceeds threshold, not just on retries. Runs on attempt 1 too,
+            # as long as a prior call's usage data exists (chicken-and-egg
+            # guard in _maybe_compact: _last_input_tokens <= 0 → skip).
+            await self._maybe_compact(node, agent)
             attempt_messages = self._messages_with_retry_prompt(
                 base_messages,
                 retry_feedback,
@@ -647,11 +928,11 @@ class TinyCUALoop(
                 resolved_tools,
                 retry_message,
             )
-            raw_response = await self._call_agent_llm(
-                agent,
-                node,
-                attempt_messages,
-                attempt_tools,
+            # FR-086: catch provider errors, force-compaction, and retry.
+            raw_response = await self._call_llm_with_provider_retry(
+                agent, node, attempt, attempt_messages, attempt_tools,
+                base_messages, retry_feedback, retry_message,
+                provider_retries_ref,
             )
             last_result = LLMResult(
                 content=sanitize_internal_reprs(raw_response.get("content") or ""),
@@ -660,6 +941,8 @@ class TinyCUALoop(
                 metadata=raw_response.get("metadata", {}),
                 reasoning=raw_response.get("reasoning", ""),
             )
+            # Milestone 8 Stream B: track token usage for compaction triggers.
+            self._track_input_tokens(node, last_result)
             if not node.is_terminal and node.node_id != "result_aggregation":
                 self._coerce_structured_tool_calls(last_result, attempt_tools)
             self._coerce_terminate_only_response(attempt_tools, last_result)
@@ -674,6 +957,8 @@ class TinyCUALoop(
                 if not tool_results:
                     break
                 all_tool_results.extend(tool_results)
+                # Milestone 2: track visited + satisfied tools in node progress.
+                self._track_tool_calls_in_progress(node, tool_results)
                 self._enrich_task_results_from_tool_batch(node, all_tool_results)
                 normalized_tool_calls = self._normalize_tool_calls(
                     last_result.tool_calls
@@ -700,32 +985,7 @@ class TinyCUALoop(
                 if last_result.reasoning:
                     assistant_msg["reasoning_content"] = last_result.reasoning
                 attempt_messages.append(assistant_msg)
-                for index, tool_result in enumerate(tool_results):
-                    tool_call = (
-                        normalized_tool_calls[index]
-                        if index < len(normalized_tool_calls)
-                        else {}
-                    )
-                    raw_content = json.dumps(tool_result, default=str)
-                    tool_call_id = (
-                        tool_call.get("id") or tool_result.get("name", "")
-                    )
-                    tool_name = tool_result.get("name", "")
-                    # ponytail: persist oversized results to a temp file so the
-                    # reviewer's attempt_messages don't balloon (experiment-4
-                    # peaked at 257K input tokens this way). Under the threshold
-                    # this is a passthrough.
-                    content = persist_if_oversized(
-                        raw_content, tool_call_id, tool_name=tool_name
-                    )
-                    attempt_messages.append(
-                        {
-                            "role": "tool",
-                            "tool_call_id": tool_call_id,
-                            "name": tool_name,
-                            "content": content,
-                        }
-                    )
+                self._append_tool_result_messages(attempt_messages, tool_results, normalized_tool_calls)
                 # Evict superseded file reads: when the model re-reads a file
                 # it just edited, the older reads are stale (the file changed).
                 # Stub them so the prompt stops growing from redundant re-reads
@@ -740,12 +1000,16 @@ class TinyCUALoop(
                 continuation_rounds += 1
                 if continuation_rounds >= _MAX_TOOL_CONTINUATIONS:
                     break
-                raw_response = await self._call_agent_llm(
-                    agent,
-                    node,
-                    attempt_messages,
-                    attempt_tools,
+                # FR-086: catch provider errors during continuation rounds
+                # (context overflow from accumulated tool results). On error,
+                # force-compaction and break to the next attempt.
+                raw_response = await self._call_llm_with_provider_retry(
+                    agent, node, attempt, attempt_messages, attempt_tools,
+                    base_messages, retry_feedback, retry_message,
+                    provider_retries_ref, break_on_error=True,
                 )
+                if raw_response is None:
+                    break  # provider error → next attempt rebuilds from compacted context
                 last_result = LLMResult(
                     content=sanitize_internal_reprs(raw_response.get("content") or ""),
                     role=raw_response.get("role", "assistant"),
@@ -767,16 +1031,19 @@ class TinyCUALoop(
             if last_validation.is_valid:
                 return last_result, attempt, last_validation
             if attempt < max_attempts:
-                error = ValidationError("; ".join(last_validation.errors))
-                retry_message = self._retry_message_for_validation(
-                    error,
-                    node,
-                    resolved_tools,
-                    last_result,
-                )
-                retry_feedback = self._tool_feedback_messages(last_result)
-                retry_tool_results = self._tool_results_from_llm_result(last_result)
-                self._record_retry_continuation(node, retry_message, attempt)
+                # FR-091: lazy retry → standard retry. The helper handles both
+                # and returns a signal: "return", "break", or None (continue).
+                retry_signal = await self._handle_retry_attempt(
+                    node, agent, resolved_tools, last_result, last_validation,
+                    attempt, lazy_attempts)
+                if retry_signal is not None:
+                    action, last_result, last_validation, lazy_attempts = retry_signal
+                    if action == "return":
+                        return last_result, attempt, last_validation
+                    break  # "break" → _unbounded_recovery
+                retry_message, retry_feedback, retry_tool_results = (
+                    self._prepare_standard_retry(
+                        node, resolved_tools, last_result, last_validation, attempt))
 
         node._handle_exhaustion(last_validation, max_attempts)
         return last_result, max_attempts, last_validation
@@ -790,6 +1057,7 @@ class TinyCUALoop(
         *,
         stream: bool = False,
         force_required_tool: bool = True,
+        response_format: dict[str, Any] | None = None,
     ) -> Any:
         """Call the SDK agent, optionally forcing a node-required route tool.
 
@@ -797,6 +1065,17 @@ class TinyCUALoop(
         bound to the agent/client. TinyCUA keeps this reliability hook outside
         SDK source by temporarily swapping the model value and cached client for
         only this call, then restoring both immediately afterward.
+
+        Args:
+            agent: The SDK agent instance.
+            node: The node being executed.
+            messages: The message list for the LLM call.
+            resolved_tools: Tools allowed for this node.
+            stream: Whether to stream the response.
+            force_required_tool: Whether to force tool_choice="required".
+            response_format: Optional structured-output schema
+                (``{"type": "json_schema", "schema": {...}}``). When set, the
+                model is constrained to produce JSON (Milestone 3).
         """
         tool_choice = None
         if force_required_tool:
@@ -814,6 +1093,8 @@ class TinyCUALoop(
             model_overrides["max_tokens"] = max_tokens
         if tool_choice is not None:
             model_overrides["tool_choice"] = tool_choice
+        if response_format is not None:
+            model_overrides["response_format"] = response_format
 
         if not model_overrides:
             return await self._invoke_agent_llm(

@@ -164,6 +164,8 @@ class TraceStateMixin:
         node: Node,
         content: str,
         tool_calls: list[dict[str, Any]] | None = None,
+        *,
+        clear_prior: bool = False,
     ) -> LLMResult:
         """Record node output in chat_history and session_context.
 
@@ -171,10 +173,23 @@ class TraceStateMixin:
             node: The node that produced output.
             content: The response content string.
             tool_calls: Optional list of tool call dicts.
+            clear_prior: When True, remove prior output entries from the same
+                node_id before recording (FR-074: prevents recovery re-runs
+                from duplicating content in session_context).
 
         Returns:
             The LLMResult that was recorded.
         """
+        if clear_prior and node.session is not None:
+            # FR-074: clear prior output entries from this node to prevent
+            # duplication on recovery re-runs.
+            node.session.session_context = [
+                entry for entry in node.session.session_context
+                if not (
+                    getattr(entry, "segment", None) == "output"
+                    and getattr(entry, "source_node_id", None) == node.node_id
+                )
+            ]
         if content and node.is_terminal:
             from tinycua.models.chat_record import ChatRecord
 
@@ -302,6 +317,14 @@ class TraceStateMixin:
             "attempt": attempt,
             "resolved_tool_names": [tool.name for tool in resolved_tools],
         }
+        # Milestone 2: emit observable node state in the trace.
+        progress = getattr(node, "progress", None)
+        if progress is not None:
+            trace_entry["node_state"] = progress.phase.value
+            trace_entry["node_visited_tools"] = sorted(progress.visited_tools)
+            trace_entry["node_satisfied_requirements"] = sorted(
+                progress.satisfied_requirements
+            )
         if isinstance(on_complete_response, DecisionResult):
             trace_entry["route_label"] = on_complete_response.route_label
             trace_entry["route_source"] = (

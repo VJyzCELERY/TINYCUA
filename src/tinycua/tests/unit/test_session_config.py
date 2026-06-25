@@ -11,6 +11,7 @@ def test_session_config_defaults():
     assert config.max_context_messages == 100
     assert config.max_context_tokens is None
     assert config.metadata == {}
+    assert config.enable_open_question_review is False
 
 
 def test_session_config_custom_values():

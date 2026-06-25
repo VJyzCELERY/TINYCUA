@@ -22,6 +22,8 @@ class EnhancedContextRetrievalTool(Tool):
     within the same invocation scope.
     """
 
+    _MAX_CACHE_ENTRIES = 100
+
     def __init__(self) -> None:
         super().__init__(name="enhanced_context_retrieval")
         self._cache: dict[str, Any] = {}
@@ -54,6 +56,10 @@ class EnhancedContextRetrievalTool(Tool):
         """
         cache_key = self._get_cache_key(session_context)
         if cache_key not in self._cache:
+            # LRU eviction: drop oldest entries when cache is full.
+            if len(self._cache) >= self._MAX_CACHE_ENTRIES:
+                oldest_key = next(iter(self._cache))
+                del self._cache[oldest_key]
             cache_path = self._write_cache_file(cache_key, session_context)
             self._cache[cache_key] = {
                 "context": session_context,
@@ -179,13 +185,15 @@ class EnhancedContextRetrievalTool(Tool):
                 }
             )
         if not ranked and not query_terms:
-            for index, message in enumerate(session_context[-5:]):
+            recent = session_context[-5:]
+            offset = len(session_context) - len(recent)
+            for index, message in enumerate(recent):
                 content = message.get("content", "")
                 if not isinstance(content, str):
                     content = json.dumps(content, sort_keys=True, default=str)
                 ranked.append(
                     {
-                        "index": len(session_context[-5:]) - 1 + index,
+                        "index": offset + index,
                         "role": message.get("role", "unknown"),
                         "score": 0,
                         "matched_terms": [],

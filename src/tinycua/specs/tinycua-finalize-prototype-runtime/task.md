@@ -61,6 +61,34 @@ Implementation tasks for TinyCUA Final Prototype Runtime. Check off items as com
 - [x] Run deterministic reliability suite: `179 passed, 2 warnings` <!-- id: 24 -->
 - [x] Rerun live LLM and notebook acceptance after route retry-spam fix <!-- id: 25 -->
 
+## Markdown-Synthesis Retry (Lazy Retry)
+
+Spec: `./spec.md` FR-087..FR-093. Design: `./design.md` Phase 7. Plan: `./runtime-reliability-implementation-plan.md`.
+
+### TDD Phase (Tests First)
+
+- [x] Write parser unit tests for each template (valid/missing/malformed) <!-- id: 26 -->
+- [x] Write `_maybe_lazy_recovery` unit tests (success, garbage, unresolvable task_id, exec failure, gate-off, non-state-tool validation failure, no-template node) <!-- id: 27 -->
+- [x] Write budget-cap test (3 invalid-markdown lazy calls → 4th uses standard) <!-- id: 28 -->
+- [x] Write None-doesn't-burn test (empty LLM response → lazy_attempts stays 0) <!-- id: 29 -->
+- [x] Write integration test (attempt 1 fails, lazy returns valid markdown → 2 LLM calls total) <!-- id: 30 -->
+
+### Implementation Phase
+
+- [x] Implement `loops/lazy_templates.py` (templates + registry + parser) <!-- id: 31 -->
+- [x] Implement `_maybe_lazy_recovery` + `_lazy_gate_passes` on `LazyRetryMixin` <!-- id: 32 -->
+- [x] Add `SessionConfig.recovery_strategy` + `_LAZY_BUDGET` constant <!-- id: 33 -->
+- [x] Wire lazy retry into `_call_node_with_retry` (sync in-loop) <!-- id: 34 -->
+- [x] Wire lazy retry into `_stream_llm_node_events` (stream in-loop) <!-- id: 35 -->
+- [x] Wire lazy retry into `_execute_node` + `_stream_exhausted_node_events` (before `_unbounded_recovery`) <!-- id: 36 -->
+- [x] Add `--recovery-strategy` CLI flag <!-- id: 37 -->
+
+### Verification Phase
+
+- [x] Run deterministic suite with `recovery_strategy="standard"` (regression: all existing recovery tests pass) <!-- id: 38 -->
+- [x] Run deterministic suite with `recovery_strategy="markdown_synthesis"` (new tests pass) <!-- id: 39 -->
+- [ ] Run live LLM suite with `--recovery-strategy markdown_synthesis` and compare retry-attempt counts vs standard <!-- id: 40 -->
+
 ---
 
 *Task IDs enable tracking and cross-referencing*

@@ -1,8 +1,8 @@
 """Unit tests for python_exec.py — mocking subprocess for timeout/errors."""
 
 
-def test_run_python_caps_model_requested_timeout(monkeypatch):
-    """Excessive model-supplied timeout values are capped for responsiveness."""
+def test_run_python_rejects_oversized_timeout(monkeypatch):
+    """Excessive model-supplied timeout values are rejected with a clear error."""
     from tinycua.agent.tools.native import python_exec
 
     observed = {}
@@ -20,8 +20,11 @@ def test_run_python_caps_model_requested_timeout(monkeypatch):
 
     result = python_exec.run_python("print('ok')", timeout=1_200_000)
 
-    assert observed["timeout"] == 30
-    assert result["stdout"] == "ok"
+    # Should NOT execute — oversized timeout is rejected.
+    assert "timeout" not in observed
+    assert result["exit_code"] == -1
+    assert result["error"] is not None
+    assert "exceeds maximum" in result["error"]
 
 
 def test_run_python_runtime_error():

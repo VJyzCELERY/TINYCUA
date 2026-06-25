@@ -8,9 +8,9 @@ import uuid
 from typing import TYPE_CHECKING
 
 from tinycua.loops.context_rendering import clean_context_enhanced_query
+from tinycua.loops._input_messages import extract_user_query
 from tinycua.loops.node import ProcessNode
 from tinycua.models.digested_information import DigestedInformation
-from tinycua.models.node_input import NodeInput, convert_node_input_to_messages
 from tinycua.models.session import Session
 
 if TYPE_CHECKING:
@@ -24,29 +24,38 @@ _DIGESTER_INSTRUCTION = (
     "You are the InformationDigester. Your role is strictly exploration "
     "and understanding — you do NOT solve, write, code, or execute the "
     "user's request. Your job is to understand what the user is asking for "
-    "and gather relevant context that will help downstream task planning. "
-    "Gather context in this priority order: 1. Existing session context — "
-    "use enhanced_context_retrieval to inspect prior conversation history "
-    "and any context from upstream nodes. 2. External research — use "
+    "and gather comprehensive relevant context that will help downstream "
+    "task planning. You are the first layer of information gathering: "
+    "downstream nodes (TaskAnalyzer, TaskExecutor) rely on your findings "
+    "as the context that grounds their work, so be thorough. Gather "
+    "context in this priority order: 1. Existing session context — use "
+    "enhanced_context_retrieval to inspect prior conversation history and "
+    "any context from upstream nodes. 2. External research — use "
     "web_search for current information when the request involves topics "
     "that benefit from up-to-date knowledge (frameworks, APIs, current "
     "model landscape, etc.). Always prefer the latest information. Use the "
     "current date (shown in the context) as the time frame unless the "
     "request explicitly asks about a historical period. When researching, "
-    "seek current/recent sources over older ones. After gathering context, "
-    "call digest_information with a concise summary of what you found: key "
-    "points, constraints, advisory notes, and known gaps. Do NOT write "
-    "code, produce solutions, or attempt the task itself."
+    "seek current/recent sources over older ones. A brief exploration "
+    "(typically 2-4 searches) suffices for grounding downstream planning; "
+    "leave deeper research to the downstream nodes. After gathering "
+    "context, call digest_information with a concise summary of what you "
+    "found: key points, constraints, advisory notes, and known gaps. "
+    "Structure your output as context first, then the original query — "
+    "your context_summary and key_points travel with the mission so every "
+    "downstream node sees them. Do NOT write code, produce solutions, or "
+    "attempt the task itself."
 )
-
 _DIGESTER_CONTINUATION = (
     "Understand the request above. Explore for relevant context using the "
     "priority order: (1) existing session context via "
     "enhanced_context_retrieval, (2) external research via web_search if "
-    "the topic benefits from current information. Then call "
-    "digest_information with your findings. Do NOT attempt to solve, write, "
-    "or execute the request — your output is context for downstream "
-    "planning, not a solution."
+    "the topic benefits from current information. Be comprehensive but "
+    "bounded — 2-4 searches typically suffices to ground downstream "
+    "planning. Then call digest_information with your findings, "
+    "structured as context first (summary + key points) then the original "
+    "query. Do NOT attempt to solve, write, or execute the request — your "
+    "output is context for downstream planning, not a solution."
 )
 
 
@@ -195,17 +204,6 @@ class TinyCUAInformationDigesterNode(ProcessNode):
         self.session.task_store = root_or_parent_session.task_store
         return self.session
 
-    def _produce_fallback(self, original_query: str) -> DigestedInformation:
-        """Produce fallback DigestedInformation when no useful context.
-
-        Args:
-            original_query: The original user query to preserve.
-
-        Returns:
-            A fallback DigestedInformation instance.
-        """
-        return DigestedInformation.fallback(original_query)
-
     def propagate(self) -> None:
         """Propagate DigestedInformation to session_context.
 
@@ -213,22 +211,13 @@ class TinyCUAInformationDigesterNode(ProcessNode):
         for consumption by downstream nodes.
         """
         if self.session is not None and self._current_digest is not None:
-            from tinycua.models.session_context_entry import SessionContextEntry
+            from tinycua.models.session_context_entry import append_output_entry
 
-            if any(
-                entry.content is self._current_digest
-                for entry in self.session.session_context
-                if entry.segment == "output"
-            ):
-                return
-
-            self.session.session_context.append(
-                SessionContextEntry(
-                    content=self._current_digest,
-                    segment="output",
-                    source_node_id=self.node_id,
-                    source_session_id=self.session.session_id,
-                )
+            append_output_entry(
+                self.session,
+                self._current_digest,
+                self.node_id,
+                idempotent_by_identity=True,
             )
 
     def _extract_original_query(self, input_data: NodeInputLike) -> str:
@@ -240,25 +229,4 @@ class TinyCUAInformationDigesterNode(ProcessNode):
         Returns:
             The original user query string, or empty string if not found.
         """
-        if isinstance(input_data, NodeInput):
-            original_query = input_data.metadata.get("original_query")
-            if isinstance(original_query, str) and original_query.strip():
-                return original_query.strip()
-        if isinstance(input_data, NodeInput) and input_data.messages:
-            # Try to find the last user message
-            for msg in reversed(input_data.messages):
-                if msg.get("role") == "user":
-                    return msg.get("content", "")
-            # Fallback to first message content
-            return input_data.messages[0].get("content", "")
-
-        # For other input types, try to extract from messages
-        try:
-            messages = convert_node_input_to_messages(input_data)
-            for msg in reversed(messages):
-                if msg.get("role") == "user":
-                    return msg.get("content", "")
-        except (ValueError, TypeError):
-            pass
-
-        return ""
+        return extract_user_query(input_data, prefer_metadata_original=True)

@@ -4,10 +4,60 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+def print_node_traversal(loop: Any) -> None:
+    """Print the linear node execution order to stderr at end of run.
+
+    Extracts ``node_id`` from each entry in the execution trace and prints
+    them as a clean list. Consecutive same-node entries collapse to
+    ``node_id (×N)``; non-consecutive re-entries stay as separate lines
+    (preserves traversal order). Goes to ``sys.stderr`` so it does not
+    pollute the ``stdout`` response. Always-on — no flag needed.
+    """
+    trace_data = safe_loop_call(loop, "get_execution_trace", default=[])
+    if not isinstance(trace_data, list) or not trace_data:
+        print("=== NODE TRAVERSAL ===\n(no nodes executed)", file=sys.stderr, flush=True)
+        return
+    ids: list[str] = []
+    counts: list[int] = []
+    for step in trace_data:
+        node_id = step.get("node_id", "unknown") if isinstance(step, dict) else "unknown"
+        if ids and ids[-1] == node_id:
+            counts[-1] += 1
+        else:
+            ids.append(node_id)
+            counts.append(1)
+    print("=== NODE TRAVERSAL ===", file=sys.stderr, flush=True)
+    for node_id, count in zip(ids, counts):
+        if count > 1:
+            print(f"{node_id} (×{count})", file=sys.stderr, flush=True)
+        else:
+            print(node_id, file=sys.stderr, flush=True)
+
+
+def print_final_task_tree(loop: Any) -> None:
+    """Print the final task tree state to stderr (FR-075).
+
+    Only called when ``--trace`` is enabled. Uses ``render_markdown()``
+    which is cached and cheap.
+    """
+    session = safe_loop_call(loop, "root_session", default=None)
+    if session is None:
+        return
+    task_store = getattr(session, "task_store", None)
+    if task_store is None:
+        return
+    render = task_store.render_markdown()
+    if not render.strip():
+        return
+    print("=== FINAL TASK TREE ===", file=sys.stderr, flush=True)
+    print(render, file=sys.stderr, flush=True)
 
 
 async def run_streaming(agent: Any, prompt: str) -> str:
@@ -70,7 +120,10 @@ class LiveStreamPrinter:
         if event_type == "node.completed":
             content = str(event.get("content") or "")
             finish_reason = str(event.get("finish_reason") or "")
-            if content:
+            # FR-080: do NOT re-print content for the response node — it was
+            # already streamed as response.output_text.delta events. Re-printing
+            # causes triplication (deltas + node.completed + print(result)).
+            if content and node_id != "response":
                 self._print_text(node_id, content, kind="output")
             elif finish_reason:
                 self._print_marker(node_id, f"completed: {finish_reason}")
@@ -195,45 +248,6 @@ def print_new_transcript_events(loop: Any, seen_count: int) -> int:
     return len(events)
 
 
-def write_artifacts(loop: Any, artifact_dir: Path) -> None:
-    """Write JSON/text runtime artifacts for debugging."""
-    state_snapshot = safe_loop_call(loop, "get_state_snapshot", default={})
-    artifacts = {
-        "execution_trace.json": safe_loop_call(loop, "get_execution_trace", default=[]),
-        "state_snapshot.json": state_snapshot,
-        "task_tree.json": state_snapshot.get("task_tree", {})
-        if isinstance(state_snapshot, dict)
-        else {},
-        "transcript_events.json": safe_loop_call(
-            loop,
-            "get_transcript_events",
-            default=[],
-        ),
-        "final_response_events.json": safe_loop_call(
-            loop,
-            "get_final_response_events",
-            default=[],
-        ),
-    }
-    for filename, payload in artifacts.items():
-        (artifact_dir / filename).write_text(
-            json.dumps(payload, indent=2, default=str),
-            encoding="utf-8",
-        )
-    if isinstance(state_snapshot, dict):
-        (artifact_dir / "task_tree.txt").write_text(
-            str(state_snapshot.get("task_tree_text", "No tasks.")),
-            encoding="utf-8",
-        )
-    transcript_text = safe_loop_call(
-        loop,
-        "get_transcript_text",
-        default="",
-        include_node_calls=True,
-    )
-    (artifact_dir / "transcript.txt").write_text(str(transcript_text), encoding="utf-8")
-
-
 def print_summary(loop: Any, workspace_dir: Path, artifact_dir: Path | None, result: str, *, trace: bool = False, task_tree: bool = False) -> None:
     """Print a concise session summary after a live run.
 
@@ -251,7 +265,8 @@ def print_summary(loop: Any, workspace_dir: Path, artifact_dir: Path | None, res
     state_snapshot = safe_loop_call(loop, "get_state_snapshot", default={})
     if trace:
         trace_data = safe_loop_call(loop, "get_execution_trace", default=[])
-        print("\n=== TRACE ===", flush=True)
+        # FR-075: trace sections go to stderr, leaving stdout clean.
+        print("\n=== TRACE ===", file=sys.stderr, flush=True)
         for index, step in enumerate(trace_data, start=1):
             node_id = step.get("node_id") if isinstance(step, dict) else "unknown"
             node_type = step.get("node_type") if isinstance(step, dict) else "unknown"
@@ -259,25 +274,25 @@ def print_summary(loop: Any, workspace_dir: Path, artifact_dir: Path | None, res
             terminal = step.get("is_terminal") if isinstance(step, dict) else None
             print(
                 f"[{index}] {node_id} ({node_type}) route={route} terminal={terminal}",
-                flush=True,
+                file=sys.stderr, flush=True,
             )
             if isinstance(step, dict) and step.get("validation_errors"):
-                print(f"    validation_errors={len(step['validation_errors'])}", flush=True)
-            print(flush=True)
+                print(f"    validation_errors={len(step['validation_errors'])}", file=sys.stderr, flush=True)
+            print(file=sys.stderr, flush=True)
     if trace:
-        print("=== FINAL RESPONSE ===", flush=True)
-        print(result or "", flush=True)
+        print("=== FINAL RESPONSE ===", file=sys.stderr, flush=True)
+        print(result or "", file=sys.stderr, flush=True)
     if trace or task_tree:
-        print("=== TASK TREE ===", flush=True)
+        print("=== TASK TREE ===", file=sys.stderr, flush=True)
         if isinstance(state_snapshot, dict):
-            print(state_snapshot.get("task_tree_text", "No tasks."), flush=True)
+            print(state_snapshot.get("task_tree_text", "No tasks."), file=sys.stderr, flush=True)
     if trace:
-        print("\n=== WORKSPACE FILES ===", flush=True)
+        print("\n=== WORKSPACE FILES ===", file=sys.stderr, flush=True)
         for path in visible_workspace_files(workspace_dir):
-            print(f"- {path}", flush=True)
+            print(f"- {path}", file=sys.stderr, flush=True)
         if artifact_dir is not None:
-            print("\n=== ARTIFACTS ===", flush=True)
-            print(f"Full trace/transcript JSON saved under: {artifact_dir}", flush=True)
+            print("\n=== ARTIFACTS ===", file=sys.stderr, flush=True)
+            print(f"Full trace/transcript JSON saved under: {artifact_dir}", file=sys.stderr, flush=True)
 
 
 def truncate(value: str, limit: int) -> str:
@@ -296,35 +311,15 @@ def format_usage(usage: Any) -> str:
 
 
 def summarize_tool_result(content: str) -> str:
-    """Summarize a tool result without dumping its JSON body."""
-    try:
-        payload = json.loads(content)
-    except json.JSONDecodeError:
-        return truncate(content, 500)
-    if not isinstance(payload, dict):
-        return truncate(content, 500)
-    output = payload.get("output")
-    status = ""
-    if isinstance(output, dict):
-        success = output.get("success")
-        if success is not None:
-            status = f"success={success}"
-        if output.get("path"):
-            return f"{status} path={output['path']}".strip()
-        if output.get("task_id"):
-            task_bits = [status, f"task_id={output['task_id']}"]
-            if output.get("status"):
-                task_bits.append(f"status={output['status']}")
-            if output.get("decision"):
-                task_bits.append(f"decision={output['decision']}")
-            return " ".join(bit for bit in task_bits if bit)
-        if output.get("exit_code") is not None:
-            return f"exit_code={output.get('exit_code')} timed_out={output.get('timed_out')}"
-    if isinstance(output, list):
-        return f"items={len(output)}"
-    if payload.get("error"):
-        return f"error={payload['error']}"
-    return "completed"
+    """Summarize a tool result without dumping its JSON body.
+
+    Re-exported from ``node_guidance`` for backward compatibility. The
+    canonical implementation lives in the loops layer so the recovery loop
+    can import it without a CLI dependency.
+    """
+    from tinycua.loops.node_guidance import summarize_tool_result as _impl
+
+    return _impl(content)
 
 
 def event_delta_text(event: dict[str, Any]) -> str:

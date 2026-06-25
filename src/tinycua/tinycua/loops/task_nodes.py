@@ -2,110 +2,177 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any, TYPE_CHECKING
 
 from tinycua.config.node_config import create_node_config
 from tinycua.config.types import LLMResult
 from tinycua.loops.node import ProcessNode
+from tinycua.loops.node_guidance import (
+    _RESULT_REVIEWER_CONTINUATION,
+    _RESULT_REVIEWER_INSTRUCTION,
+    build_reviewer_tool_guidance,
+)
+from tinycua.loops.session_context_query import find_latest_entry
 from tinycua.models.digested_information import DigestedInformation
+from tinycua.models.session_context_entry import entry_content
 from tinycua.models.task import (
     AggregatedResult,
     TaskResult,
     TaskStatus,
 )
 
+logger = logging.getLogger(__name__)
+
 if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
     from tinycua.loops.node_queue import NodeQueue
     from tinycua.models.node_input import NodeInputLike
     from tinycua.models.session import Session
+    from tinycua.models.task import Task, TaskStateStore
+
+
+# Effort-profiled shrink thresholds (Milestone 4): higher effort → lower
+# threshold (more aggressive shrink trigger). The LLM still decides what to
+# merge/delete — this just triggers the shrink-prompt.
+_SHRINK_THRESHOLDS: dict[str, int] = {
+    "none": 99,  # never trigger at none effort
+    "low": 15,   # rarely trigger
+    "medium": 12,
+    "high": 8,   # proactively trigger
+}
+
+
+def shrink_threshold_for_effort(effort: str) -> int:
+    """Return the shrink threshold for the given worker effort level.
+
+    Higher effort → lower threshold (more aggressive shrink trigger).
+    The LLM still decides what to merge/delete — no hard pruning.
+
+    Args:
+        effort: Worker effort level (none/low/medium/high).
+
+    Returns:
+        The pending-children threshold above which the shrink-prompt fires.
+    """
+    return _SHRINK_THRESHOLDS.get(effort, 12)
 
 
 _TASK_ANALYZER_INSTRUCTION = (
-    "You are the TaskAnalyzer. You only decompose or refine the roadmap; you do "
-    "not execute tasks or mutate results. Inspect the roadmap. If the active "
-    "task needs subtasks, call task_decompose. If no useful decomposition "
-    "remains, call task_update. Do not write a plan — call a tool."
+    "You are the TaskAnalyzer. You decompose or refine the roadmap. Before "
+    "decomposing, you may explore (web_search, fetch_url, read_file, "
+    "list_files, search_files, run_shell) to ground your plan in current "
+    "reality — especially for research tasks, verify what entities are "
+    "current today instead of assuming from prior knowledge. You do not "
+    "execute the task or produce the deliverable — that is the "
+    "TaskExecutor's job. Inspect the roadmap. If the active task needs "
+    "subtasks, call task_decompose. If no useful decomposition remains, "
+    "call task_update. After task_decompose or task_update succeeds, call "
+    "terminate. Do not write a plan — call a tool, then terminate."
 )
 _TASK_ANALYZER_CONTINUATION = (
-    "Based on the roadmap above, call task_inspect. Then call task_decompose "
-    "for concrete sequential subtasks, or task_update if the task should stay "
-    "as-is. Do not repeatedly decompose a task that already has children."
+    "Based on the roadmap and mission context above, explore first "
+    "(web_search/fetch_url/read_file/run_shell) when the task involves a "
+    "fast-moving domain (research, current state of tech, models, "
+    "frameworks) so your decomposition targets what is current today. "
+    "Then call task_decompose for concrete sequential subtasks, or "
+    "task_update if the task should stay as-is. After task_decompose or "
+    "task_update succeeds, call terminate. Do not repeatedly decompose "
+    "a task that already has children. If previous tasks already write to "
+    "the report file, do not create a final 'write report' task — "
+    "decompose it as 'review and reorganize the existing deliverable file' instead."
 )
 _TASK_ANALYZER_LOCAL_REPLAN_CONTINUATION = (
-    "Refine only the active local region. Call task_decompose if it needs "
-    "subtasks, or task_update if execution can continue. Do not decompose the "
-    "root roadmap from a local replan."
+    "Refine only the active local region. Explore the local region "
+    "(read_file/run_shell/search_files) if it helps you understand the "
+    "current task before refining. If the existing plan is correct and "
+    "the task failed due to execution (not planning), call task_update "
+    "with metadata {\"plan_unchanged\": true} so the runtime skips "
+    "re-execution. If the plan is wrong, call task_shrink to delete or "
+    "merge unfinished tasks (completed tasks are immutable and cannot be "
+    "shrunk), then task_decompose or task_update with the refined plan. "
+    "After task_decompose or task_update succeeds, call terminate. Do "
+    "not decompose the root roadmap from a local replan."
 )
 
 _TASK_ASSESSOR_UPFRONT_INSTRUCTION = (
     "You are the TaskAssessor for the upfront analysis-effort decomposition loop. "
-    "You only assess decomposition readiness; you do not execute tasks, mutate "
-    "task state, or discuss execution tools. Inspect the whole roadmap and "
-    "select unfinished tasks that are complex enough to warrant further "
-    "decomposition. Use task_inspect for read-only assessment and node_handoff "
-    "to instruct TaskAnalyzer which tasks to analyze and why. "
+    "You assess decomposition readiness. You may explore (web_search, "
+    "fetch_url, read_file, run_shell) to verify whether the roadmap covers "
+    "current reality — especially for research tasks, check that the tasks "
+    "target current entities, not stale assumptions. You do not execute "
+    "tasks or mutate task state. Inspect the whole roadmap and select "
+    "unfinished tasks that are complex enough to warrant further "
+    "decomposition. Use task_inspect for read-only assessment and "
+    "node_handoff to instruct TaskAnalyzer which tasks to analyze and why. "
     "Be concise and do not repeat upstream context."
 )
 _TASK_ASSESSOR_UPFRONT_CONTINUATION = (
     "Based on the whole roadmap above, assess decomposition readiness across "
-    "the roadmap. Use node_handoff to instruct TaskAnalyzer with selected task IDs, "
+    "the roadmap. Explore (web_search/fetch_url/read_file/run_shell) to "
+    "verify the roadmap targets current reality for research tasks. Use "
+    "node_handoff to instruct TaskAnalyzer with selected task IDs, "
     "reasons, constraints, or that no further upfront decomposition is useful."
 )
 _TASK_ASSESSOR_LOCAL_REPLAN_INSTRUCTION = (
     "You are the TaskAssessor for a ResultReviewer-requested local replan. "
     "Inspect the active task and nearby roadmap context to decide whether "
-    "that local region needs refinement before execution continues. Do not "
-    "reassess the whole roadmap, do not execute tasks, and do not discuss "
-    "execution tools. Use task_inspect for read-only assessment and node_handoff "
-    "to instruct TaskAnalyzer. Do not mutate task state."
+    "that local region needs refinement before execution continues. You may "
+    "explore the local region (read_file, run_shell, search_files) to "
+    "understand it. Do not reassess the whole roadmap, do not execute "
+    "tasks, and do not discuss execution tools. Use task_inspect for "
+    "read-only assessment and node_handoff to instruct TaskAnalyzer. Do "
+    "not mutate task state."
 )
 _TASK_ASSESSOR_LOCAL_REPLAN_CONTINUATION = (
     "Based on the active task and local roadmap region above, assess whether "
     "the reviewed task needs local decomposition or planning metadata updates. "
+    "Explore the local region if it helps your assessment. "
     "Use node_handoff to pass the local assessment, selected decomposition "
     "target, blocked planning gap, or that no local replan is useful."
 )
 
 _TASK_EXECUTOR_INSTRUCTION = (
-    "You are the TaskExecutor. You only execute the active task; you do not "
-    "review, decompose, or curate other tasks. You MUST use tools for "
-    "workspace changes, inspection, commands, Python, research, or "
-    "verification. Preserve explicit user constraints from the work order. "
-    "Your final action MUST call task_result_update with a concise outcome "
-    "report. Do not describe what you will do — use the tools and report the "
-    "result."
+    "You are the TaskExecutor. You execute the active task; you do not "
+    "review, decompose, or curate other tasks. Explore the workspace and "
+    "task state first (read_file, list_files, search_files, web_search, "
+    "fetch_url) before making changes — plan and analyze before you act. "
+    "You MUST use tools for workspace changes, inspection, commands, "
+    "Python, research, or verification. Preserve explicit user constraints "
+    "from the work order. Your final action MUST call task_result_update "
+    "with success=true/false and a concise outcome report. Do not describe "
+    "what you will do — use the tools and report the result. "
+    "After completing the active task, check for sibling tasks (same "
+    "parent) your work also completed. For each, call task_inspect to "
+    "verify, then task_result_update with success=true and 'completed as "
+    "part of task N'. Only report siblings you actually completed."
 )
 _TASK_EXECUTOR_CONTINUATION = (
-    "Based on the active task above, use tools to complete it. Then call "
-    "task_result_update with what changed or was found and success=true/false. "
-    "If blocked, call task_result_update with success=false and the concrete "
-    "blocker; do not keep repeating read/list inspection."
+    "Based on the active task above, explore the current state (read_file/"
+    "list_files/search_files/web_search) before making changes. Then use "
+    "tools to complete it. Call task_result_update with what changed or was "
+    "found and success=true/false. If blocked, call task_result_update with "
+    "success=false and the concrete blocker; do not keep repeating "
+    "read/list inspection. After completing the active task, check for "
+    "sibling tasks you also completed — inspect and report results for each."
 )
 
-_RESULT_REVIEWER_INSTRUCTION = (
-    "You are the ResultReviewer. You only review outcomes; you do not edit "
-    "files or re-execute work. Verify with run_shell (test -f, grep, pytest, "
-    "git diff) and check exit_code/exit_code_meaning, not eyeballed source. "
-    "Then call task_review_decision: approved, needs_revision, rejected, or "
-    "replan. If bad, record feedback; do not edit files. Terminate after "
-    "useful task curation. Do not write a long explanation — call the tools."
-)
-_RESULT_REVIEWER_CONTINUATION = (
-    "Verify the outcome. Call task_review_decision first. Then call "
-    "task_inspect (no task_id) for the compact task list; only for a task you "
-    "want to annotate, call task_inspect with that task_id for detail, then "
-    "task_update to add context. Then call terminate."
-)
+_RESULT_REVIEWER_INSTRUCTION = _RESULT_REVIEWER_INSTRUCTION  # re-exported from node_guidance
+_RESULT_REVIEWER_CONTINUATION = _RESULT_REVIEWER_CONTINUATION  # re-exported from node_guidance
 
 _RESULT_AGGREGATION_INSTRUCTION = (
-    "You are the ResultAggregation node. Summarize completed task results, "
-    "artifacts, and verification evidence concisely. Do not include Python reprs "
-    "or duplicate upstream context."
+    "You are the ResultAggregation node. You act as a compaction layer: "
+    "summarize completed task results, artifacts, and verification evidence "
+    "concisely. You may explore task results (read_file, list_files, "
+    "run_shell, task_inspect) to verify or enrich claims in the task "
+    "results before aggregating — but do not re-research or re-execute the "
+    "work. Do not include Python reprs or duplicate upstream context."
 )
 _RESULT_AGGREGATION_CONTINUATION = (
-    "Based on accepted task results above, aggregate the Worker result into "
-    "concise response-ready context with artifacts and verification evidence."
+    "Based on accepted task results above, explore the task results "
+    "(read_file/list_files/run_shell/task_inspect) to verify claims if "
+    "needed, then aggregate the Worker result into concise response-ready "
+    "context with artifacts and verification evidence."
 )
 
 _ANALYSIS_EFFORT_INSTRUCTION = "Deterministic effort controller. No LLM call required."
@@ -146,7 +213,9 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
         mode = str(self.config.metadata.get("task_analyzer_mode", "task_creation"))
         if mode == "local_replan":
             region = _local_task_region(session)
-            return f"Local task region for replan:\n{_render_local_region_markdown(region)}\n\n{base}"
+            replan_reason = str(self.config.metadata.get("replan_reason", ""))
+            reason_prefix = f"{replan_reason}\n\n" if replan_reason else ""
+            return f"{reason_prefix}Local task region for replan:\n{_render_local_region_markdown(region)}\n\n{base}"
         mission = _render_mission_block(session)
         prefix = f"{mission}\n\n" if mission else ""
         return f"{prefix}Roadmap:\n{session.task_store.render_markdown()}\n\n{base}"
@@ -157,9 +226,48 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
         if not names.intersection({"task_inspect", "task_decompose", "task_update"}):
             return ""
         return (
-            "Tool guidance: call task_inspect to read state, then task_decompose "
-            "to add subtasks or task_update to confirm the roadmap. Do not "
-            "execute work here."
+            "Tool guidance: call task_inspect to read state. Explore first "
+            "(web_search/fetch_url/read_file/list_files/search_files/"
+            "run_shell) to ground your decomposition in current reality, "
+            "especially for research tasks. Then call task_decompose to add "
+            "subtasks or task_update to confirm the roadmap. After task_decompose "
+            "or task_update succeeds, call terminate. Do not execute "
+            "the task itself — decompose and hand off to the executor."
+        )
+
+    def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
+        """Skip re-execution when the analyzer confirmed the plan is unchanged.
+
+        FR-051: in a local replan, when the analyzer sets
+        ``metadata.plan_unchanged`` on the active task (via ``task_update``),
+        the queued executor is removed — the plan did not change, so
+        re-execution would only duplicate work. The reviewer is kept so it
+        can re-judge the existing result. Only fires in ``local_replan``
+        mode; the upfront analysis loop is unaffected.
+        """
+        super().on_complete(queue, response)
+        mode = str(self.config.metadata.get("task_analyzer_mode", "task_creation"))
+        if mode != "local_replan":
+            return
+        if self.session is None:
+            return
+        active = self.session.task_store.get_active_task()
+        if active is None or not active.metadata.get("plan_unchanged"):
+            return
+        # Remove the next queued task_executor (if any) — keep the reviewer.
+        # ponytail: linear scan is fine, the queue is short (≤4 after replan).
+        removed = False
+        new_items = []
+        for node in queue.items:
+            if not removed and node.node_id == "task_executor":
+                removed = True
+                continue
+            new_items.append(node)
+        queue.items = new_items
+        logger.info(
+            "plan_unchanged task_id=%s — skipping executor re-run, "
+            "reviewer will re-judge the existing result",
+            active.task_id,
         )
 
 
@@ -193,6 +301,7 @@ def _local_task_region(session: Session) -> dict:
                 "task_id": task.task_id,
                 "title": task.title,
                 "status": task.status.value,
+                "result": task.result.summary if task.result else None,
             }
             for task in children
         ],
@@ -201,6 +310,7 @@ def _local_task_region(session: Session) -> dict:
                 "task_id": task.task_id,
                 "title": task.title,
                 "status": task.status.value,
+                "result": task.result.summary if task.result else None,
             }
             for task in siblings
         ],
@@ -276,7 +386,7 @@ def _render_task_tree_markdown(snapshot: dict) -> str:
         lines.append(f"{counter}. [{status}] {title} (id={task_id}){marker}")
         result = task.get("result")
         if isinstance(result, dict) and result.get("summary"):
-            summary = str(result["summary"])[:120]
+            summary = str(result["summary"])
             lines.append(f"   Result: {summary}")
 
     # Post-order traversal from root; root itself is not emitted as a list row.
@@ -287,22 +397,73 @@ def _render_task_tree_markdown(snapshot: dict) -> str:
 
 
 def _render_local_region_markdown(region: dict) -> str:
-    """Render local task region as concise markdown."""
+    """Render local task region as concise markdown with full result summaries.
+
+    The local replan region is scoped to the active task + its children +
+    siblings, so the token budget is small. Full result summaries (no
+    truncation) are shown for completed tasks so the assessor/analyzer can
+    see exactly what was found and decide whether the region needs
+    refinement — a 200-char truncation could hide the very detail that
+    determines "does this region need replanning?"
+    """
     lines: list[str] = []
     active = region.get("active_task")
     if active:
         lines.append(f"Active: {active.get('title', 'unknown')} [{active.get('status', '?')}]")
+        active_result = active.get("result")
+        if active_result:
+            lines.append(f"  Result: {active_result}")
     children = region.get("children", [])
     if children:
         lines.append("Subtasks:")
         for child in children:
-            lines.append(f"  - [{child.get('status', '?')}] {child.get('title', '?')}")
+            line = f"  - [{child.get('status', '?')}] {child.get('title', '?')}"
+            child_result = child.get("result")
+            if child_result:
+                line += f" — {child_result}"
+            lines.append(line)
     siblings = region.get("siblings", [])
     if siblings:
         lines.append("Sibling tasks:")
         for sib in siblings:
-            lines.append(f"  - [{sib.get('status', '?')}] {sib.get('title', '?')}")
+            line = f"  - [{sib.get('status', '?')}] {sib.get('title', '?')}"
+            sib_result = sib.get("result")
+            if sib_result:
+                line += f" — {sib_result}"
+            lines.append(line)
     return "\n".join(lines) if lines else str(region)
+
+
+def _render_completed_sibling_results(store: TaskStateStore, active: Task) -> list[str]:
+    """Render completed sibling result summaries for the executor context.
+
+    Returns the lines for the 'Completed Sibling Results' section, or an
+    empty list if the active task has no completed siblings.
+    """
+    if not active.parent_id or active.parent_id not in store.tasks:
+        return []
+    parent = store.tasks[active.parent_id]
+    completed_siblings = []
+    for child_id in parent.children:
+        if child_id == active.task_id:
+            continue
+        child = store.tasks.get(child_id)
+        if child and child.status == TaskStatus.COMPLETED and child.result:
+            completed_siblings.append(child)
+    if not completed_siblings:
+        return []
+    lines = ["", "## Completed Sibling Results"]
+    lines.append(
+        "Previous tasks under the same parent completed with these "
+        "findings. Use this context — do not re-research what was "
+        "already found."
+    )
+    for sib in completed_siblings:
+        summary = sib.result.summary or sib.result.content
+        lines.append(f"### {sib.title}")
+        lines.append(summary.strip() if summary else "(no summary)")
+        lines.append("")
+    return lines
 
 
 def _render_active_task_work_order(session: Session) -> str:
@@ -340,6 +501,10 @@ def _render_active_task_work_order(session: Session) -> str:
                 f"- {decision.get('decision', 'unknown')}: "
                 f"{decision.get('rationale', '')}"
             )
+    # Completed Sibling Results (Milestone 8 Stream A): surface full result
+    # summaries of completed direct siblings so the executor sees what
+    # previous tasks found.
+    lines.extend(_render_completed_sibling_results(store, active))
     context = str(active.metadata.get("context", "")).strip()
     if context:
         lines.extend(["", "## Useful Prior Context", context])
@@ -352,6 +517,11 @@ def _render_active_task_work_order(session: Session) -> str:
             "## What Needs To Be Done",
             "Complete this active task only. Use workspace, shell, Python, or "
             "research tools when they provide evidence. Do not just plan.",
+            "If writing to a file that previous tasks already wrote to (e.g. "
+            "the deliverable file), use `read_file` first to check existing content, then "
+            "`append_file` or `str_replace` to add your section. Do NOT "
+            "overwrite the entire file unless this is the first task writing "
+            "to it.",
             "",
             "## Success Criteria",
             "- At least one action/research/file/shell tool result supports success.",
@@ -375,13 +545,10 @@ def _render_request_contract(session: Session) -> str:
     """
     original = ""
     constraints: list[str] = []
-    for entry in reversed(session.session_context):
-        content = entry.get("content") if isinstance(entry, dict) else entry.content
-        if not isinstance(content, DigestedInformation):
-            continue
+    content = find_latest_entry(session, DigestedInformation)
+    if content is not None:
         original = content.original_query or original
-        constraints = [*content.constraints, *constraints]
-        break
+        constraints = list(content.constraints)
     if not original and not constraints:
         return ""
     lines = ["## Original user request"]
@@ -394,12 +561,19 @@ def _render_request_contract(session: Session) -> str:
 
 
 def _render_mission_block(session: Session) -> str:
-    """Render a compact canonical mission block from the root task.
+    r"""Render a compact canonical mission block from the root task.
 
-    The mission is the single canonical "goal" (original request + hard
-    constraints) stored on the root task at creation time. It travels with
-    the task tree so every worker-internal node sees the same goal without
-    inheriting the full session context. See FR-003.
+    The mission is the single canonical "goal" carried with the task tree so
+    every worker-internal node sees the same goal without inheriting the full
+    session context. See FR-003.
+
+    Structured as ``{context}\n{query}``: the InformationDigester's
+    comprehensive research (``mission_context`` + ``mission_key_points``)
+    appears first as context, followed by the original request and hard
+    constraints. Empty sections are omitted (no empty headers). This gives
+    downstream planning/review nodes the first-layer exploration findings
+    so they don't anchor on training-data priors (e.g. "2024-2025" for a
+    "current" research task).
 
     Returns an empty string when no mission is stored (no-op).
     """
@@ -408,17 +582,28 @@ def _render_mission_block(session: Session) -> str:
         return ""
     root = store.tasks[store.root_task_id]
     mission = str(root.metadata.get("mission", "") or "").strip()
+    mission_context = str(root.metadata.get("mission_context", "") or "").strip()
+    key_points = root.metadata.get("mission_key_points", [])
+    if not isinstance(key_points, list):
+        key_points = []
+    key_points = [str(point).strip() for point in key_points if str(point).strip()]
     constraints = root.metadata.get("inherited_constraints", [])
     if not isinstance(constraints, list):
         constraints = []
-    if not mission and not constraints:
+    constraints = [str(c).strip() for c in constraints if str(c).strip()]
+    if not (mission or mission_context or key_points or constraints):
         return ""
     lines = ["## Mission"]
+    if mission_context:
+        lines.append(mission_context)
+    if key_points:
+        lines.append("Key findings:")
+        lines.extend(f"- {point}" for point in key_points)
     if mission:
-        lines.append(mission)
+        lines.append(f"Original request: {mission}")
     if constraints:
         lines.append("Hard constraints:")
-        lines.extend(f"- {constraint}" for constraint in constraints if constraint)
+        lines.extend(f"- {constraint}" for constraint in constraints)
     return "\n".join(lines)
 
 
@@ -478,7 +663,9 @@ class TinyCUATaskAssessorNode(ProcessNode):
         if not names.intersection({"task_inspect", "node_handoff"}):
             return ""
         return (
-            "Tool guidance: call task_inspect for read-only assessment and "
+            "Tool guidance: call task_inspect for read-only assessment. "
+            "Explore (web_search/fetch_url/read_file/run_shell) to verify "
+            "the roadmap targets current reality for research tasks. Then "
             "node_handoff to instruct TaskAnalyzer. Do not mutate task state."
         )
 
@@ -515,25 +702,31 @@ class TinyCUATaskExecutorNode(ProcessNode):
             workspace_dir = str(session.session_config.workspace_dir)
         mission = _render_mission_block(session)
         mission_prefix = f"{mission}\n\n" if mission else ""
-        # When the active task is a parent (has children, all completed), this
-        # is a verification pass — the executor verifies the children's work
-        # achieves the parent's goal, makes adjustments if needed, then reports
-        # the outcome via task_result_update. Not new execution.
+        # Child Verification Gate: when the active task is a parent (has
+        # children), the executor must verify that the children's combined
+        # work achieves the parent's goal. Only DIRECT children are listed —
+        # grandchildren were already verified by the child's own gate.
         verification_note = ""
         if active.children:
-            child_statuses = []
+            child_lines = []
             for child_id in active.children:
                 child = session.task_store.tasks.get(child_id)
                 if child:
-                    child_statuses.append(f"  - [{child.status.value}] {child.title}")
+                    line = f"  - [{child.status.value}] {child.title}"
+                    if child.result and child.result.summary:
+                        line += f" — {child.result.summary}"
+                    child_lines.append(line)
             verification_note = (
-                "\n## Verification Pass\n"
-                "All child tasks are complete. This is a PARENT task — verify "
-                "that the children's combined work achieves this task's goal. "
-                "Run tests, check integration, verify the app starts. Fix "
-                "issues if needed. Then call task_result_update with the "
-                "verification outcome.\n\n"
-                "Child tasks:\n" + "\n".join(child_statuses) + "\n"
+                "\n## Child Task Verification Gate\n"
+                "This is a PARENT task with completed child tasks. For this "
+                "task to be approved, all child tasks below must remain "
+                "completed and their results must still be valid. Verify "
+                "integration — run tests, check the app starts, confirm "
+                "endpoints are wired. Fix issues if needed. Do NOT re-execute "
+                "the children.\n\n"
+                "Child tasks (direct children only):\n"
+                + "\n".join(child_lines)
+                + "\n"
             )
         path_note = (
             f"Workspace root: {workspace_dir or 'not configured'}\n"
@@ -607,26 +800,8 @@ class TinyCUAResultReviewerNode(ProcessNode):
             is_terminal=is_terminal,
         )
 
-    def build_continuation(self, session: Session | None = None) -> str:
-        """Build reviewer continuation with latest result and unified context."""
-        base = super().build_continuation(session)
-        if session is None:
-            return base
-        task = self._task_to_review()
-        if task is None:
-            return base
-        # Primary review target: the executor's outcome report
-        result_content = task.result.content if task.result is not None else ""
-        if not result_content.strip():
-            # Failsafe: if no result report, include the tool-call transcript
-            # so the reviewer can still assess what happened
-            transcript_lines = []
-            for entry in session.session_context:
-                content = entry.get("content", "") if isinstance(entry, dict) else getattr(entry, "content", "")
-                role = entry.get("role", "") if isinstance(entry, dict) else getattr(entry, "role", "")
-                if role and content:
-                    transcript_lines.append(f"[{role}] {content}")
-            result_content = "(No result report from executor)\n\nExecutor transcript:\n" + "\n".join(transcript_lines[-10:])
+    def _reviewer_context_blocks(self, task: Task, session: Session) -> str:
+        """Assemble the reviewer's context blocks (unfinished, child gate, failure note)."""
         # Highlight unfinished tasks for context curation
         unfinished = []
         for t in session.task_store.tasks.values():
@@ -635,8 +810,6 @@ class TinyCUAResultReviewerNode(ProcessNode):
         unfinished_block = ""
         if unfinished:
             unfinished_block = "\nUnfinished tasks to curate context for:\n" + "\n".join(unfinished) + "\n"
-        mission = _render_mission_block(session)
-        mission_prefix = f"{mission}\n\n" if mission else ""
         # FR-021: surface the failure count as SOFT context so the reviewer —
         # which still LLM-decides — can weigh replan over retry when a task has
         # bounced many times. Not a forced decision; just visible signal.
@@ -649,13 +822,64 @@ class TinyCUAResultReviewerNode(ProcessNode):
                 f"to succeed; consider replan (the plan may be wrong) rather than "
                 f"another retry.\n"
             )
+        # Child Verification Gate: when reviewing a parent task (has children),
+        # surface the direct children so the reviewer knows it's a verification
+        # review, not a leaf review. Only direct children — grandchildren were
+        # already verified by the child's own gate.
+        child_gate = ""
+        if task.children:
+            child_lines = []
+            for child_id in task.children:
+                child = session.task_store.tasks.get(child_id)
+                if child:
+                    line = f"  - [{child.status.value}] {child.title}"
+                    if child.result and child.result.summary:
+                        line += f" — {child.result.summary}"
+                    child_lines.append(line)
+            child_gate = (
+                "\n## Child Task Verification Gate\n"
+                "This is a PARENT task. For this task to be approved, all "
+                "child tasks below must remain completed and their results "
+                "must still be valid. Verify integration — do not re-execute "
+                "the children.\n\n"
+                "Child tasks (direct children only):\n"
+                + "\n".join(child_lines)
+                + "\n"
+            )
+        return f"{unfinished_block}{child_gate}{failure_note}"
+
+    def _failsafe_result_content(self, task: Task, session: Session) -> str:
+        """Failsafe transcript when the executor left no result report."""
+        transcript_lines = []
+        for entry in session.session_context:
+            content = entry_content(entry)
+            role = entry.get("role", "") if isinstance(entry, dict) else getattr(entry, "role", "")
+            if role and content:
+                transcript_lines.append(f"[{role}] {content}")
+        return "(No result report from executor)\n\nExecutor transcript:\n" + "\n".join(transcript_lines[-10:])
+
+    def build_continuation(self, session: Session | None = None) -> str:
+        """Build reviewer continuation with latest result and unified context."""
+        base = super().build_continuation(session)
+        if session is None:
+            return base
+        task = self._task_to_review()
+        if task is None:
+            return base
+        # Primary review target: the executor's outcome report
+        result_content = task.result.content if task.result is not None else ""
+        if not result_content.strip():
+            result_content = self._failsafe_result_content(task, session)
+        mission = _render_mission_block(session)
+        mission_prefix = f"{mission}\n\n" if mission else ""
+        context_blocks = self._reviewer_context_blocks(task, session)
         return (
             f"{mission_prefix}Task under review: {task.task_id} — {task.title}\n"
             f"Task status: {task.status.value}\n"
             f"Outcome report: {result_content}\n"
             f"{_render_request_contract(session)}\n"
             f"Unified task context:\n{session.task_store.render_markdown()}\n"
-            f"{unfinished_block}{failure_note}\n{base}"
+            f"{context_blocks}\n{base}"
         )
 
     def _task_to_review(self):
@@ -681,7 +905,15 @@ class TinyCUAResultReviewerNode(ProcessNode):
 
         terminal_nodes = [node for node in queue.items[1:] if node.is_terminal]
         queue.clear_after_current()
-        WorkerRuntimeController(self.session.task_store).schedule_after_review(queue)
+        sc = self.session.session_config
+        enable_oq = bool(sc.enable_open_question_review) if sc is not None else False
+        replan_threshold = sc.replan_threshold if sc is not None else 5
+        WorkerRuntimeController(
+            self.session.task_store,
+            enable_open_question_review=enable_oq,
+            replan_threshold=replan_threshold,
+            session=self.session,
+        ).schedule_after_review(queue)
         existing_terminal_ids = {
             node.node_id for node in queue.items if node.is_terminal
         }
@@ -721,26 +953,8 @@ class TinyCUAResultReviewerNode(ProcessNode):
         return self._task_to_review()
 
     def build_tool_system_prompt(self, resolved_tools: list[Any] | None = None) -> str:
-        """Behavioral guidance keyed on present reviewer tools (FR-005, FR-008)."""
-        names = {getattr(tool, "name", "") for tool in (resolved_tools or [])}
-        lines: list[str] = []
-        readonly = names.intersection({"read_file", "run_shell", "list_files"})
-        if readonly:
-            lines.append(
-                "Before approving a task with file artifacts, run at least one "
-                "verification tool (read_file, run_shell, list_files) against "
-                "the claimed artifact, OR state in the rationale why "
-                "verification was skipped (e.g. pure-research task). Prefer "
-                "run_shell with exit_code checks (test -f, grep, pytest, git "
-                "diff) over eyeballing source. Do not accept generic 'all "
-                "requirements met' — cite specific evidence (file excerpt, "
-                "command output, exit_code)."
-            )
-        if "task_review_decision" in names:
-            lines.append("Your final action MUST call task_review_decision, then task_inspect.")
-        if not lines:
-            return ""
-        return "Tool guidance: " + " ".join(lines)
+        """Delegate to the reviewer guidance builder (FR-005, FR-008, FR-056)."""
+        return build_reviewer_tool_guidance(resolved_tools)
 
 
 class TinyCUAResultAggregationNode(ProcessNode):
@@ -764,22 +978,30 @@ class TinyCUAResultAggregationNode(ProcessNode):
         )
 
     def build_continuation(self, session: Session | None = None) -> str:
-        """Build aggregation continuation with completed task evidence as markdown."""
+        """Build aggregation continuation with completed task evidence as markdown.
+
+        Tasks are listed in reverse execution order (last-completed leaf first,
+        root goal last) — most relevant context first.
+        """
         base = super().build_continuation(session)
         if session is None:
             return base
-        # Render completed tasks as clean markdown — NOT a Python repr.
-        # The old code did f"Completed task evidence: {task_summaries}" which
-        # emitted a raw list[dict] repr that confused the response node.
+        store = session.task_store
         lines: list[str] = []
-        for task in session.task_store.tasks.values():
-            if task.result is None:
+        # Reverse post-order: last-executed leaf first, root last.
+        ordered_ids = list(reversed(store._ordered_ids()))
+        # Append root last (it's the goal, not in _ordered_ids).
+        if store.root_task_id and store.root_task_id in store.tasks:
+            ordered_ids.append(store.root_task_id)
+        for task_id in ordered_ids:
+            task = store.tasks.get(task_id)
+            if task is None or task.result is None:
                 continue
             status_mark = " ✓" if task.status.value == "completed" else ""
             lines.append(f"- **{task.title}** [{task.status.value}]{status_mark}")
             summary = task.result.summary or task.result.content
             if summary:
-                lines.append(f"  {summary[:300]}")
+                lines.append(f"  {summary}")
             if task.artifacts:
                 paths = [a.get("path", "") for a in task.artifacts if a.get("path")]
                 if paths:
@@ -796,7 +1018,7 @@ class TinyCUAResultAggregationNode(ProcessNode):
     ) -> None:
         """Persist aggregation output on the root task."""
         del node_input
-        if self.session is None or self.session.task_store.root_task_id is None:
+        if not self._has_root_task:
             return
         root_id = self.session.task_store.root_task_id
         store = self.session.task_store
@@ -811,37 +1033,45 @@ class TinyCUAResultAggregationNode(ProcessNode):
         root.status = TaskStatus.COMPLETED
         aggregated = self._build_aggregated_result(llm_result.content)
         root.metadata["aggregated_result"] = aggregated.__dict__
-        from tinycua.models.session_context_entry import SessionContextEntry
+        # FR-074: use idempotent_by_identity to avoid duplicating if the
+        # orchestration layer's _record_node_output already recorded the
+        # same aggregated object. This handles both the direct-call test
+        # path (where parse_loop_result is the only recorder) and the
+        # production path (where _record_node_output runs first).
+        from tinycua.models.session_context_entry import append_output_entry
 
-        self.session.session_context.append(
-            SessionContextEntry(
-                content=aggregated,
-                segment="output",
-                source_node_id=self.node_id,
-                source_session_id=self.session.session_id,
-            )
+        append_output_entry(
+            self.session, aggregated, self.node_id,
+            idempotent_by_identity=True,
         )
 
     def _summarize_task_results(self) -> str:
-        """Summarize child task outputs for aggregation content."""
+        """Summarize child task outputs for aggregation content (reverse execution order)."""
         if self.session is None:
             return "Completed worker roadmap."
+        store = self.session.task_store
         parts = []
-        for task in self.session.task_store.tasks.values():
-            if task.result is not None and task.parent_id is not None:
+        for task_id in reversed(store._ordered_ids()):
+            task = store.tasks.get(task_id)
+            if task and task.result is not None and task.parent_id is not None:
                 parts.append(f"{task.title}: {task.result.content}")
         return "\n".join(parts) or "Completed worker roadmap."
 
     def _build_aggregated_result(self, model_context: str) -> AggregatedResult:
-        """Build a response-ready aggregation from roadmap state."""
-        if self.session is None or self.session.task_store.root_task_id is None:
+        """Build a response-ready aggregation from roadmap state (reverse execution order)."""
+        if not self._has_root_task:
             return AggregatedResult(root_task_id="", final_context=model_context)
         store = self.session.task_store
         task_summaries: list[str] = []
         accepted_results: list[TaskResult] = []
         artifacts: list[dict] = []
-        for task in store.tasks.values():
-            if task.result is None:
+        # Reverse post-order: last-executed leaf first, root last.
+        ordered_ids = list(reversed(store._ordered_ids()))
+        if store.root_task_id and store.root_task_id in store.tasks:
+            ordered_ids.append(store.root_task_id)
+        for task_id in ordered_ids:
+            task = store.tasks.get(task_id)
+            if task is None or task.result is None:
                 continue
             task_summaries.append(f"{task.title}: {task.result.summary}")
             accepted_results.append(task.result)

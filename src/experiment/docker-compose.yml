@@ -65,3 +65,25 @@ services:
       - searxng
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
+  judge:
+    build:
+      context: ../..
+      dockerfile: src/experiment/docker/judge.Dockerfile
+    command: ["tail", "-f", "/dev/null"]
+    env_file:
+      - .env
+    environment:
+      SEARXNG_URL: ${EXPERIMENT_SEARXNG_BASE_URL:-http://searxng:8080}
+      SEARXNG_BASE_URL: ${EXPERIMENT_SEARXNG_BASE_URL:-http://searxng:8080}
+    volumes:
+      - judge-hermes-home:/home/judge/.hermes
+      - .:/workspace
+    working_dir: /workspace
+    depends_on:
+      - searxng
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  judge-hermes-home:
