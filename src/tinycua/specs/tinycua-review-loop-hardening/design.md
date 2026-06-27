@@ -56,6 +56,8 @@ zero-exit guarantee.
 | `tinycua.agent.tools.native.files.list_files` | Modified | Render result as a grouped/tree string instead of a flat list. |
 | `tinycua.agent.tools.native.files.read_file` | Modified | Not-found path computes and returns a closest-match suggestion. |
 | `tinycua.agent.tools.native.context` | Unchanged | `resolve_workspace_path` already handles doubled-prefix/re-rooting; no change. |
+| `tinycua.models.task.TaskStateStore.record_reviewer_decision` | Modified | FR-5a: raise `ValueError` on `approved` for PENDING leaf with no result/no children. |
+| `tinycua.models.task.TaskStateStore.record_result` | Modified | FR-5b: only auto-transition the active task PENDING/FAILED → IN_PROGRESS; non-active tasks keep their status. |
 
 ---
 
@@ -122,6 +124,28 @@ def _validate_result_reviewer_single_decision(
 #         (suggestion key omitted when no close match)
 ```
 
+```python
+# FR-5a — task.py record_reviewer_decision (APPROVED branch, before the
+#         final FR-079 fallback)
+# Guard: if task.result is None and task.status == PENDING:
+#            raise ValueError("Cannot approve a task that was never executed ...")
+# The ValueError propagates to TaskReviewDecisionTool.__call__, which
+# catches it and returns {"success": False, "error": "..."} to the model.
+# IN_PROGRESS-no-result (FR-079 case) and parent-all-children-done are
+# unaffected — the guard fires only when result is None AND status is PENDING.
+```
+
+```python
+# FR-5b — task.py record_result (auto-transition guard)
+# Before: if task.status in {PENDING, FAILED}: self.transition(IN_PROGRESS)
+# After:  if task.status in {PENDING, FAILED}:
+#             if task_id == self.active_task_id:
+#                 self.transition(IN_PROGRESS)
+#             # else: result recorded, status stays PENDING/FAILED
+# Only the active task auto-transitions. Non-active tasks (executor
+# sibling-propagation) keep their status — they become active later.
+```
+
 ### Error Handling
 
 | Error Case | Exception / Response | Notes |
@@ -130,6 +154,8 @@ def _validate_result_reviewer_single_decision(
 | `read_file` no close match | `{"error": "File not found: {path}"}` (no `suggestion` key) | Same as today. |
 | `read_file` close match found | `{"error": "...", "suggestion": "<rel>"}` | Extra key; consumers ignoring unknown keys are unaffected. |
 | `list_files` empty workspace | `[]` or empty tree string | No crash. |
+| Reviewer approves PENDING leaf (no result, no children) | `ValueError("Cannot approve a task that was never executed ...")` → `TaskReviewDecisionTool` returns `{"success": False, "error": "..."}` | Task stays PENDING; no fake result. |
+| `record_result` on non-active PENDING task | Result attached, status stays PENDING | New legal state: PENDING + has_result. `schedule_next` checks `result is not None`, not `status == IN_PROGRESS`. |
 
 ---
 
@@ -143,7 +169,9 @@ def _validate_result_reviewer_single_decision(
 - [ ] FR-3: change `list_files` rendering to grouped tree with full relative
   paths.
 - [ ] FR-4: add closest-match suggestion to `read_file` not-found path.
-- [ ] Unit tests for all four (per spec Testing Plan).
+- [ ] FR-5a: add PENDING-leaf approval guard in `record_reviewer_decision`.
+- [ ] FR-5b: gate `record_result` auto-transition to the active task only.
+- [ ] Unit tests for all (per spec Testing Plan).
 - [ ] Integration tests: loop-convergence and no-flip-flop.
 
 ### Phase 2 — Enhancements _(post-MVP, only if spec explicitly includes it)_
@@ -188,8 +216,28 @@ explicitly out of scope and belong to a separate future spec.
    - **Reason**: The observed failures are missing/extra directory segments,
      not typos. Segment-level matching catches exactly those; Levenshtein on
    raw strings would over-suggest on long basenames.
-   - **Alternatives Considered**: `difflib.get_close_matches` on full paths —
-     rejected as likely to suggest unrelated files with similar basenames.
+    - **Alternatives Considered**: `difflib.get_close_matches` on full paths —
+      rejected as likely to suggest unrelated files with similar basenames.
+
+5. **Decision**: Guard `record_reviewer_decision` (reject APPROVED on
+   PENDING leaf with no result) and gate `record_result` auto-transition
+   to the active task only.
+   - **Reason**: Exp2 task 14 was completed by a reviewer approving a
+     never-dispatched PENDING sibling. The FR-079 fallback (meant for
+     IN_PROGRESS tasks whose executor forgot `task_result_update`) created
+     a fake result. The consistency principle: PENDING is not advanced
+     unless the task went through IN_PROGRESS, and only the active task
+     is auto-transitioned. The analyzer can still modify any non-completed
+     task via `task_update` (planning); the executor's sibling-propagation
+     (`task_result_update` on a non-active sibling) still records a result
+     but the sibling stays PENDING until it becomes active.
+   - **Alternatives Considered**: Guard `TaskUpdateTool` to block status
+     changes on non-active tasks — rejected as out of scope (the analyzer
+     legitimately modifies non-active tasks during planning; the reviewer's
+     `task_update` status-flip abuse is a separate, lesser concern that
+     didn't cause the task-skipping bug). Guard at the `_ALLOWED_TRANSITIONS`
+     level — rejected as too broad (PENDING → IN_PROGRESS is a valid
+     transition that the executor needs).
 
 ---
 
@@ -202,6 +250,8 @@ explicitly out of scope and belong to a separate future spec.
 | Tree format confuses a model trained on flat lists | Low | Low | Full relative paths are still present; grouping is additive context. Verify on re-run. |
 | Fuzzy suggestion misleads when the closest match is wrong | Low | Med | Only suggest when ≤2 segment differences; omit suggestion otherwise (plain not-found). Never auto-redirect reads. |
 | Existing tests assert `replan_threshold=5` | Med | Low | Update those tests in the same PR; the default change is intentional, not a silent break. |
+| FR-5b introduces PENDING+result state for non-active tasks | Low | Low | `schedule_next` checks `result is not None`, not `status == IN_PROGRESS`; the rollback path handles PENDING explicitly. `test_executor_reports_sibling_result_skips_executor` is the regression guard. |
+| FR-5a guard breaks a test that approves a never-dispatched PENDING leaf | Med | Low | `test_experiment_bugfixes.py::test_leaf_task_auto_generates_result` encoded the bug as desired behavior; update it to transition IN_PROGRESS first (simulating executor pickup). |
 
 ---
 
@@ -232,5 +282,6 @@ explicitly out of scope and belong to a separate future spec.
 - Key code: `src/tinycua/tinycua/loops/worker_runtime.py` (FR-1),
   `src/tinycua/tinycua/loops/validation_retry_mixin.py` (FR-2),
   `src/tinycua/tinycua/agent/tools/native/files.py` (FR-3, FR-4),
+  `src/tinycua/tinycua/models/task.py` (FR-5a, FR-5b),
   `src/tinycua/tinycua/agent/tools/native/context.py` (unchanged,
   referenced for path resolution)

@@ -476,8 +476,15 @@ class TaskStateStore:
     def record_result(self, task_id: str, result: TaskResult) -> Task:
         """Persist task execution output without completing review state."""
         task = self.get_task(task_id)
+        # FR-5b: only auto-transition the ACTIVE task to IN_PROGRESS. A
+        # non-active (out-of-order) task stays PENDING/FAILED even if a
+        # result is recorded — it must become active first. Prevents task
+        # skipping: the executor can record a result on a sibling
+        # ("completed as part of task N") but the sibling's status doesn't
+        # advance until the runtime dispatches it as the active task.
         if task.status in {TaskStatus.PENDING, TaskStatus.FAILED}:
-            self.transition(task_id, TaskStatus.IN_PROGRESS)
+            if task_id == self.active_task_id:
+                self.transition(task_id, TaskStatus.IN_PROGRESS)
         task.result = result
         self._bump_version()
         self._refresh_active_task()
@@ -531,12 +538,27 @@ class TaskStateStore:
                             success=True,
                             metadata={"aggregated": True},
                         )
-                if task.result is None:
-                    task.result = TaskResult(
-                        content="Approved by reviewer (no executor result recorded).",
-                        success=True,
-                        metadata={"auto_generated": True},
-                    )
+            # FR-5a: do not auto-generate a result for a leaf task that was
+            # never dispatched (PENDING, no result, no children). The FR-079
+            # fallback below is for IN_PROGRESS tasks whose executor forgot
+            # task_result_update — not for PENDING tasks the reviewer approved
+            # by mistake (e.g. approving a sibling that was never executed).
+            # Exp2 task 14 completed this way: reviewer approved a PENDING
+            # leaf, fallback created a fake result, task jumped to COMPLETED
+            # while 6-13 were still pending.
+            if task.result is None and task.status == TaskStatus.PENDING:
+                raise ValueError(
+                    "Cannot approve a task that was never executed "
+                    f"(task_id={task_id}, status=pending, no result). Review the "
+                    "active task only; do not approve tasks that have not been "
+                    "dispatched."
+                )
+            if task.result is None:
+                task.result = TaskResult(
+                    content="Approved by reviewer (no executor result recorded).",
+                    success=True,
+                    metadata={"auto_generated": True},
+                )
             if task.result is not None:
                 target = TaskStatus.COMPLETED if task.result.success else TaskStatus.FAILED
                 if task.status != target:

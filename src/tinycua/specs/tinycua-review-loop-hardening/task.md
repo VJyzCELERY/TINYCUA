@@ -8,6 +8,8 @@ Implementation tasks for TINYCUA Review-Loop Hardening. Check off items as compl
 - [ ] Write unit tests for FR-2: `TestSingleDecisionValidator` in new `test_review_single_decision.py` (two-decisions rejected, one accepted, one+task_update accepted, non-reviewer skipped, failed-decision not counted) <!-- id: 1 -->
 - [ ] Write integration tests for FR-3: `test_list_files_tree_format_shows_directory_grouping` + `test_list_files_tree_empty_workspace` in `test_native_tools_files.py` <!-- id: 2 -->
 - [ ] Write integration tests for FR-4: `test_read_file_not_found_with_close_match_returns_suggestion` + `test_read_file_not_found_no_close_match_plain_error` in `test_native_tools_files.py` <!-- id: 3 -->
+- [ ] Write unit tests for FR-5: `test_review_pending_guard.py` (approve-PENDING-leaf-rejected, approve-IN_PROGRESS-no-result-works, approve-parent-all-children-works, tool-catches-error, record_result-non-active-keeps-pending, record_result-active-auto-transitions, sibling-propagation-works) <!-- id: 3b -->
+- [ ] Update existing `test_experiment_bugfixes.py::test_leaf_task_auto_generates_result`: add `store.transition(child.task_id, TaskStatus.IN_PROGRESS)` before approve <!-- id: 3c -->
 - [ ] Update existing `test_auto_replan.py`: split `test_5_consecutive_rejections_trigger_replan` → `test_3_consecutive_rejections_trigger_replan`; `test_4_consecutive_rejections_still_retry` → `test_2_consecutive_rejections_still_retry` <!-- id: 4 -->
 - [ ] Update existing `test_replan_loop_regression.py`: split tests into default-threshold (3) and explicit-threshold (5) variants where they currently pass `replan_threshold=5` to test default behavior <!-- id: 5 -->
 - [ ] Update `test_worker_runtime_controller.py:31-41`: `range(3)` → `range(2)`, comment "threshold of 5" → "of 3" <!-- id: 6 -->
@@ -37,6 +39,8 @@ Implementation tasks for TINYCUA Review-Loop Hardening. Check off items as compl
   - [ ] Walk workspace root to build candidate file list
   - [ ] Add `suggestion` key to not-found error dict when close match exists; omit when not
   - [ ] Never suggest the workspace root as a file
+- [ ] FR-5a: add PENDING-leaf approval guard in `record_reviewer_decision` (task.py) — raise ValueError when result is None and status is PENDING <!-- id: 14a -->
+- [ ] FR-5b: gate `record_result` auto-transition to active task only (task.py) — non-active tasks keep PENDING/FAILED status <!-- id: 14b -->
 
 ## Testing Phase
 

@@ -15,6 +15,9 @@ class TestReviewerApprovalAutoResult:
         store = TaskStateStore()
         root = store.create_task("Root")
         child = store.create_task("Child", parent_id=root.task_id)
+        # FR-5a: approving a never-dispatched PENDING leaf is rejected.
+        # Simulate the executor having picked up the task first.
+        store.transition(child.task_id, TaskStatus.IN_PROGRESS)
         store.record_reviewer_decision(child.task_id, ReviewerDecision.APPROVED)
         assert child.result is not None
         assert child.result.metadata.get("auto_generated") is True
