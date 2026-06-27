@@ -52,7 +52,7 @@ class WorkerRuntimeController:
 
     store: TaskStateStore
     enable_open_question_review: bool = False
-    replan_threshold: int = 5
+    replan_threshold: int = 3
     session: Session | None = None
     max_replans: int | None = None
 

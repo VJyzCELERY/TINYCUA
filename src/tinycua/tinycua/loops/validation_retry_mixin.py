@@ -419,6 +419,7 @@ class ValidationRetryMixin:
             self._validate_result_reviewer_result_exists(node, llm_result),
             self._validate_result_reviewer_inspects_after_decision(node, llm_result),
             self._validate_result_reviewer_rationale_evidence(node, llm_result),
+            self._validate_result_reviewer_single_decision(node, llm_result),
             self._validate_worker_lifecycle_terminate(node, llm_result),
             self._validate_decision_route_tool(node, llm_result),
             self._validate_final_response_content(node, llm_result),
@@ -608,6 +609,29 @@ class ValidationRetryMixin:
         if node.node_id != "result_reviewer":
             return validation
         errors = validate_reviewer_rationale(llm_result.tool_calls)
+        if errors:
+            validation.is_valid = False
+            validation.errors.extend(errors)
+        return validation
+
+    def _validate_result_reviewer_single_decision(
+        self,
+        node: Node,
+        llm_result: LLMResult,
+    ) -> ValidationResult:
+        """FR-2: a reviewer session may emit at most one task_review_decision.
+
+        Thin wrapper around ``node_guidance.validate_reviewer_single_decision``
+        to keep this mixin under the LOC gate. Kills in-session flip-flopping
+        (needs_revision -> approved -> needs_revision) observed in experiment-4
+        logs: a single stuck task was reviewed 14 times.
+        """
+        from tinycua.loops.node_guidance import validate_reviewer_single_decision
+
+        validation = ValidationResult(is_valid=True, errors=[])
+        if node.node_id != "result_reviewer":
+            return validation
+        errors = validate_reviewer_single_decision(llm_result.tool_calls)
         if errors:
             validation.is_valid = False
             validation.errors.extend(errors)

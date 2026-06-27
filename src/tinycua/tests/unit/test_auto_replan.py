@@ -51,13 +51,13 @@ class TestConsecutiveFailures:
 class TestAutoReplanThreshold:
     """schedule_after_review triggers replan after threshold consecutive rejections."""
 
-    def test_5_consecutive_rejections_trigger_replan(self):
+    def test_3_consecutive_rejections_trigger_replan(self):
         store = TaskStateStore()
         root = store.create_task("Root")
         child = store.create_task("Child", parent_id=root.task_id)
         store.transition(child.task_id, TaskStatus.IN_PROGRESS)
         store.record_result(child.task_id, TaskResult(content="attempt"))
-        for _ in range(5):
+        for _ in range(3):
             store.record_reviewer_decision(child.task_id, ReviewerDecision.NEEDS_REVISION)
         queue = NodeQueue()
 
@@ -69,13 +69,13 @@ class TestAutoReplanThreshold:
         assert "task_analyzer" in ids
         assert "task_executor" not in ids or ids.index("task_assessor") < ids.index("task_executor")
 
-    def test_4_consecutive_rejections_still_retry(self):
+    def test_2_consecutive_rejections_still_retry(self):
         store = TaskStateStore()
         root = store.create_task("Root")
         child = store.create_task("Child", parent_id=root.task_id)
         store.transition(child.task_id, TaskStatus.IN_PROGRESS)
         store.record_result(child.task_id, TaskResult(content="attempt"))
-        for _ in range(4):
+        for _ in range(2):
             store.record_reviewer_decision(child.task_id, ReviewerDecision.NEEDS_REVISION)
         queue = NodeQueue()
 
@@ -91,21 +91,21 @@ class TestAutoReplanThreshold:
         child = store.create_task("Child", parent_id=root.task_id)
         store.transition(child.task_id, TaskStatus.IN_PROGRESS)
         store.record_result(child.task_id, TaskResult(content="attempt1"))
-        # 4 rejections, then approve, then 4 more rejections
-        for _ in range(4):
+        # 2 rejections, then approve, then 2 more rejections
+        for _ in range(2):
             store.record_reviewer_decision(child.task_id, ReviewerDecision.NEEDS_REVISION)
         store.record_reviewer_decision(child.task_id, ReviewerDecision.APPROVED)
         # After approve, the task is completed. Re-create the scenario.
         child2 = store.create_task("Child2", parent_id=root.task_id)
         store.transition(child2.task_id, TaskStatus.IN_PROGRESS)
         store.record_result(child2.task_id, TaskResult(content="attempt2"))
-        for _ in range(4):
+        for _ in range(2):
             store.record_reviewer_decision(child2.task_id, ReviewerDecision.NEEDS_REVISION)
         queue = NodeQueue()
 
         WorkerRuntimeController(store).schedule_after_review(queue)
 
-        # 4 < 5 → still retry
+        # 2 < 3 → still retry
         ids = [n.node_id for n in queue.items]
         assert ids == ["task_executor", "result_reviewer"]
 

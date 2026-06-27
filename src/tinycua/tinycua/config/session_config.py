@@ -73,8 +73,8 @@ class SessionConfig:
     enable_open_question_review: bool = False
     # Consecutive reviewer rejections (needs_revision/rejected) before the
     # runtime deterministically routes to TaskAnalyzer for replan instead of
-    # retrying the executor. Resets on reviewer approval. Default 5.
-    replan_threshold: int = 5
+    # retrying the executor. Resets on reviewer approval. Default 3.
+    replan_threshold: int = 3
     # Maximum replans per task before the runtime force-approves the task
     # with a "replan budget exhausted" rationale (FR-050). When None, derived
     # from ``worker_effort``: none=0, low=1, medium=3, high=6. An explicit

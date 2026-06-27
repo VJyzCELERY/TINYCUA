@@ -198,6 +198,51 @@ def test_2_consecutive_rejections_still_retry():
 ```
 
 ```python
+# Test file: src/tinycua/tests/unit/test_worker_runtime_controller.py
+# (modify existing — line 31-41 test uses range(3) asserting "retry, not replan"
+#  with comment "below the default replan_threshold of 5". At threshold=3, 3
+#  rejections now TRIGGER replan, so this breaks. Fix: range(3) -> range(2),
+#  update comment to "below the default replan_threshold of 3".)
+
+def test_worker_runtime_repeated_revision_never_routes_to_response():
+    ...
+    # Use 2 rejections — below the default replan_threshold of 3, so this
+    # still routes to executor+reviewer (retry), not replan.
+    for _ in range(2):
+        store.record_reviewer_decision(active.task_id, ReviewerDecision.NEEDS_REVISION)
+    ...
+```
+
+```python
+# Test file: src/tinycua/tests/unit/test_design_gap_contracts.py
+# (modify existing — line 139-147 same pattern as above: range(3) -> range(2),
+#  comment "below the default replan_threshold of 5" -> "of 3".)
+
+def test_reviewer_revisions_do_not_escalate_to_response_before_completion() -> None:
+    ...
+    # Use 2 rejections — below the default replan_threshold of 3, so this
+    # still routes to executor+reviewer (retry), not replan.
+    for _ in range(2):
+        store.record_reviewer_decision(active.task_id, ReviewerDecision.NEEDS_REVISION)
+    ...
+```
+
+```python
+# Test file: src/tinycua/tests/unit/test_result_reviewer_inspect_protocol.py
+# (modify existing — line 236-247 uses range(5) + asserts "5 times" in the
+#  continuation string. The soft-note trigger (task_nodes.py:818) drops to 3,
+#  so this must use range(3) + assert "3 times".)
+
+def test_reviewer_failure_note_at_threshold():
+    ...
+    # Simulate 3 send-backs (needs_revision) so failure_count == 3.
+    for _ in range(3):
+        store.record_reviewer_decision(first.task_id, ReviewerDecision.NEEDS_REVISION)
+    ...
+    assert "3 times" in continuation
+```
+
+```python
 # Test file: src/tinycua/tests/integration/test_review_single_decision_integration.py
 # (new file)
 
@@ -239,13 +284,36 @@ def test_reviewer_cannot_flip_flop_in_session():
 
 ## Proposed Changes
 
-### FR-1 — replan_threshold default
+### FR-1 — replan_threshold default (5 places, all 5→3)
 
-#### MODIFY `src/tinycua/tinycua/loops/worker_runtime.py`
+The threshold `5` is hardcoded in **five** places. The runtime path is
+`task_nodes.py:910` reads `SessionConfig.replan_threshold` → passes it
+explicitly into `WorkerRuntimeController(replan_threshold=...)`, so changing
+only the controller default (#1) is **silently ineffective in production** —
+the session-config default (#2) overrides it. All five must agree.
 
-- **Change `replan_threshold` default from `5` to `3`**: line 55 in `WorkerRuntimeController` dataclass.
-- **Rationale**: Exp4 task `69de662b` burned 14 review calls cycling through 5-consecutive-failure × 3 replan caps; the model rarely recovers by retry 4-5. Lowering to 3 cuts the worst-case review count per stuck task roughly in half.
-- **No control-flow change**: `schedule_after_review`, `schedule_replan`, `_force_approve_at_cap` all unchanged — only the trigger threshold moves.
+#### MODIFY `src/tinycua/tinycua/loops/worker_runtime.py:55`
+- **Change `replan_threshold: int = 5` → `3`** (dataclass default).
+
+#### MODIFY `src/tinycua/tinycua/config/session_config.py:77`
+- **Change `replan_threshold: int = 5` → `3`** (SessionConfig default; update the docstring comment "Default 5" → "Default 3").
+- This is the value the live runtime actually reads via `task_nodes.py:910`.
+
+#### MODIFY `src/tinycua/tinycua/loops/task_nodes.py:910`
+- **Change `replan_threshold = sc.replan_threshold if sc is not None else 5` → `else 3`** (fallback when session_config is None).
+
+#### MODIFY `src/tinycua/tinycua/loops/task_nodes.py:818`
+- **Change `if failure_count >= 5:` → `>= 3`** (soft replan-hint note trigger).
+- Aligns the reviewer's "consider replan" soft note with the actual trigger so the hint doesn't lag the action.
+
+#### MODIFY `src/tinycua/tinycua/cli/run.py:215`
+- **Change `replan_threshold=... if ... is not None else 5` → `else 3`** (CLI fallback).
+
+**Rationale**: Exp4 task `69de662b` burned 14 review calls cycling through
+5-consecutive-failure × 3 replan caps; the model rarely recovers by retry
+4-5. Lowering to 3 cuts the worst-case review count per stuck task roughly in
+half. **No control-flow change**: `schedule_after_review`, `schedule_replan`,
+`_force_approve_at_cap` all unchanged — only the trigger threshold moves.
 
 ### FR-2 — single-decision validator
 
@@ -286,6 +354,9 @@ def test_reviewer_cannot_flip_flop_in_session():
 | Component | Change Type | Description |
 |-----------|-------------|-------------|
 | `WorkerRuntimeController` | Modify | `replan_threshold` default 5 → 3 |
+| `SessionConfig` | Modify | `replan_threshold` default 5 → 3 (the value the live runtime reads) |
+| `task_nodes.py` | Modify | replan_threshold fallback `else 5` → `else 3`; soft-note trigger `>= 5` → `>= 3` |
+| `cli/run.py` | Modify | CLI fallback `else 5` → `else 3` |
 | `validation_retry_mixin` | Modify | New `_validate_result_reviewer_single_decision` validator added to chain |
 | `files.list_files` | Modify | Return tree-formatted string instead of flat list |
 | `files._read_lines` / `files._suggest_closest_path` | Modify/New | Fuzzy closest-match suggestion on not-found |

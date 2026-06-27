@@ -221,10 +221,10 @@ def test_no_decision_skips_inspect_requirement() -> None:
 
 
 def test_reviewer_surfaces_failure_count_as_soft_context() -> None:
-    """FR-021: a task sent back 5+ times gets a soft 'consider replan' note.
+    """FR-021: a task sent back 3+ times gets a soft 'consider replan' note.
 
     The reviewer still LLM-decides — the note is context, not a forced
-    decision. Below 5 failures, no note appears.
+    decision. Below 3 failures, no note appears.
     """
     loop = TinyCUALoop()
     store = loop.root_session.task_store
@@ -232,14 +232,14 @@ def test_reviewer_surfaces_failure_count_as_soft_context() -> None:
     first = store.create_task("First", parent_id=root.task_id)
     store.record_result(first.task_id, TaskResult(content="done", success=True))
 
-    # Simulate 5 send-backs (needs_revision) so failure_count == 5.
-    for _ in range(5):
+    # Simulate 3 send-backs (needs_revision) so failure_count == 3.
+    for _ in range(3):
         store.record_reviewer_decision(first.task_id, ReviewerDecision.NEEDS_REVISION)
 
     node = _reviewer_node(loop.root_session)
     continuation = node.build_continuation(loop.root_session)
 
-    assert "5 times" in continuation
+    assert "3 times" in continuation
     assert "replan" in continuation.lower()
     # The note is soft context, not a forced instruction — the continuation
     # still invites the reviewer to decide (task_review_decision with any of
@@ -248,7 +248,7 @@ def test_reviewer_surfaces_failure_count_as_soft_context() -> None:
 
 
 def test_reviewer_no_failure_note_below_threshold() -> None:
-    """Below 5 failures, the reviewer continuation carries no failure note."""
+    """Below 3 failures, the reviewer continuation carries no failure note."""
     loop = TinyCUALoop()
     store = loop.root_session.task_store
     root = store.create_task("Root")

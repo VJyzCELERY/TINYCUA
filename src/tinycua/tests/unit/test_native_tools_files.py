@@ -334,14 +334,16 @@ def test_append_file_creates_parent_dirs():
 
 
 def test_list_files_no_match():
-    """Pattern with no matches returns empty list."""
+    """Pattern with no matches returns empty tree string."""
     with tempfile.TemporaryDirectory() as tmpdir:
         bind_workspace(tmpdir)
         Path(tmpdir, "readme.md").touch()
         from tinycua.agent.tools.native.files import list_files
 
         result = list_files(tmpdir, "*.py")
-        assert result == []
+        assert isinstance(result, str)
+        # Empty result (no .py files).
+        assert result.strip() == ""
 
 
 def test_list_files_with_subdirectories():
@@ -349,7 +351,7 @@ def test_list_files_with_subdirectories():
 
     Directories appear marked with a trailing ``/`` so the LLM can distinguish
     them from files. Non-recursive means nested entries below the top level are
-    not flattened into the result.
+    not flattened into the result. FR-003: result is a tree-formatted string.
     """
     with tempfile.TemporaryDirectory() as tmpdir:
         bind_workspace(tmpdir)
@@ -359,12 +361,13 @@ def test_list_files_with_subdirectories():
         from tinycua.agent.tools.native.files import list_files
 
         result = list_files(tmpdir)
+        # FR-003: result is a tree-formatted string.
+        assert isinstance(result, str)
         # Top-level only (non-recursive): file.txt and subdir/, not nested.txt.
-        assert len(result) == 2
-        assert any(p.endswith("file.txt") for p in result)
-        assert any(p.endswith("subdir/") for p in result)
+        assert "file.txt" in result
+        assert "subdir/" in result
         # The nested file is not flattened up to the top level.
-        assert not any("nested.txt" in p for p in result)
+        assert "nested.txt" not in result
 
 
 def test_list_files_on_file_returns_error():
@@ -392,9 +395,112 @@ def test_list_files_absolute_paths():
         from tinycua.agent.tools.native.files import list_files
 
         result = list_files(tmpdir)
-        assert len(result) == 1
-        # FR-035: list_files now returns workspace-relative paths.
-        assert result[0] == "test.txt"
+        assert isinstance(result, str)
+        # FR-035: list_files returns workspace-relative paths.
+        assert "test.txt" in result
+
+
+# --- FR-003: list_files tree format ---
+
+
+def test_list_files_tree_format_shows_directory_grouping():
+    """FR-003: list_files renders grouped by directory with full relative paths."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        Path(tmpdir, "backend").mkdir()
+        Path(tmpdir, "backend", "api.py").touch()
+        Path(tmpdir, "backend", "views.py").touch()
+        Path(tmpdir, "frontend").mkdir()
+        Path(tmpdir, "frontend", "index.html").touch()
+        Path(tmpdir, "manage.py").touch()
+        bind_workspace(tmpdir)
+        from tinycua.agent.tools.native.files import list_files
+
+        # Recursive so nested files appear (the realistic reviewer case).
+        result = list_files(".", recursive=True)
+        assert isinstance(result, str)
+        # Directory headers and full relative paths appear in the tree.
+        assert "backend/" in result
+        assert "backend/api.py" in result
+        assert "frontend/" in result
+        assert "frontend/index.html" in result
+        assert "manage.py" in result
+
+
+def test_list_files_tree_empty_workspace():
+    """FR-003: empty workspace returns empty tree string, no crash."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
+        from tinycua.agent.tools.native.files import list_files
+
+        result = list_files(".")
+        assert isinstance(result, str)
+        assert result.strip() == ""
+
+
+def test_list_files_tree_recursive_shows_nested_structure():
+    """FR-003: recursive list_files shows nested directory depth in the tree."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        Path(tmpdir, "backend").mkdir()
+        Path(tmpdir, "backend", "django_notion_app").mkdir()
+        Path(tmpdir, "backend", "django_notion_app", "channels").mkdir()
+        Path(tmpdir, "backend", "django_notion_app", "channels", "routing.py").touch()
+        bind_workspace(tmpdir)
+        from tinycua.agent.tools.native.files import list_files
+
+        result = list_files(".", recursive=True)
+        assert isinstance(result, str)
+        # The deep nesting is visible — the model can see routing.py lives 3
+        # levels down, which is the whole point of the tree format (stops the
+        # model guessing backend/routing.py).
+        assert "routing.py" in result
+        assert "channels/" in result
+        assert "django_notion_app/" in result
+
+
+# --- FR-004: read_file fuzzy not-found suggestion ---
+
+
+def test_read_file_not_found_with_close_match_returns_suggestion():
+    """FR-004: not-found with a close existing match includes a suggestion."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        Path(tmpdir, "backend").mkdir()
+        Path(tmpdir, "backend", "django_notion_app").mkdir()
+        Path(tmpdir, "backend", "django_notion_app", "channels").mkdir()
+        Path(tmpdir, "backend", "django_notion_app", "channels", "routing.py").touch()
+        bind_workspace(tmpdir)
+        from tinycua.agent.tools.native.files import read_file
+
+        # Model guesses wrong path (missing the django_notion_app/channels part).
+        result = read_file("backend/routing.py")
+        assert isinstance(result, dict)
+        assert "error" in result
+        assert "suggestion" in result
+        assert "routing.py" in result["suggestion"]
+
+
+def test_read_file_not_found_no_close_match_plain_error():
+    """FR-004: not-found with no close match returns plain error, no suggestion."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        Path(tmpdir, "readme.md").touch()
+        bind_workspace(tmpdir)
+        from tinycua.agent.tools.native.files import read_file
+
+        result = read_file("completely/unrelated/path.xyz")
+        assert isinstance(result, dict)
+        assert "error" in result
+        assert "suggestion" not in result
+
+
+def test_read_file_not_found_empty_workspace_no_suggestion():
+    """FR-004: empty workspace returns plain not-found (no candidates to suggest)."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
+        from tinycua.agent.tools.native.files import read_file
+
+        result = read_file("missing.py")
+        assert isinstance(result, dict)
+        assert "error" in result
+        assert "suggestion" not in result
 
 
 # --- defensive int() coercion for string line args (local models) -------

@@ -212,7 +212,7 @@ def _build_run_agent(
                 worker_effort=worker_effort,
                 disable_tool_audit=no_tool_audit,
                 enable_open_question_review=allow_open_question,
-                replan_threshold=replan_threshold if replan_threshold is not None else 5,
+                replan_threshold=replan_threshold if replan_threshold is not None else 3,
                 compaction_strategy=SimpleCompaction(),  # FR-082
                 recovery_strategy=recovery_strategy,  # FR-087
             ),

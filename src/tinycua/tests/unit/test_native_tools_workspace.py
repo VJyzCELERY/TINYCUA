@@ -24,8 +24,10 @@ def test_file_tools_resolve_relative_paths_inside_bound_workspace(tmp_path: Path
         assert read_file("nested/example.txt") == "workspace content"
         listed = list_files("nested")
         # FR-035: list_files returns workspace-relative paths (relative to
-        # the workspace root, not the listed directory).
-        assert listed == ["nested/example.txt"]
+        # the workspace root, not the listed directory). FR-003: result is a
+        # tree-formatted string containing the relative path.
+        assert isinstance(listed, str)
+        assert "nested/example.txt" in listed
 
         denied = read_file(str(outside))
         assert isinstance(denied, dict)
