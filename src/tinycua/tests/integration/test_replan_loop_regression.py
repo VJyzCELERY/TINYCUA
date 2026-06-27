@@ -100,6 +100,26 @@ class TestReplanLoopBounded:
         assert replan_count <= 3, f"Exceeded max_replans: {replan_count}"
         assert executor_runs <= 18, f"Too many executor runs: {executor_runs}"
 
+    def test_loop_terminates_with_default_threshold_three(self):
+        """FR-1: default replan_threshold=3 also bounds the loop (no explicit override)."""
+        store = TaskStateStore()
+        root = store.create_task("Root")
+        child = store.create_task("Child", parent_id=root.task_id)
+        store.transition(child.task_id, TaskStatus.IN_PROGRESS)
+        store.record_result(child.task_id, TaskResult(content="attempt 0"))
+        # No explicit replan_threshold — exercises the new default (3).
+        ctrl = WorkerRuntimeController(store, max_replans=3)
+        assert ctrl.replan_threshold == 3  # sanity: default applied
+
+        executor_runs, replan_count, final_decision = _simulate_replan_cycle(
+            store, child.task_id, ctrl
+        )
+
+        assert final_decision == "approved"
+        assert replan_count <= 3
+        # With threshold=3, executor runs are bounded by 3 × (3 + 1) = 12.
+        assert executor_runs <= 12, f"Too many executor runs at threshold=3: {executor_runs}"
+
     def test_loop_with_high_effort_allows_more_replans(self):
         """max_replans=6 (high effort) allows more replans before force-approve."""
         store = TaskStateStore()

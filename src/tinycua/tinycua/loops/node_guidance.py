@@ -201,3 +201,29 @@ def validate_reviewer_rationale(tool_calls: list[dict[str, Any]]) -> list[str]:
             ]
         return []
     return []
+
+
+def validate_reviewer_single_decision(tool_calls: list[dict[str, Any]]) -> list[str]:
+    """FR-2: a reviewer session may emit at most one task_review_decision.
+
+    Returns a list of error strings (empty if valid). Counts
+    ``task_review_decision`` entries in the *current response's* tool_calls
+    (not the accumulated/retried tool_results) — the disease is the model
+    emitting two decision calls in one response (flip-flopping). To overturn a
+    prior decision the reviewer must terminate and start a new session — the
+    new decision appends later in ``reviewer_decisions`` and supersedes by
+    order (no supersession metadata field needed).
+    """
+    decision_count = 0
+    for tool_call in tool_calls:
+        function = tool_call.get("function") or {}
+        name = function.get("name") or tool_call.get("name")
+        if name == "task_review_decision":
+            decision_count += 1
+    if decision_count > 1:
+        return [
+            "ResultReviewer may emit at most one task_review_decision per "
+            "session. To overturn a prior decision, terminate and start a "
+            "new review session — do not re-decide in the same response."
+        ]
+    return []

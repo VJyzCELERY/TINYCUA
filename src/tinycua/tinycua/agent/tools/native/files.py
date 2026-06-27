@@ -14,6 +14,7 @@ from tinycua_sdk.tools.decorators import tool
 
 from tinycua.agent.tools.native.context import (
     bind_workspace_to_tool,
+    get_workspace_dir,
     resolve_workspace_path,
     to_workspace_relative,
 )
@@ -147,10 +148,72 @@ def _truncate_content(content_bytes: bytes, max_bytes: int, start_line: int = 1)
     )
 
 
+def _segment_distance(a: str, b: str) -> int:
+    """Path-segment edit distance between two workspace-relative paths.
+
+    Splits each path into segments and computes the minimum number of
+    segment insertions/deletions/substitutions to transform one into the
+    other. Used by ``_suggest_closest_path`` to find close matches for a
+    wrong path the model guessed (e.g. ``backend/routing.py`` vs the real
+    ``backend/django_notion_app/channels/routing.py``).
+    """
+    a_segs = [s for s in a.split("/") if s]
+    b_segs = [s for s in b.split("/") if s]
+    # Levenshtein on segment lists.
+    n, m = len(a_segs), len(b_segs)
+    if n == 0:
+        return m
+    if m == 0:
+        return n
+    prev = list(range(m + 1))
+    for i in range(1, n + 1):
+        curr = [i] + [0] * m
+        for j in range(1, m + 1):
+            cost = 0 if a_segs[i - 1] == b_segs[j - 1] else 1
+            curr[j] = min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost)
+        prev = curr
+    return prev[m]
+
+
+def _suggest_closest_path(requested_rel: str) -> str | None:
+    """Find the closest existing workspace file to a wrong requested path.
+
+    Walks the workspace root (recursive) to build the candidate file list,
+    computes segment edit distance against each, and returns the closest
+    workspace-relative path when the best distance is ≤2. Returns None when
+    the workspace is empty, no match is close, or the workspace is unbound.
+
+    Never suggests the workspace root itself (only actual files).
+    """
+    workspace = get_workspace_dir()
+    if workspace is None:
+        return None
+    try:
+        candidates = [
+            to_workspace_relative(p)
+            for p in sorted(workspace.rglob("*"))
+            if p.is_file()
+        ]
+    except (PermissionError, OSError):
+        return None
+    if not candidates:
+        return None
+    best: tuple[int, str] | None = None
+    for cand in candidates:
+        dist = _segment_distance(requested_rel, cand)
+        if best is None or dist < best[0]:
+            best = (dist, cand)
+    if best is None or best[0] > 2:
+        return None
+    return best[1]
+
+
 def _read_lines(path: str) -> tuple[list[str], str, bool] | dict[str, Any]:
     """Read a file and split into lines, returning (lines, content, trailing_newline).
 
-    Returns an error dict if the file cannot be read.
+    Returns an error dict if the file cannot be read. FR-004: when the file is
+    not found and a close existing file exists in the workspace, the error dict
+    gains a ``suggestion`` key with the closest workspace-relative path.
     """
     try:
         resolved = _resolve_path(path)
@@ -158,7 +221,16 @@ def _read_lines(path: str) -> tuple[list[str], str, bool] | dict[str, Any]:
         return {"error": str(exc)}
 
     if not resolved.exists():
-        return {"error": f"File not found: {path}"}
+        error: dict[str, Any] = {"error": f"File not found: {path}"}
+        # FR-004: fuzzy closest-match suggestion on not-found.
+        try:
+            requested_rel = to_workspace_relative(resolved)
+        except (ValueError, RuntimeError):
+            requested_rel = path
+        suggestion = _suggest_closest_path(requested_rel)
+        if suggestion is not None:
+            error["suggestion"] = suggestion
+        return error
     if not resolved.is_file():
         return {"error": f"Not a file: {path}"}
 
@@ -918,7 +990,7 @@ def append_file(path: str, content: str) -> dict[str, Any]:
 @tool
 def list_files(
     path: str = ".", pattern: str = "*", recursive: bool = False
-) -> list[str] | dict[str, Any]:
+) -> str | dict[str, Any]:
     """List files and directories in a workspace path, including hidden entries.
 
     Accepts any directory path inside the workspace (not just the root) so an
@@ -926,6 +998,10 @@ def list_files(
     returned; directories are marked with a trailing ``/`` so the LLM can tell
     them apart from files. Hidden entries (``.venv``, ``.hidden.txt``) are
     included so reviewers/agents can see created workspace artifacts.
+
+    FR-003: the result is a tree-formatted string grouped by directory with
+    full workspace-relative paths, so the model sees nesting depth instead of
+    guessing wrong paths from a flat list of 40+ entries.
 
     Args:
         path: Directory path to list. Relative paths resolve from the session
@@ -936,8 +1012,9 @@ def list_files(
             from ``path`` for every entry below it (files and directories).
 
     Returns:
-        A list of workspace-relative paths on success (directories suffixed
-        with ``/``), or an error dict on failure.
+        A tree-formatted string on success (directories suffixed with ``/``,
+        children indented under their parent directory header), or an error
+        dict on failure. Empty match → empty string.
     """
     try:
         resolved = _resolve_path(path)
@@ -958,18 +1035,53 @@ def list_files(
         # artifacts like .venv. If throughput ever matters, add a files-only flag.
         # FR-035: return workspace-relative paths so the model has a short,
         # clean path to echo back, reducing the chance of path doubling.
-        result = []
+        rels: list[str] = []
         for entry in entries:
             rel = to_workspace_relative(entry)
             if entry.is_dir():
-                result.append(f"{rel}/")
+                rels.append(f"{rel}/")
             else:
-                result.append(str(rel))
-        return result
+                rels.append(str(rel))
+        return _render_tree(rels)
     except PermissionError:
         return {"error": f"Permission denied: {path}"}
     except Exception as exc:
         return {"error": str(exc)}
+
+
+def _render_tree(rels: list[str]) -> str:
+    """Render a list of workspace-relative paths as a grouped tree string.
+
+    Groups entries by their parent directory, indents children under their
+    parent directory header, and emits full relative paths on each line so the
+    model can copy them back verbatim. Empty input → empty string.
+
+    Example:
+        backend/
+          backend/api.py
+          backend/views.py
+        frontend/
+          frontend/index.html
+        manage.py
+    """
+    if not rels:
+        return ""
+    # Group by parent directory ("" for top-level entries).
+    groups: dict[str, list[str]] = {}
+    for rel in rels:
+        parent = str(Path(rel).parent) if "/" in rel else ""
+        groups.setdefault(parent, []).append(rel)
+    lines: list[str] = []
+    # Emit directory headers first (sorted), then top-level files.
+    headers = sorted(g for g in groups if g)
+    for header in headers:
+        lines.append(f"{header}/")
+        for child in sorted(groups[header]):
+            lines.append(f"  {child}")
+    # Top-level files (parent == "").
+    for top in sorted(groups.get("", [])):
+        lines.append(top)
+    return "\n".join(lines)
 
 
 # --- search_files ---

@@ -815,7 +815,7 @@ class TinyCUAResultReviewerNode(ProcessNode):
         # bounced many times. Not a forced decision; just visible signal.
         failure_count = task.failure_count
         failure_note = ""
-        if failure_count >= 5:
+        if failure_count >= 3:
             failure_note = (
                 f"\nNote: this task has been sent back for rework "
                 f"{failure_count} times. Repeated identical retries are unlikely "
@@ -907,7 +907,7 @@ class TinyCUAResultReviewerNode(ProcessNode):
         queue.clear_after_current()
         sc = self.session.session_config
         enable_oq = bool(sc.enable_open_question_review) if sc is not None else False
-        replan_threshold = sc.replan_threshold if sc is not None else 5
+        replan_threshold = sc.replan_threshold if sc is not None else 3
         WorkerRuntimeController(
             self.session.task_store,
             enable_open_question_review=enable_oq,

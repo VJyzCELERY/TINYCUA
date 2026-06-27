@@ -7,6 +7,20 @@ from tinycua.loops.worker_runtime import WorkerRuntimeController
 from tinycua.models.task import ReviewerDecision, TaskResult, TaskStateStore, TaskStatus
 
 
+def test_replan_threshold_default_is_three() -> None:
+    """FR-1: default replan_threshold is 3, not 5."""
+    store = TaskStateStore()
+    ctrl = WorkerRuntimeController(store)
+    assert ctrl.replan_threshold == 3
+
+
+def test_replan_threshold_explicit_override_wins() -> None:
+    """FR-1: explicit replan_threshold still wins over default."""
+    store = TaskStateStore()
+    ctrl = WorkerRuntimeController(store, replan_threshold=7)
+    assert ctrl.replan_threshold == 7
+
+
 def test_worker_runtime_retry_keeps_same_active_task() -> None:
     """Reviewer retry routes back to task_executor without advancing active task."""
     store = TaskStateStore()
@@ -28,9 +42,9 @@ def test_worker_runtime_repeated_revision_never_routes_to_response() -> None:
     root = store.create_task("Root")
     active = store.create_task("Active", parent_id=root.task_id)
     store.transition(active.task_id, TaskStatus.IN_PROGRESS)
-    # Use 3 rejections — below the default replan_threshold of 5, so this
+    # Use 2 rejections — below the default replan_threshold of 3, so this
     # still routes to executor+reviewer (retry), not replan.
-    for _ in range(3):
+    for _ in range(2):
         store.record_reviewer_decision(active.task_id, ReviewerDecision.NEEDS_REVISION)
     queue = NodeQueue()
 

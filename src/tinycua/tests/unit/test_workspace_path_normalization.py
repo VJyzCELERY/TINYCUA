@@ -160,9 +160,10 @@ class TestToolResultsReturnRelPath:
             (tmp_path / "src").mkdir()
             (tmp_path / "src" / "main.py").write_text("m")
             result = list_files(".")
-            assert isinstance(result, list)
+            # FR-003: list_files returns a tree-formatted string.
+            assert isinstance(result, str)
             # Paths should be relative, not absolute.
-            assert all(not str(p).startswith("/") for p in result)
+            assert not any(line.lstrip().startswith("/") for line in result.splitlines())
             assert "report.md" in result
         finally:
             bind_workspace(None)
