@@ -243,7 +243,7 @@ def test_reviewer_failure_note_at_threshold():
 ```
 
 ```python
-# Test file: src/tinycua/tests/integration/test_review_single_decision_integration.py
+# Test file: src/tinycua/tests/unit/test_review_single_decision_integration.py
 # (new file)
 
 def test_reviewer_cannot_flip_flop_in_session():
@@ -253,6 +253,94 @@ def test_reviewer_cannot_flip_flop_in_session():
     # assert the validation fails and the node is retried (not advanced).
 ```
 
+```python
+# Test file: src/tinycua/tests/unit/test_review_pending_guard.py
+# (new file — FR-5a + FR-5b)
+
+class TestApprovePendingTaskGuard:
+    """FR-5a: approving a never-dispatched task is rejected."""
+
+    def test_approve_pending_leaf_rejected(self):
+        # PENDING leaf, no result, no children → ValueError
+        store = TaskStateStore()
+        root = store.create_task("Root")
+        child = store.create_task("Child", parent_id=root.task_id)
+        with pytest.raises(ValueError, match="never executed"):
+            store.record_reviewer_decision(child.task_id, ReviewerDecision.APPROVED)
+
+    def test_approve_in_progress_no_result_still_works(self):
+        # FR-079 case: IN_PROGRESS, no result → fallback fires (unchanged)
+        store = TaskStateStore()
+        root = store.create_task("Root")
+        child = store.create_task("Child", parent_id=root.task_id)
+        store.transition(child.task_id, TaskStatus.IN_PROGRESS)
+        store.record_reviewer_decision(child.task_id, ReviewerDecision.APPROVED)
+        assert child.result is not None
+        assert child.result.metadata.get("auto_generated") is True
+        assert child.status == TaskStatus.COMPLETED
+
+    def test_approve_parent_all_children_done_still_works(self):
+        # Parent PENDING, all children COMPLETED → aggregated result (unchanged)
+        store = TaskStateStore()
+        root = store.create_task("Root")
+        child = store.create_task("Child", parent_id=root.task_id)
+        store.record_result(child.task_id, TaskResult(content="done", success=True))
+        store.record_reviewer_decision(child.task_id, ReviewerDecision.APPROVED)
+        store.record_reviewer_decision(root.task_id, ReviewerDecision.APPROVED)
+        assert root.result.metadata.get("aggregated") is True
+        assert root.status == TaskStatus.COMPLETED
+
+    def test_tool_catches_error_and_returns_failure(self):
+        # TaskReviewDecisionTool catches ValueError → success=False
+        store = TaskStateStore()
+        root = store.create_task("Root")
+        child = store.create_task("Child", parent_id=root.task_id)
+        tool = TaskReviewDecisionTool()
+        tool.bind_task_store(store)
+        result = tool(task_id=child.task_id, decision="approved", rationale="x")
+        assert result["success"] is False
+        assert "never executed" in result["error"]
+
+
+class TestRecordResultNonActiveGuard:
+    """FR-5b: record_result on a non-active task keeps it PENDING/FAILED."""
+
+    def test_record_result_on_non_active_keeps_pending(self):
+        # Two tasks; record_result on second (non-active) → stays PENDING, has result
+        store = TaskStateStore()
+        root = store.create_task("Root")
+        first = store.create_task("First", parent_id=root.task_id)
+        second = store.create_task("Second", parent_id=root.task_id)
+        store.record_result(second.task_id, TaskResult(content="sibling work", success=True))
+        assert second.result is not None
+        assert second.status == TaskStatus.PENDING  # not auto-transitioned
+
+    def test_record_result_on_active_auto_transitions(self):
+        # Active task; record_result → IN_PROGRESS (unchanged)
+        store = TaskStateStore()
+        root = store.create_task("Root")
+        child = store.create_task("Child", parent_id=root.task_id)
+        store.record_result(child.task_id, TaskResult(content="done", success=True))
+        assert child.status == TaskStatus.IN_PROGRESS
+
+    def test_executor_sibling_propagation_still_works(self):
+        # record_result on sibling (non-active) → PENDING + result;
+        # after active approved, sibling becomes active;
+        # schedule_next returns ["result_reviewer"] (skip executor)
+        store = TaskStateStore()
+        root = store.create_task("Root")
+        first = store.create_task("First", parent_id=root.task_id)
+        second = store.create_task("Second", parent_id=root.task_id)
+        store.record_result(first.task_id, TaskResult(content="did both", success=True))
+        store.record_result(second.task_id, TaskResult(content="part of task 1", success=True))
+        store.record_reviewer_decision(first.task_id, ReviewerDecision.APPROVED)
+        # second is now active, has result, PENDING
+        queue = NodeQueue()
+        WorkerRuntimeController(store).schedule_next(queue)
+        ids = [n.node_id for n in queue.items]
+        assert ids == ["result_reviewer"]  # no executor — work already done
+```
+
 ### Key Test Scenarios
 
 - [ ] **Scenario 1**: `replan_threshold` defaults to 3 (FR-1)
@@ -260,8 +348,13 @@ def test_reviewer_cannot_flip_flop_in_session():
 - [ ] **Scenario 3**: `list_files` shows directory-grouped tree with full paths (FR-3)
 - [ ] **Scenario 4**: `read_file` not-found with close match returns suggestion (FR-4)
 - [ ] **Scenario 5**: `read_file` not-found with no close match returns plain error (FR-4)
+- [ ] **Scenario 6**: PENDING leaf + approved → ValueError, stays PENDING (FR-5a)
+- [ ] **Scenario 7**: `record_result` on non-active task → stays PENDING with result (FR-5b)
 - [ ] **Edge case**: one decision + one `task_update` accepted (FR-2)
 - [ ] **Edge case**: empty workspace `list_files` doesn't crash (FR-3)
+- [ ] **Edge case**: IN_PROGRESS no-result still gets FR-079 fallback (FR-5a)
+- [ ] **Edge case**: parent-all-children-done still gets aggregated result (FR-5a)
+- [ ] **Edge case**: executor sibling-propagation still skips executor (FR-5b)
 
 ## Verification Plan
 
@@ -269,6 +362,7 @@ def test_reviewer_cannot_flip_flop_in_session():
 
 - [ ] Integration tests (defined above) — these must pass for implementation to be complete
 - [ ] Unit tests for the single-decision validator — error message, non-reviewer skip, failed-decision exclusion
+- [ ] Unit tests for FR-5 pending-guard — PENDING leaf rejected, IN_PROGRESS no-result works, parent works, tool catches error, non-active record_result keeps PENDING, sibling-propagation works
 - [ ] Existing test suite — confirm no regressions: `cd src/tinycua && uv run pytest`
 - [ ] Updated auto_replan tests — threshold 3 behavior
 - [ ] Updated list_files tests — tree format + existing pattern/path tests still pass
@@ -349,6 +443,63 @@ half. **No control-flow change**: `schedule_after_review`, `schedule_replan`,
 - **Algorithm**: split both requested and candidate paths into segments; segment edit distance = number of segment insertions/deletions to transform one into the other. Only suggest when distance ≤2. Omit `suggestion` key when no close match (plain not-found unchanged).
 - **Implementation helper**: add a small `_suggest_closest_path(requested_rel: str, workspace: Path) -> str | None` function in `files.py`.
 
+### FR-5 — prevent completing/updating out-of-order tasks
+
+#### MODIFY `src/tinycua/tinycua/models/task.py`
+
+**FR-5a — `record_reviewer_decision` guard (APPROVED branch, ~line 534):**
+
+Insert before the final FR-079 fallback (`if task.result is None:` that creates the auto-generated result), after the children-aggregated block:
+
+```python
+    # FR-5a: do not auto-generate a result for a leaf task that was never
+    # dispatched (PENDING, no result, no children). The FR-079 fallback
+    # below is for IN_PROGRESS tasks whose executor forgot
+    # task_result_update — not for PENDING tasks the reviewer approved
+    # by mistake (e.g. approving a sibling that was never executed).
+    if task.result is None and task.status == TaskStatus.PENDING:
+        raise ValueError(
+            "Cannot approve a task that was never executed "
+            f"(task_id={task_id}, status=pending, no result). Review the "
+            "active task only; do not approve tasks that have not been "
+            "dispatched."
+        )
+```
+
+The `ValueError` propagates to `TaskReviewDecisionTool.__call__` (task_tools.py:608), which catches it and returns `{"success": False, "error": "..."}` to the model.
+
+**FR-5b — `record_result` guard (line 479-480):**
+
+Current:
+```python
+if task.status in {TaskStatus.PENDING, TaskStatus.FAILED}:
+    self.transition(task_id, TaskStatus.IN_PROGRESS)
+```
+
+Change to:
+```python
+# FR-5b: only auto-transition the ACTIVE task to IN_PROGRESS. A non-active
+# (out-of-order) task stays PENDING/FAILED even if a result is recorded —
+# it must become active first. Prevents task skipping: the executor can
+# record a result on a sibling ("completed as part of task N") but the
+# sibling's status doesn't advance until the runtime dispatches it.
+if task.status in {TaskStatus.PENDING, TaskStatus.FAILED}:
+    if task_id == self.active_task_id:
+        self.transition(task_id, TaskStatus.IN_PROGRESS)
+```
+
+- **Rationale**: Exp2 task 14 was completed by a reviewer approving a never-dispatched PENDING sibling. The consistency principle: PENDING is not advanced unless the task went through IN_PROGRESS, and only the active task auto-transitions.
+- **No change to `TaskUpdateTool`**: the analyzer can modify any non-completed task (planning). FR-5b only gates `record_result`.
+- **No change to `record_reviewer_decision`'s NEEDS_REVISION/REJECTED/REPLAN branch** (line 510-513): those set the task to IN_PROGRESS and make it active, which is correct (rework → task is active again).
+
+#### MODIFY `src/tinycua/tests/unit/test_experiment_bugfixes.py`
+
+**Update `test_leaf_task_auto_generates_result` (line 14-21):** add `store.transition(child.task_id, TaskStatus.IN_PROGRESS)` before the approve call. The test currently encodes the bug (approving a never-dispatched PENDING leaf); after the guard, it must simulate the executor having picked up the task.
+
+#### NEW `src/tinycua/tests/unit/test_review_pending_guard.py`
+
+7 test cases (see Testing Plan section for snippets).
+
 ## Architecture Changes
 
 | Component | Change Type | Description |
@@ -360,6 +511,8 @@ half. **No control-flow change**: `schedule_after_review`, `schedule_replan`,
 | `validation_retry_mixin` | Modify | New `_validate_result_reviewer_single_decision` validator added to chain |
 | `files.list_files` | Modify | Return tree-formatted string instead of flat list |
 | `files._read_lines` / `files._suggest_closest_path` | Modify/New | Fuzzy closest-match suggestion on not-found |
+| `task.py record_reviewer_decision` | Modify | FR-5a: raise ValueError on APPROVED for PENDING leaf with no result |
+| `task.py record_result` | Modify | FR-5b: only auto-transition active task PENDING/FAILED → IN_PROGRESS |
 
 ## Data Model Changes
 

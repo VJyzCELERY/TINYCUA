@@ -528,6 +528,9 @@ def test_reviewer_approval_with_empty_result_auto_generates() -> None:
     )
     loop = TinyCUALoop(queue=NodeQueue(items=[reviewer, ResponseNode()]))
     task = loop.root_session.task_store.create_task("Build app")
+    # FR-5a: approving a never-dispatched PENDING task is rejected.
+    # Simulate the executor having picked up the task first.
+    loop.root_session.task_store.transition(task.task_id, TaskStatus.IN_PROGRESS)
     # No result recorded — task.result is None
     loop.root_session.task_store.record_reviewer_decision(
         task.task_id,

@@ -36,6 +36,16 @@
     slipped through) — but it cannot fix the model just *guessing wrong*.
     The reviewer gets no help locating files: `list_files` returns a flat
     list, and `read_file` not-found gives no suggestion.
+  - **Premature task completion (task skipping).** Experiment-2 task 14
+    ("Review and finalize report.md") was marked `[completed]` while
+    tasks 5-13 were still `[pending]`. The reviewer ignored guidance
+    ("Do NOT call task_review_decision for siblings") and approved
+    task 14 — a PENDING leaf never dispatched. The FR-079
+    synthetic-result fallback silently created a fake "Approved by
+    reviewer" result and completed it. No guard exists against approving
+    a task that was never executed, and `record_result` auto-transitions
+    any task PENDING → IN_PROGRESS (even non-active ones), so the
+    prerequisite status is silently advanced for out-of-order tasks too.
   - **Trade-off to watch (deferred).** Experiment-2 sourcing regressed
     (20 → 4 source links in `report.md`) as reviewer pressure dropped
     (old: 11 `needs_revision` + 1 `rejected`; new: 2 `needs_revision`).
@@ -106,6 +116,13 @@ and cannot flip-flop internally.
    `needs_revision`/`rejected` decision is recorded, **Then**
    `schedule_after_review` routes to TaskAnalyzer for replan (not another
    executor retry).
+7. **Given** a PENDING leaf task with no result and no children, **When**
+   `record_reviewer_decision` is called with `approved`, **Then** it
+   raises `ValueError` and the task remains PENDING (no fake result, no
+   status change).
+8. **Given** a non-active task in PENDING status, **When** `record_result`
+   is called on it, **Then** the result is attached but the task stays
+   PENDING (not auto-transitioned to IN_PROGRESS).
 
 ### Edge Cases
 
@@ -123,6 +140,20 @@ and cannot flip-flop internally.
   earlier decision? It must terminate and start a new reviewer session;
   the new session's decision supersedes by virtue of being later in the
   `reviewer_decisions` audit trail. No explicit supersession field.
+- What if the executor records a result on a non-active sibling (the
+  sibling-propagation feature)? The result is attached but the sibling
+  stays PENDING. Once the current task is approved and the sibling
+  becomes active, `schedule_next` sees the result and skips the
+  executor (review-only). This is the intended behavior — the
+  sibling's status does not advance until the runtime dispatches it.
+- What if the analyzer uses `task_update` on a non-active task? Allowed
+  — the analyzer can modify any non-completed task (title, description,
+  planning status). FR-5b only guards `record_result`, not `task_update`.
+- What if a non-active task already has a result and is later approved
+  by mistake? The FR-5a guard only fires when `task.result is None`;
+  a task with a recorded result can still be approved (the sibling-
+  propagation case). This is intentional — the result exists because
+  work was done, even if out of order.
 
 ---
 
@@ -150,11 +181,34 @@ and cannot flip-flop internally.
   rendered format changes.
 
 - **FR-4**: `read_file` not-found result MUST include a "Did you mean `X`?"
-  suggestion when a close match exists in the workspace, where "close" is
-  defined as ≤2 path-segment differences from the requested path among the
-  set of existing workspace files. When no close match exists, return the
-  existing plain not-found message unchanged. The suggestion MUST be a
-  workspace-relative path string.
+   suggestion when a close match exists in the workspace, where "close" is
+   defined as ≤2 path-segment differences from the requested path among the
+   set of existing workspace files. When no close match exists, return the
+   existing plain not-found message unchanged. The suggestion MUST be a
+   workspace-relative path string.
+
+- **FR-5a**: `record_reviewer_decision` MUST raise `ValueError` when
+  `approved` is recorded on a task that is PENDING (never dispatched) and
+  has no result and no children. The error message MUST name the task and
+  instruct the reviewer to review the active task only. The existing
+  FR-079 fallback (auto-generate result for IN_PROGRESS tasks with no
+  recorded result) remains unchanged. Parent tasks with all children
+  completed remain unaffected (the aggregated-result path fires first).
+  The `ValueError` propagates to `TaskReviewDecisionTool`, which returns
+  `{"success": False, "error": "..."}` to the model — no decision is
+  recorded and the task stays PENDING.
+
+- **FR-5b**: `record_result` MUST NOT auto-transition a non-active task
+  from PENDING/FAILED to IN_PROGRESS. When the executor records a result
+  on a task that is not the current `active_task_id`, the result is
+  attached but the status stays PENDING/FAILED — the task must become
+  active first. Only the active task is auto-transitioned. This prevents
+  out-of-order tasks from being silently advanced to IN_PROGRESS (the
+  prerequisite for being skipped to COMPLETED). The executor's
+  sibling-propagation feature still works: a result recorded on a
+  non-active sibling keeps the sibling PENDING with a result; once the
+  sibling becomes active (after the current task is approved),
+  `schedule_next` sees the result and skips the executor (review-only).
 
 ### Key Entities _(include if feature involves data)_
 
@@ -181,6 +235,12 @@ and cannot flip-flop internally.
 - [ ] **`read_file` suggests on not-found**: a wrong-path read with a close
   existing match returns a suggestion; a wrong-path read with no close
   match returns plain not-found.
+- [ ] **PENDING tasks cannot be approved**: a PENDING leaf with no result
+  rejects `approved` (ValueError); IN_PROGRESS-no-result and
+  parent-all-children-done still get the FR-079 fallback.
+- [ ] **Non-active tasks don't auto-transition**: `record_result` on a
+  non-active PENDING task keeps it PENDING (result attached, status
+  unchanged); the active task still auto-transitions to IN_PROGRESS.
 - [ ] **No regression on simple tasks**: Experiment-3 and Experiment-5
   patterns (reviewer approves cleanly, 6/6 and 11/11) still pass with the
   new threshold and validator.
@@ -203,6 +263,10 @@ and cannot flip-flop internally.
   full relative paths; assert empty-workspace case.
 - `test_read_file_fuzzy_suggestion`: close-match returns suggestion; no-
   match returns plain not-found; root-not-suggested-as-file case.
+- `test_review_pending_guard`: PENDING leaf rejects `approved`; IN_PROGRESS
+  no-result still gets FR-079 fallback; parent-all-children-done unaffected;
+  `record_result` on non-active task keeps it PENDING; sibling-propagation
+  still skips executor when the sibling becomes active.
 
 ### Integration Tests
 
@@ -232,6 +296,7 @@ and cannot flip-flop internally.
 | FR-2 single-decision validator | TODO | new validator in `validation_retry_mixin.py` |
 | FR-3 list_files tree format | TODO | formatter change in `files.py` |
 | FR-4 read_file fuzzy suggestion | TODO | not-found path in `files.py` |
+| FR-5 prevent task skipping | TODO | guards in `task.py` |
 
 ---
 
@@ -277,6 +342,13 @@ lazy retry was *not* enabled in these runs — `recovery_strategy="standard"`):
   extra turns. Sample: reviewer guessed `backend/routing.py` when file was
   at `backend/django_notion_app/channels/routing.py`. Source:
   `experiment-4/logs/stdout.log`.
+- **Exp2 task 14 premature completion**: task 14 ("Review and finalize
+  report.md") was `[pending]` (stderr.log:637), never dispatched. Reviewer
+  called `task_review_decision(approved)` resolving to task 14, not the
+  active task 4 (stdout.log:1527). `record_reviewer_decision` FR-079
+  fallback created a fake result → COMPLETED (stderr.log:642). Tasks 5-13
+  were still pending. Source: `experiment-2/logs/stderr.log` lines 637-657,
+  `experiment-2/logs/stdout.log` line 1527.
 - **Exp2 sourcing regression**: old run 20 source links in `report.md`
   (cross-judge 4.6), new run 4 source links (single-judge 3.0). Reviewer
   pressure dropped from 11 `needs_revision` + 1 `rejected` to 2
