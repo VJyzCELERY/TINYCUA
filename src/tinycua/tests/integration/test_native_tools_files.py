@@ -100,7 +100,8 @@ def test_read_file_not_found():
     """Error dict returned for missing file."""
     from tinycua.agent.tools.native.files import read_file
 
-    result = read_file("/nonexistent/path/file.txt")
+    # Path under the bound workspace (/tmp) that does not exist.
+    result = read_file("nonexistent_file_under_workspace.txt")
     assert isinstance(result, dict)
     assert "error" in result
     assert "not found" in result["error"].lower()
@@ -136,10 +137,13 @@ def test_read_file_empty():
 
 
 def test_read_file_relative_path():
-    """Relative path is resolved from CWD."""
+    """Relative path is resolved from the bound workspace."""
+    from tinycua.agent.tools.native.context import bind_workspace
+
     original_cwd = os.getcwd()
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
+            bind_workspace(tmpdir)
             os.chdir(tmpdir)
             Path("test.txt").write_text("hello world\n")
 
@@ -191,10 +195,13 @@ def test_write_file_creates_parent_dirs():
 
 
 def test_write_file_relative_path():
-    """Relative path is resolved from CWD."""
+    """Relative path is resolved from the bound workspace."""
+    from tinycua.agent.tools.native.context import bind_workspace
+
     original_cwd = os.getcwd()
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
+            bind_workspace(tmpdir)
             os.chdir(tmpdir)
             from tinycua.agent.tools.native.files import write_file
 
@@ -307,11 +314,10 @@ def test_list_files_all():
         from tinycua.agent.tools.native.files import list_files
 
         result = list_files(tmpdir)
-        assert isinstance(result, list)
-        assert len(result) == 3
-        assert all(
-            os.path.join(tmpdir, f) in result for f in ["a.txt", "b.txt", "c.py"]
-        )
+        assert isinstance(result, str)
+        assert "a.txt" in result
+        assert "b.txt" in result
+        assert "c.py" in result
 
 
 def test_list_files_with_pattern():
@@ -323,40 +329,47 @@ def test_list_files_with_pattern():
         from tinycua.agent.tools.native.files import list_files
 
         result = list_files(tmpdir, "*.py")
-        assert len(result) == 1
-        assert os.path.join(tmpdir, "c.py") in result
+        assert isinstance(result, str)
+        assert "c.py" in result
+        assert "a.txt" not in result
 
 
 def test_list_files_directory_not_found():
     """Error dict returned for nonexistent directory."""
     from tinycua.agent.tools.native.files import list_files
 
-    result = list_files("/nonexistent/path")
+    # Directory under the bound workspace (/tmp) that does not exist.
+    result = list_files("nonexistent_dir_under_workspace")
     assert isinstance(result, dict)
     assert "error" in result
 
 
 def test_list_files_empty_directory():
-    """Empty directory returns empty list."""
+    """Empty directory returns empty tree string."""
     with tempfile.TemporaryDirectory() as tmpdir:
         from tinycua.agent.tools.native.files import list_files
 
         result = list_files(tmpdir)
-        assert result == []
+        assert isinstance(result, str)
+        assert result == ""
 
 
 def test_list_files_relative_path():
-    """Relative path is resolved from CWD."""
+    """Relative path is resolved from the bound workspace."""
+    from tinycua.agent.tools.native.context import bind_workspace
+
     original_cwd = os.getcwd()
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
+            bind_workspace(tmpdir)
             os.chdir(tmpdir)
             Path("subdir").mkdir()
             Path("subdir", "file.txt").touch()
             from tinycua.agent.tools.native.files import list_files
 
             result = list_files("subdir")
-            assert len(result) == 1
+            assert isinstance(result, str)
+            assert "file.txt" in result
     finally:
         os.chdir(original_cwd)
 
@@ -377,17 +390,13 @@ def test_list_files_includes_hidden_files_and_directories():
 
         result = list_files(tmpdir)
 
-        assert isinstance(result, list)
-        # Compare on the basename portion; directories carry a trailing "/" marker.
-        names = [entry.rstrip("/").rsplit("/", 1)[-1] for entry in result]
+        assert isinstance(result, str)
         # Hidden files appear
-        assert ".hidden.txt" in names
-        assert "visible.txt" in names
+        assert ".hidden.txt" in result
+        assert "visible.txt" in result
         # Directories appear (and the raw entry is suffixed with "/")
-        assert ".venv" in names
-        assert "subdir" in names
-        assert any(entry.endswith("/.venv/") for entry in result)
-        assert any(entry.endswith("/subdir/") for entry in result)
+        assert ".venv/" in result
+        assert "subdir/" in result
 
 
 def test_list_files_traverses_into_subdirectory_path():
@@ -401,10 +410,9 @@ def test_list_files_traverses_into_subdirectory_path():
 
         result = list_files(f"{tmpdir}/outer")
 
-        names = [entry.rstrip("/").rsplit("/", 1)[-1] for entry in result]
-        assert "inner.txt" in names
-        assert "nested_dir" in names
-        assert any(entry.endswith("/nested_dir/") for entry in result)
+        assert isinstance(result, str)
+        assert "inner.txt" in result
+        assert "nested_dir/" in result
 
 
 def test_list_files_default_pattern_still_filters_by_extension():
@@ -417,8 +425,8 @@ def test_list_files_default_pattern_still_filters_by_extension():
         from tinycua.agent.tools.native.files import list_files
 
         result = list_files(tmpdir, "*.py")
-        names = [Path(entry).name for entry in result]
-        assert "b.py" in names
+        assert isinstance(result, str)
+        assert "b.py" in result
 
 
 # --- search_files ---

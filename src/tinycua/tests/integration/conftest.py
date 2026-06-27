@@ -19,10 +19,26 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 @pytest.fixture(autouse=True)
 def restore_working_directory():
-    """Restore cwd after tests that temporarily chdir into disposable dirs."""
+    """Restore cwd + workspace binding after tests that mutate them.
+
+    Binds the native-tools workspace to the system temp dir so the integration
+    tests in test_native_tools_files.py (which use NamedTemporaryFile and
+    TemporaryDirectory without their own bind_workspace) can resolve paths.
+    Tests that need a specific workspace override this with their own
+    bind_workspace(tmpdir) call.
+    """
+    import tempfile as _tempfile
+
+    from tinycua.agent.tools.native.context import bind_workspace, get_workspace_dir
+
     original_cwd = Path.cwd()
-    yield
-    os.chdir(original_cwd)
+    original_workspace = get_workspace_dir()
+    bind_workspace(_tempfile.gettempdir())
+    try:
+        yield
+    finally:
+        bind_workspace(original_workspace)
+        os.chdir(original_cwd)
 
 
 # Load .env.test or .env.test.example automatically
