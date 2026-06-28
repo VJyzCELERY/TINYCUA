@@ -283,9 +283,20 @@ def _handle_run_exception(
         if log_path:
             write_log_entry(log_path, "timeout", "warning", {"timeout": timeout, "elapsed": elapsed})
         return 124
+    # FR-6: log full exception detail (str(exc) can be empty for stream errors).
+    cause = exc.__cause__ or exc.__context__
+    cause_repr = repr(cause) if cause else "none"
     if log_path:
-        write_log_entry(log_path, "error", "error", {"error": str(exc), "elapsed": elapsed})
-    print(f"Agent error: {exc}", file=sys.stderr, flush=True)
+        write_log_entry(log_path, "error", "error", {
+            "error": str(exc),
+            "error_type": type(exc).__name__,
+            "error_repr": repr(exc)[:500],
+            "cause": cause_repr[:500],
+            "elapsed": elapsed,
+        })
+    print(f"Agent error: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+    if cause:
+        print(f"  caused by: {cause_repr[:300]}", file=sys.stderr, flush=True)
     return 1
 
 

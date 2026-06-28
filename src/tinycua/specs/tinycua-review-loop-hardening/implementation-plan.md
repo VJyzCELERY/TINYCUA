@@ -500,6 +500,98 @@ if task.status in {TaskStatus.PENDING, TaskStatus.FAILED}:
 
 7 test cases (see Testing Plan section for snippets).
 
+### FR-6 — stream-path provider-error retry + error logging
+
+#### MODIFY `src/tinycua/tinycua/loops/orchestration_mixin.py`
+
+**Restructure the except block in `_stream_llm_node_events` (~line 877-904):**
+
+Current (crash on first error):
+```python
+content_parts: list[str] = []
+collected_tool_calls: list[dict[str, Any]] = []
+try:
+    async for event in self._collect_stream_events(...):
+        yield event
+except Exception:
+    error_event = self._make_error_event(...)
+    yield self._enrich_and_yield(error_event, ...)
+    raise
+```
+
+Change to (retry with compaction):
+```python
+content_parts: list[str] = []
+collected_tool_calls: list[dict[str, Any]] = []
+provider_retries = 0  # FR-6: stream-path provider-error retry counter
+while True:
+    try:
+        async for event in self._collect_stream_events(
+            node, agent, attempt_messages, attempt_tools,
+            content_parts, collected_tool_calls,
+            include_meta, final_only, node_type, attempt_number,
+        ):
+            yield event
+        break  # stream completed — exit retry loop
+    except (asyncio.CancelledError, KeyboardInterrupt):
+        raise
+    except Exception as exc:
+        provider_retries += 1
+        if provider_retries > _MAX_PROVIDER_RETRIES:
+            error_event = self._make_error_event(
+                node.node_id, node_type, attempt_number,
+            )
+            yield self._enrich_and_yield(
+                error_event, include_meta,
+                node.node_id, node_type, attempt_number,
+            )
+            raise
+        # FR-6: force-compact, clear partial stream state, retry.
+        logger.warning(
+            "stream_provider_error_retry node=%s attempt=%d retry=%d "
+            "error=%s — forcing compaction",
+            node.node_id, attempt_number, provider_retries,
+            repr(exc)[:200],
+        )
+        await self._force_compact(node, agent)
+        content_parts.clear()
+        collected_tool_calls.clear()
+        attempt_messages = self._messages_with_retry_prompt(
+            base_messages, retry_feedback, retry_message,
+        )
+        # Loop back — retry the stream.
+```
+
+**Add imports** (top of file):
+```python
+import asyncio
+from tinycua.loops._loop_constants import _MAX_PROVIDER_RETRIES
+```
+
+#### MODIFY `src/tinycua/tinycua/cli/run.py`
+
+**Improve error logging in `_handle_run_exception` (~line 286-288):**
+
+```python
+# FR-6: log full exception detail (str(exc) can be empty for stream errors).
+cause = exc.__cause__ or exc.__context__
+cause_repr = repr(cause) if cause else "none"
+if log_path:
+    write_log_entry(log_path, "error", "error", {
+        "error": str(exc), "error_type": type(exc).__name__,
+        "error_repr": repr(exc)[:500],
+        "cause": cause_repr[:500],
+        "elapsed": elapsed,
+    })
+print(f"Agent error: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+if cause:
+    print(f"  caused by: {cause_repr[:300]}", file=sys.stderr, flush=True)
+```
+
+#### NEW `src/tinycua/tests/unit/test_stream_provider_retry.py`
+
+3 test cases (see Testing Plan section for snippets).
+
 ## Architecture Changes
 
 | Component | Change Type | Description |
@@ -513,6 +605,8 @@ if task.status in {TaskStatus.PENDING, TaskStatus.FAILED}:
 | `files._read_lines` / `files._suggest_closest_path` | Modify/New | Fuzzy closest-match suggestion on not-found |
 | `task.py record_reviewer_decision` | Modify | FR-5a: raise ValueError on APPROVED for PENDING leaf with no result |
 | `task.py record_result` | Modify | FR-5b: only auto-transition active task PENDING/FAILED → IN_PROGRESS |
+| `orchestration_mixin._stream_llm_node_events` | Modify | FR-6: restructure except block to retry on provider errors with compaction |
+| `cli/run._handle_run_exception` | Modify | FR-6: log `repr(exc)` and `exc.__cause__` |
 
 ## Data Model Changes
 

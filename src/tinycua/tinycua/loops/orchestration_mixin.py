@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
 
 from tinycua.config.types import LLMResult, ValidationError, ValidationResult
+from tinycua.loops._loop_constants import _MAX_PROVIDER_RETRIES
 from tinycua.loops.context_rendering import sanitize_internal_reprs
 from tinycua.loops.node import NodeRunContext
 from tinycua.loops.node_contract import RECOVERY_CHAINS
@@ -874,34 +876,32 @@ class OrchestrationMixin:
                 )
             content_parts: list[str] = []
             collected_tool_calls: list[dict[str, Any]] = []
-            try:
-                async for event in self._collect_stream_events(
-                    node,
-                    agent,
-                    attempt_messages,
-                    attempt_tools,
-                    content_parts,
-                    collected_tool_calls,
-                    include_meta,
-                    final_only,
-                    node_type,
-                    attempt_number,
-                ):
-                    yield event
-            except Exception:
-                error_event = self._make_error_event(
-                    node.node_id,
-                    node_type,
-                    attempt_number,
-                )
-                yield self._enrich_and_yield(
-                    error_event,
-                    include_meta,
-                    node.node_id,
-                    node_type,
-                    attempt_number,
-                )
-                raise
+            provider_retries = 0  # FR-6: stream-path retry (mirrors FR-086)
+            while True:
+                try:
+                    async for event in self._collect_stream_events(
+                        node, agent, attempt_messages, attempt_tools,
+                        content_parts, collected_tool_calls,
+                        include_meta, final_only, node_type, attempt_number):
+                        yield event
+                    break
+                except (asyncio.CancelledError, KeyboardInterrupt):
+                    raise
+                except Exception as exc:
+                    provider_retries += 1
+                    if provider_retries > _MAX_PROVIDER_RETRIES:
+                        yield self._enrich_and_yield(
+                            self._make_error_event(node.node_id, node_type, attempt_number),
+                            include_meta, node.node_id, node_type, attempt_number)
+                        raise
+                    logger.warning(
+                        "stream_provider_error_retry node=%s attempt=%d retry=%d error=%s — forcing compaction",
+                        node.node_id, attempt_number, provider_retries, repr(exc)[:200])
+                    await self._force_compact(node, agent)
+                    content_parts.clear()
+                    collected_tool_calls.clear()
+                    attempt_messages = self._messages_with_retry_prompt(
+                        base_messages, retry_feedback, retry_message)
 
             combined, validation, llm_result = await self._finalize_streamed_node(
                 node,
