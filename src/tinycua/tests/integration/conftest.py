@@ -14,6 +14,16 @@ import dotenv
 import httpx
 import pytest
 
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
+@pytest.fixture(autouse=True)
+def restore_working_directory():
+    """Restore cwd after tests that temporarily chdir into disposable dirs."""
+    original_cwd = Path.cwd()
+    yield
+    os.chdir(original_cwd)
+
 
 # Load .env.test or .env.test.example automatically
 _env_loaded = False
@@ -54,13 +64,20 @@ def resolve_integration_llm_config() -> IntegrationLLMConfig:
     _ensure_env_loaded()
 
     model = os.environ.get(
-        "OPENAI_CHAT_COMPLETIONS_MODEL", os.environ.get("LLM_MODEL", "")
+        "OPENAI_CHAT_COMPLETIONS_MODEL",
+        os.environ.get("TINYCUA_MODEL", os.environ.get("LLM_MODEL", "")),
     )
     base_url = os.environ.get(
         "OPENAI_CHAT_COMPLETIONS_BASE_URL",
-        os.environ.get("LLM_BASE_URL", "http://localhost:1234/v1"),
+        os.environ.get(
+            "TINYCUA_BASE_URL",
+            os.environ.get("LLM_BASE_URL", "http://localhost:1234/v1"),
+        ),
     )
-    api_key = os.environ.get("OPENAI_CHAT_COMPLETIONS_API_KEY", "")
+    api_key = os.environ.get(
+        "OPENAI_CHAT_COMPLETIONS_API_KEY",
+        os.environ.get("TINYCUA_API_KEY", ""),
+    )
 
     return IntegrationLLMConfig(
         provider="openai-chat-completions",
@@ -86,7 +103,9 @@ def _probe_server(base_url: str, model: str, api_key: str) -> bool:
     try:
         with httpx.Client() as client:
             # First check /models endpoint
-            client.get(f"{base_url}/models", headers=headers, timeout=5).raise_for_status()
+            client.get(
+                f"{base_url}/models", headers=headers, timeout=5
+            ).raise_for_status()
 
             # Then try a minimal completion
             payload = {
@@ -110,8 +129,7 @@ def _probe_server(base_url: str, model: str, api_key: str) -> bool:
 def pytest_collection_modifyitems(config, items):
     """Skip integration tests when the LLM server is unreachable."""
     live_items = [
-        item for item in items
-        if item.get_closest_marker("integration") is not None
+        item for item in items if item.get_closest_marker("integration") is not None
     ]
 
     if not live_items:

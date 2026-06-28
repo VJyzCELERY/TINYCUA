@@ -1,0 +1,97 @@
+"""
+Main stylesheet for Notion-like Web Application.
+Contains CSS variables, dark mode support, and global styles. """
+
+/* ============================================
+   CSS Custom Properties (Variables)
+   ============================================ */
+:root {
+  /* Light Theme Colors */
+  --bg-primary: #FFFFFF;
+  --bg-secondary: #F7F9FA;
+  --bg-tertiary: #EBECED;
+  --text-primary: #37352F;
+  --text-secondary: #6D6D69;
+  --border-color: #E8E8EA;
+  
+  /* Accent Colors */
+  --accent-blue: #007AFF;
+  --accent-purple: #AF52DE;
+  --accent-orange: #FF9F0A;
+  --accent-red: #FF3B30;
+  
+  /* Block Types Backgrounds (Light) */
+  --block-default-bg: #FFFFFF;
+  --block-quote-bg: rgba(175,242,85,0.1);
+  --block-code-bg: rgba(160,174,196,0.1);
+  --block-callout-bg: rgba(132,10,250,0.1);
+  
+  /* Selection Colors */
+  --selection-bg: #BFEFFF;
+  --selection-text: var(--text-primary);
+  
+  /* Focus Ring */
+  --focus-ring-color: rgba(0,122,255,0.3);
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(9,30,66,0.08);
+  --shadow-md: 0 4px 6px rgba(9,30,66,0.1);
+  
+  /* Transitions */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s ease;
+}
+
+/* ============================================
+   Dark Theme (Applied via .dark class)
+   ============================================ */
+.dark {
+  --bg-primary: #191919;
+  --bg-secondary: #262626;
+  --bg-tertiary: #373737;
+  --text-primary: #D4D4D4;
+  --text-secondary: #808080;
+  --border-color: #525253;
+  
+  /* Accent Colors (Dark) */
+  --accent-blue: #58A6FF;
+  --accent-purple: #BB9AF7;
+  
+  /* Block Types Backgrounds (Dark) */
+  --block-default-bg: var(--bg-primary);
+  --block-quote-bg: rgba(132,10,250,0.1);
+  --block-code-bg: rgba(89,74,162,0.1);
+  --block-callout-bg: rgba(132,10,250,0.1);
+}
+
+/* ============================================
+   Global Reset & Base Styles
+   ============================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,ody {
+  height: 100%;
+  font-family:
+    -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen,Ubuntu,Cantarell,Fira Sans,Dotenv,Sans-serif,sans-serif;
+  line-height: 1.5;
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+  transition: background-color var(--transition-normal),color var(--transition-normal);
+}
+
+/* ============================================
+   Selection Styling
+   ============================================ */
+::selection {
+  background-color: var(--selection-bg);
+  color: var(--selection-text);
+}
+
+::-moz-selection {
+  background-color: var(--selection-bg);
+  color: var(--selection-text);
+}

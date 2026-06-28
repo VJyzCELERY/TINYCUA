@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  {% block head %}
+    <title>{{ page.title }} - {{ APP_NAME }}</title>
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/sidebar.css">
+    <link rel="stylesheet" href="/static/css/editor.css">
+
+    <!-- Page-specific styles for block editor -->
+    <style>
+      .page-editor-container {
+        max-width: 900px;
+        margin-left: auto;
+        margin-right: auto;
+        padding-top: var(--spacing-lg);
+      }
+
+      /* Block Editor Styles */
+      .block-editor-wrapper {
+        min-height: calc(100vh - 80px);
+      }
+
+      .page-block {
+        position: relative;
+        margin-bottom: 2px;
+      }
+
+      .page-block[data-type="text"],
+      .page-block[data-type="h1"],
+      .page-block[data-type="h2"],
+      .page-block[data-type="h3"] {
+        padding-left: var(--spacing-md);
+      }
+
+      /* Block contenteditable area */
+      .block-content {
+        min-height: 24px;
+        outline: none;
+        font-size: inherit;
+        line-height: inherit;
+        color: inherit;
+      }
+
+      /* Slash command trigger */
+      .slash-trigger::after {
+        content: '/';
+        position: absolute;
+        left: 0;
+        top: 5px;
+        font-size: 18px;
+        opacity: 0.3;
+        pointer-events: none;
+      }
+
+      /* Block type selection dropdown */
+      .block-type-selector {
+        position: absolute;
+        left: -240px;
+        top: 0;
+        width: 256px;
+        background-color: var(--bg-primary);
+        border-radius: 8px;
+        box-shadow: var(--shadow-md);
+        padding: 4px;
+        display: none;
+      }
+
+      .block-type-selector.visible {
+        display: block;
+      }
+
+      /* Auto-resize editor */
+      .auto-resize-container {
+        min-height: 24px;
+        overflow-y: auto;
+        max-height: 100vh;
+      }
+
+      /* Page header (title, icon) -->
+      .page-header {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-md);
+        margin-bottom: var(--spacing-lg);
+        padding-right: 8px;
+      }
+
+      .page-title-input {
+        border: none;
+        font-size: 40px;
+        font-weight: 600;
+        color: var(--text-primary);
+        outline: none;
+        background: transparent;
+        width: 100%;
+      }
+
+      .page-icon-selector {
+        display: grid;
+        grid-template-columns: repeat(4, 32px);
+        gap: 4px;
+        padding-top: var(--spacing-sm);
+      }
+    </style>
+  {% endblock %}
+</head>
+<body class="light">
+  <!-- Page Header (Title & Icon) -->
+  <div id="page-header" style="padding-right:8px;margin-bottom:var(--spacing-lg);display:flex;align-items:center;gap:16px;flex-wrap:wrap;">{{ page.title }}<input type="text" value="{% if page.icon_url %}{{ page.icon_url }}{% else %}📝{% endif %}" style="border:none;font-size:40px;background:transparent;color:var(--text-primary);font-weight:600;outline:none;width:100%;margin-top:-32px;"></div>
+
+  <!-- Page Content (Blocks) -->
+  <main class="page-editor-container">
+    <form id="block-form" action="/api/v1/pages/{{ page.id }}/blocks" method="POST">
+      
+      {% for block in blocks %}
+        <div class="page-block" data-id="{{ block.id }}" data-type="{{ block.type }}">
+          <!-- Block content -->
+          <div class="block-content {
+            <textarea
+              name="blocks[{{ loop.index0 }}]"
+              placeholder="Type '/' for commands..."
+              rows="1"
+              style="min-height:24px;"{
+                {% if block.type == 'h1' %}font-size:40px;font-weight:600;line-height:1.2;margin-bottom:8px;
+                {% elif block.type == 'h2' %}font-size:30px;font-weight:600;line-height:1.25;margin-top:var(--spacing-md);
+                {% elif block.type == 'h3' %}color:var(--text-secondary);font-size:24px;
+                {% elif block.type in ['bulleted_list_item', 'numbered_list_item'] %}
+                  position:relative;padding-left:16px;::before{content:'•';position:absolute;left:-8px;color:var(--text-secondary);} 
+                {% elif block.type == 'todo' %}padding-left:16px;
+                {% elif block.type in ['quote', 'callout'] %}
+                  background-color:{% if 'dark' in get_settings().class_name else '' %}rgba(132,10,250,0.1){% else %}rgba(175,242,85,0.1){% endif %};
+                {% elif block.type == 'code_block' %}
+                  background-color:var(--block-code-bg);font-family:'SF Mono','Monaco',monospace;
+                {% if block.text_content %}{{ block.text_content }}{% else %}<!-- Type '/' for commands... -->{% endif %}
+              }
+            </textarea>
+
+          <!-- Slash command trigger (hidden by default, shown on '/') -->
+          <div class="slash-trigger" style="display:none;">&lt;-- slash menu here --&gt;</div>
+        </div>
+      {% endfor %}
+    </form>
+  </main>
+
+  <!-- Footer for page info (hidden by default) -->
+  <footer id="page-footer" style="position:fixed;bottom:0;left:260px;right:0;padding:8px 16px;border-top:1px solid var(--border-color);background:var(--bg-secondary);display:none;font-size:12px;color:var(--text-secondary)">No preview available</footer>
+
+  <!-- JavaScript -->
+  <script src="/static/js/app.js"></script>
+  <script src="/static/js/editor.js"></script>
+  <script src="/static/js/blocks.js"></script>
+  <script src="/static/js/ui/modals.js"></script>
+  <script src="/static/js/ui/dropdowns.js"></script>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,289 @@
+# Design Document: TinyCUA Benchmark Docker Image
+
+**Spec**: `./spec.md`
+**Status**: Draft
+**Last Updated**: 2026-06-14
+
+---
+
+## Overview
+
+This design specifies the Docker image for TinyCUA benchmark execution within WildClawBench. The image packages the TinyCUA prototype with all dependencies, configures access to local model endpoints, and provides a standardized runtime environment for benchmark task execution. The design focuses on container lifecycle, dependency management, configuration injection, and artifact preservation.
+
+---
+
+## Architecture
+
+### Component Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    TinyCUA Benchmark Container               │
+├─────────────────────────────────────────────────────────────┤
+│  Base: python:3.11-slim                                      │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │  System Dependencies                                     │ │
+│  │  - shell utilities (bash, coreutils)                     │ │
+│  │  - file operations (find, grep, sed)                     │ │
+│  │  - network tools (curl, wget)                            │ │
+│  │  - browser/search (chromium, geckodriver) [Phase 2 — not in current image] │ │
+│  └─────────────────────────────────────────────────────────┘ │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │  Python Environment                                      │ │
+│  │  - tinycua package (from local source)                   │ │
+│  │  - tinycua-sdk dependency                                │ │
+│  │  - OpenAI client library                                 │ │
+│  └─────────────────────────────────────────────────────────┘ │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │  Runtime Configuration                                   │ │
+│  │  - TINYCUA_BASE_URL (env var)                            │ │
+│  │  - TINYCUA_API_KEY (env var)                             │ │
+│  │  - BRAVE_API_KEY (env var)                               │ │
+│  │  - /tmp_workspace (volume mount)                         │ │
+│  └─────────────────────────────────────────────────────────┘ │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │  Entry Point                                             │ │
+│  │  - tinycua benchmark runner                              │ │
+│  │  - Task prompt processing                                │ │
+│  │  - Artifact collection                                   │ │
+│  └─────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Affected Components
+
+| Component | Change Type | Notes |
+|-----------|-------------|-------|
+| `Dockerfile` | New | Docker build for TinyCUA benchmark image |
+| `docker-compose.benchmark.yml` | New | Optional compose file for local development |
+| `scripts/entrypoint.sh` | New | Container entry point script |
+| `src/tinycua/docs/benchmark/README.md` | New | Usage documentation for the benchmark image |
+| `specs/5.3-docker-image/spec.md` | New | This specification |
+| `specs/5.3-docker-image/design.md` | New | This design document |
+
+---
+
+## Data Model
+
+### Container Configuration
+
+```yaml
+# Conceptual configuration shape (not final implementation)
+ContainerConfig:
+  base_image: str                    # "python:3.11-slim"
+  python_version: str                # "3.11"
+  tinycua_source: str                # Path to tinycua source for COPY
+  dependencies: list[str]            # System packages to install
+  env_vars: dict[str, str]           # Required/optional environment variables
+  volumes: dict[str, str]            # Mount points (/tmp_workspace)
+  entrypoint: str                    # Container entry point command
+  healthcheck: dict                  # Optional health check configuration
+```
+
+### Environment Variables
+
+```yaml
+# Required environment variables
+TINYCUA_BASE_URL: str                # OpenAI-compatible API endpoint URL (e.g., "http://host.docker.internal:1234/v1")
+TINYCUA_API_KEY: str                 # API key for model endpoint (can be empty for local)
+TINYCUA_MODEL: str                   # Model name to use (default: a sensible local model identifier)
+
+# Optional environment variables
+BRAVE_API_KEY: str                   # For web search tasks
+TINYCUA_LOG_LEVEL: str               # Logging level (default: "INFO")
+TINYCUA_TIMEOUT: int                 # Task timeout in seconds (default: 300)
+```
+
+---
+
+## API / Interface Contracts
+
+### Container Build Contract
+
+```dockerfile
+# Pseudo-Dockerfile (not final implementation)
+FROM python:3.11-slim AS base
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    bash \
+    coreutils \
+    curl \
+    wget \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv (project uses uv for dependency management)
+COPY --from=ghcr.io/astral-sh/uv:0.11.20 /uv /usr/local/bin/uv
+
+# Copy TinyCUA source
+COPY src/tinycua-sdk/pyproject.toml ./tinycua-sdk/
+COPY src/tinycua/pyproject.toml ./tinycua/
+
+# Install TinyCUA (non-editable; editable installs don't work in Docker)
+WORKDIR /app
+RUN uv pip install --no-cache-dir --system ./tinycua-sdk && \
+    uv pip install --no-cache-dir --system ./tinycua
+
+# Set up entry point
+COPY scripts/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+# Configure working directory
+WORKDIR /tmp_workspace
+ENTRYPOINT ["/app/entrypoint.sh"]
+```
+
+### Entry Point Contract
+
+#### WildClawBench Integration Contract
+
+WildClawBench injects the task prompt via the `TASK_PROMPT` environment variable. The container must:
+1. Read `$TASK_PROMPT` from the environment (set by WildClawBench before container start)
+2. Pass it to `tinycua benchmark run` via the exported `TASK_PROMPT` environment variable (avoids shell interpretation of special characters)
+3. If `TASK_PROMPT` is not set, the entrypoint should exit with a clear error
+
+**Cross-reference**: WildClawBench adapter contract in `specs/wildclawbench-spike/spec.md`
+
+```bash
+# Pseudo-entrypoint (not final implementation)
+#!/bin/bash
+set -e
+
+# Validate required environment variables
+if [ -z "$TINYCUA_BASE_URL" ]; then
+    echo "ERROR: TINYCUA_BASE_URL not set"
+    exit 1
+fi
+
+if [ -z "$TASK_PROMPT" ]; then
+    echo "ERROR: TASK_PROMPT not set (injected by WildClawBench)"
+    exit 1
+fi
+
+# Configure TinyCUA with model endpoint
+export TINYCUA_BASE_URL="$TINYCUA_BASE_URL"
+export TINYCUA_API_KEY="${TINYCUA_API_KEY:-}"
+
+# Run TinyCUA agent with task prompt
+# NOTE: The CLI entry point `tinycua` is established in Milestone 5.1
+# (see specs/5.1-cli-runtime-entry-point/). The benchmark subcommand
+# is provided by that CLI, not a standalone python -m module.
+# Pass TASK_PROMPT via environment variable to avoid shell interpretation
+export TASK_PROMPT
+exec tinycua benchmark run \
+    --workspace /tmp_workspace \
+    --output /tmp_workspace/results \
+    --transcript /tmp_workspace/transcript.jsonl
+```
+
+### Error Handling
+
+| Error Case | Exception / Response | Notes |
+|------------|---------------------|-------|
+| Missing `TINYCUA_BASE_URL` | Exit code 1 with error message | Container fails to start |
+| Model endpoint unreachable | Agent error with connectivity message | Task fails, transcript preserved |
+| Missing `BRAVE_API_KEY` | Warning log, continue execution | Web search tasks may fail |
+| `/tmp_workspace` not mounted | Exit code 1 with error message | Container fails to start |
+| Write permission denied | Agent error with permission message | Task fails, partial results preserved |
+| Task timeout | Graceful shutdown, preserve artifacts | Exit code 0, timeout noted in transcript |
+
+---
+
+## Implementation Phases
+
+### Phase 1 — MVP (Required for initial release)
+
+- [x] Create Dockerfile with base image and system dependencies
+- [x] Install Python dependencies and TinyCUA packages
+- [x] Implement entry point script with environment validation
+- [x] Configure volume mounting for `/tmp_workspace`
+- [ ] Add basic health check — deferred to Phase 2 (not required for WildClawBench integration; container lifecycle is managed by orchestrator)
+- [x] Create smoke test task for validation
+- [x] Document all configuration options
+- [x] Test container build and basic execution
+- [x] Add Docker Compose file for local development
+
+### Phase 2 — Enhancements (Post-MVP)
+
+- [ ] Add optional browser/search dependencies (chromium, geckodriver)
+- [ ] Implement multi-stage build for smaller image size
+- [ ] Add container logging and monitoring hooks
+- [ ] Optimize image layers for faster builds
+- [ ] Add CI/CD pipeline integration
+
+---
+
+## Technical Decisions
+
+1. **Decision**: Use `python:3.11-slim` as base image.
+   - **Reason**: Minimal footprint (~150MB) with Python 3.11 support. Slim variant includes only essential packages.
+   - **Alternatives Considered**: `python:3.11` (full) — too large (~900MB). `alpine` — musl compatibility issues with some Python packages.
+
+2. **Decision**: Install TinyCUA from local source via `COPY` and non-editable `uv pip install`.
+   - **Reason**: Editable installs (`-e`) don't work reliably in Docker containers. Non-editable install provides a stable, self-contained image.
+   - **Alternatives Considered**: Editable install — rejected due to Docker path resolution issues.
+
+3. **Decision**: Use environment variables for model endpoint configuration.
+   - **Reason**: Follows Twelve-Factor App principles. Allows runtime configuration without rebuilding image. Compatible with WildClawBench's environment injection.
+   - **Alternatives Considered**: Config files — more complex to manage in containers. Command-line arguments — less flexible for container orchestration.
+
+4. **Decision**: Mount `/tmp_workspace` as volume.
+   - **Reason**: Matches WildClawBench's contract for task workspace. Allows task files to be injected and results to be extracted without container modification.
+   - **Alternatives Considered**: Bake workspace into image — not feasible since tasks are dynamic. Use named volumes — harder to inspect results.
+
+5. **Decision**: Separate entry point script from Python module.
+   - **Reason**: Allows environment validation, signal handling, and graceful shutdown before Python execution. Provides clearer error messages for configuration issues.
+   - **Alternatives Considered**: Direct Python entry point — less flexibility for pre-execution checks.
+
+---
+
+## Risks & Mitigations
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|------------|
+| Image size exceeds 2GB target | Medium | Medium | Use multi-stage build, minimize layers, remove build dependencies |
+| Local model endpoint unreachable from container | High | High | Document networking options (host.docker.internal, bridge networks) |
+| Missing system dependencies for WildClawBench tasks | Medium | High | Research task requirements, add dependencies incrementally |
+| Browser/search tools add significant size | Medium | Low | Make optional, document for specific task categories |
+| Container startup time too slow | Low | Medium | Optimize layer caching, use smaller base image |
+
+---
+
+## Open Questions
+
+1. **Browser/search dependency scope**
+   - **Status**: Decided
+   - Should chromium and geckodriver be included in the base image or as optional add-ons?
+   - Impact: Image size vs. out-of-the-box functionality for web-dependent tasks.
+   - **Decision**: Optional add-ons, deferred to Phase 2 (Post-MVP). Browser/search tools are not required for initial benchmark runs.
+
+2. **Local model endpoint networking**
+   - **Status**: Decided
+   - What Docker networking configuration is needed for host-local model endpoints?
+   - Options: `--network host`, `host.docker.internal`, bridge network with host routing.
+   - **`--network host`**: Shares the host network namespace directly. Simple but reduces container isolation; port conflicts possible.
+   - **`host.docker.internal`**: Docker Desktop provides this automatically; on Linux, add `--add-host=host.docker.internal:host-gateway` to the `docker run` command.
+   - **Bridge network with host routing**: Use a custom bridge and configure routing. Most isolated but requires manual IP/route setup.
+   - **Decision**: Use `--add-host=host.docker.internal:host-gateway` for Linux, native `host.docker.internal` for Docker Desktop, as the simplest cross-platform approach.
+
+3. **Logging and monitoring**
+   - **Status**: Decided
+   - Should the container include logging drivers for centralized log collection?
+   - **Decision**: For prototype: simple stdout/stderr logging is sufficient.
+
+4. **Multi-architecture support**
+   - **Status**: Decided
+   - Should the image support both amd64 and arm64 architectures?
+   - **Decision**: For prototype: amd64 only is sufficient.
+
+---
+
+## References
+
+- **Spec**: `./spec.md` — feature specification and acceptance criteria
+- **WildClawBench Adapter Contract**: `specs/wildclawbench-spike/spec.md` — adapter contract research
+- **TinyCUA Design Docs**: `src/tinycua/docs/design/` — target architecture documentation
+- **Docker Best Practices**: [Dockerfile reference](https://docs.docker.com/engine/reference/builder/) (accessed 2026-06-14)
+- **WildClawBench Container Requirements**: [WildClawBench documentation](https://github.com/InternLM/WildClawBench) (accessed 2026-06-14)
+- **Existing Docker Configuration**: `src/tinycua-backend/docker-compose.yml` — reference for Docker conventions

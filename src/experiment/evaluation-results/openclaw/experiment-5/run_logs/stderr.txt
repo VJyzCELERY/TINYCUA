@@ -1,0 +1,6 @@
+ Container experiment-searxng-1 Running 
+ Container experiment-openclaw-run-e528c5057a96 Creating 
+ Container experiment-openclaw-run-e528c5057a96 Created 
+[tools] tool_describe failed: Unknown tool id: diagram-maker raw_params={"id":"diagram-maker"}
+[tools] tool_call failed: proposal_content required raw_params={"id":"openclaw:core:skill_workshop","args":{"action":"create","name":"neural-networks-transformers-study-guide.md"}}
+[tools] tool_call failed: proposal_content required raw_params={"id":"openclaw:core:skill_workshop","args":{"action":"create","name":"transformer-architecture-diagram.svg"}}

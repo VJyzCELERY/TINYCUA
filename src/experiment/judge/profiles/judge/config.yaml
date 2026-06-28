@@ -1,0 +1,152 @@
+# Judge profile — minimal config, no custom skills or tooling.
+# Model/provider set during `hermes setup model` (persists in Docker volume).
+
+model:
+  default: ''
+  provider: ''
+  api_mode: chat_completions
+  base_url: ''
+providers: {}
+fallback_providers: []
+credential_pool_strategies: {}
+
+toolsets:
+  - hermes-cli
+
+agent:
+  max_turns: 9999
+  gateway_timeout: 1800
+  restart_drain_timeout: 180
+  api_max_retries: 3
+  service_tier: ''
+  tool_use_enforcement: auto
+  gateway_timeout_warning: 900
+  clarify_timeout: 600
+  gateway_notify_interval: 180
+  gateway_auto_continue_freshness: 3600
+  image_input_mode: auto
+  disabled_toolsets:
+    - delegation
+    - memory
+    - cronjob
+    - clarify
+    - session_search
+    - tts
+    - image_gen
+    - video
+    - video_gen
+    - kanban
+    - computer_use
+  verbose: false
+  reasoning_effort: high
+  personalities: {}
+
+terminal:
+  backend: local
+  modal_mode: auto
+  cwd: .
+  timeout: 180
+  env_passthrough: []
+  shell_init_files: []
+  auto_source_bashrc: true
+  persistent_shell: false
+  lifetime_seconds: 300
+
+web:
+  backend: searxng
+  search_backend: ''
+  extract_backend: ''
+  use_gateway: false
+
+browser:
+  inactivity_timeout: 120
+  command_timeout: 30
+  record_sessions: false
+  allow_private_urls: false
+  engine: auto
+  auto_local_for_private_urls: true
+  cdp_url: ''
+  dialog_policy: must_respond
+  dialog_timeout_s: 300
+  cloud_provider: local
+  use_gateway: false
+
+checkpoints:
+  enabled: false
+
+file_read_max_chars: 100000
+
+tool_output:
+  max_bytes: 50000
+  max_lines: 2000
+  max_line_length: 2000
+
+tool_loop_guardrails:
+  warnings_enabled: true
+  hard_stop_enabled: false
+  warn_after:
+    exact_failure: 2
+    same_tool_failure: 3
+    idempotent_no_progress: 2
+  hard_stop_after:
+    exact_failure: 5
+    same_tool_failure: 8
+    idempotent_no_progress: 5
+
+compression:
+  enabled: true
+  threshold: 0.7
+  target_ratio: 0.2
+  protect_last_n: 20
+  hygiene_hard_message_limit: 400
+  protect_first_n: 3
+  abort_on_summary_failure: false
+
+memory:
+  memory_enabled: false
+  user_profile_enabled: false
+
+delegation:
+  model: ''
+  provider: ''
+  max_iterations: 50
+  child_timeout_seconds: 600
+  max_concurrent_children: 3
+  max_spawn_depth: 1
+  orchestrator_enabled: false
+
+skills:
+  external_dirs: []
+  template_vars: true
+  inline_shell: false
+  inline_shell_timeout: 10
+  guard_agent_created: false
+  creation_nudge_interval: 15
+  disabled: []
+
+code_execution:
+  mode: project
+  timeout: 300
+  max_tool_calls: 50
+
+logging:
+  level: INFO
+  max_size_mb: 5
+  backup_count: 3
+
+display:
+  compact: false
+  personality: default
+  show_reasoning: false
+  streaming: true
+  timestamps: false
+  final_response_markdown: strip
+
+platform_toolsets:
+  cli:
+    - browser
+    - file
+    - terminal
+    - web
+
+_config_version: 23
