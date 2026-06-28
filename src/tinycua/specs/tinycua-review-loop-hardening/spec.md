@@ -46,6 +46,14 @@
     a task that was never executed, and `record_result` auto-transitions
     any task PENDING → IN_PROGRESS (even non-active ones), so the
     prerequisite status is silently advanced for out-of-order tasks too.
+  - **Stream-path provider errors kill the process.** Experiments 2, 3,
+    and 5 all failed with `Agent error: [0] OpenAI Chat Completions API
+    stream error:` — LM Studio dropped the SSE stream mid-response.
+    The sync path has FR-086 catch-and-retry (`_call_llm_with_provider_retry`),
+    but the stream path (`_stream_llm_node_events` → `_collect_stream_events`)
+    calls `_call_agent_llm` directly with no retry wrapper. A single
+    stream drop crashes the whole experiment. The error message was
+    empty (`str(exc)` was `""`), giving no diagnostic signal.
   - **Trade-off to watch (deferred).** Experiment-2 sourcing regressed
     (20 → 4 source links in `report.md`) as reviewer pressure dropped
     (old: 11 `needs_revision` + 1 `rejected`; new: 2 `needs_revision`).
@@ -123,6 +131,10 @@ and cannot flip-flop internally.
 8. **Given** a non-active task in PENDING status, **When** `record_result`
    is called on it, **Then** the result is attached but the task stays
    PENDING (not auto-transitioned to IN_PROGRESS).
+9. **Given** a stream path LLM call that raises `ProviderApiError` on the
+   first attempt, **When** `_stream_llm_node_events` catches it, **Then**
+   it force-compacts, clears partial stream state, and retries; on the
+   second attempt the stream succeeds and the node completes.
 
 ### Edge Cases
 
@@ -154,6 +166,13 @@ and cannot flip-flop internally.
   a task with a recorded result can still be approved (the sibling-
   propagation case). This is intentional — the result exists because
   work was done, even if out of order.
+- What if a stream error occurs after some events were already yielded?
+  The partial `content_parts` and `collected_tool_calls` are cleared on
+  retry — the consumer sees a brief pause in events, then the stream
+  restarts. The partial data is garbage (the stream was incomplete).
+- What if `asyncio.CancelledError` is raised during streaming? It is
+  re-raised immediately without retry — cancellation is intentional, not
+  a recoverable provider error.
 
 ---
 
@@ -210,6 +229,18 @@ and cannot flip-flop internally.
   sibling becomes active (after the current task is approved),
   `schedule_next` sees the result and skips the executor (review-only).
 
+- **FR-6**: The stream path (`_stream_llm_node_events`) MUST catch provider
+  errors (any non-cancel `Exception` raised during `_collect_stream_events`),
+  force-compact `session_context`, clear partial stream state
+  (`content_parts`, `collected_tool_calls`), and retry the stream up to
+  `_MAX_PROVIDER_RETRIES` times. `asyncio.CancelledError` and
+  `KeyboardInterrupt` MUST be re-raised immediately without retry. After
+  exhaustion, the error event MUST be emitted and the exception re-raised
+  (same crash behavior as today, but only after retry attempts). The error
+  handler (`_handle_run_exception`) MUST log `repr(exc)` and `exc.__cause__`
+  to stderr and the structured log — not just `str(exc)`, which can be
+  empty for stream errors.
+
 ### Key Entities _(include if feature involves data)_
 
 - **`reviewer_decisions` audit trail** (existing, on `Task`): unchanged in
@@ -241,6 +272,10 @@ and cannot flip-flop internally.
 - [ ] **Non-active tasks don't auto-transition**: `record_result` on a
   non-active PENDING task keeps it PENDING (result attached, status
   unchanged); the active task still auto-transitions to IN_PROGRESS.
+- [ ] **Stream errors retry**: a `ProviderApiError` during streaming
+  force-compacts and retries up to `_MAX_PROVIDER_RETRIES` times; only
+  after exhaustion does the process crash. `CancelledError` is re-raised
+  immediately. The error log includes `repr(exc)` and `exc.__cause__`.
 - [ ] **No regression on simple tasks**: Experiment-3 and Experiment-5
   patterns (reviewer approves cleanly, 6/6 and 11/11) still pass with the
   new threshold and validator.
@@ -297,6 +332,7 @@ and cannot flip-flop internally.
 | FR-3 list_files tree format | TODO | formatter change in `files.py` |
 | FR-4 read_file fuzzy suggestion | TODO | not-found path in `files.py` |
 | FR-5 prevent task skipping | TODO | guards in `task.py` |
+| FR-6 stream-path provider retry | TODO | except block in `orchestration_mixin.py` + logging in `run.py` |
 
 ---
 
@@ -362,3 +398,11 @@ lazy retry was *not* enabled in these runs — `recovery_strategy="standard"`):
   doubled-path stripping works (only 1 slipped through in Exp4). Replan
   cap machinery fires correctly. Exp3 (584→283s) and Exp5 (3004→2409s)
   improved because they don't hit the churn pathology.
+- **Exp2/3/5 stream-error crashes**: all three failed with
+  `Agent error: [0] OpenAI Chat Completions API stream error:` (empty
+  message). Each had exactly 1 stream error that killed the process.
+  Zero `provider_error_retry` warnings — the stream path bypasses FR-086
+  retry. The error always happened when the reviewer was about to emit a
+  `task_review_decision` tool call (heavy generation step). Source:
+  `experiment-{2,3,5}/logs/stderr.log` last line,
+  `experiment-{2,3,5}/logs/stdout.log` `node-error` line.

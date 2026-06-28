@@ -41,6 +41,8 @@ Implementation tasks for TINYCUA Review-Loop Hardening. Check off items as compl
   - [ ] Never suggest the workspace root as a file
 - [ ] FR-5a: add PENDING-leaf approval guard in `record_reviewer_decision` (task.py) — raise ValueError when result is None and status is PENDING <!-- id: 14a -->
 - [ ] FR-5b: gate `record_result` auto-transition to active task only (task.py) — non-active tasks keep PENDING/FAILED status <!-- id: 14b -->
+- [ ] FR-6: restructure except block in `_stream_llm_node_events` (orchestration_mixin.py) — catch provider errors, force-compact, clear partial state, retry <!-- id: 14c -->
+- [ ] FR-6: improve error logging in `_handle_run_exception` (run.py) — log `repr(exc)` and `exc.__cause__` <!-- id: 14d -->
 
 ## Testing Phase
 

@@ -58,6 +58,8 @@ zero-exit guarantee.
 | `tinycua.agent.tools.native.context` | Unchanged | `resolve_workspace_path` already handles doubled-prefix/re-rooting; no change. |
 | `tinycua.models.task.TaskStateStore.record_reviewer_decision` | Modified | FR-5a: raise `ValueError` on `approved` for PENDING leaf with no result/no children. |
 | `tinycua.models.task.TaskStateStore.record_result` | Modified | FR-5b: only auto-transition the active task PENDING/FAILED → IN_PROGRESS; non-active tasks keep their status. |
+| `tinycua.loops.orchestration_mixin._stream_llm_node_events` | Modified | FR-6: restructure except block to catch provider errors, force-compact, clear partial state, and retry. |
+| `tinycua.cli.run._handle_run_exception` | Modified | FR-6: log `repr(exc)` and `exc.__cause__` instead of just `str(exc)`. |
 
 ---
 
@@ -156,6 +158,7 @@ def _validate_result_reviewer_single_decision(
 | `list_files` empty workspace | `[]` or empty tree string | No crash. |
 | Reviewer approves PENDING leaf (no result, no children) | `ValueError("Cannot approve a task that was never executed ...")` → `TaskReviewDecisionTool` returns `{"success": False, "error": "..."}` | Task stays PENDING; no fake result. |
 | `record_result` on non-active PENDING task | Result attached, status stays PENDING | New legal state: PENDING + has_result. `schedule_next` checks `result is not None`, not `status == IN_PROGRESS`. |
+| Stream-path `ProviderApiError` (SSE dropped) | Catch → force-compact → clear partial state → retry (up to `_MAX_PROVIDER_RETRIES=3`) | After exhaustion: emit error event + re-raise (same crash behavior as today). `CancelledError` re-raised immediately. |
 
 ---
 
@@ -171,6 +174,7 @@ def _validate_result_reviewer_single_decision(
 - [ ] FR-4: add closest-match suggestion to `read_file` not-found path.
 - [ ] FR-5a: add PENDING-leaf approval guard in `record_reviewer_decision`.
 - [ ] FR-5b: gate `record_result` auto-transition to the active task only.
+- [ ] FR-6: restructure except block in `_stream_llm_node_events` + improve error logging in `_handle_run_exception`.
 - [ ] Unit tests for all (per spec Testing Plan).
 - [ ] Integration tests: loop-convergence and no-flip-flop.
 
@@ -237,7 +241,26 @@ explicitly out of scope and belong to a separate future spec.
      `task_update` status-flip abuse is a separate, lesser concern that
      didn't cause the task-skipping bug). Guard at the `_ALLOWED_TRANSITIONS`
      level — rejected as too broad (PENDING → IN_PROGRESS is a valid
-     transition that the executor needs).
+      transition that the executor needs).
+
+6. **Decision**: Restructure the except block in `_stream_llm_node_events`
+   to catch provider errors, force-compact, clear partial stream state,
+   and retry (up to `_MAX_PROVIDER_RETRIES`).
+   - **Reason**: the stream path (which tinycua always uses — even
+     `stream=False` internally drains a stream) calls `_call_agent_llm`
+     directly in `_collect_stream_events` with no retry wrapper. The sync
+     path has `_call_llm_with_provider_retry` (FR-086); the stream path
+     does not. A single SSE stream drop from LM Studio crashes the whole
+     experiment. Restructuring the except block at the `_stream_llm_node_events`
+     level (rather than inside `_collect_stream_events`) lets us clear the
+     partial `content_parts`/`collected_tool_calls` and rebuild
+     `attempt_messages` after compaction before retrying the stream.
+   - **Alternatives Considered**: Wrap `_call_agent_llm` inside
+     `_collect_stream_events` — rejected because partial events may have
+     already been yielded to the consumer before the error; the retry
+     needs to clear stale state at the caller level. Move retry into the
+     SDK — rejected because tinycua owns the task-loop retry semantics
+     (compaction, attempt messages).
 
 ---
 
@@ -252,6 +275,8 @@ explicitly out of scope and belong to a separate future spec.
 | Existing tests assert `replan_threshold=5` | Med | Low | Update those tests in the same PR; the default change is intentional, not a silent break. |
 | FR-5b introduces PENDING+result state for non-active tasks | Low | Low | `schedule_next` checks `result is not None`, not `status == IN_PROGRESS`; the rollback path handles PENDING explicitly. `test_executor_reports_sibling_result_skips_executor` is the regression guard. |
 | FR-5a guard breaks a test that approves a never-dispatched PENDING leaf | Med | Low | `test_experiment_bugfixes.py::test_leaf_task_auto_generates_result` encoded the bug as desired behavior; update it to transition IN_PROGRESS first (simulating executor pickup). |
+| FR-6 stream retry clears partial events already yielded to consumer | Low | Low | The partial data is garbage (stream was incomplete); clearing prevents stale content. Consumer sees a brief pause in events, then stream restarts. |
+| FR-6 retry with compaction is unnecessary for pure network drops | Low | Low | Compaction is cheap (no-op when no strategy or too few entries); consistent with sync path. Skip-compact-on-first-retry adds complexity for marginal gain. |
 
 ---
 
@@ -283,5 +308,7 @@ explicitly out of scope and belong to a separate future spec.
   `src/tinycua/tinycua/loops/validation_retry_mixin.py` (FR-2),
   `src/tinycua/tinycua/agent/tools/native/files.py` (FR-3, FR-4),
   `src/tinycua/tinycua/models/task.py` (FR-5a, FR-5b),
+  `src/tinycua/tinycua/loops/orchestration_mixin.py` (FR-6),
+  `src/tinycua/tinycua/cli/run.py` (FR-6),
   `src/tinycua/tinycua/agent/tools/native/context.py` (unchanged,
   referenced for path resolution)
