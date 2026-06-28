@@ -1,0 +1,1 @@
+Can you search the current latest and best frontier LLM model and how good are they? Write your findings down on a report.md

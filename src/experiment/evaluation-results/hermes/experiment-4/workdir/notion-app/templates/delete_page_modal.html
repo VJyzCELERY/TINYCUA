@@ -1,0 +1,30 @@
+<div class="modal-overlay" id="deletePageModal">
+    <div class="modal">
+        <h2>Delete Page?</h2>
+        <p style="margin-bottom: 16px;">This will delete all content on this page.</p>
+        <button class="btn btn-secondary" onclick="confirmDelete()">Yes, Delete</button>
+        <button class="btn" onclick="document.getElementById('deletePageModal').style.display='none'">Cancel</button>
+    </div>
+</div>
+
+<div class="modal-overlay" id="commentModal">
+    <div class="modal">
+        <h2>Add a comment</h2>
+        <textarea class="modal-input" placeholder="Write your comment..." id="commentInput"></textarea>
+        <div style="margin-top: 16px; display: flex;">
+            <button class="btn btn-secondary" onclick="postComment()">Post Comment</button>
+            <button class="btn" onclick="document.getElementById('commentModal').style.display='none'">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<div class="toolbar">
+    <button class="btn" onclick="showCreatePageModal()" title="New Page (Ctrl/Cmd+Enter)">+</button>
+    <input type="text" placeholder="Search..." style="padding: 8px; border-radius: 6px; border: none;" id="searchInput">
+</div>
+
+<div class="editor-container" id="editor"></div>
+
+<link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+<script src="/static/js/app.js"></script>
+<script src="/static/js/editor_blocks.js"></script>

@@ -1,0 +1,1 @@
+Make me a simple analog clock app with animation in a single HTML file

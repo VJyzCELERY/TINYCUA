@@ -1,0 +1,24 @@
+ Container experiment-searxng-1 Running 
+ Container experiment-tinycua-run-1605ea42967f Creating 
+ Container experiment-tinycua-run-1605ea42967f Created 
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.node:node=query_analyst record_output content_len=0
+INFO:tinycua.loops.query_analyst:QueryAnalyst routed to 'passthrough' — no action taken
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.node:node=response record_output content_len=34
+Agent completed in 4.5s
+=== NODE TRAVERSAL ===
+query_analyst
+response
+
+=== TRACE ===
+[1] query_analyst (TinyCUAQueryAnalystNode) route=passthrough terminal=False
+
+[2] response (ResponseNode) route=None terminal=True
+
+=== FINAL RESPONSE ===
+Hello! 👋 How can I help you today?
+=== TASK TREE ===
+No tasks.
+
+=== WORKSPACE FILES ===

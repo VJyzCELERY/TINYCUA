@@ -64,11 +64,11 @@ flowchart TD
     NEXT{"Decision"}
     UPDATE["Consolidate unfinished/upcoming task contexts"]
     REMAIN{"Remaining unfinished tasks?"}
-    RETRY["Create new Executor with failure recorded in task context"]
+    REVISE["Send back for revision with failure recorded in task context"]
     REPLAN["Call Task Analyzer\nto decompose current task"]
     TA["Task Analyzer\n(ReAct, no branching)"]
-    FAIL["Agent stays active — open question for HITL"]
-    AGG["Aggregate accepted results"]
+    RECOVER["Recovery + re-entry\n(per-method budgets, FR-060/063)"]
+    AGG["Aggregate approved results"]
     WR{{"Worker Result"}}
 
     DI --> TCR
@@ -81,16 +81,16 @@ flowchart TD
     TL -. "shallow list" .-> RV
     RV --> DEC
     DEC --> NEXT
-    NEXT -->|accepted| UPDATE
+    NEXT -->|approved| UPDATE
     UPDATE --> REMAIN
     REMAIN -->|Yes| PICK
     REMAIN -->|No| AGG
-    NEXT -->|retry| RETRY
-    RETRY --> TE
+    NEXT -->|needs_revision / rejected| REVISE
+    REVISE --> RECOVER
+    RECOVER --> TE
     NEXT -->|replan| REPLAN
     REPLAN --> TA
     TA -. "updates" .-> TL
-    NEXT -->|failure threshold reached| FAIL
     AGG --> WR
 ```
 
@@ -118,19 +118,28 @@ This prevents a clarification turn from accidentally restarting the whole reques
 
 ## Repeated Failure Rule
 
-The Worker tracks an aggregated failure counter. Failures from child sessions roll up to the parent (parent.failure += child.failure). Any task success resets the counter to zero.
+The Worker uses a structured recovery model (FR-060 / FR-063) instead of a single
+aggregated failure counter that escalates to HITL:
 
-When the failure threshold is reached, the Worker does not produce a terminal decision — the agent stays active with an open question, ready for human-in-the-loop interaction through passthrough routing. See [result-reviewer.md](result-reviewer.md) for the failure counter mechanism.
+- Per-method budgets: 15 structured + 10 focused + 3 judge retries = 30 total per task.
+- Partial results and `accumulated_tool_results` persist across re-entries.
+- A no-progress guard halts re-entry when no new information has been produced.
+- Same-error guard (FR-078): the same error 3× forces an alternative action.
 
-The Worker only terminates successfully when the final unfinished task is accepted and no remaining unfinished tasks exist. If the final task is retried, replanned, or decomposed into new tasks, the Worker continues.
+When a budget is exhausted or the no-progress guard fires, the Worker does not produce a
+terminal decision — the agent stays active, ready for human-in-the-loop interaction
+through passthrough routing. See [result-reviewer.md](result-reviewer.md) for the
+recovery model details.
+
+The Worker only terminates successfully when the final unfinished task is approved and no remaining unfinished tasks exist. If the final task is sent back for revision, replanned, or decomposed into new tasks, the Worker continues.
 
 ---
 
 ## Worker Result
 
-The Worker Result aggregates accepted task outputs for the Primary Agent to synthesize into a final response. See [state-objects.md](state-objects.md) for the canonical schema.
+The Worker Result aggregates approved task outputs for the Primary Agent to synthesize into a final response. See [state-objects.md](state-objects.md) for the canonical schema.
 
-The Worker Result should contain only accepted task outputs and enough provenance for the Primary Agent to synthesize a final answer without bypassing Worker guarantees.
+The Worker Result should contain only approved task outputs and enough provenance for the Primary Agent to synthesize a final answer without bypassing Worker guarantees.
 
 ---
 

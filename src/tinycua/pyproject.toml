@@ -10,6 +10,7 @@ dependencies = [
     "prompt-toolkit>=3.0.0",
     "httpx>=0.27.0",
     "python-dotenv>=1.0.0",
+    "html2text>=2024.2.26",
 ]
 
 [tool.uv.sources]
@@ -65,10 +66,12 @@ dev = [
     "pytest-cov>=4.1.0",
     "pytest-asyncio>=0.23.0",
     "pytest-httpx>=0.30.0",
+    "pytest-timeout>=2.2.0",
     "ruff>=0.3.0",
     "mypy>=1.8.0",
     "radon>=6.0.0",
     "python-dotenv>=1.0.0",
+    "jupyter>=1.1.1",
 ]
 
 [tool.pytest.ini_options]
@@ -77,8 +80,15 @@ asyncio_mode = "auto"
 addopts = "--strict-markers --disable-warnings --maxfail=2"
 markers = [
     "integration: marks tests as requiring local LLM server",
+    "live_llm: marks opt-in live LLM contract tests",
     "lm_studio: marks tests requiring LM Studio / local LLM provider",
+    "slow: marks tests as slow (e.g., Docker build, image inspect)",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning:httpx.*",
 ]
+
+[tool.mypy]
+[[tool.mypy.overrides]]
+module = "tinycua_sdk.*"
+ignore_missing_imports = true

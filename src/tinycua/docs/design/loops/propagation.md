@@ -10,7 +10,7 @@ Propagation controls what crosses node/session boundaries. It preserves the usef
 
 ```text
 PropagationRule
-  · chat_history: none | parent | root
+  · chat_history: none | parent | root | parent_and_root
   · session_context_target: none | parent | root | parent_and_root
   · session_context_mode: none | final | full | selected
   · token_usage: none | parent | root | parent_and_root
@@ -20,12 +20,12 @@ PropagationRule
 
 ## Profiles
 
-| Profile | chat_history | session_context_target | session_context_mode | token_usage | failure |
-|---------|--------------|------------------------|----------------------|-------------|---------|
-| transient_legacy | parent_and_root | none | none | parent_and_root | parent_and_root |
-| natural_termination_legacy | parent_and_root | parent_and_root | final | parent_and_root | parent_and_root |
-| mid_progress_legacy | parent_and_root | parent_and_root | full | parent_and_root | parent_and_root |
-| selected_internal_output | root | root | selected | root | root |
+| Profile | chat_history | session_context_target | session_context_mode | token_usage | failure | dedupe |
+|---------|--------------|------------------------|----------------------|-------------|---------|--------|
+| transient_legacy | parent_and_root | none | none | parent_and_root | parent_and_root | True |
+| natural_termination_legacy | parent_and_root | parent_and_root | final | parent_and_root | parent_and_root | True |
+| mid_progress_legacy | parent_and_root | parent_and_root | full | parent_and_root | parent_and_root | True |
+| selected_internal_output | root | root | selected | root | root | True |
 
 ## Segmented Session Context Model
 
@@ -47,10 +47,12 @@ on node termination:
 Records carry segment metadata so implementation does not rely on index slicing:
 
 ```text
-ChatRecord / SessionContextEntry
+SessionContextEntry (standalone dataclass)
+  · record_id: str
+  · content: str | dict | list[dict]
   · segment: Literal["prior", "input", "output"]
   · origin_record_id: str | None
-  - source_node_id: str | None
+  · source_node_id: str | None
   · source_session_id: str | None
   · created_seq: int
 ```

@@ -1,0 +1,14 @@
+ Container experiment-searxng-1 Running 
+ Container experiment-openclaw-run-6ca9ff0ba4b4 Creating 
+ Container experiment-openclaw-run-6ca9ff0ba4b4 Created 
+[tools] tool_describe failed: Unknown tool id: openclaw:core:create_file raw_params={"id":"openclaw:core:create_file"}
+Subagent announce failed: GatewayCredentialsRequiredError: gateway chat.history requires credentials before opening a websocket
+Fix: configure gateway.auth token/password, pair this device, or pass --token/--password.
+Config: /root/.openclaw/openclaw.json
+Subagent announce failed: GatewayCredentialsRequiredError: gateway chat.history requires credentials before opening a websocket
+Fix: configure gateway.auth token/password, pair this device, or pass --token/--password.
+Config: /root/.openclaw/openclaw.json
+[tools] tool_call failed: Unknown tool id: mkdir raw_params={"id":"mkdir","args":{"path":"app"}}
+[tools] tool_call failed: Unknown tool id: openclaw:core:create_file raw_params={"id":"openclaw:core:create_file","args":{"path":"requirements.txt","content":"# Notion-like App Dependencies\n# Core Framework\nfastapi==0.115.4\nuvicorn[standard]==0.32.0\npython-multipart==0.0.17\npydantic[email]==2.10.6\nsqlalchemy[asyncio]==2.0.36\naiosqlite==0.20.0\n\n# Authentication & Security\npasslib[bcrypt]==1.7.4\npython-jose[cryptography]==3.3.0\npython-dotenv==1.0.1\n\n# Utilities\ndateparser==1.2.0\npytz==2024.2"}}
+[diagnostic] wait timeout: sessionId=f9862db0-ff7f-4780-947b-5a97fd0c0a62 timeoutMs=120000
+[tools] tool_call failed: agent=main node=auto gateway=default action=describe: node required raw_params={"id":"openclaw:core:nodes","args":{"action":"describe"}}

@@ -1,0 +1,213 @@
+/* TipTap Editor Container */
+.tipTap-editor-container {
+  position: relative;
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.tiptap-content {
+  min-height: 200px;
+  padding: 1rem;
+  border-radius: 6px;
+  background-color: white;
+  color: #37352f;
+  font-size: 16px;
+  line-height: 1.6;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Action toolbar styling */
+.action-toolbar {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background-color: #f8f9fa;
+  border-radius: 6px;
+  margin-top: 0.5rem;
+  align-items: center;
+}
+
+.toolbar-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 4px;
+  background-color: #e9ecef;
+  color: #6c757d;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.toolbar-action:hover {
+  background-color: #dee2e6;
+  color: #37352f;
+}
+
+.toolbar-action:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.25);
+}
+
+/* Undo/Redo buttons specific styling */
+.undo-btn:hover,
+.redo-btn:hover {
+  background-color: #6c757d;
+  color: white;
+}
+
+.clear-btn:hover {
+  background-color: #dc3545;
+  color: white;
+}
+
+/* Loading state */
+.loading-spinner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+  font-size: 18px;
+  color: #6c757d;
+}
+
+/* Error message styling */
+.error-message {
+  padding: 1rem;
+  background-color: #f8d7da;
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+  color: #721c24;
+}
+
+.retry-button {
+  padding: 0.5rem 1rem;
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.retry-button:hover {
+  background-color: #5a6268;
+}
+
+/* Empty state styling */
+.document-view.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  text-align: center;
+}
+
+.document-view.empty-state h2 {
+  margin-bottom: 1rem;
+  color: #37352f;
+}
+
+.document-view.empty-state p {
+  color: #6c757d;
+  margin-bottom: 1.5rem;
+}
+
+/* Block delete action */
+.action-delete {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  font-size: 12px;
+}
+
+.noteion-block:hover .action-delete {
+  opacity: 1;
+}
+
+.action-delete:hover {
+  background-color: #c82333;
+}
+
+/* Notion-style block styling */
+.noteion-block {
+  padding: 0.5rem;
+  margin-bottom: 0.5rem;
+  border-radius: 4px;
+  cursor: text;
+  transition: background-color 0.2s ease;
+}
+
+.noteion-block:hover {
+  background-color: #f8f9fa;
+}
+
+.noteion-heading {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #37352f;
+}
+
+.noteion-code-block {
+  padding: 1rem;
+  background-color: #2d2d2d;
+  border-radius: 4px;
+  margin: 0.5rem 0;
+}
+
+.noteion-code-block pre,
+.noteion-code-block code {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #f8f8f2;
+}
+
+.noteion-bullet-list {
+  margin: 0;
+  padding-left: 1.5rem;
+}
+
+.noteion-bullet-list li {
+  list-style-type: disc;
+  margin-bottom: 0.25rem;
+  color: #37352f;
+}
+
+.noteion-image-block {
+  text-align: center;
+  padding: 1rem;
+}
+
+.noteion-image-block img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .tipTap-editor-container {
+    width: 95%;
+  }
+  
+  .action-toolbar {
+    flex-wrap: wrap;
+  }
+}

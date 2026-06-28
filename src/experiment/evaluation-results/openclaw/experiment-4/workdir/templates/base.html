@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en" class="">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}{{ APP_NAME }}{% endblock %}</title>
+  
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="/static/css/styles.css">
+  <link rel="stylesheet" href="/static/css/sidebar.css">
+  <link rel="stylesheet" href="/static/css/editor.css">
+
+  {% block head %}{% endblock %}
+</head>
+<body class="{% if dark_mode %}dark{% endif %}">
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="workspace-switcher">
+      <span class="workspace-switcher-label">Workspaces</span>
+      <nav class="workspace-list" id="workspace-nav"></nav>
+    </div>
+    
+    <!-- Sidebar footer (collapsed state) -->
+    <footer class="sidebar-footer">
+      <button class="theme-toggle-btn" id="theme-toggle" aria-label="Toggle dark mode">🌙</button>
+      <span style="display:block;font-size:12px;color:#808080;margin-top:4px;">v1.0.0</span>
+    </footer>
+  </aside>
+
+  <!-- Main Content Area -->
+  <main class="main-content">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Footer with page info (hidden by default, shown for pages) -->
+  <footer id="page-footer" style="position:fixed;bottom:0;left:260px;right:0;padding:8px 16px;border-top:1px solid var(--border-color);background:var(--bg-secondary);display:none;font-size:12px;color:var(--text-secondary);">No preview available</footer>
+
+  <!-- JavaScript -->
+  <script src="/static/js/app.js"></script>
+  <script src="/static/js/editor.js"></script>
+  <script src="/static/js/blocks.js"></script>
+  <script src="/static/js/ui/modals.js"></script>
+  <script src="/static/js/ui/dropdowns.js"></script>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>
