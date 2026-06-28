@@ -1164,30 +1164,35 @@ class TinyCUALoop(
         reasoning_parts: list[str] = []
         tool_calls: list[dict[str, Any]] = []
         metadata: dict[str, Any] = {}
-        async for event in stream_result:
-            event_type = event.get("type") if isinstance(event, dict) else None
-            if event_type == "response.output_text.delta":
-                content_parts.append(str(event.get("delta", "")))
-            elif event_type == "response.reasoning.delta":
-                # Reasoning model coherency (Qwen3/DeepSeek/etc.): accumulate
-                # the thinking trace so it can be re-injected as
-                # reasoning_content on the next turn's assistant message.
-                reasoning_parts.append(str(event.get("delta", "")))
-            elif event_type == "response.tool_call":
-                tool_calls.append(event)
-            elif event_type == "tool_call.ready":
-                tool_calls.append(
-                    {
-                        "id": event.get("id") or event.get("call_id"),
-                        "type": "function",
-                        "function": {
-                            "name": event.get("name", ""),
-                            "arguments": event.get("arguments", "{}"),
-                        },
-                    }
-                )
-            elif event_type == "response.usage":
-                metadata["usage"] = event.get("usage")
+        try:
+            async for event in stream_result:
+                event_type = event.get("type") if isinstance(event, dict) else None
+                if event_type == "response.output_text.delta":
+                    content_parts.append(str(event.get("delta", "")))
+                elif event_type == "response.reasoning.delta":
+                    # Reasoning model coherency (Qwen3/DeepSeek/etc.): accumulate
+                    # the thinking trace so it can be re-injected as
+                    # reasoning_content on the next turn's assistant message.
+                    reasoning_parts.append(str(event.get("delta", "")))
+                elif event_type == "response.tool_call":
+                    tool_calls.append(event)
+                elif event_type == "tool_call.ready":
+                    tool_calls.append(
+                        {
+                            "id": event.get("id") or event.get("call_id"),
+                            "type": "function",
+                            "function": {
+                                "name": event.get("name", ""),
+                                "arguments": event.get("arguments", "{}"),
+                            },
+                        }
+                    )
+                elif event_type == "response.usage":
+                    metadata["usage"] = event.get("usage")
+        finally:
+            # FR-7: close the stream to release the httpx connection.
+            if hasattr(stream_result, "aclose"):
+                await stream_result.aclose()
         result = {
             "role": "assistant",
             "content": "".join(content_parts),
@@ -1258,25 +1263,45 @@ class TinyCUALoop(
         _watchdog_seconds = 120     # max seconds per LLM call without tool/finish
         _delta_count = 0
         _stream_start = _time.monotonic()
-        async for event in self._iter_stream_result_events(stream_result):
-            event_type = event.get("type", "")
-            # Time watchdog — cut if stuck for too long.
-            if _time.monotonic() - _stream_start > _watchdog_seconds:
-                break
-            if event_type == "response.output_text.delta":
-                delta_text = str(event.get("delta", ""))
-                if node.is_terminal:
+        try:
+            async for event in self._iter_stream_result_events(stream_result):
+                event_type = event.get("type", "")
+                # Time watchdog — cut if stuck for too long.
+                if _time.monotonic() - _stream_start > _watchdog_seconds:
+                    break
+                if event_type == "response.output_text.delta":
+                    delta_text = str(event.get("delta", ""))
+                    if node.is_terminal:
+                        content_parts.append(delta_text)
+                        continue
                     content_parts.append(delta_text)
+                    _delta_count += 1
+                    # Periodically check for degenerate repetition.
+                    if _delta_count % _rep_check_interval == 0:
+                        full_content = "".join(content_parts)
+                        if len(full_content) > _rep_max_content:
+                            full_content = full_content[-_rep_max_content:]
+                        if _detect_repetition(full_content, _rep_min_block, _rep_threshold):
+                            break
+                    transcript = self._handle_stream_event(
+                        node,
+                        event,
+                        content_parts,
+                        collected_tool_calls,
+                    )
+                    enriched = self._enrich_and_yield(
+                        event,
+                        include_meta,
+                        node.node_id,
+                        node_type,
+                        attempt,
+                    )
+                    if not final_only or node.is_terminal:
+                        yield enriched
+                        if transcript is not None:
+                            yield transcript
                     continue
-                content_parts.append(delta_text)
-                _delta_count += 1
-                # Periodically check for degenerate repetition.
-                if _delta_count % _rep_check_interval == 0:
-                    full_content = "".join(content_parts)
-                    if len(full_content) > _rep_max_content:
-                        full_content = full_content[-_rep_max_content:]
-                    if _detect_repetition(full_content, _rep_min_block, _rep_threshold):
-                        break
+                # Non-delta events
                 transcript = self._handle_stream_event(
                     node,
                     event,
@@ -1294,25 +1319,11 @@ class TinyCUALoop(
                     yield enriched
                     if transcript is not None:
                         yield transcript
-                continue
-            # Non-delta events
-            transcript = self._handle_stream_event(
-                node,
-                event,
-                content_parts,
-                collected_tool_calls,
-            )
-            enriched = self._enrich_and_yield(
-                event,
-                include_meta,
-                node.node_id,
-                node_type,
-                attempt,
-            )
-            if not final_only or node.is_terminal:
-                yield enriched
-                if transcript is not None:
-                    yield transcript
+        finally:
+            # FR-7: close the stream to release the httpx connection.
+            # Covers break (watchdog/repetition) and exceptions (FR-6 retry).
+            if hasattr(stream_result, "aclose"):
+                await stream_result.aclose()
 
     async def _iter_stream_result_events(
         self,

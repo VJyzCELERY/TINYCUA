@@ -54,6 +54,14 @@
     calls `_call_agent_llm` directly with no retry wrapper. A single
     stream drop crashes the whole experiment. The error message was
     empty (`str(exc)` was `""`), giving no diagnostic signal.
+  - **Abandoned SSE streams leak httpx connections.** The SDK's
+    `_chat_stream` did not close the OpenAI `AsyncStream` when the
+    consumer abandoned the generator (e.g., tinycua's
+    `_collect_stream_events` `break` on watchdog/repetition detection,
+    or FR-6 retry). The stale httpx connection leaked back to the pool.
+    The next LLM request reused the stale connection, and LM Studio saw
+    "client disconnects during generation" — the root cause of the
+    exp2/3/5 stream errors.
   - **Trade-off to watch (deferred).** Experiment-2 sourcing regressed
     (20 → 4 source links in `report.md`) as reviewer pressure dropped
     (old: 11 `needs_revision` + 1 `rejected`; new: 2 `needs_revision`).
@@ -135,6 +143,9 @@ and cannot flip-flop internally.
    first attempt, **When** `_stream_llm_node_events` catches it, **Then**
    it force-compacts, clears partial stream state, and retries; on the
    second attempt the stream succeeds and the node completes.
+10. **Given** a stream that is abandoned (watchdog `break` or exception),
+    **When** `_collect_stream_events` exits the drain loop, **Then**
+    `stream_result.aclose()` is called, releasing the httpx connection.
 
 ### Edge Cases
 
@@ -241,6 +252,15 @@ and cannot flip-flop internally.
   to stderr and the structured log — not just `str(exc)`, which can be
   empty for stream errors.
 
+- **FR-7**: The SDK's `_chat_stream` MUST close the OpenAI `AsyncStream`
+  in its `finally` block (`stream.aclose()`). tinycua's
+  `_collect_stream_events` and `_collect_async_stream_result` MUST wrap
+  their stream-drain loops in `try/finally` and call
+  `stream_result.aclose()` when the loop is broken (watchdog/repetition
+  `break`) or an exception occurs (FR-6 retry). This releases the httpx
+  connection cleanly, preventing the "client disconnects during
+  generation" errors observed in exp2/3/5.
+
 ### Key Entities _(include if feature involves data)_
 
 - **`reviewer_decisions` audit trail** (existing, on `Task`): unchanged in
@@ -276,6 +296,10 @@ and cannot flip-flop internally.
   force-compacts and retries up to `_MAX_PROVIDER_RETRIES` times; only
   after exhaustion does the process crash. `CancelledError` is re-raised
   immediately. The error log includes `repr(exc)` and `exc.__cause__`.
+- [ ] **Abandoned streams are closed**: `_collect_stream_events` and
+  `_collect_async_stream_result` call `stream_result.aclose()` on `break`
+  and on exception; the SDK's `_chat_stream` calls `stream.aclose()` in
+  its `finally` block. No "client disconnects during generation" errors.
 - [ ] **No regression on simple tasks**: Experiment-3 and Experiment-5
   patterns (reviewer approves cleanly, 6/6 and 11/11) still pass with the
   new threshold and validator.
@@ -333,6 +357,7 @@ and cannot flip-flop internally.
 | FR-4 read_file fuzzy suggestion | TODO | not-found path in `files.py` |
 | FR-5 prevent task skipping | TODO | guards in `task.py` |
 | FR-6 stream-path provider retry | TODO | except block in `orchestration_mixin.py` + logging in `run.py` |
+| FR-7 close abandoned streams | TODO | `aclose()` in SDK `_chat_stream` + tinycua `_collect_stream_events` |
 
 ---
 

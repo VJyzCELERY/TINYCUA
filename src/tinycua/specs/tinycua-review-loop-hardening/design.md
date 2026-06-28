@@ -60,6 +60,9 @@ zero-exit guarantee.
 | `tinycua.models.task.TaskStateStore.record_result` | Modified | FR-5b: only auto-transition the active task PENDING/FAILED → IN_PROGRESS; non-active tasks keep their status. |
 | `tinycua.loops.orchestration_mixin._stream_llm_node_events` | Modified | FR-6: restructure except block to catch provider errors, force-compact, clear partial state, and retry. |
 | `tinycua.cli.run._handle_run_exception` | Modified | FR-6: log `repr(exc)` and `exc.__cause__` instead of just `str(exc)`. |
+| `tinycua_sdk.providers.open_ai_chat_completions._chat_stream` | Modified | FR-7: close OpenAI `AsyncStream` in `finally` block. |
+| `tinycua.loops.tinycua_loop._collect_stream_events` | Modified | FR-7: `try/finally` + `stream_result.aclose()` on break/exception. |
+| `tinycua.loops.tinycua_loop._collect_async_stream_result` | Modified | FR-7: `try/finally` + `stream_result.aclose()` on exception. |
 
 ---
 
@@ -175,6 +178,7 @@ def _validate_result_reviewer_single_decision(
 - [ ] FR-5a: add PENDING-leaf approval guard in `record_reviewer_decision`.
 - [ ] FR-5b: gate `record_result` auto-transition to the active task only.
 - [ ] FR-6: restructure except block in `_stream_llm_node_events` + improve error logging in `_handle_run_exception`.
+- [ ] FR-7: close abandoned streams in SDK `_chat_stream` + tinycua `_collect_stream_events` / `_collect_async_stream_result`.
 - [ ] Unit tests for all (per spec Testing Plan).
 - [ ] Integration tests: loop-convergence and no-flip-flop.
 
@@ -277,6 +281,7 @@ explicitly out of scope and belong to a separate future spec.
 | FR-5a guard breaks a test that approves a never-dispatched PENDING leaf | Med | Low | `test_experiment_bugfixes.py::test_leaf_task_auto_generates_result` encoded the bug as desired behavior; update it to transition IN_PROGRESS first (simulating executor pickup). |
 | FR-6 stream retry clears partial events already yielded to consumer | Low | Low | The partial data is garbage (stream was incomplete); clearing prevents stale content. Consumer sees a brief pause in events, then stream restarts. |
 | FR-6 retry with compaction is unnecessary for pure network drops | Low | Low | Compaction is cheap (no-op when no strategy or too few entries); consistent with sync path. Skip-compact-on-first-retry adds complexity for marginal gain. |
+| FR-7 aclose on already-exhausted stream is a no-op | Low | None | `aclose()` on an exhausted async generator is harmless (no-op). Defense-in-depth — both SDK and tinycua close. |
 
 ---
 
@@ -310,5 +315,7 @@ explicitly out of scope and belong to a separate future spec.
   `src/tinycua/tinycua/models/task.py` (FR-5a, FR-5b),
   `src/tinycua/tinycua/loops/orchestration_mixin.py` (FR-6),
   `src/tinycua/tinycua/cli/run.py` (FR-6),
+  `src/tinycua-sdk/tinycua_sdk/providers/open_ai_chat_completions.py` (FR-7),
+  `src/tinycua/tinycua/loops/tinycua_loop.py` (FR-7),
   `src/tinycua/tinycua/agent/tools/native/context.py` (unchanged,
   referenced for path resolution)

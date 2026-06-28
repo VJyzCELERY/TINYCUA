@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -190,3 +191,76 @@ class TestStreamProviderErrorRetry:
         # CancelledError must NOT trigger retry — only 1 call.
         assert call_count == 1
         assert not loop._force_compact.called
+
+
+class TestStreamCloseOnAbandon:
+    """FR-7: abandoned streams are closed to release httpx connections."""
+
+    async def test_stream_closed_on_break(self):
+        """_collect_stream_events closes stream_result when the loop breaks."""
+        loop = _make_loop(Session())
+        node = _make_node()
+        node.is_terminal = True  # terminal node: deltas append + continue
+
+        close_called = False
+
+        class FakeStream:
+            def __aiter__(self):
+                return self
+
+            async def __anext__(self):
+                # Yield one delta then stop — the loop breaks on exhaustion.
+                raise StopAsyncIteration
+
+            async def aclose(self):
+                nonlocal close_called
+                close_called = True
+
+        async def fake_call(*args, **kwargs):
+            return FakeStream()
+
+        loop._call_agent_llm = fake_call
+
+        content_parts: list[str] = []
+        collected: list[dict[str, Any]] = []
+        async for _ in loop._collect_stream_events(
+            node, _make_agent(), [], [], content_parts, collected,
+            include_meta=False, final_only=True, node_type="ResponseNode", attempt=1,
+        ):
+            pass
+
+        assert close_called, "stream_result.aclose() must be called on break/exhaustion"
+
+    async def test_stream_closed_on_exception(self):
+        """_collect_stream_events closes stream_result when an exception occurs mid-stream."""
+        loop = _make_loop(Session())
+        node = _make_node()
+
+        close_called = False
+
+        class FakeStream:
+            def __aiter__(self):
+                return self
+
+            async def __anext__(self):
+                raise RuntimeError("mid-stream failure")
+
+            async def aclose(self):
+                nonlocal close_called
+                close_called = True
+
+        async def fake_call(*args, **kwargs):
+            return FakeStream()
+
+        loop._call_agent_llm = fake_call
+
+        content_parts: list[str] = []
+        collected: list[dict[str, Any]] = []
+        with pytest.raises(RuntimeError, match="mid-stream failure"):
+            async for _ in loop._collect_stream_events(
+                node, _make_agent(), [], [], content_parts, collected,
+                include_meta=False, final_only=True, node_type="ProcessNode", attempt=1,
+            ):
+                pass
+
+        assert close_called, "stream_result.aclose() must be called on exception"
