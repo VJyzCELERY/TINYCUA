@@ -1173,6 +1173,12 @@ class OpenAIChatCompletionsClient(LLMClient):
         except Exception as e:
             self._handle_provider_error(e, context="OpenAI Chat Completions API stream")
         finally:
+            # FR-7: close the OpenAI AsyncStream to release the httpx
+            # connection cleanly. Without this, abandoned streams leak
+            # stale connections that cause "client disconnect during
+            # generation" on the next request.
+            if hasattr(stream, "aclose"):
+                await stream.aclose()
             stream_tool_calls = _accumulator_to_chat_tool_calls(acc)
             if stream_tool_calls:
                 for tc in stream_tool_calls:
