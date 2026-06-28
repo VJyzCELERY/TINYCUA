@@ -75,9 +75,27 @@ class Tool:
         return self.invoke(**kwargs)
 
     def invoke(self, **kwargs: Any) -> Any:
-        """Invoke the tool function with keyword arguments."""
+        """Invoke the tool function with keyword arguments.
+
+        Coerces each argument to its JSON-schema-declared type first, because
+        local models routinely emit ints/bools as strings (e.g. ``"7"`` for an
+        ``integer`` param) which would otherwise crash the tool
+        (``'<' not supported between str and int``). Scalars, strings, arrays,
+        and objects are all coerced; an uncoercible value raises a clear error
+        instead of a confusing TypeError deep in the tool.
+        """
         if self._callable is None:
             raise RuntimeError(f"Tool {self.name} has no function to invoke")
+        properties = self.parameters.get("properties") if isinstance(self.parameters, dict) else None
+        if isinstance(properties, dict) and properties:
+            coerced: dict[str, Any] = {}
+            for key, value in kwargs.items():
+                schema = properties.get(key)
+                if isinstance(schema, dict):
+                    coerced[key] = _coerce_arg(value, schema)
+                else:
+                    coerced[key] = value
+            return self._callable(**coerced)
         return self._callable(**kwargs)
 
     @classmethod
@@ -188,6 +206,19 @@ class Tool:
         sig = inspect.signature(fn)
         docstring = fn.__doc__ or ""
 
+        # Resolve PEP 563 string annotations (``from __future__ import
+        # annotations`` makes ``param.annotation`` a str like "int"). Only
+        # swap in the evaluated hint when the raw annotation is a string —
+        # otherwise keep the raw annotation so Annotated/Union/Optional
+        # metadata (e.g. Annotated[str, "description"]) survives for
+        # ``type_to_json_schema`` to extract.
+        try:
+            from typing import get_type_hints
+
+            hints = get_type_hints(fn, include_extras=True)
+        except Exception:  # noqa: BLE001 - best-effort; signature fallback below.
+            hints = {}
+
         param_descriptions = _parse_param_descriptions(docstring)
 
         params: dict[str, Any] = {}
@@ -200,7 +231,16 @@ class Tool:
                 continue
             if param_name in ("self", "cls") and i == 0:
                 continue
-            schema = type_to_json_schema(param.annotation)
+            raw_annotation = param.annotation
+            annotation = hints.get(param_name, raw_annotation)
+            # Only use the evaluated hint when the raw annotation was a PEP 563
+            # string; otherwise prefer the raw annotation (preserves Annotated
+            # metadata and already-resolved type objects).
+            if isinstance(raw_annotation, str) and annotation is not raw_annotation:
+                pass
+            else:
+                annotation = raw_annotation
+            schema = type_to_json_schema(annotation)
             params[param_name] = schema
             if param.default is inspect.Parameter.empty:
                 required.append(param_name)
@@ -306,6 +346,114 @@ def tool(
 __all__ = ["Tool", "tool"]
 
 
+_TRUE_STRINGS = frozenset({"true", "1", "yes", "on"})
+_FALSE_STRINGS = frozenset({"false", "0", "no", "off", ""})
+
+
+def _coerce_arg(value: Any, schema: dict[str, Any]) -> Any:
+    """Coerce a value to its JSON-schema-declared type.
+
+    Local models routinely emit ints/bools/numbers as strings. This keeps
+    typed tools (``integer``/``number``/``boolean``) working instead of
+    crashing on ``"7" < 1``. Strings, arrays, and objects are also coerced
+    so a value that already matches passes through unchanged.
+
+    Coercion is best-effort: an uncoercible scalar (e.g. ``"abc"`` for
+    ``integer``) is returned unchanged so the tool's own validation produces a
+    clean, tool-specific error instead of a generic ValueError from the SDK.
+
+    ``null``/``None`` is passed through (the tool decides what a missing
+    value means).
+    """
+    if value is None:
+        return None
+    declared = schema.get("type")
+    if isinstance(declared, list):
+        # nullable/union schemas: pick the first non-null type that fits.
+        for candidate in declared:
+            if candidate == "null":
+                continue
+            try:
+                return _coerce_arg(value, {"type": candidate, **{k: v for k, v in schema.items() if k != "type"}})
+            except ValueError:
+                continue
+        return value
+    try:
+        if declared == "integer":
+            if isinstance(value, bool):
+                return int(value)
+            if isinstance(value, int):
+                return value
+            if isinstance(value, float):
+                return int(value)
+            if isinstance(value, str):
+                return int(value.strip())
+            return value
+        if declared == "number":
+            # ponytail: int is a valid number — keep it as int (tools like
+            # fetch_url slice body[:max_size], which rejects a float). Only
+            # float a value that is actually fractional.
+            if isinstance(value, bool):
+                return int(value)
+            if isinstance(value, int):
+                return value
+            if isinstance(value, float):
+                return value
+            if isinstance(value, str):
+                stripped = value.strip()
+                return int(stripped) if stripped.lstrip("-+").isdigit() else float(stripped)
+            return value
+        if declared == "boolean":
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, (int, float)):
+                return bool(value)
+            if isinstance(value, str):
+                normalized = value.strip().lower()
+                if normalized in _TRUE_STRINGS:
+                    return True
+                if normalized in _FALSE_STRINGS:
+                    return False
+            return value
+        if declared == "string":
+            if isinstance(value, str):
+                return value
+            if isinstance(value, (int, float, bool)):
+                return str(value)
+            return value
+        if declared == "array":
+            if isinstance(value, list):
+                return value
+            if isinstance(value, str):
+                import json
+
+                stripped = value.strip()
+                if stripped.startswith("["):
+                    try:
+                        parsed = json.loads(stripped)
+                    except json.JSONDecodeError:
+                        return value
+                    return parsed if isinstance(parsed, list) else value
+            return value
+        if declared == "object":
+            if isinstance(value, dict):
+                return value
+            if isinstance(value, str):
+                import json
+
+                stripped = value.strip()
+                if stripped.startswith("{"):
+                    try:
+                        parsed = json.loads(stripped)
+                    except json.JSONDecodeError:
+                        return value
+                    return parsed if isinstance(parsed, dict) else value
+            return value
+    except (TypeError, ValueError):
+        return value
+    return value
+
+
 _load_counter: int = 0
 
 
@@ -334,3 +482,22 @@ def _load_module_from_path(path: Path, package_name: str | None = None) -> objec
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module
+
+
+if __name__ == "__main__":
+    # ponytail: self-check — coercion of every supported type.
+    assert _coerce_arg("7", {"type": "integer"}) == 7
+    assert _coerce_arg(7.0, {"type": "integer"}) == 7
+    assert _coerce_arg(True, {"type": "integer"}) == 1
+    assert _coerce_arg("3.5", {"type": "number"}) == 3.5
+    assert _coerce_arg(7, {"type": "number"}) == 7  # int stays int (slice-safe)
+    assert isinstance(_coerce_arg("8", {"type": "number"}), int)
+    assert isinstance(_coerce_arg("8.0", {"type": "number"}), float)
+    assert _coerce_arg("true", {"type": "boolean"}) is True
+    assert _coerce_arg("0", {"type": "boolean"}) is False
+    assert _coerce_arg(7, {"type": "string"}) == "7"
+    assert _coerce_arg('["a", "b"]', {"type": "array"}) == ["a", "b"]
+    assert _coerce_arg('{"x": 1}', {"type": "object"}) == {"x": 1}
+    assert _coerce_arg(None, {"type": "integer"}) is None
+    assert _coerce_arg("abc", {"type": "integer"}) == "abc"  # uncoercible passes through
+    print("ok")

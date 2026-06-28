@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notion-like App</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h1>Notion-like</h1>
+                <button class="btn-new-page" onclick="createNewPage()">+ New Page</button>
+            </div>
+            
+            <nav class="page-list" id="pageList">
+                <!-- Pages will be loaded here -->
+            </nav>
+
+            <div class="sidebar-footer">
+                <button class="btn-logout" onclick="logout()">Logout</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content" id="mainContent">
+            <!-- Page Header -->
+            <header class="page-header" id="pageHeader" style="display: none;">
+                <input type="text" id="pageTitleInput" placeholder="Untitled page..." 
+                       onchange="updatePageTitle()" onkeydown="handleKeydown(event)">
+                
+                <div class="block-list" id="blockList"></div>
+            </header>
+
+            <!-- Welcome Screen -->
+            <section class="welcome-screen" id="welcomeScreen">
+                <h2>Welcome to Notion-like</h2>
+                <p>Create your first page by clicking "+ New Page"</p>
+                
+                <div class="demo-sections">
+                    <div class="demo-card" onclick="createDemoPage('Welcome')">
+                        <span>+ Create a new page</span>
+                    </div>
+                    
+                    <h3>Block Types Available:</h3>
+                    <ul class="block-types-list">
+                        <li><strong>Paragraph</strong> - Default text block</li>
+                        <li><strong>Heading 1/2</strong> - Title and subtitle blocks</li>
+                        <li><strong>Bullet List</strong> - Create bulleted lists</li>
+                    </ul>
+
+                    <h3>API Endpoints:</h3>
+                    <div class="api-docs">
+                        <p><code>/api/pages</code> - CRUD operations for pages</p>
+                        <p><code>/api/blocks/:page_id</code> - Manage page blocks</p>
+                        <p><code>/auth/login</code> - Get authentication token</p>
+                    </div>
+                </div>
+
+                <!-- API Test Form -->
+                <section class="api-test-section">
+                    <h3>API Test Section</h3>
+                    
+                    <!-- Create Page -->
+                    <form onsubmit="handleCreatePage(event)" id="createPageForm" style="display: none;">
+                        <input type="text" name="title" placeholder="Page Title" required>
+                        <select name="type">
+                            <option value="">Select Block Type</option>
+                            <option value="paragraph">Paragraph</option>
+                            <option value="heading_1">Heading 1</option>
+                            <option value="heading_2">Heading 2</option>
+                            <option value="bulleted_list_item">Bullet List Item</option>
+                        </select>
+                        <button type="submit">Create Page</button>
+                    </form>
+
+                </section>
+            </section>
+
+            <!-- Empty State -->
+            <div class="empty-state" id="emptyState">
+                <h2>No page selected</h2>
+                <p>Select a page from the sidebar or create a new one</p>
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast"></div>
+
+    <script src="/app.js"></script>
+</body>
+</html>

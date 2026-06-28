@@ -1,0 +1,96 @@
+# Tasks: TinyCUA Final Prototype Runtime
+
+Implementation tasks for TinyCUA Final Prototype Runtime. Check off items as completed.
+
+## TDD Phase (Tests First)
+
+- [x] Write final runtime integration tests from `implementation-plan.md` <!-- id: 0 -->
+- [x] Write contract guardrail unit tests for stubs, message payloads, and routing <!-- id: 1 -->
+- [x] Write task/session state, tool feedback, workspace isolation, node, worker runtime, streaming, CLI, notebook, and live LLM tests <!-- id: 2 -->
+- [x] Run new tests and confirm RED before implementation <!-- id: 3 -->
+
+## Implementation Phase
+
+- [x] Phase 0 — Contract guardrails <!-- id: 4 -->
+  - [x] Add no-runtime-stubs guardrail.
+  - [x] Add message contract guardrail.
+  - [x] Add route contract guardrail.
+- [x] Phase 1 — Task state foundation <!-- id: 5 -->
+  - [x] Implement typed task tree state, active traversal, transitions, reviewer decisions, artifacts, serialization, and query helpers.
+  - [x] Bind task/todo/workspace/artifact/transition state to sessions.
+- [x] Phase 2 — Tool execution and feedback <!-- id: 6 -->
+  - [x] Feed provider-compatible tool results back into LLM continuation calls.
+  - [x] Make task tools session-bound, typed, error-safe, and active-task-aware.
+  - [x] Make todo tools session-bound instead of module-global.
+  - [x] Bind native tools to workspace context and reject out-of-workspace paths.
+- [x] Phase 3 — Concrete task nodes <!-- id: 7 -->
+  - [x] Implement task creation behavior.
+  - [x] Implement analyzer, effort, assessor, executor, reviewer, and aggregation nodes.
+- [x] Phase 4 — Dynamic worker runtime <!-- id: 8 -->
+  - [x] Add state-driven worker runtime controller.
+  - [x] Keep worker node route-focused and delegate lifecycle transitions.
+- [x] Phase 5 — Streaming runtime <!-- id: 9 -->
+  - [x] Unify sync/stream node execution and expose final-response-only stream mode.
+  - [x] Emit route/tool-result/debug events separately from final response tokens.
+  - [x] Capture CLI final stream, debug trace, task tree, artifacts, and usage separately.
+- [x] Phase 6 — Notebook acceptance demo <!-- id: 10 -->
+  - [x] Update notebook contract/demo coverage without synthetic success.
+- [x] Phase 7 — Live LLM acceptance gate <!-- id: 11 -->
+  - [x] Add live tests for passthrough, worker lifecycle, tool feedback, streaming, and artifacts.
+
+## Testing Phase
+
+- [x] Run phase-specific deterministic unit and integration tests from `implementation-plan.md` <!-- id: 12 -->
+- [ ] Run existing suite: `cd src/tinycua && uv run pytest -q` <!-- id: 13 -->
+- [x] Run live LLM tests: `cd src/tinycua && TINYCUA_LIVE_LLM=1 uv run pytest tests/integration/test_default_agent_flow_live.py tests/integration/test_final_prototype_live.py -q` <!-- id: 14 -->
+- [x] Run live notebook contract: `cd src/tinycua && TINYCUA_LIVE_LLM=1 uv run pytest tests/integration/test_notebook_contract_live.py -q` <!-- id: 15 -->
+
+## Verification Phase
+
+- [x] Verify no files under `src/tinycua-sdk/` were modified <!-- id: 16 -->
+- [x] Verify local LLM endpoint health at `http://localhost:1234/v1/models` <!-- id: 17 -->
+- [x] Verify notebook/CLI artifacts, task tree export, route/tool decisions, and no fallback-as-success <!-- id: 18 -->
+- [ ] Verify worker event volume and task tree snapshots are bounded <!-- id: 19 -->
+
+## Runtime Reliability Follow-up
+
+- [x] Force QueryAnalyst and Worker required route tool choice without modifying `src/tinycua-sdk/` <!-- id: 20 -->
+- [x] Remove required-route “tools unavailable” fallback prompt wording <!-- id: 21 -->
+- [x] Render LLM-bound internal context as compact JSON instead of Python repr strings <!-- id: 22 -->
+- [x] Exclude retry diagnostics and tool-only audit records from final LLM prompts <!-- id: 23 -->
+- [x] Run deterministic reliability suite: `179 passed, 2 warnings` <!-- id: 24 -->
+- [x] Rerun live LLM and notebook acceptance after route retry-spam fix <!-- id: 25 -->
+
+## Markdown-Synthesis Retry (Lazy Retry)
+
+Spec: `./spec.md` FR-087..FR-093. Design: `./design.md` Phase 7. Plan: `./runtime-reliability-implementation-plan.md`.
+
+### TDD Phase (Tests First)
+
+- [x] Write parser unit tests for each template (valid/missing/malformed) <!-- id: 26 -->
+- [x] Write `_maybe_lazy_recovery` unit tests (success, garbage, unresolvable task_id, exec failure, gate-off, non-state-tool validation failure, no-template node) <!-- id: 27 -->
+- [x] Write budget-cap test (3 invalid-markdown lazy calls → 4th uses standard) <!-- id: 28 -->
+- [x] Write None-doesn't-burn test (empty LLM response → lazy_attempts stays 0) <!-- id: 29 -->
+- [x] Write integration test (attempt 1 fails, lazy returns valid markdown → 2 LLM calls total) <!-- id: 30 -->
+
+### Implementation Phase
+
+- [x] Implement `loops/lazy_templates.py` (templates + registry + parser) <!-- id: 31 -->
+- [x] Implement `_maybe_lazy_recovery` + `_lazy_gate_passes` on `LazyRetryMixin` <!-- id: 32 -->
+- [x] Add `SessionConfig.recovery_strategy` + `_LAZY_BUDGET` constant <!-- id: 33 -->
+- [x] Wire lazy retry into `_call_node_with_retry` (sync in-loop) <!-- id: 34 -->
+- [x] Wire lazy retry into `_stream_llm_node_events` (stream in-loop) <!-- id: 35 -->
+- [x] Wire lazy retry into `_execute_node` + `_stream_exhausted_node_events` (before `_unbounded_recovery`) <!-- id: 36 -->
+- [x] Add `--recovery-strategy` CLI flag <!-- id: 37 -->
+
+### Verification Phase
+
+- [x] Run deterministic suite with `recovery_strategy="standard"` (regression: all existing recovery tests pass) <!-- id: 38 -->
+- [x] Run deterministic suite with `recovery_strategy="markdown_synthesis"` (new tests pass) <!-- id: 39 -->
+- [ ] Run live LLM suite with `--recovery-strategy markdown_synthesis` and compare retry-attempt counts vs standard <!-- id: 40 -->
+
+---
+
+*Task IDs enable tracking and cross-referencing*
+*Run `/implement` to execute these tasks*
+*Last updated: 2026-06-15*

@@ -1,0 +1,194 @@
+/* Document View Styles - Notion-like block rendering */
+
+.document-view {
+  width: 100%;
+  min-height: 100vh;
+  padding: 2rem;
+  box-sizing: border-box;
+}
+
+.document-view.empty-state h2 {
+  font-size: 1.5rem;
+  color: #6b6375;
+  margin-bottom: 0.5rem;
+}
+
+.document-view.empty-state p {
+  color: #9ca3af;
+  margin-bottom: 1rem;
+}
+
+/* Blocks container - supports nested block structure */
+.blocks-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.data-nested-structure + .blocks-container::before {
+  content: "Nested blocks enabled";
+  font-size: 0.75rem;
+  color: #9ca3af;
+  margin-bottom: 1rem;
+}
+
+/* Individual block styles */
+.noteion-block {
+  padding: 0.5rem;
+  border-radius: 6px;
+  transition: box-shadow 0.2s ease, transform 0.1s ease;
+  cursor: text;
+}
+
+.noteion-block:hover {
+  background-color: #f8f7fa;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+/* Heading blocks */
+.noteion-heading {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #08060d;
+  margin: 0;
+  line-height: 1.3;
+}
+
+@media (max-width: 768px) {
+  .noteion-heading {
+    font-size: 1.25rem;
+  }
+}
+
+/* Code blocks */
+.noteion-code-block {
+  background-color: #f4f3ec;
+  border-radius: 6px;
+  padding: 0.75rem;
+  overflow-x: auto;
+  font-family: 'ui-monospace', Consolas, monospace;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.noteion-code-block code {
+  color: #3a3941;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Bullet list blocks */
+.noteion-bullet-list {
+  padding-left: 1.5rem;
+  margin: 0;
+}
+
+.noteion-bullet-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  line-height: 1.6;
+}
+
+.noteion-bullet-list li::before {
+  content: "•";
+  color: #aa3bff;
+  font-weight: bold;
+}
+
+/* Image blocks */
+.noteion-image-block {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem;
+}
+
+.noteion-image {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+/* Text blocks (default) */
+.noteion-text {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: #6b6375;
+}
+
+/* Block actions toolbar (hover-visible) */
+.block-actions {
+  display: none;
+  position: absolute;
+  right: -80px;
+  top: 0.5rem;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.1s ease;
+}
+
+.noteion-block:hover .block-actions {
+  display: block;
+  opacity: 1;
+}
+
+.action-delete {
+  background-color: #ef4444;
+  color: white;
+  border: none;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.action-delete:hover {
+  background-color: #dc2626;
+  transform: translateY(-1px);
+}
+
+/* Loading state */
+.loading-spinner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 80vh;
+  color: #9ca3af;
+}
+
+/* Error message and retry button */
+.error-message {
+  text-align: center;
+  padding: 2rem;
+  color: #ef4444;
+  background-color: #fef2f2;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.retry-button {
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.retry-button:hover {
+  background-color: #2563eb;
+  transform: translateY(-1px);
+}
+
+/* Empty indicator at bottom */
+.empty-indicator {
+  text-align: center;
+  padding: 2rem;
+  color: #9ca3af;
+  font-size: 0.875rem;
+}

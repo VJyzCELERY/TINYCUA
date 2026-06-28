@@ -83,8 +83,9 @@ ResultReviewer decides:
 
 - **TinyCUALoop / task helpers**: Own the root task tree and current active task id.
   Own task interaction helpers. Can select, set, and update active task.
-- **TaskExecutor**: Receives active task as input. Must not mutate active task
-  reference or task tree structure. Must not select the active task.
+- **TaskExecutor**: Receives active task as input. May report results for sibling tasks
+  via `task_result_update` (FR-069); must `task_inspect` siblings first. Must not select
+  the active task.
 - **ResultReviewer**: Updates active task status/result based on review decision.
   Can trigger active task recomputation (accept, replan) or preserve it (retry,
   open_question). Must not mutate task tree structure beyond status/result updates.

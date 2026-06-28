@@ -12,13 +12,21 @@ Session
   · session_id: str
   · parent_id: str | None
   · session_config: SessionConfig
+  · input_context: list[dict]    # merged SDK messages from agent loop
   · chat_history: list[ChatRecord]
-  · session_context: list[dict]
+  · session_context: list[SessionContextEntry]
   · agent_state: AgentState | None
   · task: Task | None               # global parent session overall goal
   · todo: Todo | None                # per-session linear plan-then-execute list
   · compact_context(window: list[dict] | None = None) → dict | None
 ```
+
+### input_context
+
+`input_context` stores the merged SDK messages passed to `Agent.run(messages=[...])`.
+It is replaced on each `run()` call (not accumulated). Nodes use `input_context` to
+access the original user query and any SDK-provided message context. See Milestone 1.8
+design for full contract.
 
 Each node manages its own session/message context. A node session may be fresh,
 inherited, reused, scoped from parent, scoped from root, or enhanced through retrieval
@@ -62,7 +70,9 @@ Each node's session context is segmented for propagation control. Records carry
 metadata so implementation does not rely on index slicing:
 
 ```text
-SessionContextEntry (extends ChatRecord or dict)
+SessionContextEntry (standalone dataclass — extends ChatRecord is a future refactoring target)
+  · record_id: str           # auto-generated uuid4 hex
+  · content: str | dict | list[dict]
   · segment: Literal["prior", "input", "output"]
   · origin_record_id: str | None
   · source_node_id: str | None

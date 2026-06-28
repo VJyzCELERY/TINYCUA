@@ -1,0 +1,33 @@
+# Docker Compose for TinyCUA Benchmark Local Development
+# See src/tinycua/docs/benchmark/README.md for usage instructions
+
+services:
+  tinycua-benchmark:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: tinycua-benchmark:latest
+    container_name: tinycua-benchmark
+    volumes:
+      - ./workspace:/tmp_workspace
+    environment:
+      # Required: Local model endpoint (adjust to your setup)
+      - TINYCUA_BASE_URL=http://host.docker.internal:1234/v1
+      - TINYCUA_API_KEY=${TINYCUA_API_KEY:-}
+      - TINYCUA_MODEL=${TINYCUA_MODEL:-llama3}
+
+      # Required: WildClawBench task prompt (set by benchmark harness)
+      - TASK_PROMPT=${TASK_PROMPT:?Set TASK_PROMPT to the WildClawBench task prompt before running}
+
+      # Optional: Tool API keys
+      - BRAVE_API_KEY=${BRAVE_API_KEY:-}
+
+      # Optional: Runtime configuration
+      - TINYCUA_LOG_LEVEL=${TINYCUA_LOG_LEVEL:-INFO}
+      - TINYCUA_TIMEOUT=${TINYCUA_TIMEOUT:-300}
+    # For Linux: allow container to reach host model endpoints
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Ensure container runs and exits (not daemonized for one-shot tasks)
+    stdin_open: true
+    tty: true
