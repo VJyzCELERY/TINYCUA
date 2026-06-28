@@ -1,0 +1,104 @@
+"""
+Editor-specific styles for Notion-like Web Application.
+Defines block highlighting, slash menu, and editor component styling. """
+
+/* ============================================
+   Page Container & Layout
+   ============================================ */
+.page-container {
+  display: flex;
+  min-height: 100vh;
+}
+
+.main-content {
+  flex-grow: 1;
+  padding-top: var(--header-height, 64px);
+  overflow-y: auto;
+}
+
+/* ============================================
+   Block Styles (Default) - Text blocks
+   ============================================ */
+.block[data-type="text"], .block[data-type="h1"], 
+.block[data-type="h2"], .block[data-type="h3"] {
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+/* Selected block highlighting */
+.block.selected,
+.block:focus-within {
+  background-color: var(--selection-bg);
+  outline: none;
+}
+
+/* ============================================
+   Block Types - Default (No Background)
+   ============================================ */
+.block[data-type="text"], 
+.block[data-type="h1"], .block[data-type="h2"], 
+.block[data-type="h3"], .block[data-type="bulleted_list_item"] {
+  background-color: transparent;
+}
+
+/* Block with children - add subtle border */
+.block.has-children,
+.block.is-collapsed + .block:not(.is-collapsed) {
+  margin-top: 8px;
+}
+
+/* ============================================
+   Heading Blocks (h1, h2, h3)
+   ============================================ */
+.block[data-type="h1"] {
+  font-size: 40px;
+  line-height: 1.2;
+  font-weight: 600;
+}
+
+.block[data-type="h2"] {
+  font-size: 30px;
+  line-height: 1.25;
+  font-weight: 600;
+  margin-top: var(--spacing-md);
+}
+
+.block[data-type="h3"] {
+  font-size: 24px;
+  line-height: 1.3;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* ============================================
+   Text Block (paragraph)
+   ============================================ */
+.block[data-type="text"] {
+  min-height: 24px;
+  line-height: 1.57;
+}
+
+/* ============================================
+   Bulleted List Item
+   ============================================ */
+.block[data-type="bulleted_list_item"]::before {
+  content: "•";
+  display: inline-block;
+  width: 16px;
+  margin-left: -8px;
+  color: var(--text-secondary);
+}
+
+/* Numbered List Item */
+.block[data-type="numbered_list_item"]::before {
+  content: counter(list-item, decimal) ".";
+  display: inline-block;
+  width: 16px;
+  margin-left: -8px;
+  color: var(--text-secondary);
+}
+
+/* Reset list counters for each page */
+.page-container {
+  counter-reset: list-item;
+}

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Analog Clock</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .clock {
+      width: 400px;
+      height: 400px;
+      border-radius: 50%;
+      background: radial-gradient(circle at center, #333 0%, #1a1a1a 60%, #0d0d0d 100%);
+      box-shadow:
+        0 20px 50px rgba(0,0,0,0.8),
+        inset 0 -10px 30px rgba(255,255,255,0.1),
+        inset 0 10px 30px rgba(0,0,0,0.9);
+      position: relative;
+    }
+    .center-dot {
+      width: 16px;
+      height: 16px;
+      background: #fff;
+      border-radius: 50%;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 10;
+    }
+    .hand {
+      position: absolute;
+      bottom: 50%;
+      left: 50%;
+      border-radius: 4px;
+      transform-origin: center;
+      will-change: transform;
+    }
+    .hour-hand {
+      width: 8px;
+      height: 70px;
+      background: linear-gradient(to right, #fff 0%, #999 100%);
+      margin-left: -4px;
+    }
+    .minute-hand {
+      width: 6px;
+      height: 100px;
+      background: linear-gradient(to right, #ddd 0%, #aaa 100%);
+      margin-left: -3px;
+    }
+    .second-hand {
+      width: 2px;
+      height: 120px;
+      background: linear-gradient(to bottom, #ff4757 0%, #c92a36 100%);
+      margin-left: -1px;
+    }
+    .marker {
+      position: absolute;
+      width: calc(100% / 12 * tan(radians(30)));
+      height: 8px;
+      background: #4ecdc4;
+      transform-origin: center bottom;
+      border-radius: 2px 2px 0 0;
+    }
+    .marker.thick { width: calc(100% / 12 * tan(radians(36))); height: 12px; background: #ff4757; }
+    .number {
+      position: absolute;
+      font-size: 28px;
+      font-weight: bold;
+      color: rgba(255,255,255,0.9);
+      text-shadow: 1px 1px 3px rgba(0,0,0,0.7), -1px -1px 3px rgba(0,0,0,0.7);
+    }
+    .date {
+      position: absolute;
+      top: 85%;
+      left: 50%;
+      transform: translate(-50%, 0);
+      font-size: 16px;
+      color: rgba(255,255,255,0.7);
+    }
+  </style>
+</head>
+<body>
+  <div class="clock">
+    <!-- Hour markers and numbers -->
+    <script>
+      const clock = document.querySelector('.clock');
+
+      // Add hour markers (1-12)
+      for (let i = 0; i < 60; i++) {
+        if (i % 5 === 0) {
+          const marker = document.createElement('div');
+          marker.className = 'marker thick';
+          marker.style.transform = `rotate(${i * 6}deg)`;
+          clock.appendChild(marker);
+          
+          // Add numbers at hour positions
+          let num = i / 5 + 1;
+          if (num > 12) num -= 12;
+          const numberEl = document.createElement('div');
+          numberEl.className = 'number';
+          numberEl.textContent = num;
+          numberEl.style.transform = `rotate(${i * 6}deg)`;
+          // Position at the outer edge of markers
+          let offset = Math.tan(Math.PI / 12) * (400/2 - 5); // approximate marker radius
+          numberEl.style.bottom = `${offset}px`;
+          clock.appendChild(numberEl);
+        } else if (i % 5 !== 0 && i % 1 === 0) {
+          const marker = document.createElement('div');
+          marker.className = 'marker';
+          marker.style.transform = `rotate(${i * 6}deg)`;
+          clock.appendChild(marker);
+        }
+      }
+
+      // Add date display
+      const dateEl = document.createElement('div');
+      dateEl.className = 'date';
+      function updateDate() {
+        const now = new Date();
+        dateEl.textContent = `${now.toLocaleDateString(undefined, { weekday: 'short', month: 'short' })} ${now.getDate()} ${new Intl.DateTimeFormat().resolvedOptions().timeZone}`;
+      }
+      updateDate();
+      setInterval(updateDate, 60 * 1000);
+      clock.appendChild(dateEl);
+
+      // Add hands with animation loop
+      const hourHand = document.createElement('div');
+      hourHand.className = 'hand hour-hand';
+      
+      const minuteHand = document.createElement('div');
+      minuteHand.className = 'hand minute-hand';
+      
+      const secondHand = document.createElement('div');
+      secondHand.className = 'hand second-hand';
+
+      clock.appendChild(hourHand);
+      clock.appendChild(minuteHand);
+      clock.appendChild(secondHand);
+      clock.querySelector('.center-dot').appendChild(document.createElement('div')); // hack for z-index
+      
+      function updateClock() {
+        const now = new Date();
+        
+        const seconds = now.getSeconds();
+        const milliseconds = now.getMilliseconds();
+        const secondDeg = ((seconds + milliseconds / 1000) / 60) * 360;
+        
+        const minutes = now.getMinutes();
+        const minuteDeg = (minutes + seconds / 60) * 6;
+        
+        const hours = now.getHours() % 12;
+        const hourDeg = ((hours + minutes / 60) / 12) * 360;
+
+        secondHand.style.transform = `rotate(${secondDeg}deg)`;
+        minuteHand.style.transform = `rotate(${minuteDeg}deg)`;
+        hourHand.style.transform = `rotate(${hourDeg}deg)`;
+      }
+
+      updateClock();
+      setInterval(updateClock, 100); // Smooth second hand animation
+    </script>
+  </div>
+</body>
+</html>

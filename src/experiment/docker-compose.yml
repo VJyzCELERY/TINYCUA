@@ -1,0 +1,89 @@
+services:
+  searxng:
+    image: docker.io/searxng/searxng:latest
+    volumes:
+      - ./docker/searxng/settings.yml:/etc/searxng/settings.yml:ro
+    ports:
+      - "${EXPERIMENT_SEARXNG_HOST_PORT:-18080}:8080"
+
+  opencode:
+    build:
+      context: ../..
+      dockerfile: src/experiment/docker/opencode.Dockerfile
+    env_file:
+      - .env
+    environment:
+      SEARXNG_URL: ${EXPERIMENT_SEARXNG_BASE_URL:-http://searxng:8080}
+      SEARXNG_BASE_URL: ${EXPERIMENT_SEARXNG_BASE_URL:-http://searxng:8080}
+      TINYCUA_SEARXNG_URL: ${TINYCUA_SEARXNG_URL:-http://searxng:8080/search}
+    depends_on:
+      - searxng
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  hermes:
+    build:
+      context: ../..
+      dockerfile: src/experiment/docker/hermes.Dockerfile
+    env_file:
+      - .env
+    environment:
+      SEARXNG_URL: ${EXPERIMENT_SEARXNG_BASE_URL:-http://searxng:8080}
+      SEARXNG_BASE_URL: ${EXPERIMENT_SEARXNG_BASE_URL:-http://searxng:8080}
+      TINYCUA_SEARXNG_URL: ${TINYCUA_SEARXNG_URL:-http://searxng:8080/search}
+    depends_on:
+      - searxng
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  openclaw:
+    build:
+      context: ../..
+      dockerfile: src/experiment/docker/openclaw.Dockerfile
+    env_file:
+      - .env
+    environment:
+      SEARXNG_URL: ${EXPERIMENT_SEARXNG_BASE_URL:-http://searxng:8080}
+      SEARXNG_BASE_URL: ${EXPERIMENT_SEARXNG_BASE_URL:-http://searxng:8080}
+      TINYCUA_SEARXNG_URL: ${TINYCUA_SEARXNG_URL:-http://searxng:8080/search}
+    depends_on:
+      - searxng
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  tinycua:
+    build:
+      context: ../..
+      dockerfile: src/experiment/docker/tinycua.Dockerfile
+    env_file:
+      - .env
+    environment:
+      SEARXNG_URL: ${EXPERIMENT_SEARXNG_BASE_URL:-http://searxng:8080}
+      SEARXNG_BASE_URL: ${EXPERIMENT_SEARXNG_BASE_URL:-http://searxng:8080}
+      TINYCUA_SEARXNG_URL: ${TINYCUA_SEARXNG_URL:-http://searxng:8080/search}
+    depends_on:
+      - searxng
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  judge:
+    build:
+      context: ../..
+      dockerfile: src/experiment/docker/judge.Dockerfile
+    command: ["tail", "-f", "/dev/null"]
+    env_file:
+      - .env
+    environment:
+      SEARXNG_URL: ${EXPERIMENT_SEARXNG_BASE_URL:-http://searxng:8080}
+      SEARXNG_BASE_URL: ${EXPERIMENT_SEARXNG_BASE_URL:-http://searxng:8080}
+    volumes:
+      - judge-hermes-home:/home/judge/.hermes
+      - .:/workspace
+    working_dir: /workspace
+    depends_on:
+      - searxng
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  judge-hermes-home:

@@ -1,0 +1,43 @@
+"""TinyCUA runtime tool execution uses SDK ToolExecutor."""
+
+from __future__ import annotations
+
+import pytest
+
+from tinycua.config.types import Tool
+from tinycua.loops.tinycua_loop import TinyCUALoop
+from tinycua_sdk import Agent, LanguageModel
+
+
+class DeniedProbeTool(Tool):
+    """Tool that records whether the underlying callable ran."""
+
+    def __init__(self) -> None:
+        super().__init__(name="denied_probe")
+        self.invoked = False
+
+    def __call__(self) -> dict[str, bool]:
+        """Return success if invoked."""
+        self.invoked = True
+        return {"invoked": True}
+
+
+@pytest.mark.asyncio
+async def test_execute_tool_calls_uses_sdk_denial() -> None:
+    """Denied SDK permissions prevent TinyCUA from invoking the tool."""
+    loop = TinyCUALoop()
+    tool = DeniedProbeTool()
+    agent = Agent(
+        llm_model=LanguageModel(),
+        tool_permissions={"denied_probe": "deny"},
+    )
+
+    results = await loop._execute_tool_calls(
+        agent,
+        [{"type": "function", "function": {"name": "denied_probe", "arguments": "{}"}}],
+        [tool],
+    )
+
+    assert tool.invoked is False
+    assert results[0]["allowed"] is True
+    assert "denied" in results[0]["output"]["error"]

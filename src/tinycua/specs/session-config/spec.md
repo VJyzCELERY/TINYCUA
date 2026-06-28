@@ -1,0 +1,176 @@
+# Feature Specification: SessionConfig, Node Config, and Local Model Config (Milestone 1.2)
+
+**Status**: Draft
+**Created**: 2026-06-06
+**Last Updated**: 2026-06-06
+**Subproject(s) Affected**: tinycua
+
+---
+
+## Problem Statement _(mandatory)_
+
+- **Goals**: Provide the configuration layer for TinyCUA sessions and nodes, enabling nodes to have distinct message, tool, stream, and retry policies, while supporting local model endpoint configuration for LLM calls.
+- **Gaps**: Today only a minimal `SessionConfig` exists. Nodes lack per-node configuration, policy dataclasses, system prompt building, and local model endpoint configuration. The architecture design docs define these components but they are not yet implemented.
+- **Non-Goals**: Concrete node implementations, compaction strategy implementations, node execution logic, WildClawBench integration.
+- **Constraints**: Must not modify `tinycua-sdk` public APIs. Must follow design docs in `src/tinycua/docs/design/`. Configuration must be dataclass-based, immutable after construction where possible, and support append-only customization.
+
+---
+
+## User Scenarios & Testing _(mandatory)_
+
+### Primary Scenario
+
+A developer constructing a TinyCUA node creates a `NodeConfigBase` (or its subclass) with appropriate policies (`NodeMessagePolicy`, `NodeToolPolicy`, `NodeStreamPolicy`, `NodeRetryPolicy`). The node uses `SystemPromptBuilder` to assemble system prompt fragments from hardcoded constants, config appendices, and dynamic context. The node resolves tool scope via `NodeToolPolicy`. The node's session uses `SessionConfig` for context limits and compaction strategy. The node's LLM calls are directed to a local model endpoint configured via `LocalModelConfig`.
+
+### Acceptance Scenarios
+
+1. **Given** a `SessionConfig` with `max_context_messages=50`, **When** a node checks session config, **Then** the limit is respected.
+2. **Given** a `NodeConfigBase` with custom `instruction_append` and `continuation_append`, **When** the node builds its system prompt, **Then** the appends are appended to the hardcoded constants.
+3. **Given** a `NodeToolPolicy` with `include_agent_tools="selected"` and `allowed_agent_tool_names=["web_search"]`, **When** the node resolves tools, **Then** only `web_search` from outer agent tools is included.
+4. **Given** a `NodeRetryPolicy` with `max_attempts=3`, **When** a node fails validation twice, **Then** a third attempt is allowed; on third failure, exhaustion behavior triggers.
+5. **Given** a `LocalModelConfig` with `base_url="http://localhost:11434/v1"` and `model="llama3"`, **When** a node makes an LLM call, **Then** the call is directed to that endpoint.
+6. **Given** a `Todo` with three items, **When** a node marks the first item done, **Then** `next_pending()` returns the second item.
+7. **Given** a `SystemPromptBuilder` with static, configurable, and dynamic fragments, **When** `build()` is called, **Then** a single system-role message is produced with content merged in priority order.
+
+### Edge Cases
+
+- What happens when `NodeToolPolicy` has a tool name in both allow and deny lists? Deny wins.
+- What happens when `NodeRetryPolicy.max_attempts` is 0? No retries; immediate exhaustion.
+- What happens when `LocalModelConfig.base_url` is unreachable? The node's LLM call raises a connection error (propagated).
+- What happens when `Todo.max_items` is exceeded? `append()` raises `ValueError`.
+- What happens when `SystemPromptBuilder.build()` has no fragments? Returns empty system message.
+
+---
+
+## Requirements _(mandatory)_
+
+### Functional Requirements
+
+- **FR-001**: System MUST provide `SessionConfig` dataclass with fields: `compaction_strategy`, `max_context_messages`, `max_context_tokens`, `metadata`.
+- **FR-002**: System MUST provide `NodeConfigBase` dataclass with fields: `custom_instruction_append`, `custom_continuation_append`, `custom_retry_append`, `propagation`, `tool_policy`, `stream_policy`, `retry_policy`, `message_policy`, `metadata`.
+- **FR-003**: System MUST provide `NodeMessagePolicy` dataclass with fields: `include_chat_history`, `include_session_context`, `max_context_messages`, `dedupe_by_origin_record_id`, `continuation_role`.
+- **FR-004**: System MUST provide `NodeToolPolicy` dataclass with fields: `node_tools`, `include_agent_tools`, `allowed_agent_tool_names`, `denied_agent_tool_names`.
+- **FR-005**: System MUST provide `NodeStreamPolicy` dataclass with fields: `visible_to_user`, `emit_internal_events`, `include_node_metadata`, `final_response_only`.
+- **FR-006**: System MUST provide `NodeRetryPolicy` dataclass with fields: `max_attempts`, `required_tool_calls`, `required_output_schema`, `validation_fn`, `retry_continuation_builder`, `on_retry_exhausted`.
+- **FR-007**: System MUST provide `SystemPrompt` dataclass with fields: `priority`, `kind`, `content`, `metadata`.
+- **FR-008**: System MUST provide `SystemPromptBuilder` class with methods: `add_static()`, `add_configurable_append()`, `add_dynamic_context()`, `build()`.
+- **FR-009**: System MUST provide `Todo` class with methods: `append()`, `mark_done()`, `next_pending()`.
+- **FR-010**: System MUST provide `TodoItem` dataclass with fields: `description`, `status`, `order`, `metadata`.
+- **FR-011**: System MUST provide `LocalModelConfig` dataclass with fields: `base_url`, `model`, `api_key`, `timeout`, `temperature`, `max_tokens`.
+- **FR-012**: `NodeConfigBase` MUST support append-only customization: `custom_instruction_append`, `custom_continuation_append`, `custom_retry_append`.
+- **FR-013**: `NodeToolPolicy` MUST resolve tools according to resolution order: start with node_tools, apply include_agent_tools rule, deny wins over allow.
+- **FR-014**: `NodeRetryPolicy` MUST support exhaustion behaviors: `raise`, `record_failure`, `route_failure`.
+- **FR-015**: `Todo` MUST enforce `max_items` limit (default 20) and raise `ValueError` when exceeded.
+- **FR-016**: `SystemPromptBuilder.build()` MUST return a single system-role message dict with content merged in priority order.
+- **FR-017**: `LocalModelConfig` MUST be usable by nodes to configure LLM endpoint for their calls.
+
+### Key Entities _(include if feature involves data)_
+
+- **SessionConfig**: Session-level configuration — compaction strategy, context limits, metadata.
+- **NodeConfigBase**: Base node configuration — append-only customization, policies, propagation rule.
+- **NodeMessagePolicy**: Controls message selection and formatting for node LLM calls.
+- **NodeToolPolicy**: Controls tool scope resolution for node LLM calls.
+- **NodeStreamPolicy**: Controls streaming behavior for node LLM calls.
+- **NodeRetryPolicy**: Controls retry behavior, validation, and exhaustion handling.
+- **SystemPrompt**: A single prompt fragment with priority and kind.
+- **SystemPromptBuilder**: Assembles fragments into one system-role message.
+- **Todo**: Per-session linear plan-then-execute list.
+- **TodoItem**: Single todo item with status; `order` is auto-assigned on `append()` as the 0-based insertion index.
+- **LocalModelConfig**: Local model endpoint configuration for node LLM calls.
+
+---
+
+## Success Criteria _(mandatory)_ — use `[ ]` checkboxes
+
+- [x] **SessionConfig exists**: `SessionConfig` dataclass with documented fields and defaults.
+- [x] **NodeConfigBase exists**: `NodeConfigBase` dataclass with all policy fields.
+- [x] **NodeMessagePolicy exists**: `NodeMessagePolicy` dataclass with documented fields.
+- [x] **NodeToolPolicy exists**: `NodeToolPolicy` dataclass with documented fields.
+- [x] **NodeStreamPolicy exists**: `NodeStreamPolicy` dataclass with documented fields.
+- [x] **NodeRetryPolicy exists**: `NodeRetryPolicy` dataclass with documented fields.
+- [x] **SystemPrompt exists**: `SystemPrompt` dataclass with documented fields.
+- [x] **SystemPromptBuilder exists**: `SystemPromptBuilder` class with documented methods.
+- [x] **Todo exists**: `Todo` class with `append`, `mark_done`, `next_pending`.
+- [x] **TodoItem exists**: `TodoItem` dataclass with documented fields.
+- [x] **LocalModelConfig exists**: `LocalModelConfig` dataclass with documented fields.
+- [x] **Append-only customization works**: `NodeConfigBase` appends are concatenated to constants.
+- [x] **Tool policy resolution works**: Deny wins over allow; selection works.
+- [x] **Retry policy exhaustion works**: `max_attempts` respected; exhaustion behavior triggers.
+- [x] **Todo limit enforced**: `append()` raises `ValueError` when `max_items` exceeded.
+- [x] **System prompt builder works**: `build()` returns single system message.
+- [x] **Config tests pass**: Unit tests for all config dataclasses and policies.
+- [x] **Local model config usable**: `LocalModelConfig` can be used by nodes.
+
+---
+
+## Testing Plan _(mandatory)_
+
+### Unit Tests
+
+- `SessionConfig` defaults and custom values.
+- `NodeConfigBase` construction with all policies.
+- `NodeMessagePolicy` defaults and custom values.
+- `NodeToolPolicy` resolution order (allow/deny precedence).
+- `NodeStreamPolicy` defaults and custom values.
+- `NodeRetryPolicy` defaults, custom values, exhaustion behaviors.
+- `SystemPrompt` construction.
+- `SystemPromptBuilder` fragment ordering and `build()` output.
+- `Todo` append, mark_done, next_pending, max_items limit.
+- `TodoItem` construction.
+- `LocalModelConfig` construction and defaults.
+- Append-only customization concatenation.
+
+### Integration Tests
+
+- `NodeConfigBase` with real policies used in a mock node context.
+- `SystemPromptBuilder` used to generate system message for a mock LLM call.
+- `LocalModelConfig` passed to a node and used to configure LLM client.
+
+### Manual Tests _(if applicable)_
+
+- Verify `LocalModelConfig` works with a real local model endpoint (e.g., Ollama).
+
+---
+
+## Status Tracker _(optional)_
+
+| Item | Status | Notes |
+|------|--------|-------|
+| SessionConfig | DONE | Already exists; fields match spec |
+| NodeConfigBase | DONE | New dataclass in config/node_config.py |
+| NodeMessagePolicy | DONE | New dataclass in config/node_config.py |
+| NodeToolPolicy | DONE | New dataclass in config/node_config.py |
+| NodeStreamPolicy | DONE | New dataclass in config/node_config.py |
+| NodeRetryPolicy | DONE | New dataclass in config/node_config.py |
+| SystemPrompt | DONE | New dataclass in config/system_prompt.py |
+| SystemPromptBuilder | DONE | New class in config/system_prompt.py |
+| Todo | DONE | New class in models/todo.py |
+| TodoItem | DONE | New dataclass in models/todo.py |
+| LocalModelConfig | DONE | New dataclass in config/local_model.py |
+| Unit tests | DONE | 45 tests passing |
+| Integration tests | DONE | 5 tests passing |
+
+---
+
+## Open Questions _(optional)_
+
+1. **PropagationRule type**: The design doc references `PropagationRule` but it's defined in `loops/propagation.md`. Should we define a placeholder type or import from a future module?
+   - **Status**: Decided
+   - **Decision**: Use `Any` placeholder; concrete implementation in propagation milestone.
+   - **Reference**: `design.md:277-279`
+
+2. **LocalModelConfig vs SDK Agent config**: Should `LocalModelConfig` be a separate dataclass or map to SDK Agent's `llm_model` parameter?
+   - **Status**: Decided
+   - **Decision**: Keep separate; `LocalModelConfig` is node-level, SDK Agent config is outer-level. Nodes may override endpoint.
+   - **Reference**: `design.md:293-295`
+
+---
+
+## Review Checklist
+
+- [x] No implementation details (no code, framework, or architecture choices)
+- [x] All mandatory sections completed
+- [x] No `[NEEDS CLARIFICATION]` markers remain
+- [x] Requirements are testable and unambiguous
+- [x] Scope is clearly bounded with explicit non-goals
+- [x] Success criteria are measurable

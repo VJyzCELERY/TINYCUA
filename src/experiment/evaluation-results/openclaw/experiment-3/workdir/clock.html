@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analog Clock</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    .clock {
+      width: 350px;
+      height: 350px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow:
+        0 10px 60px rgba(0, 0, 0, 0.3),
+        inset 0 -5px 20px rgba(0, 0, 0, 0.1);
+      position: relative;
+    }
+
+    .clock::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 12px;
+      height: 12px;
+      background: #333;
+      border-radius: 50%;
+    }
+
+    .marker {
+      position: absolute;
+      left: 50%;
+      top: -8px;
+      width: 4px;
+      height: 12px;
+      background: #333;
+      transform: translateX(-50%);
+    }
+
+    .marker.hour {
+      height: 20px;
+      width: 6px;
+      left: calc(50% - 3px);
+    }
+
+    .hand {
+      position: absolute;
+      bottom: 50%;
+      left: 50%;
+      transform-origin: center bottom;
+      border-radius: 4px;
+      transition: all 0.1s ease-out;
+    }
+
+    .hour-hand {
+      width: 8px;
+      height: 70px;
+      background: #333;
+      margin-left: -4px;
+    }
+
+    .minute-hand {
+      width: 6px;
+      height: 100px;
+      background: #555;
+      margin-left: -3px;
+    }
+
+    .second-hand {
+      width: 2px;
+      height: 110px;
+      background: #e74c3c;
+      margin-left: -1px;
+    }
+
+    .center-dot {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 8px;
+      height: 8px;
+      background: #e74c3c;
+      border-radius: 50%;
+    }
+
+    .date {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #666;
+      font-size: 14px;
+      text-align: center;
+    }
+
+    .digital-time {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(51, 51, 51, 0.9);
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    .label {
+      position: absolute;
+      transform-origin: center bottom;
+      color: #999;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+  </style>
+</head>
+<body>
+  <div class="clock">
+    <!-- Hour markers -->
+    <div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%) rotate(30deg);">&nbsp;</div>
+    <div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%) rotate(60deg);">&nbsp;</div>
+    <div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%) rotate(90deg);">&nbsp;</div>
+    <div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%) rotate(120deg);">&nbsp;</div>
+    <div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%) rotate(150deg);">&nbsp;</div>
+    <div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%) rotate(180deg);">&nbsp;</div>
+    <div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%) rotate(210deg);">&nbsp;</div>
+    <div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%) rotate(240deg);">&nbsp;</div>
+    <div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%) rotate(270deg);">&nbsp;</div>
+    <div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%) rotate(300deg);">&nbsp;</div>
+    <div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%) rotate(330deg);">&nbsp;</div>
+
+    <!-- Hands -->
+    <div class="hand hour-hand" id="hourHand"></div>
+    <div class="hand minute-hand" id="minuteHand"></div>
+    <div class="hand second-hand" id="secondHand"></div>
+
+    <!-- Center dot and digital display -->
+    <div class="center-dot"></div>
+    <div class="digital-time" id="digitalTime">--:--</div>
+  </div>
+
+  <script>
+    const hourHand = document.getElementById('hourHand');
+    const minuteHand = document.getElementById('minuteHand');
+    const secondHand = document.getElementById('secondHand');
+    const digitalDisplay = document.getElementById('digitalTime');
+
+    function updateClock() {
+      const now = new Date();
+      
+      // Get time components
+      const hours = now.getHours() % 12;
+      const minutes = now.getMinutes();
+      const seconds = now.getSeconds();
+      let ms = now.getMilliseconds();
+
+      // Calculate angles with smooth transitions for hour and minute hands
+      const secondAngle = (seconds + ms / 1000) * 6; // 360/60 = 6 degrees per second
+      const minuteAngle = minutes * 6 + seconds * 0.1; // 360/60 = 6 deg/min + smooth
+      const hourAngle = (hours * 30) + minutes * 0.5; // 360/12 = 30 deg/hour + smooth
+
+      // Apply rotations
+      secondHand.style.transform = `rotate(${secondAngle}deg)`;
+      minuteHand.style.transform = `rotate(${minuteAngle}deg)`;
+      hourHand.style.transform = `rotate(${hourAngle}deg) translateX(-50%)`;
+
+      // Update digital time
+      const hoursFormatted = now.getHours().toString().padStart(2, '0');
+      const minutesFormatted = now.getMinutes().toString().padStart(2, '0');
+      const secondsFormatted = now.getSeconds().toString().padStart(2, '0');
+      
+      digitalDisplay.textContent = `${hoursFormatted}:${minutesFormatted}`;
+    }
+
+    // Update every 50ms for smooth second hand movement
+    setInterval(updateClock, 50);
+
+    // Initial update
+    updateClock();
+
+    // Add subtle pulse animation to clock face on load
+    const clockFace = document.querySelector('.clock');
+    setTimeout(() => {
+      clockFace.style.animation = 'pulse 3s ease-in-out infinite';
+    }, 500);
+  </script>
+</body>
+</html>

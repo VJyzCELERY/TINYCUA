@@ -1,0 +1,124 @@
+[plugins] loading browser from /usr/local/lib/node_modules/openclaw/dist/extensions/browser/index.js
+[plugins] loading canvas from /usr/local/lib/node_modules/openclaw/dist/extensions/canvas/index.js
+[plugins] loading device-pair from /usr/local/lib/node_modules/openclaw/dist/extensions/device-pair/index.js
+Registered plugin command: /pair (plugin: device-pair)
+[plugins] loading file-transfer from /usr/local/lib/node_modules/openclaw/dist/extensions/file-transfer/index.js
+[plugins] loading memory-core from /usr/local/lib/node_modules/openclaw/dist/extensions/memory-core/index.js
+Registered plugin command: /dreaming (plugin: memory-core)
+[plugins] loading phone-control from /usr/local/lib/node_modules/openclaw/dist/extensions/phone-control/index.js
+Registered plugin command: /phone (plugin: phone-control)
+[plugins] loading searxng from /usr/local/lib/node_modules/openclaw/dist/extensions/searxng/index.js
+[plugins] loading talk-voice from /usr/local/lib/node_modules/openclaw/dist/extensions/talk-voice/index.js
+Registered plugin command: /voice (plugin: talk-voice)
+[plugins] loaded 8 plugin(s) (8 attempted) in 327.7ms
+[diagnostic] lane enqueue: lane=session:agent:main:experiment-1 queueSize=1
+[diagnostic] lane dequeue: lane=session:agent:main:experiment-1 waitMs=1 queueSize=0
+[diagnostic] lane enqueue: lane=main queueSize=1
+[diagnostic] lane dequeue: lane=main waitMs=0 queueSize=0
+[plugins] loading alibaba from /usr/local/lib/node_modules/openclaw/dist/extensions/alibaba/index.js
+[plugins] loading anthropic from /usr/local/lib/node_modules/openclaw/dist/extensions/anthropic/index.js
+[plugins] loading arcee from /usr/local/lib/node_modules/openclaw/dist/extensions/arcee/index.js
+[plugins] loading azure-speech from /usr/local/lib/node_modules/openclaw/dist/extensions/azure-speech/index.js
+[plugins] loading browser from /usr/local/lib/node_modules/openclaw/dist/extensions/browser/index.js
+[plugins] loading byteplus from /usr/local/lib/node_modules/openclaw/dist/extensions/byteplus/index.js
+[plugins] loading canvas from /usr/local/lib/node_modules/openclaw/dist/extensions/canvas/index.js
+[plugins] loading cerebras from /usr/local/lib/node_modules/openclaw/dist/extensions/cerebras/index.js
+[plugins] loading chutes from /usr/local/lib/node_modules/openclaw/dist/extensions/chutes/index.js
+[plugins] loading cloudflare-ai-gateway from /usr/local/lib/node_modules/openclaw/dist/extensions/cloudflare-ai-gateway/index.js
+[plugins] loading comfy from /usr/local/lib/node_modules/openclaw/dist/extensions/comfy/index.js
+[plugins] loading copilot-proxy from /usr/local/lib/node_modules/openclaw/dist/extensions/copilot-proxy/index.js
+[plugins] loading deepgram from /usr/local/lib/node_modules/openclaw/dist/extensions/deepgram/index.js
+[plugins] loading deepinfra from /usr/local/lib/node_modules/openclaw/dist/extensions/deepinfra/index.js
+[plugins] loading deepseek from /usr/local/lib/node_modules/openclaw/dist/extensions/deepseek/index.js
+[plugins] loading device-pair from /usr/local/lib/node_modules/openclaw/dist/extensions/device-pair/index.js
+Registered plugin command: /pair (plugin: device-pair)
+[plugins] loading document-extract from /usr/local/lib/node_modules/openclaw/dist/extensions/document-extract/index.js
+[plugins] loading elevenlabs from /usr/local/lib/node_modules/openclaw/dist/extensions/elevenlabs/index.js
+[plugins] loading fal from /usr/local/lib/node_modules/openclaw/dist/extensions/fal/index.js
+[plugins] loading file-transfer from /usr/local/lib/node_modules/openclaw/dist/extensions/file-transfer/index.js
+[plugins] loading fireworks from /usr/local/lib/node_modules/openclaw/dist/extensions/fireworks/index.js
+[plugins] loading github-copilot from /usr/local/lib/node_modules/openclaw/dist/extensions/github-copilot/index.js
+[plugins] loading gmi from /usr/local/lib/node_modules/openclaw/dist/extensions/gmi/index.js
+[plugins] loading google from /usr/local/lib/node_modules/openclaw/dist/extensions/google/index.js
+[plugins] loading groq from /usr/local/lib/node_modules/openclaw/dist/extensions/groq/index.js
+[plugins] loading huggingface from /usr/local/lib/node_modules/openclaw/dist/extensions/huggingface/index.js
+[plugins] loading inworld from /usr/local/lib/node_modules/openclaw/dist/extensions/inworld/index.js
+[plugins] loading kilocode from /usr/local/lib/node_modules/openclaw/dist/extensions/kilocode/index.js
+[plugins] loading kimi from /usr/local/lib/node_modules/openclaw/dist/extensions/kimi-coding/index.js
+[plugins] loading litellm from /usr/local/lib/node_modules/openclaw/dist/extensions/litellm/index.js
+[plugins] loading lmstudio from /usr/local/lib/node_modules/openclaw/dist/extensions/lmstudio/index.js
+[plugins] loading memory-core from /usr/local/lib/node_modules/openclaw/dist/extensions/memory-core/index.js
+Registered plugin command: /dreaming (plugin: memory-core)
+[plugins] loading microsoft from /usr/local/lib/node_modules/openclaw/dist/extensions/microsoft/index.js
+[plugins] loading microsoft-foundry from /usr/local/lib/node_modules/openclaw/dist/extensions/microsoft-foundry/index.js
+[plugins] loading minimax from /usr/local/lib/node_modules/openclaw/dist/extensions/minimax/index.js
+[plugins] loading mistral from /usr/local/lib/node_modules/openclaw/dist/extensions/mistral/index.js
+[plugins] loading moonshot from /usr/local/lib/node_modules/openclaw/dist/extensions/moonshot/index.js
+[plugins] loading novita from /usr/local/lib/node_modules/openclaw/dist/extensions/novita/index.js
+[plugins] loading nvidia from /usr/local/lib/node_modules/openclaw/dist/extensions/nvidia/index.js
+[plugins] loading ollama from /usr/local/lib/node_modules/openclaw/dist/extensions/ollama/index.js
+[plugins] loading openai from /usr/local/lib/node_modules/openclaw/dist/extensions/openai/index.js
+[plugins] loading opencode from /usr/local/lib/node_modules/openclaw/dist/extensions/opencode/index.js
+[plugins] loading opencode-go from /usr/local/lib/node_modules/openclaw/dist/extensions/opencode-go/index.js
+[plugins] loading openrouter from /usr/local/lib/node_modules/openclaw/dist/extensions/openrouter/index.js
+[plugins] loading phone-control from /usr/local/lib/node_modules/openclaw/dist/extensions/phone-control/index.js
+Registered plugin command: /phone (plugin: phone-control)
+[plugins] loading qianfan from /usr/local/lib/node_modules/openclaw/dist/extensions/qianfan/index.js
+[plugins] loading qwen from /usr/local/lib/node_modules/openclaw/dist/extensions/qwen/index.js
+[plugins] loading runway from /usr/local/lib/node_modules/openclaw/dist/extensions/runway/index.js
+[plugins] loading searxng from /usr/local/lib/node_modules/openclaw/dist/extensions/searxng/index.js
+[plugins] loading senseaudio from /usr/local/lib/node_modules/openclaw/dist/extensions/senseaudio/index.js
+[plugins] loading sglang from /usr/local/lib/node_modules/openclaw/dist/extensions/sglang/index.js
+[plugins] loading stepfun from /usr/local/lib/node_modules/openclaw/dist/extensions/stepfun/index.js
+[plugins] loading synthetic from /usr/local/lib/node_modules/openclaw/dist/extensions/synthetic/index.js
+[plugins] loading talk-voice from /usr/local/lib/node_modules/openclaw/dist/extensions/talk-voice/index.js
+Registered plugin command: /voice (plugin: talk-voice)
+[plugins] loading tencent from /usr/local/lib/node_modules/openclaw/dist/extensions/tencent/index.js
+[plugins] loading together from /usr/local/lib/node_modules/openclaw/dist/extensions/together/index.js
+[plugins] loading tts-local-cli from /usr/local/lib/node_modules/openclaw/dist/extensions/tts-local-cli/index.js
+[plugins] loading venice from /usr/local/lib/node_modules/openclaw/dist/extensions/venice/index.js
+[plugins] loading vercel-ai-gateway from /usr/local/lib/node_modules/openclaw/dist/extensions/vercel-ai-gateway/index.js
+[plugins] loading vllm from /usr/local/lib/node_modules/openclaw/dist/extensions/vllm/index.js
+[plugins] loading volcengine from /usr/local/lib/node_modules/openclaw/dist/extensions/volcengine/index.js
+[plugins] loading voyage from /usr/local/lib/node_modules/openclaw/dist/extensions/voyage/index.js
+[plugins] loading vydra from /usr/local/lib/node_modules/openclaw/dist/extensions/vydra/index.js
+[plugins] loading web-readability from /usr/local/lib/node_modules/openclaw/dist/extensions/web-readability/index.js
+[plugins] loading xai from /usr/local/lib/node_modules/openclaw/dist/extensions/xai/index.js
+[plugins] loading xiaomi from /usr/local/lib/node_modules/openclaw/dist/extensions/xiaomi/index.js
+[plugins] loading zai from /usr/local/lib/node_modules/openclaw/dist/extensions/zai/index.js
+[plugins] loaded 95 plugin(s) (67 attempted) in 741.8ms
+[agents/harness] agent harness selected
+[agent/embedded] embedded run start: runId=13dfe5de-8ca2-4dd2-9cdb-404ed0c29437 sessionId=3bde94db-3047-4cb8-82a8-4720ba99bf42 provider=local model=qwen3.5-9b thinking=off messageChannel=unknown
+[plugins] loading browser from /usr/local/lib/node_modules/openclaw/dist/extensions/browser/index.js
+[plugins] loading canvas from /usr/local/lib/node_modules/openclaw/dist/extensions/canvas/index.js
+[plugins] loading file-transfer from /usr/local/lib/node_modules/openclaw/dist/extensions/file-transfer/index.js
+[plugins] loading memory-core from /usr/local/lib/node_modules/openclaw/dist/extensions/memory-core/index.js
+[plugins] loaded 10 plugin(s) (4 attempted) in 12.0ms
+[plugins] plugin tool factory returned null (memory-core): [memory_search]
+[plugins] plugin tool factory returned null (memory-core): [memory_get]
+[agent/embedded] tool-search: cataloged 29 tools behind compact prompt surface
+[agent/embedded] applying extraParams to agent streamFn for local/qwen3.5-9b
+[diagnostic] session state: sessionId=3bde94db-3047-4cb8-82a8-4720ba99bf42 sessionKey=agent:main:experiment-1 prev=idle new=processing reason="run_started" queueDepth=0
+[diagnostic] run registered: sessionId=3bde94db-3047-4cb8-82a8-4720ba99bf42 totalActive=1
+[agent/embedded] embedded run prompt start: runId=13dfe5de-8ca2-4dd2-9cdb-404ed0c29437 sessionId=3bde94db-3047-4cb8-82a8-4720ba99bf42 provider=local api=openai-completions endpoint=local route=local policy=none
+[agent/embedded] [context-diag] pre-prompt: sessionKey=agent:main:experiment-1 messages=0 roleCounts=none historyTextChars=0 maxMessageTextChars=0 historyImageBlocks=0 systemPromptChars=25954 promptChars=11 promptImages=0 provider=local/qwen3.5-9b sessionFile=/root/.openclaw/agents/main/sessions/3bde94db-3047-4cb8-82a8-4720ba99bf42.jsonl
+[agent/embedded] [context-overflow-precheck] pre-prompt check sessionKey=agent:main:experiment-1 provider=local/qwen3.5-9b route=fits estimatedPromptTokens=7828 pressureSource=llm_boundary_normalized_prompt promptBudgetBeforeReserve=100000 overflowTokens=0 toolResultReducibleChars=0 reserveTokens=20000 effectiveReserveTokens=20000 contextTokenBudget=120000 messages=0 unwindowedMessages=0 sessionFile=/root/.openclaw/agents/main/sessions/3bde94db-3047-4cb8-82a8-4720ba99bf42.jsonl
+[agent/embedded] embedded run agent start: runId=13dfe5de-8ca2-4dd2-9cdb-404ed0c29437
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=45 contentType=text/event-stream
+[agent/embedded] embedded run agent end: runId=13dfe5de-8ca2-4dd2-9cdb-404ed0c29437 isError=false
+[diagnostic] session state: sessionId=3bde94db-3047-4cb8-82a8-4720ba99bf42 sessionKey=agent:main:experiment-1 prev=processing new=idle reason="run_completed" queueDepth=0
+[diagnostic] run cleared: sessionId=3bde94db-3047-4cb8-82a8-4720ba99bf42 totalActive=0
+[agent/embedded] embedded run prompt end: runId=13dfe5de-8ca2-4dd2-9cdb-404ed0c29437 sessionId=3bde94db-3047-4cb8-82a8-4720ba99bf42 durationMs=3416
+[agent/embedded] embedded run done: runId=13dfe5de-8ca2-4dd2-9cdb-404ed0c29437 sessionId=3bde94db-3047-4cb8-82a8-4720ba99bf42 durationMs=4503 aborted=false
+[diagnostic] lane task done: lane=main durationMs=4506 active=0 queued=0
+[diagnostic] lane task done: lane=session:agent:main:experiment-1 durationMs=4507 active=0 queued=0
+Hey! 👋 Just came online. Who am I? Who are you?
+
+Let's figure out:
+1. Your name (what should I call you?)
+2. What kind of creature I am (AI assistant, robot... something weirder?)
+3. My vibe (formal, casual, snarky, warm?)
+4. An emoji that feels right for me
+
+Or we can just chat and fill in the blanks as we go!

@@ -1,0 +1,93 @@
+# Tasks: Propagation and Dedupe (Milestone 4.1)
+
+Implementation tasks for Propagation and Dedupe. Check off items as completed.
+
+## Pre-Implementation
+
+- [x] Update spec.md status from Draft to In Progress <!-- id: 24 -->
+
+## TDD Phase (Tests First)
+
+- [x] Write integration tests for propagation, dedupe, terminal output, and ChatRecord in `tests/unit/test_propagation.py` <!-- id: 0 -->
+- [x] Write unit tests for ChatRecord in `tests/unit/test_chat_record.py` <!-- id: 1 -->
+- [x] Write unit tests for SessionContextEntry in `tests/unit/test_session_context_entry.py` <!-- id: 2 -->
+- [x] Run all new tests — expect RED (failures) since no implementation exists yet <!-- id: 3 -->
+
+## Implementation Phase — Data Models
+
+- [x] Create `src/tinycua/tinycua/models/chat_record.py` — ChatRecord dataclass with all metadata fields <!-- id: 4 -->
+  - [x] Define record_id (uuid4), role, record_type, content, visibility fields
+  - [x] Define source_node_id, source_session_id, receiver_node_id, receiver_session_id, origin_record_id fields
+  - [x] Define created_seq and metadata fields
+  - [x] Add to_dict() / from_dict() serialization (extend StateObject pattern)
+- [x] Create `src/tinycua/tinycua/models/session_context_entry.py` — SessionContextEntry with segment metadata <!-- id: 5 -->
+  - [x] Define segment field (prior | input | output)
+  - [x] Define origin_record_id, source_node_id, source_session_id, created_seq fields
+  - [x] Add to_dict() / from_dict() serialization
+- [x] Update `src/tinycua/tinycua/models/session.py` — separate chat_history and session_context types <!-- id: 6 -->
+  - [x] Change chat_history type to list[ChatRecord]
+  - [x] Change session_context type to list[SessionContextEntry]
+  - [x] Update compact_context() to work with new types
+- [x] Update `src/tinycua/tinycua/models/__init__.py` — re-export ChatRecord and SessionContextEntry <!-- id: 7 -->
+
+## Implementation Phase — Propagation Engine
+
+- [x] Create `src/tinycua/tinycua/loops/propagation.py` — core propagation logic <!-- id: 8 -->
+  - [x] Implement PropagationRule dataclass with all fields
+  - [x] Implement PROPAGATION_PROFILES dict with all four profiles
+  - [x] Implement propagate_on_termination() — upward propagation of prior+input segments
+  - [x] Implement forward_output_to_next() — output segment forwarding
+  - [x] Implement finalize_terminal_output() — terminal output exception
+  - [x] Implement dedupe_records() — origin_record_id comparison with record_id fallback
+
+## Implementation Phase — Integration
+
+- [x] Update `src/tinycua/tinycua/config/node_config.py` — wire PropagationRule and dedupe <!-- id: 9 -->
+  - [x] Change NodeConfigBase.propagation type from Any to PropagationRule | None
+  - [x] Verify NodeMessagePolicy.dedupe_by_origin_record_id is wired
+- [x] Add `build_messages_with_dedupe()` helper to `src/tinycua/tinycua/loops/node.py` <!-- id: 10 -->
+  - [x] Filter session_context by origin_record_id when dedupe flag is True
+- [x] Update `src/tinycua/tinycua/loops/tinycua_loop.py` — integrate propagation engine <!-- id: 11 -->
+  - [x] Replace _transfer_session_context() with propagate_on_termination() call
+  - [x] Wire terminal output exception in _run_sync()/_run_stream() finalization
+  - [x] Apply dedupe_by_origin_record_id in _build_node_messages()
+  - [x] Update _record_node_output() to append ChatRecord to chat_history
+- [x] Update `src/tinycua/tinycua/loops/node_queue.py` — propagation hooks on termination <!-- id: 12 -->
+  - [x] Update advance() to handle output forwarding via forward_output_to_next()
+- [x] Update `src/tinycua/tinycua/loops/information_digester.py` — segment-aware propagation <!-- id: 13 -->
+  - [x] Update propagate() to use SessionContextEntry with segment="output"
+- [x] Update `src/tinycua/tinycua/loops/worker.py` — segment-aware propagation <!-- id: 14 -->
+  - [x] Update propagate() to use SessionContextEntry with segment metadata
+
+## Testing Phase
+
+- [x] Run integration tests — expect GREEN (all pass) <!-- id: 15 -->
+- [x] Run unit tests for ChatRecord and SessionContextEntry <!-- id: 16 -->
+- [x] Run full test suite: `cd src/tinycua && uv run pytest` — confirm no regressions <!-- id: 17 -->
+
+## Verification Phase
+
+- [x] Verify propagation with minimal two-node queue — inspect session_context at each step <!-- id: 18 -->
+- [x] Verify terminal output exception with ResponseNode as terminal <!-- id: 19 -->
+- [x] Verify dedupe filtering with duplicate origin_record_ids <!-- id: 20 -->
+- [x] Verify ChatRecord audit trail accumulates across node executions <!-- id: 21 -->
+
+## Documentation Phase
+
+- [x] Update `src/tinycua/docs/design/loops/propagation.md` with implementation details <!-- id: 22 -->
+- [x] Update `src/tinycua/docs/design/models/chat_record.md` if it exists <!-- id: 23 -->
+- [x] Update `src/tinycua/docs/design/models/session.md` — align `session_context` type and ensure field definitions match design.md <!-- id: 30 -->
+
+## Review and Merge
+
+- [x] Run `/review-report` on the branch <!-- id: 25 -->
+- [x] Address review findings <!-- id: 26 -->
+- [x] Create pull request <!-- id: 27 -->
+- [x] Address PR review feedback <!-- id: 28 -->
+- [x] Merge to base branch <!-- id: 29 -->
+
+---
+
+*Task IDs enable tracking and cross-referencing*
+*Run `/implement` to execute these tasks*
+*Last updated: 2026-06-12*

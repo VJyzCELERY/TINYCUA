@@ -1,6 +1,6 @@
 # StateObject
 
-> **Package:** `tinycua.models.base`
+> **Package:** `tinycua.models.state_object`
 > **Status:** Target architecture
 
 ## Role
@@ -34,7 +34,7 @@ StateObject
 NodePayload <: StateObject
   · payload_type: str
   · source_node: str | None
-  · content: str | dict | StateObject | list[dict]
+  · content: str | dict | StateObject | list[dict] | None
   · metadata: dict
   · to_message() → assistant-role message
   · to_messages() → list[dict]

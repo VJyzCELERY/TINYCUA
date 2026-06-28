@@ -6,7 +6,7 @@
 ## Role
 
 `TinyCUAResultReviewerNode` is a concrete `ProcessNode` that evaluates TaskExecutor
-output and decides whether to accept, retry, replan, or ask an open question. It is the
+output and decides whether to approve, send back for revision, or replan. It is the
 quality gate between execution and response.
 
 ## Non-Responsibilities
@@ -26,7 +26,7 @@ See the full handoff protocol in
 
 ## Outputs / State Produced
 
-- `ReviewerDecision` with one of: `accept`, `retry`, `replan`, `open_question`.
+- `ReviewerDecision` with one of: `approved`, `needs_revision`, `rejected`, `replan`.
 - Updated active `TaskResult` and task context.
 
 ## Tools
@@ -40,42 +40,61 @@ See the full handoff protocol in
 
 | Decision | Behavior |
 |----------|----------|
-| `accept` | Semantic check passes; update active task status/result to accepted. |
-| `retry` | Plan is solid but execution result does not satisfy success criteria. |
+| `approved` | Semantic check passes; update active task status/result to approved. |
+| `needs_revision` | Plan is solid but execution result does not satisfy success criteria; send back for revision. |
+| `rejected` | Alias for `needs_revision` (FR-057). Treated identically by the loop. |
 | `replan` | Executor result indicates current plan/task decomposition should change. |
-| `open_question` | Reviewer remains active; installs mandatory passthrough for user input. |
 
-## Retry / Failure Threshold
+> `open_question` is off by default (FR-057). When enabled via config, the reviewer
+> stays active and installs a mandatory passthrough for user input.
 
-- Failure count is tracked at `TinyCUALoop` or root-session level.
-- Default threshold: 5 retries, default 5 when not configured.
-- Configurable via review configuration.
-- Failure count resets after a successful `accept` decision.
-- When threshold is reached, retrying stops and the reviewer must escalate or accept.
+## Recovery Model (FR-060 / FR-063)
 
-## Queue Behavior / `on_complete()`
+The reviewer uses a structured recovery budget instead of a single retry counter:
+
+- Per-method budgets: 15 structured retries + 10 focused retries + 3 judge retries = 30
+  total per task.
+- Partial results are preserved across re-entries.
+- `accumulated_tool_results` persists across re-entries so revisited work is not lost.
+- A no-progress guard halts re-entry when no new information has been produced since the
+  last attempt.
+- Re-entries into the same task are unlimited until a budget is exhausted or the
+  no-progress guard fires.
+
+### Same-Error Guard (FR-078)
+
+When the same error is raised 3× in succession, the reviewer MUST take an alternative
+action (replan or send back with a different instruction) rather than retrying again.
+
+## Queue Behavior / `on_complete()` (FR-067)
+
+Queue shape is state-driven, not label-driven. The reviewer inspects the active task's
+current state and selects the next nodes accordingly:
 
 ```text
 ResultReviewer completes:
-  accept:
-    → Update active task status/result
-    → If root task done:
-        advance to ResultAggregationNode → ResponseNode
-    → If root task not done:
-        advance to TaskExecutor (next active task)
+  no result yet:
+    → [TaskExecutor, ResultReviewer]              # execute then review again
 
-  retry:
-    → Advance to TaskExecutor (retry same task)
+  has result, no negative review:
+    → [ResultReviewer] only                        # re-confirm, then proceed
 
-  replan:
-    → Spawn/prepend TaskAssessor(scope=active_task_or_local_region)
-    → TaskAnalyzer(mode=local_replan, init_enabled=false)
-    → TaskExecutor
+  has result + needs_revision / rejected:
+    → [TaskExecutor, ResultReviewer]              # revise then re-review
 
-  open_question:
-    → Keep ResultReviewer active
-    → Install mandatory_passthrough targeting this ResultReviewer node/session
+  failed result:
+    → [TaskExecutor, ResultReviewer]              # recover then re-review
+
+  all done (root task complete):
+    → [ResultAggregationNode]                     # advance to aggregation
 ```
+
+### Approved-But-Not-Completed Safety Net (FR-079)
+
+If a task is marked `approved` but its `TaskResult` is not actually complete (e.g. the
+reviewer approved prematurely or a sibling surfaced missing work), the reviewer MUST
+re-open the task: clear the approval, restore the prior state, and requeue
+`[TaskExecutor, ResultReviewer]` instead of advancing to aggregation.
 
 ### Replan Path
 
@@ -90,22 +109,27 @@ ResultReviewer replan:
   → TaskExecutor
 ```
 
+> **plan_unchanged skip (FR-051):** if the replan pass produces no change to the active
+> task's plan, the reviewer skips re-execution and falls back to `needs_revision` with
+> updated instructions rather than looping.
+>
+> **replan_boundary + max_replans (FR-049 / FR-050):** replan is scoped by
+> `replan_boundary` (default: the active task and its local region) and capped by
+> `max_replans` per task. When the cap is reached, the reviewer MUST stop replanning
+> and either send back for revision with explicit guidance or escalate.
+
 ## Propagation
 
 - Propagates reviewer decision to downstream nodes.
-- On `open_question`, propagates continuation prompt for user input.
-
-## Failure / Retry Behavior
-
-- Failure count tracked at loop/root-session level.
-- Reset on success (`accept`).
-- Stop retrying when configurable threshold is reached (default: 5).
+- On `needs_revision` / `rejected`, propagates revision instructions to TaskExecutor.
+- On `replan`, propagates the local replan scope to TaskAssessor + TaskAnalyzer.
 
 ## Related Config
 
-- `ReviewerRetryThreshold` — configurable failure threshold (default: 5).
 - `NodeRetryPolicy` — retry behavior.
 - `NodeToolPolicy` — review decision and task update tools.
+- Review recovery budgets (FR-060/063), same-error guard (FR-078), `max_replans`
+  (FR-050), `replan_boundary` (FR-049).
 
 ## Related
 

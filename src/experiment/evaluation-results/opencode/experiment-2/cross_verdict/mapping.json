@@ -1,0 +1,15 @@
+{
+  "experiment_num": 2,
+  "judge_model": "gpt-5.5",
+  "judge_provider": "openai-codex",
+  "judge_base_url": "https://chatgpt.com/backend-api/codex",
+  "started_at": "2026-06-24T05:01:52.386434+00:00",
+  "duration_seconds": 82.0,
+  "exit_code": 0,
+  "mapping": {
+    "A": "opencode",
+    "B": "hermes",
+    "C": "openclaw",
+    "D": "tinycua"
+  }
+}
