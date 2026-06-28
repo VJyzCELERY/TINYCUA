@@ -15,10 +15,13 @@ __pycache__/
 .venv/
 *.env
 .env
+.env.test
 
 # Config files with secrets (use config.example.yaml as template)
 *.yaml
 !config.example.yaml
+!src/experiment/judge/profiles/**/config.yaml
+!src/experiment/judge/profiles/**/profile.yaml
 
 # Logs
 logs/
@@ -29,6 +32,11 @@ logs/
 coverage.xml
 *.coverage
 htmlcov/
+src/experiment/results/
+src/experiment/archives/
+
+# Node.js build artifacts
+node_modules/
 
 
 # Local development artifacts
@@ -42,5 +50,11 @@ dev/
 /.worktrees/
 */reviews/*
 reviews/
+.reviews/
 tmp/
 *.lock
+
+# WildClawBench artifacts
+benchmark_results/
+*.benchmark.json
+*.benchmark.yaml

@@ -53,14 +53,16 @@ class BaseLoop:
         working_messages: list[dict[str, Any]],
         tool_call_count: int,
         assistant_content: str = "",
+        reasoning_content: str = "",
     ) -> tuple[int, bool]:
         """Process LLM tool calls: parse arguments, execute tools, append messages.
 
         Checks ``agent.is_cancelled`` before every tool call and after
         each tool execution so that cancellation is observed promptly.
-        Appends an assistant message (with ``assistant_content``) before
-        ``function_call`` / ``function_call_output`` messages.  This method
-        mutates ``working_messages`` in place.
+        Appends an assistant message (with ``assistant_content`` and optional
+        ``reasoning_content``) before ``function_call`` /
+        ``function_call_output`` messages.  This method mutates
+        ``working_messages`` in place.
 
         Args:
             agent: The agent executing the loop.
@@ -69,6 +71,8 @@ class BaseLoop:
             working_messages: Message list (mutated in place).
             tool_call_count: Current tool call counter.
             assistant_content: Optional assistant text to prepend.
+            reasoning_content: Reasoning trace for reasoning models, re-injected
+                as ``reasoning_content`` for multi-turn coherency.
 
         Returns:
             Tuple of ``(updated_tool_call_count, max_tool_calls_reached)``.
@@ -137,6 +141,8 @@ class BaseLoop:
                 "content": assistant_content,
                 "tool_calls": tool_calls_for_msg,
             }
+            if reasoning_content:
+                assistant_msg["reasoning_content"] = reasoning_content
             working_messages.append(assistant_msg)
         working_messages.extend(tool_result_messages)
 
@@ -191,13 +197,18 @@ class BaseLoop:
                 tool_call_count, max_reached = await self.process_tool_calls(
                     agent, tools, response["tool_calls"], working, tool_call_count,  # type: ignore[arg-type]
                     response.get("content") or "",
+                    response.get("reasoning_content") or "",
                 )
                 if max_reached:
                     return self.last_assistant_content(working) or "[max tool calls reached]"
             else:
                 content = response.get("content")
                 if content:
-                    working.append({"role": "assistant", "content": content})
+                    assistant_msg: dict[str, Any] = {"role": "assistant", "content": content}
+                    reasoning = response.get("reasoning_content")
+                    if reasoning:
+                        assistant_msg["reasoning_content"] = reasoning
+                    working.append(assistant_msg)
                 return content or ""
         return self.last_assistant_content(working) or "[max iterations reached]"
 
@@ -225,13 +236,14 @@ class BaseLoop:
                     skip_complete = False
                     break
                 content_parts: list[str] = []
+                reasoning_parts: list[str] = []
                 tool_calls_buffer: dict[str, dict[str, Any]] = {}
                 usage_settled_ids.clear()
                 skip_complete = should_abort = False
                 llm_stream = await self._get_llm_stream(agent, working, tools)
                 async for event in self.process_stream_iteration(
                     llm_stream, agent, content_parts, tool_calls_buffer,
-                    cumulative_usage, usage_settled_ids,
+                    cumulative_usage, usage_settled_ids, reasoning_parts,
                 ):
                     if event["type"] == "response.created":
                         created_emitted = True
@@ -247,7 +259,7 @@ class BaseLoop:
                     yield event
                 should_break, finish_reason, tool_call_count, skip_complete = (
                     await self._finalize_stream_iteration(
-                        content_parts, tool_calls_buffer, agent, tools, working,
+                        content_parts, reasoning_parts, tool_calls_buffer, agent, tools, working,
                         tool_call_count, should_abort, finish_reason, skip_complete,
                     )
                 )
@@ -271,6 +283,7 @@ class BaseLoop:
     async def _finalize_stream_iteration(
         self,
         content_parts: list[str],
+        reasoning_parts: list[str],
         tool_calls_buffer: dict[str, dict[str, Any]],
         agent: Agent,
         tools: list[Tool],
@@ -282,12 +295,14 @@ class BaseLoop:
     ) -> tuple[bool, str, int, bool]:
         """Finalize one stream iteration, processing tool calls or content.
 
-        Combines accumulated text deltas, resolves ready tool calls, and
-        determines whether the agent loop should continue. Reduces
-        cyclomatic complexity of ``_run_stream``.
+        Combines accumulated text + reasoning deltas, resolves ready tool calls,
+        and determines whether the agent loop should continue.
 
         Args:
             content_parts: Accumulated text deltas from the iteration.
+            reasoning_parts: Accumulated reasoning deltas (Qwen3/DeepSeek).
+                Re-injected as ``reasoning_content`` on the assistant message
+                for multi-turn coherency. Empty for non-reasoning models.
             tool_calls_buffer: Accumulated tool call data.
             agent: The agent executing the loop.
             tools: List of available tools.
@@ -305,6 +320,16 @@ class BaseLoop:
             return True, finish_reason, tool_call_count, skip_complete
 
         combined = "".join(content_parts)
+        reasoning_text = "".join(reasoning_parts)
+        # Inline-tag fallback: when the server didn't emit reasoning_content
+        # as separate deltas (LM Studio without --reasoning-format deepseek),
+        # extract inline ... from the combined content.
+        if not reasoning_text and combined:
+            from tinycua_sdk.providers.open_ai_chat_completions import _extract_inline_thinking
+            extracted, stripped = _extract_inline_thinking(combined)
+            if extracted:
+                reasoning_text = extracted
+                combined = stripped
         tool_calls_list = [
             tc for tc in tool_calls_buffer.values()
             if tc.get("_ready", False)
@@ -312,6 +337,7 @@ class BaseLoop:
         if tool_calls_list:
             tool_call_count, max_reached = await self.process_stream_tool_calls(
                 agent, tools, tool_calls_list, working, tool_call_count, combined,
+                reasoning_text,
             )
             if max_reached:
                 return True, "max_tool_calls", tool_call_count, False
@@ -320,7 +346,10 @@ class BaseLoop:
         # No tool calls → content accumulated, break out to emit final completion.
         # Preserve original skip_complete so that provider-emitted
         # response.completed is not duplicated.
-        working.append({"role": "assistant", "content": combined})
+        assistant_msg: dict[str, Any] = {"role": "assistant", "content": combined}
+        if reasoning_text:
+            assistant_msg["reasoning_content"] = reasoning_text
+        working.append(assistant_msg)
         return True, finish_reason, tool_call_count, skip_complete
 
     @staticmethod
@@ -383,6 +412,7 @@ class BaseLoop:
         tool_calls_buffer: dict[str, dict[str, Any]],
         cumulative_usage: dict[str, int],
         usage_settled_ids: set[str],
+        reasoning_parts: list[str] | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
         """Process one LLM stream iteration, yield lifecycle and data events.
 
@@ -397,13 +427,14 @@ class BaseLoop:
             tool_calls_buffer: Dict of tool call key to accumulated data.
             cumulative_usage: Dict of cumulative token counts.
             usage_settled_ids: Set of response IDs whose usage has been counted.
+            reasoning_parts: List of reasoning delta strings (appended in place).
 
         Yields:
             SDK-normalized stream events and synthetic lifecycle events.
         """
         events, provider_failed, in_progress_emitted = await self._process_first_chunk(
             llm_stream, agent, content_parts, tool_calls_buffer,
-            cumulative_usage, usage_settled_ids,
+            cumulative_usage, usage_settled_ids, reasoning_parts,
         )
         for event in events:
             yield event
@@ -413,6 +444,7 @@ class BaseLoop:
         async for event in self._process_stream_body(
             llm_stream, agent, content_parts, tool_calls_buffer,
             cumulative_usage, usage_settled_ids, in_progress_emitted,
+            reasoning_parts,
         ):
             yield event
 
@@ -424,6 +456,7 @@ class BaseLoop:
         tool_calls_buffer: dict[str, dict[str, Any]],
         cumulative_usage: dict[str, int],
         usage_settled_ids: set[str],
+        reasoning_parts: list[str] | None = None,
     ) -> tuple[list[dict[str, Any]], bool, bool]:
         """Process the first chunk from ``llm_stream``.
 
@@ -479,7 +512,7 @@ class BaseLoop:
 
         self._accumulate_chunk(
             first_chunk, content_parts, tool_calls_buffer,
-            cumulative_usage, usage_settled_ids,
+            cumulative_usage, usage_settled_ids, reasoning_parts,
         )
 
         return events, provider_failed, in_progress_emitted
@@ -493,6 +526,7 @@ class BaseLoop:
         cumulative_usage: dict[str, int],
         usage_settled_ids: set[str],
         in_progress_emitted: bool = False,
+        reasoning_parts: list[str] | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
         """Iterate through the stream body after the first chunk.
 
@@ -532,13 +566,13 @@ class BaseLoop:
                 yield chunk
                 self._accumulate_chunk(
                     chunk, content_parts, tool_calls_buffer,
-                    cumulative_usage, usage_settled_ids,
+                    cumulative_usage, usage_settled_ids, reasoning_parts,
                 )
                 break
             yield chunk
             self._accumulate_chunk(
                 chunk, content_parts, tool_calls_buffer,
-                cumulative_usage, usage_settled_ids,
+                cumulative_usage, usage_settled_ids, reasoning_parts,
             )
         if agent.is_cancelled:
             yield {"type": "response.cancelled"}
@@ -551,11 +585,13 @@ class BaseLoop:
         working_messages: list[dict],
         tool_call_count: int,
         combined_content: str = "",
+        reasoning_text: str = "",
     ) -> tuple[int, bool]:
         """Execute stream tool calls and append results to working_messages.
 
-        Appends an assistant message (with ``combined_content``) before the
-        ``function_call`` and ``function_call_output`` messages.
+        Appends an assistant message (with ``combined_content`` and optional
+        ``reasoning_content``) before the ``function_call`` and
+        ``function_call_output`` messages.
 
         Args:
             agent: The agent executing the loop.
@@ -564,6 +600,9 @@ class BaseLoop:
             working_messages: Message list (mutated in place).
             tool_call_count: Current tool call count.
             combined_content: Accumulated stream text to include in assistant msg.
+            reasoning_text: Reasoning trace from reasoning models, re-injected
+                as ``reasoning_content`` for multi-turn coherency. Empty for
+                non-reasoning models (no-op).
 
         Returns:
             Tuple of ``(updated_tool_call_count, max_tool_calls_reached)``.
@@ -626,11 +665,14 @@ class BaseLoop:
                 }
                 for tc in executed_tool_calls
             ]
-            working_messages.append({
+            assistant_msg: dict[str, Any] = {
                 "role": "assistant",
                 "content": combined_content,
                 "tool_calls": tool_calls_for_msg,
-            })
+            }
+            if reasoning_text:
+                assistant_msg["reasoning_content"] = reasoning_text
+            working_messages.append(assistant_msg)
         working_messages.extend(tool_result_messages)
 
         return tool_call_count, max_tool_calls_reached
@@ -642,8 +684,9 @@ class BaseLoop:
         tool_calls_buffer: dict[str, dict[str, Any]],
         cumulative_usage: dict[str, int],
         usage_settled_ids: set[str],
+        reasoning_parts: list[str] | None = None,
     ) -> None:
-        """Accumulate a stream chunk into content parts, tool calls buffer, and usage.
+        """Accumulate a stream chunk into content, tool calls, reasoning, and usage.
 
         Args:
             chunk: SDK-normalized or raw stream event dict from the LLM.
@@ -651,10 +694,20 @@ class BaseLoop:
             tool_calls_buffer: Dict of tool call index to accumulated data.
             cumulative_usage: Dict of cumulative token counts (accumulated in place).
             usage_settled_ids: Set of response IDs whose usage has been counted.
+            reasoning_parts: List of reasoning delta strings (appended in place).
+                When provided, ``response.reasoning.delta`` events from reasoning
+                models (Qwen3/DeepSeek/etc.) are accumulated here for re-injection
+                as ``reasoning_content`` on the next turn's assistant message.
         """
         chunk_type = chunk.get("type", "")
         if chunk_type == "response.output_text.delta":
             content_parts.append(chunk.get("delta", ""))
+        elif chunk_type == "response.reasoning.delta" and reasoning_parts is not None:
+            # Reasoning model coherency: accumulate the thinking trace so it
+            # can be re-injected as reasoning_content on the next turn's
+            # assistant message (Qwen3 maintainers: multi-step tool use
+            # requires the prior thinking content).
+            reasoning_parts.append(chunk.get("delta", ""))
         elif chunk_type in ("response.tool_call.delta", "response.output_item.added",
                             "response.function_call_arguments.delta", "response.function_call_arguments.done",
                             "tool_call.ready"):

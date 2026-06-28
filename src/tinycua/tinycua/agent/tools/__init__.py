@@ -5,12 +5,14 @@ and Python code execution, as well as CUA-specific tools.
 """
 
 from tinycua.agent.tools.native import (
-    edit_file,
+    append_file,
     fetch_url,
     list_files,
     read_file,
     run_python,
     run_shell,
+    search_files,
+    str_replace,
     write_file,
 )
 
@@ -18,8 +20,10 @@ __all__ = [
     "run_shell",
     "read_file",
     "write_file",
-    "edit_file",
+    "str_replace",
+    "append_file",
     "list_files",
+    "search_files",
     "fetch_url",
     "run_python",
 ]

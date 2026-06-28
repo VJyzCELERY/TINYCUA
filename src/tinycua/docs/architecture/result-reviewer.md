@@ -19,7 +19,7 @@ Its primary responsibilities are:
 
 1. review completion against success criteria;
 2. determine what context should update future tasks;
-3. decide whether to accept, retry, or replan.
+3. decide whether to approve, send back for revision, or replan.
 
 ---
 
@@ -28,7 +28,8 @@ Its primary responsibilities are:
 The Result Reviewer should be hybrid:
 
 - deterministic checks for schema validity, missing fields, ordering consistency, and citations where applicable;
-- LLM-based semantic review for correctness, sufficiency, context propagation, and recovery decisions.
+- **sanity-checker (FR-056)** — a deterministic pre-pass that flags obviously broken results (empty output, schema mismatch, missing required artifacts) before the LLM review runs, so semantic review effort is not wasted on structurally invalid results;
+- LLM-based semantic review for correctness, sufficiency, context propagation, and recovery decisions. Every semantic verdict MUST carry a mandatory evidence rationale (FR-059) — a traceable justification linking the verdict to the success criteria and observed result, so approvals/rejections are auditable.
 
 ---
 
@@ -54,34 +55,36 @@ The Result Reviewer should not receive a broad accumulated context dump by defau
 ```mermaid
 flowchart TD
     INPUT{{"Task Result"}}
-    CHECK["Validate schema and evidence"]
-    REVIEW["Semantic review against success criteria"]
-    ACCEPT{"Accept?"}
+    CHECK["Validate schema and evidence\n(sanity-checker, FR-056)"]
+    REVIEW["Semantic review against success criteria\n(mandatory evidence rationale, FR-059)"]
+    APPROVED{"Approved?"}
     PROP["Consolidate unfinished/upcoming task contexts"]
-    RETRY{"Retry useful?"}
+    REVISE{"Needs revision?"}
     REPLAN{"Roadmap revision or exploration needed?"}
-    FAILS{"Failure threshold reached?"}
     OUT{{"Reviewer Decision"}}
 
     INPUT --> CHECK
     CHECK --> REVIEW
-    REVIEW --> ACCEPT
-    ACCEPT -->|Yes| PROP
+    REVIEW --> APPROVED
+    APPROVED -->|Yes| PROP
     PROP --> OUT
-    ACCEPT -->|No| RETRY
-    RETRY -->|Yes| OUT
-    RETRY -->|No| REPLAN
+    APPROVED -->|No| REVISE
+    REVISE -->|Yes| OUT
+    REVISE -->|No| REPLAN
     REPLAN -->|Yes| OUT
-    REPLAN -->|No| FAILS
-    FAILS -->|Yes| OUT
-    FAILS -->|No| OUT
+    REPLAN -->|No| OUT
 ```
+
+> **State-driven queue (FR-067):** the next nodes are selected from the active task's
+> state, not from a fixed label-driven shape — see
+> [worker-orchestration.md](worker-orchestration.md) for the state-driven queue
+> semantics.
 
 ---
 
 ## Context Propagation
 
-After accepting a task, the Result Reviewer decides which unfinished or upcoming tasks need context updates.
+After approving a task, the Result Reviewer decides which unfinished or upcoming tasks need context updates.
 
 This avoids dumping every previous task result into every future task. Context updates may modify task context — they can replace or add to existing content. The architecture does not prescribe a specific consolidation strategy.
 
@@ -91,21 +94,31 @@ This avoids dumping every previous task result into every future task. Context u
 
 | Status | Orchestration Action |
 |--------|----------------------|
-| `accepted` | Consolidate context for unfinished/upcoming tasks. Aggregate Worker Result when no tasks remain. |
-| `retry` | Create a new Task Executor for the same task with failure information recorded in the task context. |
+| `approved` | Consolidate context for unfinished/upcoming tasks. Aggregate Worker Result when no tasks remain. |
+| `needs_revision` / `rejected` | Send the task back to the Task Executor with failure information recorded in the task context. `rejected` is aliased to `needs_revision` (FR-057). |
 | `replan` | Call the [Task Analyzer](task-analysis.md) to decompose the current task into sub-tasks. |
 
-When the ResultReviewer cannot resolve, it does not produce a terminal decision. The agent stays active with an open question. Human-in-the-loop interaction occurs through passthrough routing.
-
-The Worker only terminates successfully when the final unfinished task is accepted and no remaining unfinished tasks exist.
+The Worker only terminates successfully when the final unfinished task is approved and no remaining unfinished tasks exist.
 
 ---
 
-## Repeated Failure Behavior
+## Recovery Model (FR-060 / FR-063)
 
-The Worker tracks an aggregated failure counter. Failures from child sessions roll up to the parent (parent.failure += child.failure). Any task success resets the counter to zero. After N aggregated failures, the Worker does not produce a terminal decision — the agent stays active, ready for human-in-the-loop interaction through passthrough routing.
+The reviewer uses a structured recovery budget instead of a single aggregated failure
+counter that escalates to HITL:
 
-This is not only per-task. It protects the whole Worker from retry/replan loops.
+- Per-method budgets: 15 structured retries + 10 focused retries + 3 judge retries = 30
+  total per task.
+- Partial results are preserved across re-entries; `accumulated_tool_results` persists
+  so revisited work is not lost.
+- A no-progress guard halts re-entry when no new information has been produced since the
+  last attempt.
+- Re-entries into the same task are unlimited until a budget is exhausted or the
+  no-progress guard fires.
+- Same-error guard (FR-078): the same error raised 3× in succession forces an
+  alternative action (replan or revised instruction) instead of another retry.
+
+This replaces the prior aggregated failure threshold → HITL escalation.
 
 ---
 
@@ -116,4 +129,4 @@ This is not only per-task. It protects the whole Worker from retry/replan loops.
 | Reviewer style | Hybrid | Combines reliable validation with semantic judgment |
 | Context update | Targeted propagation | Preserves precision and avoids context pollution |
 | Replanning | Call the Task Analyzer to decompose the current task | Keeps decomposition responsibility in the Task Analyzer. During execution, the Result Reviewer calls the Task Analyzer fresh to break down the current task — not overhaul the entire roadmap. The same agent is used by Task Creation upfront. See [task-analysis.md](task-analysis.md) for the agent and [task-creation.md](task-creation.md) for upfront decomposition. |
-| Failure escalation | Aggregated failure threshold | Prevents infinite retry loops and supports HITL recovery through passthrough |
+| Failure escalation | Recovery model with per-method budgets (FR-060/063) | Prevents infinite retry loops via structured budgets, partial-result preservation, no-progress guard, and same-error guard (FR-078) instead of a single HITL threshold |

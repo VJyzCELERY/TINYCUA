@@ -13,7 +13,6 @@ and produce execution results.
 
 - Must not select the active task (active task selection belongs to TinyCUALoop / task
   helpers).
-- Must not edit the active task or mutate the task tree.
 - Does not review execution results (that belongs to ResultReviewer).
 - Does not synthesize final user responses.
 
@@ -39,7 +38,9 @@ and produce execution results.
 ### Tool Restrictions
 
 - cannot select active task (active task selection belongs to TinyCUALoop / task helpers).
-- cannot edit active task or mutate the task tree.
+- The executor CAN report results for sibling tasks (same parent) via
+  `task_result_update` when the work completed them as a side effect. Must
+  `task_inspect` each sibling first (FR-069).
 
 ## Queue Behavior / `on_complete()`
 

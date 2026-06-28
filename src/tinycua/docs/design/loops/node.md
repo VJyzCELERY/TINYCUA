@@ -87,12 +87,36 @@ for model fields and conversion rules.
 
 ## Node Contract
 
+`NodeContract` is a declarative frozen dataclass (FR-064) that captures a node's
+execution intent up front, decoupled from runtime mutation:
+
+```text
+NodeContract (frozen dataclass, FR-064)
+  · goal: str
+  · success_criteria: list[str]
+  · tool_rationale: dict[str, str]   # tool name → why it is allowed/needed
+```
+
+`NodeProgress` tracks live execution progress per node on
+`session.node_progress[node_id]` (FR-062), separate from the node contract:
+
+```text
+NodeProgress (FR-062)
+  · attempts: int
+  · last_error: str | None
+  · accumulated_tool_results: list[dict]
+  · state: Literal["pending", "running", "revising", "done", "failed"]
+```
+
+The node itself remains the runtime unit:
+
 ```text
 Node
   · node_id: str
   · session: Session | None
   · parent: Node | None
   · config: NodeConfigBase
+  · contract: NodeContract        # FR-064
   · is_terminal: bool
   · ensure_session(root_or_parent_session)
   · build_instruction(override_instructions?)
@@ -132,7 +156,7 @@ reviewer decisions, consolidates information, and emits response-ready context f
 ```text
 ResultReviewer:
   - review executor output
-  - decide accept/retry/replan/open_question
+  - decide approved / needs_revision / rejected / replan
   - update active TaskResult
   - update active task context
   - trigger task-tree transition
@@ -170,24 +194,30 @@ AggregatedResult
   · metadata: dict
 ```
 
-### Flow
+### Flow (FR-067 state-driven queue)
+
+Queue shape is state-driven, not label-driven:
 
 ```text
-TaskExecutor
-  → ResultReviewer
-      accept
-        → task-tree update
-        → if root task done:
-             ResultAggregationNode
-             ResponseNode
-      retry
-        → TaskExecutor
-      replan
-        → TaskAssessor(scope=active_task_or_local_region)
-        → TaskAnalyzer(mode=local_replan, init_enabled=false)
-        → TaskExecutor
-      open_question
-        → mandatory_passthrough to ResultReviewer
+TaskExecutor → ResultReviewer
+
+  no result yet:
+    → [TaskExecutor, ResultReviewer]
+  has result, no negative review:
+    → [ResultReviewer] only
+  has result + needs_revision / rejected:
+    → [TaskExecutor, ResultReviewer]
+  failed result:
+    → [TaskExecutor, ResultReviewer]
+  approved + root task done:
+    → [ResultAggregationNode]
+      → ResponseNode
+  replan:
+    → TaskAssessor(scope=active_task_or_local_region)
+    → TaskAnalyzer(mode=local_replan, init_enabled=false)
+    → TaskExecutor
+  approved-but-not-completed (FR-079 safety net):
+    → re-open task, clear approval, requeue [TaskExecutor, ResultReviewer]
 ```
 
 ### ResultReviewer Replan Separation

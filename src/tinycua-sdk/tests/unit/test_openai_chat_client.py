@@ -189,6 +189,101 @@ class TestChatCompletionsPayloadTranslation:
         assert tools[0]["function"]["description"] == "Lookup something"
         assert tools[0]["function"]["parameters"] == {"type": "object"}
 
+    @pytest.mark.asyncio
+    async def test_payload_keeps_a_user_turn_for_local_templates(
+        self,
+        client: OpenAIChatCompletionsClient,
+    ):
+        """Local chat templates need a user query even for internal nodes."""
+        payload = await client._build_chat_payload(
+            [
+                {"role": "system", "content": "Use tools."},
+                {"role": "assistant", "content": "Based on context, call lookup."},
+            ],
+            tools=[
+                {
+                    "name": "lookup",
+                    "description": "Lookup",
+                    "parameters": {"type": "object"},
+                },
+            ],
+        )
+
+        assert payload["messages"][-1] == {
+            "role": "user",
+            "content": "Based on context, call lookup.",
+        }
+
+    @pytest.mark.asyncio
+    async def test_payload_does_not_rewrite_tool_result_turns(
+        self,
+        client: OpenAIChatCompletionsClient,
+    ):
+        """Tool result history must stay structurally valid."""
+        payload = await client._build_chat_payload(
+            [
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {"name": "lookup", "arguments": "{}"},
+                        }
+                    ],
+                },
+                {"role": "tool_result", "call_id": "call_1", "content": "ok"},
+            ],
+        )
+
+        assert [message["role"] for message in payload["messages"]] == [
+            "assistant",
+            "tool",
+        ]
+
+
+class TestChatCompletionsCachePrompt:
+    """cache_prompt is injected for local base_urls (llama.cpp KV reuse), omitted for cloud.
+
+    Passed via ``extra_body`` (the OpenAI Python client's escape hatch for
+    non-standard fields) so the typed client doesn't reject the unknown kwarg.
+    """
+
+    @pytest.mark.asyncio
+    async def test_cache_prompt_injected_for_localhost(self):
+        """Local base_url (localhost) gets extra_body.cache_prompt=true (FR-017)."""
+        model = LanguageModel(model_name="local-model", base_url="http://localhost:1234/v1")
+        client = OpenAIChatCompletionsClient(model)
+        payload = await client._build_chat_payload([{"role": "user", "content": "hi"}])
+        assert payload.get("extra_body", {}).get("cache_prompt") is True
+
+    @pytest.mark.asyncio
+    async def test_cache_prompt_injected_for_host_docker_internal(self):
+        """host.docker.internal (container → host) is local → extra_body.cache_prompt=true."""
+        model = LanguageModel(
+            model_name="local-model", base_url="http://host.docker.internal:1234/v1"
+        )
+        client = OpenAIChatCompletionsClient(model)
+        payload = await client._build_chat_payload([{"role": "user", "content": "hi"}])
+        assert payload.get("extra_body", {}).get("cache_prompt") is True
+
+    @pytest.mark.asyncio
+    async def test_cache_prompt_omitted_for_cloud_base_url(self):
+        """Real OpenAI / cloud base_url → no extra_body.cache_prompt (harmless on cloud)."""
+        model = LanguageModel(model_name="gpt-4o-mini", base_url="https://api.openai.com/v1")
+        client = OpenAIChatCompletionsClient(model)
+        payload = await client._build_chat_payload([{"role": "user", "content": "hi"}])
+        assert "cache_prompt" not in payload.get("extra_body", {})
+
+    @pytest.mark.asyncio
+    async def test_cache_prompt_omitted_when_no_base_url(self):
+        """No base_url (SDK default) → no extra_body.cache_prompt."""
+        model = LanguageModel(model_name="gpt-4o-mini")
+        client = OpenAIChatCompletionsClient(model)
+        payload = await client._build_chat_payload([{"role": "user", "content": "hi"}])
+        assert "cache_prompt" not in payload.get("extra_body", {})
+
 
 class TestChatCompletionsNonStreaming:
     """Non-streaming response normalization."""

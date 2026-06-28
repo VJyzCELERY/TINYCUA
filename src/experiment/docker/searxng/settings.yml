@@ -1,0 +1,35 @@
+use_default_settings: true
+
+server:
+  secret_key: tinycua-experiment
+  bind_address: 0.0.0.0
+  port: 8080
+  limiter: false
+
+search:
+  formats:
+    - html
+    - json
+
+# Outgoing HTTP client tuning. Lower per-request timeout so a dead/slow
+# engine fails fast instead of holding its slot — the aggregate query
+# returns partial results from whichever engines are responsive, instead
+# of waiting on the slowest one and hitting the client timeout.
+outgoing:
+  request_timeout: 8.0
+  max_request_timeout: 10.0
+
+# Enable extra general-web engines (disabled in SearXNG defaults) so the
+# agent has 5+ general engines instead of the default 4 (google, brave,
+# startpage, duckduckgo). When one or two get rate-limited/CAPTCHA'd
+# under rapid-fire query load, the rest still return results. Each entry
+# merges over the default engine definition with the same `name`.
+engines:
+  - name: bing
+    enabled: true
+  - name: qwant
+    enabled: true
+  - name: mojeek
+    enabled: true
+  - name: duckduckgo
+    enabled: true

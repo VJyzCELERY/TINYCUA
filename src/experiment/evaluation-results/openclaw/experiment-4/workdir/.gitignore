@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/  # Virtual environment directory (.venv is preferred)
+env/
+.env  # Environment variables (keep .env.example for reference)
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+typeshed/
+db.sqlite3  # SQLite database file created during development
+data.db
+*.db.lock
+
+# IDE and Editor
+.idea/
+.vscode/settings.json  # VSCode settings (keep this for your setup)
+.settings/
+.project
+.classpath
+bin/
+build/
+
+# Testing
+.tox/
+.nox/
+.coverage*
+.pytest_cache/*
+
+# Debuggers
+*.pdb
+
+# Uploads - keep images but not other files/uploads
+uploads/images/*.jpg  # Keep image uploads (they're data), ignore everything else in directory
+uploads/images/*.png
+uploads/images/*.jpeg
+uploads/images/*.gif
+uploads/images/*.webp
+uploads/images/*.svg
+!uploads/images/.gitkeep  # Keep .gitkeep placeholder file for tracking empty directory
+
+# Documentation builds
+docs/build/
+*.md.bak
+
+# OS generated files.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.Spotlight-V100
+.Trashes
+.AppleDouble
+
+# Package manager lockfiles (optional, uncomment if you want to commit them)
+# package-lock.json  # npm/yarn lockfile
+# yarn.lock          # Yarn lockfile

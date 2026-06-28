@@ -1,0 +1,702 @@
+[plugins] loading browser from /usr/local/lib/node_modules/openclaw/dist/extensions/browser/index.js
+[plugins] loading canvas from /usr/local/lib/node_modules/openclaw/dist/extensions/canvas/index.js
+[plugins] loading device-pair from /usr/local/lib/node_modules/openclaw/dist/extensions/device-pair/index.js
+Registered plugin command: /pair (plugin: device-pair)
+[plugins] loading file-transfer from /usr/local/lib/node_modules/openclaw/dist/extensions/file-transfer/index.js
+[plugins] loading memory-core from /usr/local/lib/node_modules/openclaw/dist/extensions/memory-core/index.js
+Registered plugin command: /dreaming (plugin: memory-core)
+[plugins] loading phone-control from /usr/local/lib/node_modules/openclaw/dist/extensions/phone-control/index.js
+Registered plugin command: /phone (plugin: phone-control)
+[plugins] loading searxng from /usr/local/lib/node_modules/openclaw/dist/extensions/searxng/index.js
+[plugins] loading talk-voice from /usr/local/lib/node_modules/openclaw/dist/extensions/talk-voice/index.js
+Registered plugin command: /voice (plugin: talk-voice)
+[plugins] loaded 8 plugin(s) (8 attempted) in 329.7ms
+[diagnostic] lane enqueue: lane=session:agent:main:experiment-5 queueSize=1
+[diagnostic] lane dequeue: lane=session:agent:main:experiment-5 waitMs=1 queueSize=0
+[diagnostic] lane enqueue: lane=main queueSize=1
+[diagnostic] lane dequeue: lane=main waitMs=0 queueSize=0
+[plugins] loading alibaba from /usr/local/lib/node_modules/openclaw/dist/extensions/alibaba/index.js
+[plugins] loading anthropic from /usr/local/lib/node_modules/openclaw/dist/extensions/anthropic/index.js
+[plugins] loading arcee from /usr/local/lib/node_modules/openclaw/dist/extensions/arcee/index.js
+[plugins] loading azure-speech from /usr/local/lib/node_modules/openclaw/dist/extensions/azure-speech/index.js
+[plugins] loading browser from /usr/local/lib/node_modules/openclaw/dist/extensions/browser/index.js
+[plugins] loading byteplus from /usr/local/lib/node_modules/openclaw/dist/extensions/byteplus/index.js
+[plugins] loading canvas from /usr/local/lib/node_modules/openclaw/dist/extensions/canvas/index.js
+[plugins] loading cerebras from /usr/local/lib/node_modules/openclaw/dist/extensions/cerebras/index.js
+[plugins] loading chutes from /usr/local/lib/node_modules/openclaw/dist/extensions/chutes/index.js
+[plugins] loading cloudflare-ai-gateway from /usr/local/lib/node_modules/openclaw/dist/extensions/cloudflare-ai-gateway/index.js
+[plugins] loading comfy from /usr/local/lib/node_modules/openclaw/dist/extensions/comfy/index.js
+[plugins] loading copilot-proxy from /usr/local/lib/node_modules/openclaw/dist/extensions/copilot-proxy/index.js
+[plugins] loading deepgram from /usr/local/lib/node_modules/openclaw/dist/extensions/deepgram/index.js
+[plugins] loading deepinfra from /usr/local/lib/node_modules/openclaw/dist/extensions/deepinfra/index.js
+[plugins] loading deepseek from /usr/local/lib/node_modules/openclaw/dist/extensions/deepseek/index.js
+[plugins] loading device-pair from /usr/local/lib/node_modules/openclaw/dist/extensions/device-pair/index.js
+Registered plugin command: /pair (plugin: device-pair)
+[plugins] loading document-extract from /usr/local/lib/node_modules/openclaw/dist/extensions/document-extract/index.js
+[plugins] loading elevenlabs from /usr/local/lib/node_modules/openclaw/dist/extensions/elevenlabs/index.js
+[plugins] loading fal from /usr/local/lib/node_modules/openclaw/dist/extensions/fal/index.js
+[plugins] loading file-transfer from /usr/local/lib/node_modules/openclaw/dist/extensions/file-transfer/index.js
+[plugins] loading fireworks from /usr/local/lib/node_modules/openclaw/dist/extensions/fireworks/index.js
+[plugins] loading github-copilot from /usr/local/lib/node_modules/openclaw/dist/extensions/github-copilot/index.js
+[plugins] loading gmi from /usr/local/lib/node_modules/openclaw/dist/extensions/gmi/index.js
+[plugins] loading google from /usr/local/lib/node_modules/openclaw/dist/extensions/google/index.js
+[plugins] loading groq from /usr/local/lib/node_modules/openclaw/dist/extensions/groq/index.js
+[plugins] loading huggingface from /usr/local/lib/node_modules/openclaw/dist/extensions/huggingface/index.js
+[plugins] loading inworld from /usr/local/lib/node_modules/openclaw/dist/extensions/inworld/index.js
+[plugins] loading kilocode from /usr/local/lib/node_modules/openclaw/dist/extensions/kilocode/index.js
+[plugins] loading kimi from /usr/local/lib/node_modules/openclaw/dist/extensions/kimi-coding/index.js
+[plugins] loading litellm from /usr/local/lib/node_modules/openclaw/dist/extensions/litellm/index.js
+[plugins] loading lmstudio from /usr/local/lib/node_modules/openclaw/dist/extensions/lmstudio/index.js
+[plugins] loading memory-core from /usr/local/lib/node_modules/openclaw/dist/extensions/memory-core/index.js
+Registered plugin command: /dreaming (plugin: memory-core)
+[plugins] loading microsoft from /usr/local/lib/node_modules/openclaw/dist/extensions/microsoft/index.js
+[plugins] loading microsoft-foundry from /usr/local/lib/node_modules/openclaw/dist/extensions/microsoft-foundry/index.js
+[plugins] loading minimax from /usr/local/lib/node_modules/openclaw/dist/extensions/minimax/index.js
+[plugins] loading mistral from /usr/local/lib/node_modules/openclaw/dist/extensions/mistral/index.js
+[plugins] loading moonshot from /usr/local/lib/node_modules/openclaw/dist/extensions/moonshot/index.js
+[plugins] loading novita from /usr/local/lib/node_modules/openclaw/dist/extensions/novita/index.js
+[plugins] loading nvidia from /usr/local/lib/node_modules/openclaw/dist/extensions/nvidia/index.js
+[plugins] loading ollama from /usr/local/lib/node_modules/openclaw/dist/extensions/ollama/index.js
+[plugins] loading openai from /usr/local/lib/node_modules/openclaw/dist/extensions/openai/index.js
+[plugins] loading opencode from /usr/local/lib/node_modules/openclaw/dist/extensions/opencode/index.js
+[plugins] loading opencode-go from /usr/local/lib/node_modules/openclaw/dist/extensions/opencode-go/index.js
+[plugins] loading openrouter from /usr/local/lib/node_modules/openclaw/dist/extensions/openrouter/index.js
+[plugins] loading phone-control from /usr/local/lib/node_modules/openclaw/dist/extensions/phone-control/index.js
+Registered plugin command: /phone (plugin: phone-control)
+[plugins] loading qianfan from /usr/local/lib/node_modules/openclaw/dist/extensions/qianfan/index.js
+[plugins] loading qwen from /usr/local/lib/node_modules/openclaw/dist/extensions/qwen/index.js
+[plugins] loading runway from /usr/local/lib/node_modules/openclaw/dist/extensions/runway/index.js
+[plugins] loading searxng from /usr/local/lib/node_modules/openclaw/dist/extensions/searxng/index.js
+[plugins] loading senseaudio from /usr/local/lib/node_modules/openclaw/dist/extensions/senseaudio/index.js
+[plugins] loading sglang from /usr/local/lib/node_modules/openclaw/dist/extensions/sglang/index.js
+[plugins] loading stepfun from /usr/local/lib/node_modules/openclaw/dist/extensions/stepfun/index.js
+[plugins] loading synthetic from /usr/local/lib/node_modules/openclaw/dist/extensions/synthetic/index.js
+[plugins] loading talk-voice from /usr/local/lib/node_modules/openclaw/dist/extensions/talk-voice/index.js
+Registered plugin command: /voice (plugin: talk-voice)
+[plugins] loading tencent from /usr/local/lib/node_modules/openclaw/dist/extensions/tencent/index.js
+[plugins] loading together from /usr/local/lib/node_modules/openclaw/dist/extensions/together/index.js
+[plugins] loading tts-local-cli from /usr/local/lib/node_modules/openclaw/dist/extensions/tts-local-cli/index.js
+[plugins] loading venice from /usr/local/lib/node_modules/openclaw/dist/extensions/venice/index.js
+[plugins] loading vercel-ai-gateway from /usr/local/lib/node_modules/openclaw/dist/extensions/vercel-ai-gateway/index.js
+[plugins] loading vllm from /usr/local/lib/node_modules/openclaw/dist/extensions/vllm/index.js
+[plugins] loading volcengine from /usr/local/lib/node_modules/openclaw/dist/extensions/volcengine/index.js
+[plugins] loading voyage from /usr/local/lib/node_modules/openclaw/dist/extensions/voyage/index.js
+[plugins] loading vydra from /usr/local/lib/node_modules/openclaw/dist/extensions/vydra/index.js
+[plugins] loading web-readability from /usr/local/lib/node_modules/openclaw/dist/extensions/web-readability/index.js
+[plugins] loading xai from /usr/local/lib/node_modules/openclaw/dist/extensions/xai/index.js
+[plugins] loading xiaomi from /usr/local/lib/node_modules/openclaw/dist/extensions/xiaomi/index.js
+[plugins] loading zai from /usr/local/lib/node_modules/openclaw/dist/extensions/zai/index.js
+[plugins] loaded 95 plugin(s) (67 attempted) in 758.9ms
+[agents/harness] agent harness selected
+[agent/embedded] embedded run start: runId=227abf1d-ea27-466a-9339-5ec47c10fc7d sessionId=2764d6a5-6f13-4c93-bc6d-1d3198535625 provider=local model=qwen3.5-9b thinking=off messageChannel=unknown
+[plugins] loading browser from /usr/local/lib/node_modules/openclaw/dist/extensions/browser/index.js
+[plugins] loading canvas from /usr/local/lib/node_modules/openclaw/dist/extensions/canvas/index.js
+[plugins] loading file-transfer from /usr/local/lib/node_modules/openclaw/dist/extensions/file-transfer/index.js
+[plugins] loading memory-core from /usr/local/lib/node_modules/openclaw/dist/extensions/memory-core/index.js
+[plugins] loaded 10 plugin(s) (4 attempted) in 20.0ms
+[plugins] plugin tool factory returned null (memory-core): [memory_search]
+[plugins] plugin tool factory returned null (memory-core): [memory_get]
+[agent/embedded] tool-search: cataloged 29 tools behind compact prompt surface
+[agent/embedded] applying extraParams to agent streamFn for local/qwen3.5-9b
+[diagnostic] session state: sessionId=2764d6a5-6f13-4c93-bc6d-1d3198535625 sessionKey=agent:main:experiment-5 prev=idle new=processing reason="run_started" queueDepth=0
+[diagnostic] run registered: sessionId=2764d6a5-6f13-4c93-bc6d-1d3198535625 totalActive=1
+[agent/embedded] embedded run prompt start: runId=227abf1d-ea27-466a-9339-5ec47c10fc7d sessionId=2764d6a5-6f13-4c93-bc6d-1d3198535625 provider=local api=openai-completions endpoint=local route=local policy=none
+[agent/embedded] [context-diag] pre-prompt: sessionKey=agent:main:experiment-5 messages=0 roleCounts=none historyTextChars=0 maxMessageTextChars=0 historyImageBlocks=0 systemPromptChars=25954 promptChars=163 promptImages=0 provider=local/qwen3.5-9b sessionFile=/root/.openclaw/agents/main/sessions/2764d6a5-6f13-4c93-bc6d-1d3198535625.jsonl
+[agent/embedded] [context-overflow-precheck] pre-prompt check sessionKey=agent:main:experiment-5 provider=local/qwen3.5-9b route=fits estimatedPromptTokens=7874 pressureSource=llm_boundary_normalized_prompt promptBudgetBeforeReserve=100000 overflowTokens=0 toolResultReducibleChars=0 reserveTokens=20000 effectiveReserveTokens=20000 contextTokenBudget=120000 messages=0 unwindowedMessages=0 sessionFile=/root/.openclaw/agents/main/sessions/2764d6a5-6f13-4c93-bc6d-1d3198535625.jsonl
+[agent/embedded] embedded run agent start: runId=227abf1d-ea27-466a-9339-5ec47c10fc7d
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=26 contentType=text/event-stream
+[agent/embedded] embedded run tool start: runId=227abf1d-ea27-466a-9339-5ec47c10fc7d tool=tool_search toolCallId=4gTUBK40tf05WkfghmyoW5OlEWEy0V99
+[agent/embedded] embedded run tool end: runId=227abf1d-ea27-466a-9339-5ec47c10fc7d tool=tool_search toolCallId=4gTUBK40tf05WkfghmyoW5OlEWEy0V99
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=6 contentType=text/event-stream
+[agent/embedded] embedded run tool start: runId=227abf1d-ea27-466a-9339-5ec47c10fc7d tool=tool_describe toolCallId=dpHR782q5V7FKi8LCfzUIWScxzTNJWo7
+tools: tool_describe failed stack:
+ToolInputError: Unknown tool id: diagram-maker
+    at findEntry (file:///usr/local/lib/node_modules/openclaw/dist/agent-tools-CvzYkYSe.js:1883:25)
+    at ToolSearchRuntime.describe (file:///usr/local/lib/node_modules/openclaw/dist/agent-tools-CvzYkYSe.js:1962:25)
+    at execute (file:///usr/local/lib/node_modules/openclaw/dist/agent-tools-CvzYkYSe.js:2341:67)
+    at execute (file:///usr/local/lib/node_modules/openclaw/dist/agent-tools.before-tool-call-CsK6Ldwa.js:1400:26)
+    at async Object.execute (file:///usr/local/lib/node_modules/openclaw/dist/agent-tools-CvzYkYSe.js:95:11)
+    at async Object.execute (file:///usr/local/lib/node_modules/openclaw/dist/tool-split-DXB3RqC6.js:256:15)
+    at async executePreparedToolCall (file:///usr/local/lib/node_modules/openclaw/dist/proxy-BR8vW50h.js:561:18)
+    at async file:///usr/local/lib/node_modules/openclaw/dist/proxy-BR8vW50h.js:447:100
+    at async Promise.all (index 0)
+    at async executeToolCallsParallel (file:///usr/local/lib/node_modules/openclaw/dist/proxy-BR8vW50h.js:453:32)
+[agent/embedded] embedded run tool end: runId=227abf1d-ea27-466a-9339-5ec47c10fc7d tool=tool_describe toolCallId=dpHR782q5V7FKi8LCfzUIWScxzTNJWo7
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=6 contentType=text/event-stream
+[agent/embedded] embedded run tool start: runId=227abf1d-ea27-466a-9339-5ec47c10fc7d tool=tool_search toolCallId=jX7Ld6OgwFM4UxwMpJrRlfmdtzoSy6Od
+[agent/embedded] embedded run tool end: runId=227abf1d-ea27-466a-9339-5ec47c10fc7d tool=tool_search toolCallId=jX7Ld6OgwFM4UxwMpJrRlfmdtzoSy6Od
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=6 contentType=text/event-stream
+[agent/embedded] embedded run tool start: runId=227abf1d-ea27-466a-9339-5ec47c10fc7d tool=tool_call toolCallId=IBYuK7TMr3DR1xNw74HBwtWprYU3DaRW
+[agent/embedded] embedded run tool start: runId=227abf1d-ea27-466a-9339-5ec47c10fc7d tool=skill_workshop toolCallId=tool_search_code:IBYuK7TMr3DR1xNw74HBwtWprYU3DaRW:skill_workshop:1
+[agent/embedded] embedded run tool end: runId=227abf1d-ea27-466a-9339-5ec47c10fc7d tool=skill_workshop toolCallId=tool_search_code:IBYuK7TMr3DR1xNw74HBwtWprYU3DaRW:skill_workshop:1
+tools: tool_call failed stack:
+ToolInputError: proposal_content required
+    at readStringParam (file:///usr/local/lib/node_modules/openclaw/dist/common-CEBsSh4n.js:59:23)
+    at execute (file:///usr/local/lib/node_modules/openclaw/dist/openclaw-tools-50pm1WIW.js:12439:28)
+    at execute (file:///usr/local/lib/node_modules/openclaw/dist/agent-tools.before-tool-call-CsK6Ldwa.js:1400:26)
+    at async Object.execute (file:///usr/local/lib/node_modules/openclaw/dist/agent-tools-CvzYkYSe.js:95:11)
+    at async Object.execute (file:///usr/local/lib/node_modules/openclaw/dist/selection-kQiC501t.js:13509:28)
+    at async runToolLifecycle (file:///usr/local/lib/node_modules/openclaw/dist/selection-kQiC501t.js:5595:20)
+    at async toolSearchCatalogExecutor (file:///usr/local/lib/node_modules/openclaw/dist/selection-kQiC501t.js:13505:21)
+    at async ToolSearchRuntime.callEntry (file:///usr/local/lib/node_modules/openclaw/dist/agent-tools-CvzYkYSe.js:1977:19)
+    at async ToolSearchRuntime.call (file:///usr/local/lib/node_modules/openclaw/dist/agent-tools-CvzYkYSe.js:1967:11)
+    at async execute (file:///usr/local/lib/node_modules/openclaw/dist/agent-tools-CvzYkYSe.js:2353:23)
+[agent/embedded] embedded run tool end: runId=227abf1d-ea27-466a-9339-5ec47c10fc7d tool=tool_call toolCallId=IBYuK7TMr3DR1xNw74HBwtWprYU3DaRW
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=6 contentType=text/event-stream
+[agent/embedded] embedded run tool start: runId=227abf1d-ea27-466a-9339-5ec47c10fc7d tool=tool_call toolCallId=r6a2ih946Rmfmpdpo1qObeDlopt0W7Mw
+[agent/embedded] embedded run tool start: runId=227abf1d-ea27-466a-9339-5ec47c10fc7d tool=skill_workshop toolCallId=tool_search_code:r6a2ih946Rmfmpdpo1qObeDlopt0W7Mw:skill_workshop:2
+[agent/embedded] embedded run tool end: runId=227abf1d-ea27-466a-9339-5ec47c10fc7d tool=skill_workshop toolCallId=tool_search_code:r6a2ih946Rmfmpdpo1qObeDlopt0W7Mw:skill_workshop:2
+tools: tool_call failed stack:
+ToolInputError: proposal_content required
+    at readStringParam (file:///usr/local/lib/node_modules/openclaw/dist/common-CEBsSh4n.js:59:23)
+    at execute (file:///usr/local/lib/node_modules/openclaw/dist/openclaw-tools-50pm1WIW.js:12439:28)
+    at execute (file:///usr/local/lib/node_modules/openclaw/dist/agent-tools.before-tool-call-CsK6Ldwa.js:1400:26)
+    at async Object.execute (file:///usr/local/lib/node_modules/openclaw/dist/agent-tools-CvzYkYSe.js:95:11)
+    at async Object.execute (file:///usr/local/lib/node_modules/openclaw/dist/selection-kQiC501t.js:13509:28)
+    at async runToolLifecycle (file:///usr/local/lib/node_modules/openclaw/dist/selection-kQiC501t.js:5595:20)
+    at async toolSearchCatalogExecutor (file:///usr/local/lib/node_modules/openclaw/dist/selection-kQiC501t.js:13505:21)
+    at async ToolSearchRuntime.callEntry (file:///usr/local/lib/node_modules/openclaw/dist/agent-tools-CvzYkYSe.js:1977:19)
+    at async ToolSearchRuntime.call (file:///usr/local/lib/node_modules/openclaw/dist/agent-tools-CvzYkYSe.js:1967:11)
+    at async execute (file:///usr/local/lib/node_modules/openclaw/dist/agent-tools-CvzYkYSe.js:2353:23)
+[agent/embedded] embedded run tool end: runId=227abf1d-ea27-466a-9339-5ec47c10fc7d tool=tool_call toolCallId=r6a2ih946Rmfmpdpo1qObeDlopt0W7Mw
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=7 contentType=text/event-stream
+[agent/embedded] embedded run agent end: runId=227abf1d-ea27-466a-9339-5ec47c10fc7d isError=false
+[diagnostic] session state: sessionId=2764d6a5-6f13-4c93-bc6d-1d3198535625 sessionKey=agent:main:experiment-5 prev=processing new=idle reason="run_completed" queueDepth=0
+[diagnostic] run cleared: sessionId=2764d6a5-6f13-4c93-bc6d-1d3198535625 totalActive=0
+[agent/embedded] embedded run prompt end: runId=227abf1d-ea27-466a-9339-5ec47c10fc7d sessionId=2764d6a5-6f13-4c93-bc6d-1d3198535625 durationMs=109904
+[agent/embedded] embedded run done: runId=227abf1d-ea27-466a-9339-5ec47c10fc7d sessionId=2764d6a5-6f13-4c93-bc6d-1d3198535625 durationMs=110983 aborted=false
+[diagnostic] lane task done: lane=main durationMs=110984 active=0 queued=0
+[diagnostic] lane task done: lane=session:agent:main:experiment-5 durationMs=110985 active=0 queued=0
+Let me complete your study guide without additional tools - here's a detailed visual representation:
+
+```python
+# Complete Transformer Visual Diagram (Conceptual)
+"""
+┌─────────────────────────────────────────────────────────────┐
+│                    TRANSFORMER ENCODER                       │
+├──────────┬─────────────────────────────────────────────────┤
+│ Input    │  ┌─────────────────────────────────────────┐   │
+│ Tokens → │  │         Self-Attention Layer            │ ← N copies stacked
+│ Embedding│  │     Q K V Projections (3x Linear)       │   │
+│          │  ├─────────────────────────────────────────┤   │
+│ ┌───────┼→│  │           Add & Norm                   │   │
+│ │ Layer │  │  │         Feed Forward Network          │   │
+│ │ N=6-12│  │  │        (Expand → GELU → Contract)     │ ← Same for all layers!
+│ └───────┼→│  ├─────────────────────────────────────────┤   │
+│         │  │           Add & Norm                      │   │
+│ Output  │  └─────────────────────────────────────────┘   │
+│ Tokens  │                                                 │
+│ (Same length as input)                                   │
+└─────────────────────────────────────────────────────────────┘
+
+                    ↓ Cross-Attention (if decoder exists)
+
+┌─────────────────────────────────────────────────────────────┐
+│                   TRANSFORMER DECODER                        │
+├──────────┬─────────────────────────────────────────────────┤
+│ Output   │  ┌─────────────────────────────────────────┐   │
+│ Tokens → │  │         Causal Attention                │ ← Only attends to past positions!
+│ Embedding│  │    (Masked Self-Attention)              │   │
+│          │  ├─────────────────────────────────────────┤   │
+│ ┌───────┼→│  │           Add & Norm                   │   │
+│ │ Layer │  │         Encoder-Decoder Attention        │ ← Reads encoder output
+│ │ N=4-8 │  │     (Cross-Attention with Encoded Input) │   │
+│ └───────┼→│  ├─────────────────────────────────────────┤   │
+│         │  │           Add & Norm                      │   │
+│ Final   │  │          Feed Forward Network             │ ← Same FFN as encoder!
+│ Linear  │  │        (Expand → GELU → Contract)         │   │
+│ Layer   │  └─────────────────────────────────────────┘   │
+│ Output Tokens                                     ↕
+└─────────────────────────────────────────────────────────────┘
+
+Legend:
+→ Data flow direction
+↑↕ Connection between components  
+N = Number of layers (depth)
+"""
+```
+
+---
+
+## Attention Mechanisms Deep Dive 🎯
+
+### The Self-Attention Formula Explained Step-by-Step
+
+Let's break down the mathematical beauty behind attention!
+
+```python
+def self_attention_step(Q, K, V):
+    """
+    Q = Query (what I'm looking for)
+    K = Key (how do I identify things?)  
+    V = Value (what information does that thing have?)
+    
+    Example: Processing sentence "The cat sat on the mat"
+    - When processing "mat", query asks "which words relate to 'mat'?"
+    - Keys tell us what each word represents
+    - Values give us actual content of related words
+    
+    Result = Weighted combination of values based on attention scores! 📊
+    """
+    
+    # Step 1: Compute attention logits (raw scores)
+    logit_matrix = np.dot(Q, K.T) / sqrt(d_model)  # Shape: [batch, seq_len, seq_len]
+    
+    # Example with 3 tokens in sequence:
+    """
+       Query[0]=The   Q[1]=cat   Q[2]=sat
+      ┌──────────────┬─────────────┬─────────────┐
+      │ K·Q.T / sqrt(│         │          │           │
+      │ d_model)     │    Score    │  Attention  │    Output = Σ(attn*value)
+      ├──────────────┼─────────────┼─────────────┤
+      │ The attends   │ to: [0.9,  │ to:          │ 
+      │ to positions  │  0.1, 0.0]  │ weighted sum │
+      │ with weights  ├─────────────┼─────────────┤
+      │               │ cat[0.1]   │ of values!   │
+      └──────────────┴─────────────┴─────────────┘"""
+    
+    # Step 2: Apply softmax to normalize scores into probabilities
+    attn_weights = torch.softmax(logit_matrix, dim=-1)
+    # Each row now sums to 1.0 (probability distribution over positions)
+    
+    # Step 3: Weighted sum of values
+    output = torch.matmul(attn_weights, V)  # [batch, seq_len, d_model]
+    
+    return output
+
+"""Why divide by sqrt(d_model)?
+Without scaling, attention scores grow with dimension size.
+For high-dimensional vectors (512+), softmax becomes too peaked!
+Scaling keeps gradients flowing properly during training."""```
+
+### Multi-Head Attention: Parallel Perspectives 🔄
+
+Instead of one monolithic attention mechanism, we split into multiple "heads":
+
+```python
+class MultiHeadAttention(nn.Module):
+    def __init__(self, d_model=512, num_heads=8):
+        super().__init__()
+        
+        self.num_heads = num_heads  # Split into 8 parallel attentions
+        assert d_model % num_heads == 0
+        
+        dim_per_head = d_model // num_heads  # Each head gets 64 dimensions
+        
+        # Create separate linear projections for each head
+        self.q_proj = nn.Linear(d_model, d_model)   # Queries
+        self.k_proj = nn.Linear(d_model, d_model)   # Keys  
+        self.v_proj = nn.Linear(d_model, d_model)   # Values
+    
+    def forward(self, x):
+        """Process all 8 heads in parallel"""
+        
+        Q = self.q_proj(x)      # [batch, seq_len, d_model]
+        K = self.k_proj(x)      
+        V = self.v_proj(x)
+        
+        # Split each into num_heads separate matrices
+        # Q: [batch, seq_len, 8*64] → reshape to 
+        #    [batch, num_heads=8, seq_len, dim_per_head=64]
+        new_q_shape = (Q.size(0), self.num_heads, -1) + Q.shape[2:]
+        
+        return torch.cat([head(Q, K, V) for head in range(self.num_heads)], 
+                         dim=-1)
+
+"""Visualizing Multi-Head Attention:
+
+Original sequence of 8 dimensions gets split into 4 "perspectives":
+
+Head 0 (Semantic):   [the] → attends strongly to [cat], [dog]
+Head 1 (Syntactic):    [the] → looks for determiner relationships  
+Head 2 (Positional):  Focuses on word order patterns
+Head 3 (Topic):      Identifies subject-object dependencies
+
+Each head learns different "what" and "how" to attend! 🧩"""```
+
+### Different Types of Attention Applications
+
+| Application | How It Works | Example Use Case |
+|------------|--------------|------------------|
+| **Self-Attention** | Token attends to other tokens in same sequence | Language understanding within a sentence |
+| **Cross-Attention** | Decoder queries encoder outputs | Translation (source language → target language) |
+| **Sparse Attention** | Only attends to specific positions | Long sequences, reducing computation |
+| **Linear Attention** | Uses kernel tricks for efficiency | Very long documents (>10k tokens) |
+
+---
+
+## Practical Implementation Guide 🛠️
+
+### Building a Simple Transformer from Scratch (PyTorch Style)
+
+```python
+import torch
+import torch.nn as nn
+import math
+
+class ScaledDotProductAttention(nn.Module):
+    """Single attention head"""
+    
+    def __init__(self, d_model):
+        super().__init__()
+        self.d_k = d_model // 8
+    
+    def forward(self, Q, K, V, mask=None):
+        scores = torch.matmul(Q / math.sqrt(d_model), K.transpose(-2, -1))
+        
+        if mask is not None:
+            scores.masked_fill_(mask == 0, -1e9)
+        
+        weights = torch.softmax(scores, dim=-1)
+        output = torch.matmul(weights, V)
+        return output
+
+class MultiHeadAttention(nn.Module):
+    """Full multi-head attention module"""
+    
+    def __init__(self, d_model, num_heads=8):
+        super().__init__()
+        self.num_heads = num_heads
+        assert d_model % num_heads == 0
+        
+        dim_per_head = d_model // num_heads
+        
+        # Linear projections for each head type (Q, K, V)
+        self.q_proj = nn.Linear(d_model, d_model)
+        self.k_proj = nn.Linear(d_model, d_model) 
+        self.v_proj = nn.Linear(d_model, d_model)
+        
+        # Output projection to recombine heads
+        self.o_proj = nn.Linear(d_model, d_model)
+    
+    def forward(self, Q_in, K_in=None, V_in=None):
+        """If no separate keys/values provided, use same input"""
+        if K_in is None:
+            K_in = Q_in  # Self-attention case
+            
+        if V_in is None:
+            V_in = Q_in
+        
+        # Project inputs to query/key/value spaces and reshape for heads
+        q_proj_out = self.q_proj(Q_in).view(
+            *Q_in.shape[:2], 
+            self.num_heads, -1)  # [batch, seq_len, num_heads, dim_per_head]
+        
+        k_proj_out = self.k_proj(K_in).view(*K_in.shape[:2], self.num_heads, -1)  
+        v_proj_out = self.v_proj(V_in).view(*V_in.shape[:2], self.num_heads, -1)
+        
+        # Compute attention scores and weighted values for each head separately
+        attn_output_per_head = scaled_dot_product_attention(q_proj_out, k_proj_out, v_proj_out)
+        
+        # Concatenate all heads back together
+        output = torch.cat(attn_output_per_head, dim=-2).transpose(-1, -2)  # [batch, seq_len, d_model]
+        
+        return self.o_proj(output)
+
+class TransformerEncoderLayer(nn.Module):
+    """Single encoder layer with attention + feed forward"""
+    
+    def __init__(self, d_model=512, num_heads=8, dim_ffn=2048):
+        super().__init__()
+        
+        # Attention sublayer (with normalization)
+        self.attention = MultiHeadAttention(d_model=d_model, num_heads=num_heads)
+        self.norm1 = nn.LayerNorm(d_model)  # Normalize before attention
+        
+        # Feed forward network (expand then compress dimensions)
+        dim_ffn_expanded = d_model * 4     # Common practice: expand by factor of 4
+        self.feed_forward = nn.Sequential(
+            nn.Linear(d_model, dim_ffn),    # Expand dimensionality
+            nn.GELU(),                      # Non-linear activation (Gaussian Error Linear Unit)
+            nn.Linear(dim_ffn, d_model))   # Project back to original size
+        
+        self.norm2 = nn.LayerNorm(d_model)  # Normalize before feed forward
+    
+    def forward(self, x):
+        """Process through attention then feed-forward with residual connections"""
+        
+        # Attention sublayer: normalize input → apply attention → add residual (input + output)
+        attn_output = self.attention(x)
+        x_after_attention = self.norm1(x + attn_output)  # Residual connection!
+        
+        # Feed forward network: same pattern with different transformation
+        ff_out = self.feed_forward(x_after_attention)
+        return self.norm2(x_after_attention + ff_out)
+
+class TransformerEncoder(nn.Module):
+    """Stack of encoder layers"""
+    
+    def __init__(self, num_layers=6, d_model=512, dim_ffn=2048, num_heads=8):
+        super().__init__()
+        
+        # Stack identical transformer blocks (same architecture repeated)
+        self.layers = nn.ModuleList([
+            TransformerEncoderLayer(
+                d_model=d_model, 
+                num_heads=num_heads, 
+                dim_ffn=dim_ffn
+            ) for _ in range(num_layers)])  # Create N copies
+    
+    def forward(self, x):
+        """Pass through all layers sequentially"""
+        
+        output = x  # Start with input embeddings
+        
+        for layer_idx, encoder_layer in enumerate(self.layers):
+            output = encoder_layer(output)
+        
+        return output
+
+# Example usage: Process a sentence through transformer
+transformer_model = TransformerEncoder(num_layers=6, d_model=512, dim_ffn=2048)
+sentence_embeddings = torch.randn(1, 30, 512)  # Batch of 1 sequence with 30 tokens
+
+encoded_outputs = transformer_model(sentence_embeddings)
+print(f"Output shape: {encoded_outputs.shape}")  # [batch_size, seq_len=30, d_model=512]
+"""
+Result: Each position now has context from ALL other positions in the sentence!
+The model can understand relationships between distant words simultaneously. 🎯
+"""```
+
+---
+
+## Common Architectures & Models 💡
+
+### Famous Transformer-Based Models Comparison
+
+| Model | Year | Parameters | Max Length | Key Innovation |
+|-------|------|------------|-----------|----------------|
+| **BERT** | 2018 | 110M-340M | 512 | Bidirectional pre-training, masked language modeling |
+| **GPT-2** | 2019 | 1.5B | 2k | Autoregressive generation (left-to-right) |
+| **T5** | 2020 | 600M+ | 512 | Unified text-to-text framework: "text→text" for all tasks |
+| **RoBERTa** | 2019 | Similar to BERT | 512 | Better training recipe (more data, longer epochs) |
+| **DebertaV3** | 2023 | Variable | 4k+ | Dynamic masking + enhanced positional encoding |
+
+### Model Architecture Variations
+
+#### Encoder-Only Models (BERT family):
+
+```python
+"""Used for: Classification, Question Answering, Named Entity Recognition
+
+Architecture: Only encoder layers, no decoder.
+Training objective: Predict masked tokens from surrounding context.
+
+Example tasks:
+- Sentiment analysis ("This movie is amazing!" → positive)
+- Spam detection
+- Document classification (sports news vs politics)"""```
+
+#### Decoder-Only Models (GPT family):
+
+```python
+"""Used for: Text generation, chatbots, code completion
+
+Architecture: Only decoder layers with causal masking.
+Training objective: Predict next token given all previous tokens.
+
+Example tasks:
+- Creative writing ("Once upon a time...")
+- Chatbot responses  
+- Code autocompletion (GitHub Copilot)"""```
+
+#### Encoder-Decoder Models (T5, BART):
+
+```python
+"""Used for: Translation, summarization, text-to-image
+
+Architecture: Full encoder-decoder with cross-attention.
+Training objective: Transform input sequence to target output.
+
+Example tasks:
+- Machine translation ("The cat sat" → "El gato se sentó")  
+- Text summarization (long article → 100-word summary)"""```
+
+### Positional Encoding Variations 📍
+
+Different ways to encode position information:
+
+| Method | Pros | Cons | Use Cases |
+|--------|------|------|-----------|
+| **Sinusoidal** | Allows extrapolation, relative positions learnable | Fixed pattern learned from data | BERT original, GPT-2 |
+| **Learned Absolute** | Simple to implement | Can't extrapolate beyond training length | Standard practice |
+| **RoPE (Rotary)** | Relative position naturally encoded | More complex implementation | Modern large models |
+
+```python
+# RoPE Example - Positional encoding that's relative!
+"""When processing tokens, each head stores a rotation matrix.
+The dot product of Q and K includes the difference in rotations:
+
+Q[i] · K[j]^T = f(Q)·f(K) · e^(iθ(i-j))  # Depends on position DIFFERENCE (i-j)!
+
+This means attention naturally captures relative positions! 🎯"""```
+
+---
+
+## Training Best Practices 📚
+
+### Pre-training vs Fine-tuning Pipeline
+
+**Pre-Training Phase:**
+1. Train on massive corpus (e.g., CommonCrawl - billions of words)
+2. Use unsupervised objectives: predict masked tokens or next token
+3. Model learns general language patterns and world knowledge
+
+```python
+"""BERT Pre-training Objectives:
+A. Masked Language Modeling (MLM): 
+   Input: "The cat sat on the [MASK] mat"
+   Target: Predict "mat" from surrounding context
+   
+B. Next Sentence Prediction (NSP) for BERT-Large:
+   Input pairs determine if sentence 2 follows sentence 1"""```
+
+**Fine-tuning Phase:**
+1. Load pre-trained weights
+2. Add task-specific output layers (classification head, etc.)
+3. Train on your specific dataset with labeled examples
+
+### Hyperparameter Tuning Guide
+
+| Parameter | Typical Range | Impact | When to Adjust |
+|-----------|--------------|--------|----------------|
+| **Learning Rate** | 1e-5 - 1e-4 (warmup) then decay | Speed of learning, stability | Start with standard schedule; reduce if loss spikes |
+| **Batch Size** | 32 - 65536 (depends on GPU memory) | Training speed, generalization | Larger helps regularization but needs more VRAM |
+| **Number of Layers** | 6-10 for encoder-only models | Model capacity/complexity | More layers = better performance but slower training |
+| **Attention Heads** | 8-32 (depends on d_model) | Parallel processing capability | Usually power-of-2 values work well |
+
+### Common Training Issues & Solutions
+
+```python
+"""Issue: Loss exploding during training
+Symptoms: Training loss suddenly jumps to infinity, NaNs appear
+
+Causes:
+1. Learning rate too high → model overshoots minima
+2. Gradient clipping not applied
+3. Model instability in early layers
+
+Solution:
+- Reduce learning rate by 5x or implement gradient clipping (max norm = 1.0)"""```
+
+### Evaluation Metrics Guide
+
+| Task Type | Best Metric(s) | What It Measures |
+|-----------|---------------|------------------|
+| **Classification** | Accuracy, F1-score, AUC-ROC | Correct predictions vs actual labels |
+| **Sequence-to-sequence** | BLEU score, ROUGE-L | Text similarity to reference translations/summaries |
+| **Token prediction** | Perplexity (PPL), Cross-entropy loss | How well model predicts next token |
+
+```python
+"""Perplexity explained:
+Lower is better! PPL = exp(average cross-entropy loss)
+
+Example comparison for language models:
+GPT-2-small:      PPL ≈ 18.0 (good baseline)  
+My custom model:   PPL ≈ 35.0 (needs improvement)
+"""```
+
+---
+
+## Exercises & Projects 🎯
+
+### Beginner Level (Weeks 1-2)
+
+**Project 1: Build Your Own Text Classifier**
+- Use a pre-trained transformer for sentiment analysis
+- Dataset: IMDB movie reviews or Twitter sentiment dataset
+- Steps: Load model → Freeze weights → Add classification head → Fine-tune
+```python
+# Conceptual code structure
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+
+model = AutoModel.from_pretrained("bert-base-uncased")
+classifier_head = nn.Linear(768, 2)  # Binary classification: positive/negative
+"""Train on your dataset and achieve >90% accuracy! 🎯"""```
+
+### Intermediate Level (Weeks 3-5)
+
+**Project 2: Custom Transformer for a Small Task**
+- Build encoder-only transformer from scratch in PyTorch/JAX
+- Apply to small custom task like spam detection or topic classification
+- Experiment with different architectures (change number of layers, heads)
+
+### Advanced Level (Weeks 6+)
+
+**Project 3: Pre-train Your Own Language Model!**
+1. Collect domain-specific corpus (e.g., medical texts for healthcare AI)
+2. Implement masked language modeling training loop from scratch  
+3. Fine-tune on specific downstream tasks
+
+---
+
+## Key Takeaways Summary 📋
+
+### Neural Networks Fundamentals ✅
+- **Structure**: Input → Hidden Layers with Non-linear Activations → Output
+- **Learning**: Backpropagation adjusts weights to reduce prediction error
+- **Depth matters**: More layers enable hierarchical feature learning
+
+### Transformer Revolutionaries! ✨  
+- **Self-Attention** processes entire sequences in parallel (no sequential bottleneck)
+- **Multi-head attention** captures different relationship types simultaneously
+- **Positional encodings** provide sequence order information
+
+### Modern Applications 🚀
+- Language understanding and generation
+- Image recognition via Vision Transformers (ViT)  
+- Recommendation systems, search engines, code assistants
+
+---
+
+## Further Reading Resources 📖
+
+### Essential Papers to Read:
+1. **"Attention Is All You Need"** - The original transformer paper (2017) ⭐⭐⭐
+2. **"BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding"** (2018)
+3. **"Transformer-XL":** Addressing the Limitations of Recurrent Neural Networks
+
+### Online Courses & Tutorials: 🎓
+- **DeepLearning.AI's Transformer Specialization** (Coursera) - Free audit option!
+- **Fast.ai Practical Deep Learning for Coders** - Learn by building models quickly
+- **Hugging Face Course** - Hands-on with pre-trained transformers
+
+### Practice Platforms: 💻
+- **Kaggle**: Competitions using transformer-based solutions  
+- **Google Colab**: Free GPU access to experiment with large models
+- **Papers With Code**: Find SOTA implementations for any task
+
+---
+
+## Quick Reference Card 📇
+
+```python
+# Essential Formulas & Concepts Cheat Sheet:
+
+"""Self-Attention Score Formula:
+    Attention(Q, K, V) = softmax((Q·K^T)/√d_k)V
+    
+Feed Forward Network (per layer):  
+    FFN(x) = max(0, xW1 + b1)W2 + b2  # GELU or ReLU activation"""
+
+# Common Layer Sizes for Different Model Types:
+BERT-base:       d_model=768, hidden_size=3072, heads=12
+GPT-2-small:     d_model=768, layers=48, heads=12  
+ViT-B/16:        patch_size=16, depth=12, dims=768
+
+# Typical Training Configuration for Fine-tuning:
+learning_rate = 5e-5                    # Start warmup from 0 to this value
+warmup_steps = 1000                     # Gradually increase LR over these steps  
+max_grad_norm = 1.0                    # Clip gradients at norm=1.0 (prevents exploding)```
+
+---
+
+**🎉 Congratulations on starting your journey into neural networks and transformers!**
+
+Start with small experiments, build intuition through practice, and don't hesitate to revisit concepts as needed. The field evolves rapidly - stay curious! 🚀

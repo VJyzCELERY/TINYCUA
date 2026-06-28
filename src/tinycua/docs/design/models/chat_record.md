@@ -34,7 +34,8 @@ ChatRecord
 ```
 
 `role` is the LLM/provider message role. `record_type` is the audit category, such as
-`node_output`, `internal_continuation`, `tool_result`, `retry`, or `queue_lifecycle`.
+`node_output`, `internal_continuation`, `tool_result`, `retry`, `queue_lifecycle`, or
+`propagation` (appended when context crosses node/session boundaries during propagation).
 
 `visibility` classifies the record for audit filtering:
 - `user_visible`: Messages the end user can see (final responses, user queries).
