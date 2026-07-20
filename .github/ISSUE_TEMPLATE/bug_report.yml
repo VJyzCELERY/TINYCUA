@@ -23,10 +23,8 @@ body:
       label: Subproject
       description: Which subproject does this bug affect?
       options:
-        - tinycua
-        - tinycua-sdk
-        - tinycua-finetune
-        - tinycua-backend
+        - Project-wide
+        - Existing subproject
         - Other / Not sure
     validations:
       required: true
@@ -69,6 +67,26 @@ body:
       required: true
 
   - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      description: List the observable conditions that prove the bug is fixed.
+      placeholder: |
+        - [ ] The reported steps no longer reproduce the failure
+        - [ ] Existing behavior remains unchanged
+    validations:
+      required: true
+
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation
+      description: Commands or manual checks that should prove the fix.
+      placeholder: Test command, reproduction command, or manual verification steps.
+    validations:
+      required: true
+
+  - type: textarea
     id: environment
     attributes:
       label: Environment
@@ -76,7 +94,7 @@ body:
       placeholder: |
         - OS: [e.g. Ubuntu 22.04, macOS 14.0]
         - Python version: [e.g. 3.11, 3.12]
-        - SDK version: [e.g. 0.1.0]
+        - Project version: [e.g. 0.1.0]
         - uv version (if using uv):
     validations:
       required: false

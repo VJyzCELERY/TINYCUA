@@ -1,12 +1,12 @@
 name: Feature Roadmap
-description: Track a larger SDK feature or capability gap across multiple stages / milestones
+description: Track a larger project feature or capability gap across multiple stages / milestones
 title: "[Roadmap]: "
 labels: ["roadmap"]
 body:
   - type: markdown
     attributes:
       value: |
-        Use this template for tracking larger features or SDK gaps. Define clear **milestones** so progress is visible at a glance.
+        Use this template for tracking larger project capabilities. Define clear **milestones** so progress is visible at a glance.
 
   - type: textarea
     id: summary
@@ -14,7 +14,7 @@ body:
       label: Overview
       description: Brief summary of what this roadmap aims to achieve and why.
       placeholder: |
-        The SDK currently lacks support for X. This roadmap tracks the work to add it across N stages.
+        The project currently lacks support for X. This roadmap tracks the work to add it across N stages.
     validations:
       required: true
 
@@ -29,12 +29,12 @@ body:
         - [ ] **Stage 1: Foundation** — Design the core interface and data models
               - [ ] Design doc: unified LLM Client interface
               - [ ] Define canonical SSE event schema
-        - [ ] **Stage 2: Provider A** — Implement Provider A SDK integration + SSE normalizer
-              - [ ] Chat completions via Provider A SDK
+        - [ ] **Stage 2: Provider A** — Implement Provider A integration + SSE normalizer
+              - [ ] Chat completions via Provider A
               - [ ] SSE Normalizer for Provider A
               - [ ] Raw SSE pass-through
-        - [ ] **Stage 3: Provider B** — Implement Provider B SDK integration + SSE normalizer
-              - [ ] Chat completions via Provider B SDK
+        - [ ] **Stage 3: Provider B** — Implement Provider B integration + SSE normalizer
+              - [ ] Chat completions via Provider B
               - [ ] SSE Normalizer for Provider B
               - [ ] Raw SSE pass-through
         - [ ] **Stage 4: Agent Loop Integration** — Consume canonical events in the internal loop
@@ -46,8 +46,8 @@ body:
               - [ ] Usage documentation
       value: |
         - [ ] **Stage 1: Foundation** — Design the core interface and data models
-        - [ ] **Stage 2: Provider A** — Implement Provider A SDK integration + SSE normalizer
-        - [ ] **Stage 3: Provider B** — Implement Provider B SDK integration + SSE normalizer
+        - [ ] **Stage 2: Provider A** — Implement Provider A integration + SSE normalizer
+        - [ ] **Stage 3: Provider B** — Implement Provider B integration + SSE normalizer
         - [ ] **Stage 4: Agent Loop Integration** — Consume canonical events in the internal loop
         - [ ] **Stage 5: Quality** — Tests, documentation, edge cases
     validations:

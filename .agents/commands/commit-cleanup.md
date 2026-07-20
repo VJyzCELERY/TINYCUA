@@ -1,111 +1,34 @@
 ---
-description: Cleans up commit history — squashes fixups, removes duplicates, tidies after rebase
+description: Cleans fixup and duplicate commits from the current branch
 subtask: true
 ---
 
-Clean up commit history after a rebase: squash fixup commits, remove duplicates, and keep history linear and meaningful.
+# Commit Cleanup
 
-> Load skill: commit-cleanup (for command-specific workflow)
-> Load skill: git (for general commit history cleanup)
+**Query**: `$1` target branch, default `main`.
 
-**Query**: $1 (natural language query — optional target branch, defaults to `main`)
-
----
-
-## Instructions
-
-## Pre-Flight
-
-Before cleaning up commits, load the relevant skill and run the rebase pre-flight:
-
-> Load skill: preflight (for preflight scripts)
-> Load skill: commit-cleanup (for command-specific workflow)
-> Load skill: git (for rebase operations)
+Read root `AGENTS.md`, `.agents/rules/008-git-operations.md`, and commit rules; load `git` and `preflight`. Inspect without mutation:
 
 ```bash
-uv run python .agents/scripts/preflight-rebase.py --target main --list-commits
+uv run python .agents/scripts/preflight-rebase.py --target <target> --list-commits
+git log --oneline --graph --decorate <target>..HEAD
+git log --oneline --left-right --cherry-pick <target>...HEAD
 ```
 
-If it exits non-zero, read `.agents/scripts/preflight-rebase.py` and inspect its `<EOF_DESC>` usage block to recover.
-
----
-
-Read `.agents/skills/commit-cleanup/SKILL.md` and `.agents/skills/git/SKILL.md` before proceeding for the command-specific cleanup workflow and the general rebase workflow reference.
-
-### 1. Check Current State
-
-```bash
-git log --oneline --graph --all --decorate -15
-```
-
-Understand the current commit topology.
-
-### 2. Check for Fixup / Squash Commits
-
-```bash
-FIXUP_COUNT=$(git log --oneline main..HEAD | grep -c 'fixup!\|squash!')
-echo "Fixup/squash commits found: $FIXUP_COUNT"
-```
-
-If fixup/squash commits exist, squash them:
-
-```bash
-GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash main
-```
-
-This auto-squashes fixup/squash commits into their target commits without opening an editor.
-
-### 3. Detect Duplicate Commits
-
-Check for commits that appear in both the current branch and the target (already applied):
-
-```bash
-DUPLICATE_COUNT=$(git log --oneline --left-right main...HEAD --cherry-pick | grep '^<' | wc -l)
-echo "Duplicate commits found: $DUPLICATE_COUNT"
-```
-
-If duplicates exist, rebase to drop them:
-
-```bash
-git rebase main
-```
-
-Git's default rebase behavior skips commits already in the target.
-
-### 4. Verify Clean History
-
-```bash
-echo "=== Commits on branch (unique) ==="
-git log --oneline main..HEAD
-
-echo ""
-echo "=== Total ==="
-git log --oneline main..HEAD | wc -l
-```
-
-### 5. Report
-
-Summarize what was cleaned:
-- Fixup/squash commits squashed: N
-- Duplicate commits removed: N
-- Remaining commits on branch: N
-
----
+Propose the exact commits and operation. Request fresh permission immediately before each history rewrite. Use the skill's non-interactive method; do not combine meaningful commits unless explicitly requested. Verify the resulting range. A push is a separate action requiring new permission immediately before `git push --force-with-lease origin <branch>`.
 
 ## Required Context
 
-- Preflight: preflight-rebase.py
-- Skills: commit-cleanup, git, preflight
-- Rules: none
-- Templates: none
-- Mutates files: yes
-- Mutates git history: yes
-- Mutates remote: yes (force push if previously pushed)
-- Requires user confirmation: yes (force push requires confirmation)
+- Root `AGENTS.md`; skills `git`, `preflight`; rules `006-commits-and-prs.md` and `008-git-operations.md`.
 
-## Important
+## Mutations
 
-- Only clean up commits that are on the current branch (not merged to target)
-- Do NOT squash meaningful commits into each other — only fixup! and squash! markers
-- After cleanup, force push is required if the branch was previously pushed — use `git push --force-with-lease origin <branch>`, never `--force`. Never force-push `main`/`master`.
-- If the branch has no unique commits after cleanup, report that it's ready to merge
+- Optional local history rewrite; optional separately approved remote force-with-lease push.
+
+## Confirmation
+
+- Fresh permission immediately before every squash/rebase and again before every push. Never infer permission from invoking this command.
+
+## Failure
+
+- Stop on dirty/diverged/protected branches, failed preflight, or conflict. Do not auto-resolve, reset, stash, or push.

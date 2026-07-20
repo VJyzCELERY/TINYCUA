@@ -89,7 +89,7 @@ After the frontmatter, the body follows this structure:
 
 1. Read the current skill: `Read .agents/skills/<name>/SKILL.md`
 2. Add the new pattern, gotcha, or example
-3. Preserve existing content — only add or refine
+3. Preserve useful content, but remove stale or duplicated policy
 4. Update the `## Common Pitfalls` section if a new mistake was discovered
 
 ## How Agents Load Skills
@@ -127,7 +127,7 @@ After creating or updating a skill, the orchestrator should:
 2. Verify the skill file follows the template structure from `.agents/templates/skill.md`
 3. Confirm all commands in the skill actually work
 4. Check that the skill doesn't duplicate existing skills or rule files
-5. Commit the new skill with a message like `feat(skills): add <name> skill`
+5. With explicit user permission, commit the new skill with a message like `feat(skills): add <name> skill`
 
 ## Examples of Good Skill Candidates
 

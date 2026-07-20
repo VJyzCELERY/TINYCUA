@@ -22,7 +22,27 @@ body:
     attributes:
       label: Proposed Solution
       description: Describe the solution you'd like to see implemented.
-      placeholder: I would like the SDK to...
+      placeholder: I would like the project to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      description: List the observable behavior required for completion.
+      placeholder: |
+        - [ ] A caller can perform the new action
+        - [ ] Invalid input has defined behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation
+      description: Describe the tests or manual checks that should prove completion.
+      placeholder: Unit, integration, or manual verification expectations.
     validations:
       required: true
 
@@ -41,10 +61,8 @@ body:
       label: Subproject
       description: Which subproject does this feature belong to?
       options:
-        - tinycua
-        - tinycua-sdk
-        - tinycua-finetune
-        - tinycua-backend
+        - Project-wide
+        - Existing subproject
         - Other / Not sure
     validations:
       required: true
