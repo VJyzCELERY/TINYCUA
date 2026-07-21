@@ -1,8 +1,36 @@
 <!doctype html>
-<title>Analog clock</title>
-<canvas id="clock" width="120" height="120"></canvas>
+<title>Conventional analog clock</title>
+<style>
+  #clock { border: 2px solid; border-radius: 50%; height: 200px; position: relative; width: 200px; }
+  [data-clock-label] { position: absolute; transform: translate(-50%, -50%); }
+  [data-clock-hand] { background: black; bottom: 50%; left: 99px; position: absolute; transform-origin: bottom; width: 2px; }
+  [data-clock-hand="hour"] { height: 50px; }
+  [data-clock-hand="minute"] { height: 75px; }
+  [data-clock-hand="second"] { background: red; height: 85px; }
+</style>
+<main id="clock" data-clock-face></main>
 <script>
-const canvas = document.querySelector("#clock");
-const context = canvas.getContext("2d");
-setInterval(() => { context.clearRect(0, 0, 120, 120); context.fillText(new Date().toISOString(), 1, 60); }, 100);
+  const clock = document.querySelector('#clock');
+  for (let number = 1; number <= 12; number += 1) {
+    const label = document.createElement('span');
+    const angle = number * Math.PI / 6;
+    label.dataset.clockLabel = number;
+    label.textContent = number;
+    label.style.left = `${100 + 82 * Math.sin(angle)}px`;
+    label.style.top = `${100 - 82 * Math.cos(angle)}px`;
+    clock.append(label);
+  }
+  for (const hand of ['hour', 'minute', 'second']) {
+    const element = document.createElement('i');
+    element.dataset.clockHand = hand;
+    clock.append(element);
+  }
+  function render() {
+    const now = new Date();
+    document.querySelector('[data-clock-hand="hour"]').style.transform = `rotate(${(now.getHours() % 12) * 30 + now.getMinutes() / 2 + now.getSeconds() / 120}deg)`;
+    document.querySelector('[data-clock-hand="minute"]').style.transform = `rotate(${now.getMinutes() * 6 + now.getSeconds() / 10}deg)`;
+    document.querySelector('[data-clock-hand="second"]').style.transform = `rotate(${now.getSeconds() * 6 + now.getMilliseconds() * 0.006}deg)`;
+  }
+  render();
+  setInterval(render, 100);
 </script>

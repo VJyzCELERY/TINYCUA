@@ -1,21 +1,21 @@
-"""Evaluate frozen coding artifacts without changing their source trees."""
+"""Evaluate frozen coding artifacts through submitted browser interfaces."""
 
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
+import math
 import os
 import shutil
 import signal
-import socket
+import sqlite3
 import subprocess
 import sys
 import time
-import urllib.error
 import urllib.request
-from dataclasses import asdict, dataclass, field, replace
-from email.message import Message
+from dataclasses import asdict, dataclass, field
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
 from typing import Final
@@ -23,19 +23,18 @@ from typing import Final
 
 AGENTS: Final = ("opencode", "hermes", "openclaw", "tinycua")
 STATUSES: Final = ("pass", "fail", "blocked")
-FUNCTIONAL_CORRECTNESS_LABEL: Final = (
-    "Functional Correctness (deterministic single-run)"
-)
-CONTRACTS: Final = {
-    3: ("load", "runtime-errors", "visible-clock", "time-update", "reload"),
+FUNCTIONAL_CORRECTNESS_LABEL: Final = "Functional Correctness (deterministic)"
+CONTRACT_VERSION: Final = "2"
+TASKS: Final = {
+    3: ("face", "hands", "clockwise", "time-accurate", "reload"),
     4: (
-        "dependency-install",
-        "python-compile",
-        "backend-startup",
-        "sqlite-initialization",
-        "frontend-build",
-        "page-block",
-        "browser-e2e",
+        "page-create",
+        "block-create",
+        "page-edit",
+        "block-edit",
+        "reload-persistence",
+        "restart-persistence",
+        "sqlite-persistence",
     ),
 }
 CLOCK_FILES: Final = {
@@ -45,48 +44,18 @@ CLOCK_FILES: Final = {
     "tinycua": "clock.html",
 }
 BACKENDS: Final = {
-    "opencode": (
-        "backend/app.py",
-        "app:app",
-        "backend",
-        "flask",
-        "frontend",
-        "button.btn-new-page",
-        "#pageHeader",
-    ),
-    "hermes": (
-        "notion-app/run.py",
-        "run:app",
-        "notion-app",
-        "flask",
-        "",
-        "button[title^='New Page']",
-        "#createPageModal",
-    ),
-    "openclaw": (
-        "app/main.py",
-        "app.main:app",
-        ".",
-        "asgi",
-        "",
-        "textarea",
-        "textarea",
-    ),
-    "tinycua": (
-        "src/main.py",
-        "src.main:app",
-        ".",
-        "asgi",
-        "frontend/dist",
-        "button[aria-label^='Insert']",
-        ".noteion-block",
-    ),
+    "opencode": ("backend/app.py", "backend", "start.sh"),
+    "hermes": ("notion-app/run.py", "notion-app", "start.sh"),
+    "openclaw": ("app/main.py", ".", "start.sh"),
+    "tinycua": ("src/main.py", ".", "start.sh"),
 }
+CLOCK_TOLERANCES: Final = {"hour": 4.0, "minute": 4.0, "second": 12.0}
+CLOCK_RATES: Final = {"hour": 1 / 120, "minute": 1 / 10, "second": 6.0}
 
 
 @dataclass(frozen=True)
 class CheckResult:
-    """One mandatory acceptance-contract result."""
+    """One observable task-contract result."""
 
     name: str
     status: str
@@ -95,24 +64,48 @@ class CheckResult:
     evidence: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        """Reject status values outside the pre-registered contract."""
+        """Reject statuses outside the registered vocabulary."""
         if self.status not in STATUSES:
             msg = f"unknown result status: {self.status}"
             raise ValueError(msg)
 
 
 @dataclass(frozen=True)
+class DiagnosticCheck(CheckResult):
+    """An auditable prerequisite or runtime observation, never a task step."""
+
+
+@dataclass(frozen=True)
+class TaskVerdict:
+    """The single Functional Correctness verdict for a complete task contract."""
+
+    experiment: int
+    status: str
+    observations: dict[str, str]
+    rationale: str
+    evidence: tuple[str, ...] = ()
+    contract_version: str = CONTRACT_VERSION
+
+    def __post_init__(self) -> None:
+        """Reject invalid verdict statuses."""
+        if self.status not in STATUSES:
+            msg = f"unknown verdict status: {self.status}"
+            raise ValueError(msg)
+
+
+@dataclass(frozen=True)
 class Adapter:
-    """Explicit mapping to submitted files and interfaces."""
+    """Explicit mapping to submitted files, startup command, and UI controls."""
 
     name: str
     root: Path
     entrypoint: Path
-    url: str = "http://127.0.0.1:8765/"
-    server: str = "asgi"
-    frontend: Path | None = None
-    action_selector: str = ""
-    result_selector: str = ""
+    url: str = "http://127.0.0.1:18765/"
+    startup: tuple[str, ...] = ()
+    page_create_selector: str = "button.btn-new-page"
+    page_title_selector: str = "#pageTitleInput"
+    block_create_selector: str = "button.btn-block-action"
+    block_editor_selector: str = "[contenteditable='true'], #blockEditor"
 
 
 @dataclass
@@ -125,7 +118,8 @@ class ArtifactReport:
     digest_before: str
     digest_after: str
     adapter: str
-    checks: list[CheckResult] = field(default_factory=list)
+    task_verdict: TaskVerdict
+    diagnostics: list[DiagnosticCheck] = field(default_factory=list)
 
 
 def parse_agents(raw: str | None) -> tuple[str, ...]:
@@ -134,20 +128,17 @@ def parse_agents(raw: str | None) -> tuple[str, ...]:
         return AGENTS
     agents = tuple(item.strip() for item in raw.split(",") if item.strip())
     if not agents:
-        msg = "agents must not be empty"
-        raise ValueError(msg)
+        raise ValueError("agents must not be empty")
     unknown = [agent for agent in agents if agent not in AGENTS]
     if unknown:
-        msg = f"unknown agent(s): {', '.join(unknown)}"
-        raise ValueError(msg)
+        raise ValueError(f"unknown agent(s): {', '.join(unknown)}")
     if len(set(agents)) != len(agents):
-        msg = "duplicate agents are not allowed"
-        raise ValueError(msg)
+        raise ValueError("duplicate agents are not allowed")
     return agents
 
 
 def artifact_digest(source: Path) -> str:
-    """Return a deterministic digest of every path and file byte in source."""
+    """Return a deterministic digest of every source path and file byte."""
     digest = hashlib.sha256()
     for path in sorted(
         source.rglob("*"), key=lambda item: item.relative_to(source).as_posix()
@@ -164,7 +155,7 @@ def artifact_digest(source: Path) -> str:
 
 
 def copy_artifact(source: Path, copy_root: Path) -> Path:
-    """Copy source into an evaluator-owned workspace."""
+    """Copy a source artifact into an evaluator-owned workspace."""
     destination = copy_root / source.name
     if destination.exists():
         shutil.rmtree(destination)
@@ -174,49 +165,67 @@ def copy_artifact(source: Path, copy_root: Path) -> Path:
 
 
 def summarize_checks(checks: list[CheckResult]) -> dict[str, int]:
-    """Count all mandatory contract statuses, including blocked checks."""
+    """Count diagnostic statuses without deriving a task verdict from them."""
     summary = {status: 0 for status in STATUSES}
     for check in checks:
         summary[check.status] += 1
     return {**summary, "total": len(checks)}
 
 
+def classify_task_verdict(
+    experiment: int, observations: dict[str, str], evidence: tuple[str, ...] = ()
+) -> TaskVerdict:
+    """Classify only complete registered task observations."""
+    required = TASKS[experiment]
+    missing = [name for name in required if name not in observations]
+    invalid = [status for status in observations.values() if status not in STATUSES]
+    if invalid:
+        raise ValueError(f"unknown observation status: {invalid[0]}")
+    if missing:
+        return TaskVerdict(
+            experiment,
+            "fail",
+            observations,
+            f"incomplete task contract: missing {', '.join(missing)}",
+            evidence,
+        )
+    statuses = tuple(observations[name] for name in required)
+    if all(status == "pass" for status in statuses):
+        return TaskVerdict(
+            experiment, "pass", observations, "complete task contract", evidence
+        )
+    status = "blocked" if "blocked" in statuses else "fail"
+    return TaskVerdict(
+        experiment, status, observations, "task contract not satisfied", evidence
+    )
+
+
+def _failed_verdict(experiment: int, message: str) -> TaskVerdict:
+    """Create a visible failed verdict for an unsupported submitted layout."""
+    return classify_task_verdict(
+        experiment, {name: "fail" for name in TASKS[experiment]}
+    )
+
+
 def resolve_adapter(agent: str, experiment: int, source: Path) -> Adapter:
-    """Select one explicit supported layout without repairing it."""
+    """Select one explicit submitted layout without repairing or augmenting it."""
     if experiment == 3:
-        filename = CLOCK_FILES[agent]
-        entrypoint = source / filename
+        entrypoint = source / CLOCK_FILES[agent]
         if entrypoint.is_file():
-            return Adapter(
-                f"clock:{filename}",
-                source,
-                entrypoint,
-                f"http://127.0.0.1:8765/{filename}",
-            )
-    elif experiment == 4:
-        (
-            submitted,
-            _module,
-            relative_root,
-            server,
-            frontend,
-            action_selector,
-            result_selector,
-        ) = BACKENDS[agent]
+            return Adapter(f"clock:{entrypoint.name}", source, entrypoint)
+    else:
+        submitted, relative_root, startup = BACKENDS[agent]
         entrypoint = source / submitted
-        if entrypoint.is_file():
+        root = source / relative_root
+        startup_path = root / startup
+        if entrypoint.is_file() and startup_path.is_file():
             return Adapter(
                 f"notion:{agent}",
-                source / relative_root,
+                root,
                 entrypoint,
-                "http://127.0.0.1:8765/",
-                server,
-                source / frontend if frontend else None,
-                action_selector,
-                result_selector,
+                startup=("sh", startup),
             )
-    msg = f"unsupported {agent} experiment-{experiment} layout"
-    raise ValueError(msg)
+    raise ValueError(f"unsupported {agent} experiment-{experiment} layout")
 
 
 def _evidence_path(path: Path, evidence_root: Path) -> str:
@@ -225,6 +234,7 @@ def _evidence_path(path: Path, evidence_root: Path) -> str:
 
 
 def _write_evidence(path: Path, text: str, evidence_root: Path) -> str:
+    """Write evaluator-owned evidence and return its report-relative path."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text)
     return _evidence_path(path, evidence_root)
@@ -244,7 +254,7 @@ def run_command(
     evidence_root: Path,
     timeout: int = 90,
 ) -> CheckResult:
-    """Run one declared command in a copied workspace and capture its output."""
+    """Run a submitted declared command in the copied workspace."""
     log = evidence_root / "commands" / f"{name}.log"
     try:
         completed = subprocess.run(
@@ -267,16 +277,135 @@ def run_command(
             name, "fail", f"timed out after {timeout}s", command, (evidence,)
         )
     evidence = _write_evidence(log, completed.stdout + completed.stderr, evidence_root)
-    status = "pass" if completed.returncode == 0 else "fail"
     return CheckResult(
-        name, status, f"exit code {completed.returncode}", command, (evidence,)
+        name,
+        "pass" if completed.returncode == 0 else "fail",
+        f"exit code {completed.returncode}",
+        command,
+        (evidence,),
     )
 
 
-def _browser_checks(
-    adapter: Adapter, evidence_root: Path, experiment: int
-) -> list[CheckResult]:
-    """Collect browser observations from the submitted page, or block explicitly."""
+def _prepare_environment(
+    workspace: Path, evidence_root: Path, manifest: Path
+) -> tuple[Path, CheckResult]:
+    """Install only dependencies explicitly listed by a submitted manifest."""
+    workspace = workspace.resolve()
+    manifest = manifest.resolve()
+    environment = workspace / ".evaluator-venv"
+    interpreter = environment / "bin" / "python"
+    created = run_command(
+        "environment-create",
+        (sys.executable, "-m", "venv", str(environment)),
+        workspace,
+        evidence_root,
+    )
+    if created.status != "pass":
+        return interpreter, CheckResult(
+            "dependency-install", created.status, created.message
+        )
+    return interpreter, run_command(
+        "dependency-install",
+        (str(interpreter), "-m", "pip", "install", "-r", str(manifest)),
+        workspace,
+        evidence_root,
+    )
+
+
+def _angle_difference(actual: float, expected: float) -> float:
+    """Return the smallest distance between two clockwise angles."""
+    return abs((actual - expected + 180) % 360 - 180)
+
+
+def clock_face_is_conventional(
+    labels: dict[str, tuple[float, float]], center: tuple[float, float]
+) -> bool:
+    """Check that visible labels 1 through 12 occupy conventional clock positions."""
+    if set(labels) != {str(number) for number in range(1, 13)}:
+        return False
+    center_x, center_y = center
+    for label, (x, y) in labels.items():
+        angle = math.degrees(math.atan2(x - center_x, center_y - y)) % 360
+        expected = (int(label) % 12) * 30
+        if _angle_difference(angle, expected) > 25:
+            return False
+    return True
+
+
+def clock_is_time_accurate(angles: dict[str, float], timestamp: float) -> bool:
+    """Check hour, minute, and second hands against local wall-clock time."""
+    wall_time = time.localtime(timestamp)
+    expected = {
+        "hour": (wall_time.tm_hour % 12) * 30
+        + wall_time.tm_min / 2
+        + wall_time.tm_sec / 120,
+        "minute": wall_time.tm_min * 6 + wall_time.tm_sec / 10,
+        "second": wall_time.tm_sec * 6,
+    }
+    return all(
+        hand in angles
+        and _angle_difference(angles[hand], expected[hand]) <= CLOCK_TOLERANCES[hand]
+        for hand in expected
+    )
+
+
+def clock_moves_clockwise(
+    before: float, after: float, elapsed: float, hand: str
+) -> bool:
+    """Check that one hand advanced clockwise by its elapsed-time distance."""
+    expected = CLOCK_RATES[hand] * elapsed
+    observed = (after - before) % 360
+    tolerance = max(0.1, expected * 0.5)
+    return expected > 0 and abs(observed - expected) <= tolerance
+
+
+def _clock_snapshot(
+    page: object,
+) -> tuple[dict[str, tuple[float, float]], tuple[float, float], dict[str, float]]:
+    """Read visible clock geometry without changing the submitted page."""
+    observation = page.evaluate(
+        """() => {
+            const face = document.querySelector('[data-clock-face], #clock, .clock');
+            const faceBox = face?.getBoundingClientRect();
+            const labels = [...document.querySelectorAll('[data-clock-label]')].map(node => {
+                const box = node.getBoundingClientRect();
+                return [node.dataset.clockLabel || node.textContent.trim(), box.x + box.width / 2, box.y + box.height / 2];
+            });
+            const hands = [...document.querySelectorAll('[data-clock-hand]')].map(node => {
+                const transform = getComputedStyle(node).transform;
+                return [node.dataset.clockHand, transform];
+            });
+            return { labels, hands, center: faceBox ? [faceBox.x + faceBox.width / 2, faceBox.y + faceBox.height / 2] : null };
+        }"""
+    )
+    labels = {label: (x, y) for label, x, y in observation["labels"]}
+    if observation["center"] is None:
+        center = (
+            sum(x for x, _ in labels.values()) / len(labels),
+            sum(y for _, y in labels.values()) / len(labels),
+        )
+    else:
+        center = tuple(observation["center"])
+    hands = {
+        hand: _transform_angle(transform) for hand, transform in observation["hands"]
+    }
+    return labels, center, hands
+
+
+def _transform_angle(transform: str) -> float:
+    """Convert a computed CSS matrix transform to a clockwise clock angle."""
+    if transform == "none":
+        return 0.0
+    values = transform.removeprefix("matrix(").removesuffix(")").split(",")
+    if len(values) < 2:
+        return float("nan")
+    return math.degrees(math.atan2(float(values[1]), float(values[0]))) % 360
+
+
+def _browser_prerequisite(
+    evidence_root: Path,
+) -> tuple[object | None, object | None, DiagnosticCheck | None]:
+    """Launch the evaluator browser or return a separate blocked prerequisite."""
     console = evidence_root / "browser-console.log"
     try:
         from playwright.sync_api import sync_playwright
@@ -284,195 +413,149 @@ def _browser_checks(
         evidence = _write_evidence(
             console, "playwright is not installed", evidence_root
         )
-        return [
-            CheckResult(
-                name, "blocked", "browser dependency unavailable", evidence=(evidence,)
+        return (
+            None,
+            None,
+            DiagnosticCheck(
+                "browser",
+                "blocked",
+                "browser dependency unavailable",
+                evidence=(evidence,),
+            ),
+        )
+    playwright = None
+    try:
+        playwright = sync_playwright().start()
+        browser = playwright.chromium.launch()
+    except Exception as error:
+        if playwright:
+            playwright.stop()
+        evidence = _write_evidence(console, str(error), evidence_root)
+        return (
+            None,
+            None,
+            DiagnosticCheck(
+                "browser",
+                "blocked",
+                "browser runtime unavailable",
+                evidence=(evidence,),
+            ),
+        )
+    return playwright, browser, None
+
+
+def _clock_contract(
+    adapter: Adapter, evidence_root: Path
+) -> tuple[TaskVerdict, list[DiagnosticCheck]]:
+    """Evaluate conventional, accurate, active clock behavior through its page."""
+    playwright, browser, prerequisite = _browser_prerequisite(evidence_root)
+    if prerequisite:
+        return (
+            classify_task_verdict(3, {name: "blocked" for name in TASKS[3]}),
+            [prerequisite],
+        )
+    assert playwright is not None
+    messages: list[str] = []
+    try:
+        page = browser.new_page()
+        page.on(
+            "console",
+            lambda message: messages.append(f"{message.type}: {message.text}"),
+        )
+        page.goto(adapter.url, wait_until="networkidle", timeout=15_000)
+        before_path = evidence_root / "clock-before.png"
+        after_path = evidence_root / "clock-after.png"
+        page.screenshot(path=str(before_path))
+        before_time = time.time()
+        labels, center, before = _clock_snapshot(page)
+        time.sleep(2.1)
+        after_time = time.time()
+        _, _, after = _clock_snapshot(page)
+        page.screenshot(path=str(after_path))
+        page.reload(wait_until="networkidle", timeout=15_000)
+        reload_time = time.time()
+        reload_labels, reload_center, reload_hands = _clock_snapshot(page)
+        evidence = (
+            _evidence_path(before_path, evidence_root),
+            _evidence_path(after_path, evidence_root),
+        )
+        observations = {
+            "face": "pass" if clock_face_is_conventional(labels, center) else "fail",
+            "hands": "pass" if set(before) == set(CLOCK_RATES) else "fail",
+            "clockwise": "pass"
+            if set(before) == set(after) == set(CLOCK_RATES)
+            and all(
+                clock_moves_clockwise(
+                    before[hand], after[hand], after_time - before_time, hand
+                )
+                for hand in CLOCK_RATES
             )
-            for name in CONTRACTS[experiment][-2:]
+            else "fail",
+            "time-accurate": "pass"
+            if clock_is_time_accurate(before, before_time)
+            else "fail",
+            "reload": "pass"
+            if clock_face_is_conventional(reload_labels, reload_center)
+            and clock_is_time_accurate(reload_hands, reload_time)
+            else "fail",
+        }
+        console = _write_evidence(
+            evidence_root / "browser-console.log", "\n".join(messages), evidence_root
+        )
+        diagnostics = [
+            DiagnosticCheck(
+                "browser-load", "pass", "submitted page loaded", evidence=(console,)
+            )
         ]
-    with sync_playwright() as playwright:
-        try:
-            browser = playwright.chromium.launch()
-        except Exception as error:  # Browser launch is an evaluator prerequisite.
-            evidence = _write_evidence(console, str(error), evidence_root)
-            return [
-                CheckResult(
-                    name, "blocked", "browser runtime unavailable", evidence=(evidence,)
-                )
-                for name in CONTRACTS[experiment][-2:]
-            ]
-        try:
-            page = browser.new_page()
-            messages: list[str] = []
-            page.on(
-                "console",
-                lambda message: messages.append(f"{message.type}: {message.text}"),
-            )
-            page.goto(adapter.url, wait_until="networkidle", timeout=15_000)
-            first = evidence_root / "browser-before.png"
-            second = evidence_root / "browser-after.png"
-            page.screenshot(path=str(first))
-            if experiment == 3:
-                visible = (
-                    page.locator("canvas, svg, #clock, .clock, [class*=clock]").count()
-                    > 0
-                )
-                errors = [
-                    message for message in messages if message.startswith("error:")
-                ]
-                time.sleep(1.1)
-                page.screenshot(path=str(second))
-                page.reload(wait_until="networkidle", timeout=15_000)
-                browser.close()
-                evidence = _write_evidence(console, "\n".join(messages), evidence_root)
-                return [
-                    CheckResult(
-                        "load",
-                        "pass",
-                        "page loaded",
-                        evidence=(evidence, _evidence_path(first, evidence_root)),
-                    ),
-                    CheckResult(
-                        "runtime-errors",
-                        "fail" if errors else "pass",
-                        "; ".join(errors) or "none",
-                        evidence=(evidence,),
-                    ),
-                    CheckResult(
-                        "visible-clock",
-                        "pass" if visible else "fail",
-                        "clock selector visible" if visible else "no clock selector",
-                        evidence=(_evidence_path(first, evidence_root),),
-                    ),
-                    CheckResult(
-                        "time-update",
-                        "pass" if first.read_bytes() != second.read_bytes() else "fail",
-                        "screenshots differ"
-                        if first.read_bytes() != second.read_bytes()
-                        else "no visual update",
-                        evidence=(
-                            _evidence_path(first, evidence_root),
-                            _evidence_path(second, evidence_root),
-                        ),
-                    ),
-                    CheckResult(
-                        "reload", "pass", "page reloaded", evidence=(evidence,)
-                    ),
-                ]
-            action = page.locator(adapter.action_selector).first
-            if adapter.action_selector == adapter.result_selector == "textarea":
-                action.fill("evaluator block")
-                changed = action.input_value() == "evaluator block"
-            else:
-                before = page.locator(adapter.result_selector).all_inner_texts()
-                action.click()
-                changed = (
-                    page.locator(adapter.result_selector).all_inner_texts() != before
-                )
-            evidence = _write_evidence(console, "\n".join(messages), evidence_root)
-            return [
-                CheckResult(
-                    "page-block",
-                    "pass" if changed else "fail",
-                    "submitted block action changed visible state"
-                    if changed
-                    else "submitted block action did not change visible state",
-                    evidence=(evidence, _evidence_path(first, evidence_root)),
-                ),
-                CheckResult(
-                    "browser-e2e",
-                    "pass" if changed else "fail",
-                    "submitted frontend block flow completed"
-                    if changed
-                    else "submitted frontend block flow failed",
-                    evidence=(evidence,),
-                ),
-            ]
-        except Exception as error:
-            evidence = _write_evidence(console, str(error), evidence_root)
-            return [
-                CheckResult(name, "fail", str(error), evidence=(evidence,))
-                for name in CONTRACTS[experiment][-2:]
-            ]
-        finally:
-            browser.close()
+        return classify_task_verdict(3, observations, evidence), diagnostics
+    except Exception as error:
+        evidence = _write_evidence(
+            evidence_root / "browser-console.log", str(error), evidence_root
+        )
+        return classify_task_verdict(
+            3, {name: "fail" for name in TASKS[3]}, (evidence,)
+        ), [DiagnosticCheck("browser-load", "fail", str(error), evidence=(evidence,))]
+    finally:
+        assert browser is not None
+        browser.close()
+        playwright.stop()
 
 
-def _serve_static(adapter: Adapter) -> tuple[object, Thread, Adapter]:
-    """Serve a copied clock artifact on the adapter's fixed local address."""
-    return _serve_directory(adapter, adapter.root, adapter.entrypoint.name)
-
-
-def _serve_directory(
-    adapter: Adapter, directory: Path, filename: str
-) -> tuple[object, Thread, Adapter]:
-    """Serve one submitted static directory at an evaluator-owned address."""
-    from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+def _serve_static(adapter: Adapter) -> tuple[ThreadingHTTPServer, Thread, Adapter]:
+    """Serve a copied static clock artifact at an evaluator-owned local address."""
 
     def handler(*args: object, **kwargs: object) -> SimpleHTTPRequestHandler:
-        return SimpleHTTPRequestHandler(*args, directory=str(directory), **kwargs)
+        return SimpleHTTPRequestHandler(*args, directory=str(adapter.root), **kwargs)
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    runtime_adapter = replace(
-        adapter,
-        url=f"http://127.0.0.1:{server.server_port}/{filename}",
-    )
-    return server, thread, runtime_adapter
-
-
-def _server_command(adapter: Adapter, interpreter: Path, port: int) -> tuple[str, ...]:
-    """Build the fixed submitted-backend command for a registered adapter."""
-    module = next(
-        spec[1] for spec in BACKENDS.values() if spec[0] in str(adapter.entrypoint)
-    )
-    if adapter.server == "flask":
-        return (
-            str(interpreter),
-            "-m",
-            "flask",
-            "--app",
-            module,
-            "run",
-            "--host",
-            "127.0.0.1",
-            "--port",
-            str(port),
-        )
     return (
-        str(interpreter),
-        "-m",
-        "uvicorn",
-        module,
-        "--host",
-        "127.0.0.1",
-        "--port",
-        str(port),
-    )
-
-
-def _start_server(
-    adapter: Adapter, interpreter: Path
-) -> tuple[subprocess.Popen[str], tuple[str, ...], Adapter]:
-    """Start a submitted backend in an evaluator-owned process group."""
-    with socket.socket() as listener:
-        listener.bind(("127.0.0.1", 0))
-        port = listener.getsockname()[1]
-    command = _server_command(adapter, interpreter, port)
-    runtime_adapter = replace(adapter, url=f"http://127.0.0.1:{port}/")
-    return (
-        subprocess.Popen(
-            command,
-            cwd=adapter.root,
-            env=_safe_environment(adapter.root),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            start_new_session=True,
+        server,
+        thread,
+        Adapter(
+            **(
+                asdict(adapter)
+                | {
+                    "url": f"http://127.0.0.1:{server.server_port}/{adapter.entrypoint.name}"
+                }
+            )
         ),
-        command,
-        runtime_adapter,
+    )
+
+
+def _start_server(adapter: Adapter) -> subprocess.Popen[str]:
+    """Start only the copied artifact's submitted startup command."""
+    if not adapter.startup:
+        raise ValueError("no submitted startup command")
+    return subprocess.Popen(
+        adapter.startup,
+        cwd=adapter.root,
+        env=_safe_environment(adapter.root),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        start_new_session=True,
     )
 
 
@@ -487,254 +570,165 @@ def _stop_server(process: subprocess.Popen[str]) -> str:
         return process.communicate()[0]
 
 
-def _run_server(
-    adapter: Adapter, evidence_root: Path, interpreter: Path
-) -> CheckResult:
-    """Start a submitted app, probe its submitted root, and clean it up."""
-    log = evidence_root / "commands" / "backend-startup.log"
-    try:
-        process, command, runtime_adapter = _start_server(adapter, interpreter)
-    except OSError as error:
-        evidence = _write_evidence(log, str(error), evidence_root)
-        return CheckResult("backend-startup", "fail", str(error), evidence=(evidence,))
-    status = "fail"
-    message = "submitted root did not start"
-    try:
-        for _ in range(20):
-            if process.poll() is not None:
-                break
-            try:
-                with urllib.request.urlopen(runtime_adapter.url, timeout=1) as response:
-                    if response.status < 500:
-                        status = "pass"
-                        message = "submitted root responded"
-                        break
-            except OSError:
-                time.sleep(0.25)
-    finally:
+def _wait_for_server(adapter: Adapter, process: subprocess.Popen[str]) -> bool:
+    """Wait for the submitted root to respond without probing invented endpoints."""
+    for _ in range(40):
+        if process.poll() is not None:
+            return False
+        try:
+            with urllib.request.urlopen(adapter.url, timeout=1) as response:
+                return response.status < 500
+        except OSError:
+            time.sleep(0.25)
+    return False
+
+
+def _input_value(locator: object) -> str:
+    """Read text from a submitted input or editable block."""
+    return (
+        locator.input_value()
+        if locator.evaluate(
+            "node => node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement"
+        )
+        else locator.inner_text()
+    )
+
+
+def _ui_contract(
+    adapter: Adapter, evidence_root: Path
+) -> tuple[TaskVerdict, list[DiagnosticCheck]]:
+    """Create and edit a page and block exclusively through the submitted UI."""
+    process = _start_server(adapter)
+    startup_log = evidence_root / "commands" / "submitted-startup.log"
+    if not _wait_for_server(adapter, process):
         output = _stop_server(process)
-    evidence = _write_evidence(log, output, evidence_root)
-    return CheckResult("backend-startup", status, message, command, (evidence,))
+        evidence = _write_evidence(startup_log, output, evidence_root)
+        return classify_task_verdict(4, {name: "fail" for name in TASKS[4]}), [
+            DiagnosticCheck(
+                "startup", "fail", "submitted root did not start", evidence=(evidence,)
+            )
+        ]
+    playwright, browser, prerequisite = _browser_prerequisite(evidence_root)
+    if prerequisite:
+        output = _stop_server(process)
+        evidence = _write_evidence(startup_log, output, evidence_root)
+        return classify_task_verdict(4, {name: "blocked" for name in TASKS[4]}), [
+            DiagnosticCheck(
+                "startup", "pass", "submitted root responded", evidence=(evidence,)
+            ),
+            prerequisite,
+        ]
+    assert playwright is not None
+    page_title = f"Evaluator page {time.time_ns()}"
+    block_text = f"Evaluator block {time.time_ns()}"
+    try:
+        page = browser.new_page()
+        page.goto(adapter.url, wait_until="networkidle", timeout=15_000)
+        page.locator(adapter.page_create_selector).first.click()
+        title = page.locator(adapter.page_title_selector).first
+        title.fill(page_title)
+        title.press("Tab")
+        page.wait_for_timeout(600)
+        page.locator(adapter.block_create_selector).first.click()
+        editor = page.locator(adapter.block_editor_selector).first
+        editor.fill(block_text)
+        editor.press("Tab")
+        page.wait_for_timeout(600)
+        first = evidence_root / "ui-before-reload.png"
+        page.screenshot(path=str(first))
+        edited = _input_value(title) == page_title and block_text in _input_value(
+            editor
+        )
+        page.reload(wait_until="networkidle", timeout=15_000)
+        title = page.locator(adapter.page_title_selector).first
+        editor = page.locator(adapter.block_editor_selector).first
+        reloaded = _input_value(title) == page_title and block_text in _input_value(
+            editor
+        )
+        output = _stop_server(process)
+        start_evidence = _write_evidence(startup_log, output, evidence_root)
+        process = _start_server(adapter)
+        restarted = _wait_for_server(adapter, process)
+        if restarted:
+            page.goto(adapter.url, wait_until="networkidle", timeout=15_000)
+            title = page.locator(adapter.page_title_selector).first
+            editor = page.locator(adapter.block_editor_selector).first
+            restarted = _input_value(
+                title
+            ) == page_title and block_text in _input_value(editor)
+        second = evidence_root / "ui-after-restart.png"
+        page.screenshot(path=str(second))
+        sqlite = _has_sqlite_database(adapter.root)
+        evidence = (
+            _evidence_path(first, evidence_root),
+            _evidence_path(second, evidence_root),
+        )
+        observations = {
+            "page-create": "pass" if _input_value(title) else "fail",
+            "block-create": "pass" if _input_value(editor) else "fail",
+            "page-edit": "pass" if edited else "fail",
+            "block-edit": "pass" if edited else "fail",
+            "reload-persistence": "pass" if reloaded else "fail",
+            "restart-persistence": "pass" if restarted else "fail",
+            "sqlite-persistence": "pass" if sqlite and restarted else "fail",
+        }
+        diagnostics = [
+            DiagnosticCheck(
+                "startup",
+                "pass",
+                "submitted root responded",
+                evidence=(start_evidence,),
+            )
+        ]
+        return classify_task_verdict(4, observations, evidence), diagnostics
+    except Exception as error:
+        evidence = _write_evidence(
+            evidence_root / "browser-console.log", str(error), evidence_root
+        )
+        return classify_task_verdict(4, {name: "fail" for name in TASKS[4]}), [
+            DiagnosticCheck("browser-ui", "fail", str(error), evidence=(evidence,))
+        ]
+    finally:
+        assert browser is not None
+        browser.close()
+        playwright.stop()
+        _write_evidence(startup_log, _stop_server(process), evidence_root)
 
 
-def _experiment_three(adapter: Adapter, evidence_root: Path) -> list[CheckResult]:
+def _has_sqlite_database(root: Path) -> bool:
+    """Confirm a submitted database file is SQLite without reading task records."""
+    for path in [*root.rglob("*.sqlite"), *root.rglob("*.db")]:
+        try:
+            with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as connection:
+                connection.execute("PRAGMA schema_version").fetchone()
+        except sqlite3.Error:
+            continue
+        return True
+    return False
+
+
+def _experiment_three(
+    adapter: Adapter, evidence_root: Path
+) -> tuple[TaskVerdict, list[DiagnosticCheck]]:
     """Evaluate the fixed Experiment 3 browser contract."""
     try:
         server, _, runtime_adapter = _serve_static(adapter)
     except OSError as error:
-        return [CheckResult(name, "blocked", str(error)) for name in CONTRACTS[3]]
+        return classify_task_verdict(3, {name: "blocked" for name in TASKS[3]}), [
+            DiagnosticCheck("static-server", "blocked", str(error))
+        ]
     try:
-        return _browser_checks(runtime_adapter, evidence_root, 3)
+        return _clock_contract(runtime_adapter, evidence_root)
     finally:
         server.shutdown()
+        server.server_close()
 
 
 def _experiment_four(
-    adapter: Adapter, workspace: Path, evidence_root: Path
-) -> list[CheckResult]:
-    """Evaluate declared Experiment 4 dependencies, backend, and submitted UI."""
-    manifests = [path for path in workspace.rglob("requirements.txt")]
-    if manifests:
-        interpreter, dependency = _prepare_environment(
-            workspace, evidence_root, manifests[0]
-        )
-    else:
-        interpreter = None
-        evidence = _write_evidence(
-            evidence_root / "dependency-installation.txt",
-            "no declared requirements.txt",
-            evidence_root,
-        )
-        dependency = CheckResult(
-            "dependency-install",
-            "fail",
-            "no declared requirements.txt",
-            evidence=(evidence,),
-        )
-    compile_check = run_command(
-        "python-compile",
-        (
-            str(interpreter) if interpreter else sys.executable,
-            "-m",
-            "compileall",
-            "-q",
-            ".",
-        ),
-        workspace,
-        evidence_root,
-    )
-    backend = (
-        _run_server(adapter, evidence_root, interpreter)
-        if dependency.status == "pass" and interpreter
-        else CheckResult(
-            "backend-startup",
-            "blocked",
-            "declared dependency environment unavailable",
-            evidence=dependency.evidence,
-        )
-    )
-    sqlite_files = list(workspace.rglob("*.db")) + list(workspace.rglob("*.sqlite"))
-    sqlite_message = (
-        "SQLite database initialized"
-        if sqlite_files
-        else "no SQLite database initialized"
-    )
-    sqlite_evidence = _write_evidence(
-        evidence_root / "sqlite-initialization.txt", sqlite_message, evidence_root
-    )
-    sqlite = CheckResult(
-        "sqlite-initialization",
-        "pass" if sqlite_files else "fail",
-        sqlite_message,
-        evidence=(sqlite_evidence,),
-    )
-    packages = list(workspace.rglob("package.json"))
-    frontend = (
-        run_command(
-            "frontend-build", ("npm", "run", "build"), packages[0].parent, evidence_root
-        )
-        if packages
-        else CheckResult(
-            "frontend-build",
-            "pass",
-            "no declared frontend build",
-            evidence=(
-                _write_evidence(
-                    evidence_root / "frontend-build.txt",
-                    "no declared frontend build",
-                    evidence_root,
-                ),
-            ),
-        )
-    )
-    if backend.status == "pass" and frontend.status == "pass" and interpreter:
-        process, _, runtime_adapter = _start_server(adapter, interpreter)
-        try:
-            if adapter.frontend:
-                frontend_server, _, frontend_adapter = _serve_frontend(
-                    adapter, runtime_adapter
-                )
-                try:
-                    browser = _browser_checks(frontend_adapter, evidence_root, 4)
-                finally:
-                    frontend_server.shutdown()
-            else:
-                browser = _browser_checks(runtime_adapter, evidence_root, 4)
-        finally:
-            _stop_server(process)
-    else:
-        browser = [
-            CheckResult(
-                name,
-                "blocked",
-                "submitted backend unavailable",
-                evidence=backend.evidence,
-            )
-            for name in CONTRACTS[4][-2:]
-        ]
-    return [dependency, compile_check, backend, sqlite, frontend, *browser]
-
-
-def _prepare_environment(
-    workspace: Path, evidence_root: Path, manifest: Path
-) -> tuple[Path, CheckResult]:
-    """Create and populate an isolated interpreter for one copied artifact."""
-    workspace = workspace.resolve()
-    manifest = manifest.resolve()
-    environment = workspace / ".evaluator-venv"
-    interpreter = environment / "bin" / "python"
-    created = run_command(
-        "environment-create",
-        (sys.executable, "-m", "venv", str(environment)),
-        workspace,
-        evidence_root,
-    )
-    if created.status != "pass":
-        return interpreter, replace(created, name="dependency-install")
-    return interpreter, run_command(
-        "dependency-install",
-        (
-            str(interpreter),
-            "-m",
-            "pip",
-            "install",
-            "uvicorn",
-            "-r",
-            str(manifest),
-        ),
-        workspace,
-        evidence_root,
-    )
-
-
-def _serve_frontend(
-    adapter: Adapter, backend: Adapter
-) -> tuple[object, Thread, Adapter]:
-    """Serve static assets while forwarding their relative API calls to the backend."""
-    if adapter.frontend is None:
-        msg = "adapter has no standalone frontend"
-        raise ValueError(msg)
-    from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-
-    directory = (
-        adapter.frontend.parent if adapter.frontend.is_file() else adapter.frontend
-    )
-    filename = adapter.frontend.name if adapter.frontend.is_file() else "index.html"
-
-    class FrontendHandler(SimpleHTTPRequestHandler):
-        def _forward_api(self) -> None:
-            size = int(self.headers.get("Content-Length", 0))
-            request = urllib.request.Request(
-                f"{backend.url.rstrip('/')}{self.path}",
-                data=self.rfile.read(size) if size else None,
-                headers={"Content-Type": self.headers["Content-Type"]}
-                if "Content-Type" in self.headers
-                else {},
-                method=self.command,
-            )
-            try:
-                with urllib.request.urlopen(request, timeout=15) as response:
-                    self._respond(response.status, response.read(), response.headers)
-            except urllib.error.HTTPError as error:
-                self._respond(error.code, error.read(), error.headers)
-            except OSError as error:
-                self.send_error(502, str(error))
-
-        def _respond(self, status: int, body: bytes, headers: Message) -> None:
-            self.send_response(status)
-            for name in ("Content-Type", "Content-Length"):
-                value = headers.get(name)
-                if value:
-                    self.send_header(name, value)
-            self.end_headers()
-            self.wfile.write(body)
-
-        def do_GET(self) -> None:  # noqa: N802
-            if self.path == "/api" or self.path.startswith("/api/"):
-                self._forward_api()
-            else:
-                super().do_GET()
-
-        def do_POST(self) -> None:  # noqa: N802
-            self._forward_api()
-
-        def do_PUT(self) -> None:  # noqa: N802
-            self._forward_api()
-
-        def do_DELETE(self) -> None:  # noqa: N802
-            self._forward_api()
-
-    def handler(*args: object, **kwargs: object) -> FrontendHandler:
-        return FrontendHandler(*args, directory=str(directory), **kwargs)
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
-    thread = Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    return (
-        server,
-        thread,
-        replace(adapter, url=f"http://127.0.0.1:{server.server_port}/{filename}"),
-    )
+    adapter: Adapter, evidence_root: Path
+) -> tuple[TaskVerdict, list[DiagnosticCheck]]:
+    """Evaluate the submitted Experiment 4 application and UI contract."""
+    return _ui_contract(adapter, evidence_root)
 
 
 def write_report(
@@ -746,66 +740,94 @@ def write_report(
     digest_before: str,
     digest_after: str,
     adapter: str,
-    checks: list[CheckResult],
+    task_verdict: TaskVerdict,
+    diagnostics: list[DiagnosticCheck],
 ) -> Path:
-    """Write machine-readable and Markdown reports for one evaluation."""
+    """Write separate machine-readable task and diagnostic evidence reports."""
     output.mkdir(parents=True, exist_ok=True)
     report = ArtifactReport(
-        agent, experiment, str(source), digest_before, digest_after, adapter, checks
+        agent,
+        experiment,
+        str(source),
+        digest_before,
+        digest_after,
+        adapter,
+        task_verdict,
+        diagnostics,
     )
-    summary = summarize_checks(checks)
     payload = asdict(report) | {
-        "functional_correctness": {"label": FUNCTIONAL_CORRECTNESS_LABEL, **summary},
-        "summary": summary,
+        "functional_correctness": {
+            "label": FUNCTIONAL_CORRECTNESS_LABEL,
+            **asdict(task_verdict),
+        },
+        "diagnostic_summary": summarize_checks(diagnostics),
     }
     result = output / "result.json"
     result.write_text(json.dumps(payload, indent=2) + "\n")
     rows = [
         "# Artifact Evaluation",
         "",
-        f"Source digest: `{digest_before}`",
+        f"Source digest before: `{digest_before}`",
+        f"Source digest after: `{digest_after}`",
         "",
-        "| Check | Status | Evidence |",
-        "| --- | --- | --- |",
+        "## Functional Correctness",
+        "",
+        f"Status: `{task_verdict.status}`",
+        f"Rationale: {task_verdict.rationale}",
+        "",
+        "| Task observation | Status |",
+        "| --- | --- |",
     ]
     rows.extend(
-        f"| {check.name} | {check.status} | {', '.join(check.evidence)} |"
-        for check in checks
+        f"| {name} | {status} |" for name, status in task_verdict.observations.items()
     )
     rows.extend(
         [
             "",
-            f"{FUNCTIONAL_CORRECTNESS_LABEL}: "
-            f"`{json.dumps(payload['summary'], sort_keys=True)}`",
+            "## Diagnostics",
             "",
+            "| Check | Status | Evidence |",
+            "| --- | --- | --- |",
         ]
     )
-    result.with_name("summary.md").write_text("\n".join(rows))
+    rows.extend(
+        f"| {check.name} | {check.status} | {', '.join(check.evidence)} |"
+        for check in diagnostics
+    )
+    result.with_name("summary.md").write_text("\n".join(rows) + "\n")
     return result
 
 
 def evaluate_artifact(agent: str, experiment: int, source: Path, output: Path) -> Path:
-    """Evaluate one source artifact through its complete fixed contract."""
+    """Evaluate one immutable source artifact through its complete task contract."""
     digest_before = artifact_digest(source)
     workspace = copy_artifact(source, output / "workspace")
     evidence = output / "evidence"
+    diagnostics: list[DiagnosticCheck] = [
+        DiagnosticCheck("artifact-discovery", "pass", "artifact copied")
+    ]
     try:
         adapter = resolve_adapter(agent, experiment, workspace)
-        checks = (
+        verdict, runtime_diagnostics = (
             _experiment_three(adapter, evidence)
             if experiment == 3
-            else _experiment_four(adapter, workspace, evidence)
+            else _experiment_four(adapter, evidence)
         )
+        diagnostics.extend(runtime_diagnostics)
     except ValueError as error:
-        checks = [
-            CheckResult(name, "fail", str(error)) for name in CONTRACTS[experiment]
-        ]
         adapter = Adapter("unsupported", workspace, workspace)
+        verdict = _failed_verdict(experiment, str(error))
+        diagnostics.append(DiagnosticCheck("adapter", "fail", str(error)))
     digest_after = artifact_digest(source)
-    if digest_after != digest_before:
-        checks.append(
-            CheckResult("source-immutability", "fail", "source digest changed")
+    diagnostics.append(
+        DiagnosticCheck(
+            "source-immutability",
+            "pass" if digest_after == digest_before else "fail",
+            "source digest unchanged"
+            if digest_after == digest_before
+            else "source digest changed",
         )
+    )
     return write_report(
         output,
         agent=agent,
@@ -814,7 +836,8 @@ def evaluate_artifact(agent: str, experiment: int, source: Path, output: Path) -
         digest_before=digest_before,
         digest_after=digest_after,
         adapter=adapter.name,
-        checks=checks,
+        task_verdict=verdict,
+        diagnostics=diagnostics,
     )
 
 
@@ -832,7 +855,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Evaluate selected frozen artifacts and return nonzero for any non-pass."""
+    """Evaluate selected frozen artifacts and fail for any non-passing verdict."""
     args = build_parser().parse_args(argv)
     try:
         agents = parse_agents(args.agents)
@@ -845,12 +868,8 @@ def main(argv: list[str] | None = None) -> int:
             output = args.output_root / agent / f"experiment-{experiment}"
             if source.is_dir():
                 report_path = evaluate_artifact(agent, experiment, source, output)
-                reports.append(json.loads(report_path.read_text()))
             else:
-                checks = [
-                    CheckResult(name, "fail", f"missing artifact: {source}")
-                    for name in CONTRACTS[experiment]
-                ]
+                verdict = _failed_verdict(experiment, f"missing artifact: {source}")
                 report_path = write_report(
                     output,
                     agent=agent,
@@ -859,18 +878,19 @@ def main(argv: list[str] | None = None) -> int:
                     digest_before="",
                     digest_after="",
                     adapter="missing",
-                    checks=checks,
+                    task_verdict=verdict,
+                    diagnostics=[
+                        DiagnosticCheck(
+                            "artifact-discovery", "fail", f"missing artifact: {source}"
+                        )
+                    ],
                 )
-                reports.append(json.loads(report_path.read_text()))
+            reports.append(json.loads(report_path.read_text()))
     args.output_root.mkdir(parents=True, exist_ok=True)
     (args.output_root / "summary.json").write_text(json.dumps(reports, indent=2) + "\n")
     return (
         0
-        if all(
-            check["status"] == "pass"
-            for report in reports
-            for check in report["checks"]
-        )
+        if all(report["task_verdict"]["status"] == "pass" for report in reports)
         else 1
     )
 
