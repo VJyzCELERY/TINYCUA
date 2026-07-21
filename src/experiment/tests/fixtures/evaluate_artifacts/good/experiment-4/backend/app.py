@@ -24,7 +24,12 @@ def state() -> dict[str, str]:
         block = connection.execute(
             "SELECT content FROM block ORDER BY id LIMIT 1"
         ).fetchone()
-    return {"title": page[0] if page else "", "block": block[0] if block else ""}
+        blocks = connection.execute("SELECT COUNT(*) FROM block").fetchone()[0]
+        return {
+            "title": page[0] if page else "",
+            "block": block[0] if block else "",
+            "blocks": blocks,
+        }
 
 
 class App(BaseHTTPRequestHandler):
@@ -84,8 +89,9 @@ PAGE = """<!doctype html>
 <input id="pageTitleInput" onchange="save('/api/page', this.value)">
 <button class="btn-block-action" onclick="createBlock()">Add block</button>
 <input id="blockEditor" onchange="save('/api/block', this.value)">
+<p id="blockCount"></p>
 <script>
-async function load() { const state = await (await fetch('/api/state')).json(); pageTitleInput.value = state.title; blockEditor.value = state.block; }
+async function load() { const state = await (await fetch('/api/state')).json(); pageTitleInput.value = state.title; blockEditor.value = state.block; blockCount.textContent = `${state.blocks} blocks`; }
 async function createPage() { await fetch('/api/page', {method: 'POST'}); await load(); }
 async function createBlock() { await fetch('/api/block', {method: 'POST'}); await load(); }
 async function save(path, value) { await fetch(path, {method: 'PUT', body: JSON.stringify({value})}); }
@@ -94,4 +100,4 @@ load();
 
 
 if __name__ == "__main__":
-    Server(("127.0.0.1", 18765), App).serve_forever()
+    Server(("127.0.0.1", 5000), App).serve_forever()

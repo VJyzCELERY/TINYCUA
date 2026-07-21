@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from evaluate_artifacts import (
+    Adapter,
     CheckResult,
     DiagnosticCheck,
     artifact_digest,
@@ -70,6 +71,7 @@ def test_report_labels_deterministic_functional_correctness(tmp_path: Path) -> N
     verdict = classify_task_verdict(
         3,
         {
+            "browser-load": "pass",
             "face": "pass",
             "hands": "pass",
             "clockwise": "pass",
@@ -291,6 +293,137 @@ def test_relative_output_root_uses_existing_manifest(
     assert Path(commands[-1][-1]).is_absolute()
 
 
+def test_experiment_four_prepares_its_declared_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Experiment 4 prepares the copied submitted manifest before evaluation."""
+    prepared: list[Path] = []
+
+    def fake_prepare(
+        workspace: Path, _evidence: Path, manifest: Path
+    ) -> tuple[Path, CheckResult]:
+        prepared.append(manifest)
+        return workspace / ".evaluator-venv" / "bin" / "python", CheckResult(
+            "dependency-install", "pass", "installed"
+        )
+
+    monkeypatch.setattr(evaluator, "_prepare_environment", fake_prepare)
+    monkeypatch.setattr(
+        evaluator,
+        "_experiment_four",
+        lambda _adapter, _evidence, _interpreter: (
+            classify_task_verdict(4, {name: "pass" for name in evaluator.TASKS[4]}),
+            [],
+        ),
+    )
+
+    evaluate_artifact("opencode", 4, FIXTURES / "good" / "experiment-4", tmp_path)
+
+    assert prepared == [
+        tmp_path / "workspace" / "experiment-4" / "backend" / "requirements.txt"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("agent", "port"),
+    (("opencode", 5000), ("hermes", 5001), ("openclaw", 8000), ("tinycua", 8000)),
+)
+def test_registered_adapter_uses_submitted_listener_url(
+    tmp_path: Path, agent: str, port: int
+) -> None:
+    """Each adapter probes its submitted listener rather than a shared port."""
+    submitted, relative_root, startup, _url = evaluator.BACKENDS[agent]
+    artifact = tmp_path / agent
+    root = artifact / relative_root
+    entrypoint = artifact / submitted
+    root.mkdir(parents=True)
+    entrypoint.parent.mkdir(parents=True, exist_ok=True)
+    entrypoint.touch()
+    (root / startup).touch()
+    (root / "requirements.txt").touch()
+
+    assert resolve_adapter(agent, 4, artifact).url == f"http://127.0.0.1:{port}/"
+
+
+def test_clock_runtime_error_fails_contract(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Submitted JavaScript errors fail the required browser-load observation."""
+    class Message:
+        type = "error"
+        text = "submitted error"
+
+    class Page:
+        def __init__(self) -> None:
+            self.handlers: dict[str, object] = {}
+
+        def on(self, name: str, handler: object) -> None:
+            self.handlers[name] = handler
+
+        def goto(self, *_: object, **__: object) -> None:
+            self.handlers["console"](Message())
+            self.handlers["pageerror"](RuntimeError("submitted error"))
+
+        def screenshot(self, **_: object) -> None:
+            return None
+
+        def reload(self, **_: object) -> None:
+            return None
+
+    class Browser:
+        def new_page(self) -> Page:
+            return Page()
+
+        def close(self) -> None:
+            return None
+
+    class Playwright:
+        def stop(self) -> None:
+            return None
+
+    monkeypatch.setattr(
+        evaluator,
+        "_browser_prerequisite",
+        lambda _evidence: (Playwright(), Browser(), None),
+    )
+    monkeypatch.setattr(evaluator, "_clock_snapshot", lambda _page: ({}, (0, 0), {}))
+    monkeypatch.setattr(evaluator, "clock_face_is_conventional", lambda *_: True)
+    monkeypatch.setattr(evaluator, "clock_is_time_accurate", lambda *_: True)
+    monkeypatch.setattr(evaluator, "clock_moves_clockwise", lambda *_: True)
+    monkeypatch.setattr(evaluator.time, "sleep", lambda _: None)
+
+    verdict, diagnostics = evaluator._clock_contract(
+        Adapter("clock", tmp_path, tmp_path / "clock.html"), tmp_path
+    )
+
+    assert verdict.status == "fail"
+    assert diagnostics[0].status == "fail"
+    assert "submitted error" in (tmp_path / "browser-console.log").read_text()
+
+
+def test_unrelated_sqlite_file_does_not_satisfy_persistence_contract(
+    tmp_path: Path,
+) -> None:
+    """A readable database without the submitted task state is insufficient."""
+    database = tmp_path / "unrelated.sqlite"
+    with evaluator.sqlite3.connect(database) as connection:
+        connection.execute("CREATE TABLE unrelated (value TEXT)")
+        connection.execute("INSERT INTO unrelated VALUES ('unrelated')")
+
+    before = evaluator._sqlite_snapshots(tmp_path)
+
+    assert not evaluator._sqlite_persists(
+        before, evaluator._sqlite_snapshots(tmp_path), "Evaluator page", "Evaluator block"
+    )
+
+
+def test_inert_creation_controls_fail_experiment_four_contract() -> None:
+    """Unchanged submitted state cannot satisfy a page or block creation action."""
+    existing = (1, ("Existing",))
+
+    assert not evaluator._creation_observed(existing, existing)
+
+
 def test_adapter_uses_only_a_submitted_start_script(tmp_path: Path) -> None:
     """Application adapters never manufacture a framework launch command."""
     artifact = tmp_path / "artifact"
@@ -298,6 +431,7 @@ def test_adapter_uses_only_a_submitted_start_script(tmp_path: Path) -> None:
     backend.mkdir(parents=True)
     (backend / "app.py").touch()
     (backend / "start.sh").touch()
+    (backend / "requirements.txt").touch()
 
     adapter = resolve_adapter("opencode", 4, artifact)
 

@@ -24,9 +24,9 @@ from typing import Final
 AGENTS: Final = ("opencode", "hermes", "openclaw", "tinycua")
 STATUSES: Final = ("pass", "fail", "blocked")
 FUNCTIONAL_CORRECTNESS_LABEL: Final = "Functional Correctness (deterministic)"
-CONTRACT_VERSION: Final = "2"
+CONTRACT_VERSION: Final = "3"
 TASKS: Final = {
-    3: ("face", "hands", "clockwise", "time-accurate", "reload"),
+    3: ("browser-load", "face", "hands", "clockwise", "time-accurate", "reload"),
     4: (
         "page-create",
         "block-create",
@@ -44,10 +44,20 @@ CLOCK_FILES: Final = {
     "tinycua": "clock.html",
 }
 BACKENDS: Final = {
-    "opencode": ("backend/app.py", "backend", "start.sh"),
-    "hermes": ("notion-app/run.py", "notion-app", "start.sh"),
-    "openclaw": ("app/main.py", ".", "start.sh"),
-    "tinycua": ("src/main.py", ".", "start.sh"),
+    "opencode": (
+        "backend/app.py",
+        "backend",
+        "start.sh",
+        "http://127.0.0.1:5000/",
+    ),
+    "hermes": (
+        "notion-app/run.py",
+        "notion-app",
+        "start.sh",
+        "http://127.0.0.1:5001/",
+    ),
+    "openclaw": ("app/main.py", ".", "start.sh", "http://127.0.0.1:8000/"),
+    "tinycua": ("src/main.py", ".", "start.sh", "http://127.0.0.1:8000/"),
 }
 CLOCK_TOLERANCES: Final = {"hour": 4.0, "minute": 4.0, "second": 12.0}
 CLOCK_RATES: Final = {"hour": 1 / 120, "minute": 1 / 10, "second": 6.0}
@@ -105,6 +115,7 @@ class Adapter:
     page_create_selector: str = "button.btn-new-page"
     page_title_selector: str = "#pageTitleInput"
     block_create_selector: str = "button.btn-block-action"
+    block_created_selector: str = "#blockCount"
     block_editor_selector: str = "[contenteditable='true'], #blockEditor"
 
 
@@ -214,15 +225,17 @@ def resolve_adapter(agent: str, experiment: int, source: Path) -> Adapter:
         if entrypoint.is_file():
             return Adapter(f"clock:{entrypoint.name}", source, entrypoint)
     else:
-        submitted, relative_root, startup = BACKENDS[agent]
+        submitted, relative_root, startup, url = BACKENDS[agent]
         entrypoint = source / submitted
         root = source / relative_root
         startup_path = root / startup
-        if entrypoint.is_file() and startup_path.is_file():
+        manifest = root / "requirements.txt"
+        if entrypoint.is_file() and startup_path.is_file() and manifest.is_file():
             return Adapter(
                 f"notion:{agent}",
                 root,
                 entrypoint,
+                url=url,
                 startup=("sh", startup),
             )
     raise ValueError(f"unsupported {agent} experiment-{experiment} layout")
@@ -240,11 +253,14 @@ def _write_evidence(path: Path, text: str, evidence_root: Path) -> str:
     return _evidence_path(path, evidence_root)
 
 
-def _safe_environment(workspace: Path) -> dict[str, str]:
+def _safe_environment(workspace: Path, interpreter: Path | None = None) -> dict[str, str]:
     """Run copied artifacts without inherited home-directory credentials."""
     home = workspace / ".evaluator-home"
     home.mkdir(exist_ok=True)
-    return {"HOME": str(home), "PATH": os.environ.get("PATH", "")}
+    path = os.environ.get("PATH", "")
+    if interpreter:
+        path = f"{interpreter.parent}{os.pathsep}{path}"
+    return {"HOME": str(home), "PATH": path}
 
 
 def run_command(
@@ -456,12 +472,23 @@ def _clock_contract(
         )
     assert playwright is not None
     messages: list[str] = []
+    errors: list[str] = []
+
+    def record_console(message: object) -> None:
+        line = f"{message.type}: {message.text}"
+        messages.append(line)
+        if message.type == "error":
+            errors.append(line)
+
+    def record_page_error(error: object) -> None:
+        line = f"pageerror: {error}"
+        messages.append(line)
+        errors.append(line)
+
     try:
         page = browser.new_page()
-        page.on(
-            "console",
-            lambda message: messages.append(f"{message.type}: {message.text}"),
-        )
+        page.on("console", record_console)
+        page.on("pageerror", record_page_error)
         page.goto(adapter.url, wait_until="networkidle", timeout=15_000)
         before_path = evidence_root / "clock-before.png"
         after_path = evidence_root / "clock-after.png"
@@ -480,6 +507,7 @@ def _clock_contract(
             _evidence_path(after_path, evidence_root),
         )
         observations = {
+            "browser-load": "pass" if not errors else "fail",
             "face": "pass" if clock_face_is_conventional(labels, center) else "fail",
             "hands": "pass" if set(before) == set(CLOCK_RATES) else "fail",
             "clockwise": "pass"
@@ -504,7 +532,10 @@ def _clock_contract(
         )
         diagnostics = [
             DiagnosticCheck(
-                "browser-load", "pass", "submitted page loaded", evidence=(console,)
+                "browser-load",
+                "pass" if not errors else "fail",
+                "submitted page loaded" if not errors else "submitted JavaScript error",
+                evidence=(console,),
             )
         ]
         return classify_task_verdict(3, observations, evidence), diagnostics
@@ -544,14 +575,14 @@ def _serve_static(adapter: Adapter) -> tuple[ThreadingHTTPServer, Thread, Adapte
     )
 
 
-def _start_server(adapter: Adapter) -> subprocess.Popen[str]:
+def _start_server(adapter: Adapter, interpreter: Path) -> subprocess.Popen[str]:
     """Start only the copied artifact's submitted startup command."""
     if not adapter.startup:
         raise ValueError("no submitted startup command")
     return subprocess.Popen(
         adapter.startup,
         cwd=adapter.root,
-        env=_safe_environment(adapter.root),
+        env=_safe_environment(adapter.root, interpreter),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -595,10 +626,10 @@ def _input_value(locator: object) -> str:
 
 
 def _ui_contract(
-    adapter: Adapter, evidence_root: Path
+    adapter: Adapter, evidence_root: Path, interpreter: Path
 ) -> tuple[TaskVerdict, list[DiagnosticCheck]]:
     """Create and edit a page and block exclusively through the submitted UI."""
-    process = _start_server(adapter)
+    process = _start_server(adapter, interpreter)
     startup_log = evidence_root / "commands" / "submitted-startup.log"
     if not _wait_for_server(adapter, process):
         output = _stop_server(process)
@@ -624,13 +655,24 @@ def _ui_contract(
     try:
         page = browser.new_page()
         page.goto(adapter.url, wait_until="networkidle", timeout=15_000)
+        page_before = _creation_state(page, adapter.page_title_selector)
+        sqlite_before = _sqlite_snapshots(adapter.root)
         page.locator(adapter.page_create_selector).first.click()
         title = page.locator(adapter.page_title_selector).first
+        page.wait_for_timeout(600)
+        page_created = _creation_observed(
+            page_before, _creation_state(page, adapter.page_title_selector)
+        )
         title.fill(page_title)
         title.press("Tab")
         page.wait_for_timeout(600)
+        block_before = _creation_state(page, adapter.block_created_selector)
         page.locator(adapter.block_create_selector).first.click()
         editor = page.locator(adapter.block_editor_selector).first
+        page.wait_for_timeout(600)
+        block_created = _creation_observed(
+            block_before, _creation_state(page, adapter.block_created_selector)
+        )
         editor.fill(block_text)
         editor.press("Tab")
         page.wait_for_timeout(600)
@@ -647,7 +689,7 @@ def _ui_contract(
         )
         output = _stop_server(process)
         start_evidence = _write_evidence(startup_log, output, evidence_root)
-        process = _start_server(adapter)
+        process = _start_server(adapter, interpreter)
         restarted = _wait_for_server(adapter, process)
         if restarted:
             page.goto(adapter.url, wait_until="networkidle", timeout=15_000)
@@ -658,14 +700,16 @@ def _ui_contract(
             ) == page_title and block_text in _input_value(editor)
         second = evidence_root / "ui-after-restart.png"
         page.screenshot(path=str(second))
-        sqlite = _has_sqlite_database(adapter.root)
+        sqlite = _sqlite_persists(
+            sqlite_before, _sqlite_snapshots(adapter.root), page_title, block_text
+        )
         evidence = (
             _evidence_path(first, evidence_root),
             _evidence_path(second, evidence_root),
         )
         observations = {
-            "page-create": "pass" if _input_value(title) else "fail",
-            "block-create": "pass" if _input_value(editor) else "fail",
+            "page-create": "pass" if page_created else "fail",
+            "block-create": "pass" if block_created else "fail",
             "page-edit": "pass" if edited else "fail",
             "block-edit": "pass" if edited else "fail",
             "reload-persistence": "pass" if reloaded else "fail",
@@ -695,16 +739,42 @@ def _ui_contract(
         _write_evidence(startup_log, _stop_server(process), evidence_root)
 
 
-def _has_sqlite_database(root: Path) -> bool:
-    """Confirm a submitted database file is SQLite without reading task records."""
+def _creation_state(page: object, selector: str) -> tuple[int, tuple[str, ...]]:
+    """Capture submitted controls and visible state before a creation action."""
+    controls = page.locator(selector)
+    return (
+        controls.count(),
+        tuple(_input_value(controls.nth(index)) for index in range(controls.count())),
+    )
+
+
+def _creation_observed(
+    before: tuple[int, tuple[str, ...]], after: tuple[int, tuple[str, ...]]
+) -> bool:
+    """Require the submitted page to visibly change immediately after creation."""
+    return before != after
+
+
+def _sqlite_snapshots(root: Path) -> dict[Path, str]:
+    """Read submitted SQLite state without writing to the copied artifact."""
+    snapshots: dict[Path, str] = {}
     for path in [*root.rglob("*.sqlite"), *root.rglob("*.db")]:
         try:
             with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as connection:
-                connection.execute("PRAGMA schema_version").fetchone()
+                snapshots[path] = "\n".join(connection.iterdump())
         except sqlite3.Error:
             continue
-        return True
-    return False
+    return snapshots
+
+
+def _sqlite_persists(
+    before: dict[Path, str], after: dict[Path, str], page_title: str, block_text: str
+) -> bool:
+    """Require changed submitted SQLite state to contain the created page and block."""
+    return any(
+        before.get(path) != state and page_title in state and block_text in state
+        for path, state in after.items()
+    )
 
 
 def _experiment_three(
@@ -725,10 +795,10 @@ def _experiment_three(
 
 
 def _experiment_four(
-    adapter: Adapter, evidence_root: Path
+    adapter: Adapter, evidence_root: Path, interpreter: Path
 ) -> tuple[TaskVerdict, list[DiagnosticCheck]]:
     """Evaluate the submitted Experiment 4 application and UI contract."""
-    return _ui_contract(adapter, evidence_root)
+    return _ui_contract(adapter, evidence_root, interpreter)
 
 
 def write_report(
@@ -808,11 +878,30 @@ def evaluate_artifact(agent: str, experiment: int, source: Path, output: Path) -
     ]
     try:
         adapter = resolve_adapter(agent, experiment, workspace)
-        verdict, runtime_diagnostics = (
-            _experiment_three(adapter, evidence)
-            if experiment == 3
-            else _experiment_four(adapter, evidence)
-        )
+        if experiment == 3:
+            verdict, runtime_diagnostics = _experiment_three(adapter, evidence)
+        else:
+            interpreter, dependency = _prepare_environment(
+                adapter.root, evidence, adapter.root / "requirements.txt"
+            )
+            diagnostics.append(
+                DiagnosticCheck(
+                    dependency.name,
+                    dependency.status,
+                    dependency.message,
+                    dependency.command,
+                    dependency.evidence,
+                )
+            )
+            if dependency.status == "pass":
+                verdict, runtime_diagnostics = _experiment_four(
+                    adapter, evidence, interpreter
+                )
+            else:
+                verdict = classify_task_verdict(
+                    4, {name: dependency.status for name in TASKS[4]}
+                )
+                runtime_diagnostics = []
         diagnostics.extend(runtime_diagnostics)
     except ValueError as error:
         adapter = Adapter("unsupported", workspace, workspace)
