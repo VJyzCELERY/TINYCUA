@@ -332,7 +332,9 @@ def test_registered_adapter_uses_submitted_listener_url(
     tmp_path: Path, agent: str, port: int
 ) -> None:
     """Each adapter probes its submitted listener rather than a shared port."""
-    submitted, relative_root, startup, _url = evaluator.BACKENDS[agent]
+    submitted, relative_root, startup, _url, _block_created_selector = (
+        evaluator.BACKENDS[agent]
+    )
     artifact = tmp_path / agent
     root = artifact / relative_root
     entrypoint = artifact / submitted
@@ -345,10 +347,41 @@ def test_registered_adapter_uses_submitted_listener_url(
     assert resolve_adapter(agent, 4, artifact).url == f"http://127.0.0.1:{port}/"
 
 
+@pytest.mark.parametrize(
+    ("agent", "selector"),
+    (
+        ("opencode", ".block-container"),
+        ("hermes", ".block"),
+        ("openclaw", ".page-block"),
+        ("tinycua", ".noteion-block"),
+    ),
+)
+def test_registered_creation_selectors_evaluate_frozen_adapters(
+    agent: str, selector: str
+) -> None:
+    """Registered block state selectors target each frozen submitted UI."""
+    artifact = (
+        Path(__file__).parents[2]
+        / "evaluation-results"
+        / agent
+        / "experiment-4"
+        / "workdir"
+    )
+    source = "\n".join(
+        path.read_text(errors="ignore")
+        for path in artifact.rglob("*")
+        if path.is_file()
+    )
+
+    assert evaluator.BACKENDS[agent][-1] == selector
+    assert selector.removeprefix(".") in source
+
+
 def test_clock_runtime_error_fails_contract(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Submitted JavaScript errors fail the required browser-load observation."""
+
     class Message:
         type = "error"
         text = "submitted error"

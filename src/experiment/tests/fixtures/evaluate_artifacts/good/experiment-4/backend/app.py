@@ -89,9 +89,9 @@ PAGE = """<!doctype html>
 <input id="pageTitleInput" onchange="save('/api/page', this.value)">
 <button class="btn-block-action" onclick="createBlock()">Add block</button>
 <input id="blockEditor" onchange="save('/api/block', this.value)">
-<p id="blockCount"></p>
+<p class="block-container"></p>
 <script>
-async function load() { const state = await (await fetch('/api/state')).json(); pageTitleInput.value = state.title; blockEditor.value = state.block; blockCount.textContent = `${state.blocks} blocks`; }
+async function load() { const state = await (await fetch('/api/state')).json(); pageTitleInput.value = state.title; blockEditor.value = state.block; document.querySelector('.block-container').textContent = `${state.blocks} blocks`; }
 async function createPage() { await fetch('/api/page', {method: 'POST'}); await load(); }
 async function createBlock() { await fetch('/api/block', {method: 'POST'}); await load(); }
 async function save(path, value) { await fetch(path, {method: 'PUT', body: JSON.stringify({value})}); }

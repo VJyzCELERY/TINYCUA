@@ -49,15 +49,29 @@ BACKENDS: Final = {
         "backend",
         "start.sh",
         "http://127.0.0.1:5000/",
+        ".block-container",
     ),
     "hermes": (
         "notion-app/run.py",
         "notion-app",
         "start.sh",
         "http://127.0.0.1:5001/",
+        ".block",
     ),
-    "openclaw": ("app/main.py", ".", "start.sh", "http://127.0.0.1:8000/"),
-    "tinycua": ("src/main.py", ".", "start.sh", "http://127.0.0.1:8000/"),
+    "openclaw": (
+        "app/main.py",
+        ".",
+        "start.sh",
+        "http://127.0.0.1:8000/",
+        ".page-block",
+    ),
+    "tinycua": (
+        "src/main.py",
+        ".",
+        "start.sh",
+        "http://127.0.0.1:8000/",
+        ".noteion-block",
+    ),
 }
 CLOCK_TOLERANCES: Final = {"hour": 4.0, "minute": 4.0, "second": 12.0}
 CLOCK_RATES: Final = {"hour": 1 / 120, "minute": 1 / 10, "second": 6.0}
@@ -225,7 +239,7 @@ def resolve_adapter(agent: str, experiment: int, source: Path) -> Adapter:
         if entrypoint.is_file():
             return Adapter(f"clock:{entrypoint.name}", source, entrypoint)
     else:
-        submitted, relative_root, startup, url = BACKENDS[agent]
+        submitted, relative_root, startup, url, block_created_selector = BACKENDS[agent]
         entrypoint = source / submitted
         root = source / relative_root
         startup_path = root / startup
@@ -237,6 +251,7 @@ def resolve_adapter(agent: str, experiment: int, source: Path) -> Adapter:
                 entrypoint,
                 url=url,
                 startup=("sh", startup),
+                block_created_selector=block_created_selector,
             )
     raise ValueError(f"unsupported {agent} experiment-{experiment} layout")
 
