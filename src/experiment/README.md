@@ -177,6 +177,52 @@ The host port defaults to `18080`; override `EXPERIMENT_SEARXNG_HOST_PORT` if ne
 uv run pytest
 ```
 
+## Evaluate frozen coding artifacts
+
+`evaluate_artifacts.py` reports one black-box **Functional Correctness** verdict
+per frozen Experiment 3 or 4 artifact. This is not Pass@1 and is never inferred
+from diagnostic counts. Each report has separate `task_verdict` and
+`diagnostics` sections, plus source digests, command logs, browser console
+output, and screenshots.
+
+Experiment 3 passes only when the submitted page visibly shows the conventional
+1--12 clock arrangement, all three hands, wall-clock-accurate hour/minute/second
+positions (4, 4, and 12 degrees respectively), clockwise elapsed-time motion,
+and the same active behavior after reload.
+
+Experiment 4 passes only when the submitted UI creates and edits a page and
+block, retains both after reload and submitted-app restart, and has SQLite file
+evidence. The evaluator reads browser-visible state only; it does not call
+artifact APIs directly or write a database.
+
+The evaluator hashes each source tree before and after evaluation and runs only
+a copied workspace. It does not repair source, inject routes, proxy a frontend,
+add evaluator packages, or manufacture a framework launch command. Experiment
+4 adapters require a submitted `start.sh`; its declared dependencies and UI are
+the only supported execution path. Missing browser prerequisites produce a
+`blocked` task verdict, while broken submitted behavior produces `fail`.
+
+Install the browser runtime once after syncing the project dependencies:
+
+```bash
+uv run playwright install chromium
+```
+
+Evaluate every supported harness, or select a subset while developing:
+
+```bash
+uv run python evaluate_artifacts.py
+uv run python evaluate_artifacts.py --agents opencode,tinycua
+```
+
+Reports are written under `evaluator-output/<harness>/experiment-<number>/`.
+Each directory contains `result.json`, `summary.md`, command logs, browser
+console output, and screenshots when browser checks can run. Known-good and
+broken fixtures live in `tests/fixtures/evaluate_artifacts/`; run the focused
+fixture contracts with `uv run pytest tests/unit/test_evaluate_artifacts.py`.
+Every task verdict is `pass`, `fail`, or `blocked`; non-passing verdicts make
+the command exit nonzero.
+
 ## Cleanup
 
 Remove generated local outputs when done:
