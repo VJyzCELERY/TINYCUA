@@ -6,27 +6,27 @@
 
 **Algorithm 1:** Pseudocode of main workflow for TINYCUA
 
-**Function:** $\text{TinyCUA}(q, C, \text{effort})$
+**Function:** $`\texttt{TinyCUA(q, C, effort)}`$
 
 **Input:**
 - User query $q$
-- Session context $C$ ($\text{chat\_history} + \text{context}$)
-- Worker effort configuration $\text{effort}$
+- Session context $C$ ($\texttt{chat\_history} + \texttt{context}$)
+- Worker effort configuration $\texttt{effort}$
 
 **Output:**
 - Final user response $r$
 
 ---
 
-Initialize $q_{\text{enhanced}}$ and $\text{route}$
+Initialize $q_\texttt{enhanced}$ and $\texttt{route}$
 
 **Step 1:** *Query Analyst — High-level context scan*
 
-$q_{\text{enhanced}}, \text{route} \leftarrow \text{QueryAnalyst}(q, C)$
+$q_\texttt{enhanced}, \texttt{route} \leftarrow \texttt{QueryAnalyst(q, C)}$
 
-**if** $\text{route} = \text{PASSTHROUGH}$ **then**
+**if** $\texttt{route} = \texttt{PASSTHROUGH}$ **then**
 
-$\quad r \leftarrow \text{ResponseNode}(q_{\text{enhanced}}, C)$
+$\quad r \leftarrow \texttt{ResponseNode}(q_\texttt{enhanced}, C)$
 
 $\quad$ **return** $r$
 
@@ -36,13 +36,13 @@ $\quad$ **return** $r$
 
 **Step 2:** *Information Digester — Context condensation*
 
-$\text{digest} \leftarrow \text{InformationDigester}(q_{\text{enhanced}}, C)$
+$d \leftarrow \texttt{InformationDigester}(q_\texttt{enhanced}, C)$
 
-$\text{worker\_route} \leftarrow \text{WorkerRoute}(\text{digest})$
+$\texttt{worker\_route} \leftarrow \texttt{WorkerRoute}(d)$
 
-**if** $\text{worker\_route} = \text{PASSTHROUGH}$ **then**
+**if** $\texttt{worker\_route} = \texttt{PASSTHROUGH}$ **then**
 
-$\quad r \leftarrow \text{ResponseNode}(\text{digest}, C)$
+$\quad r \leftarrow \texttt{ResponseNode}(d, C)$
 
 $\quad$ **return** $r$
 
@@ -52,13 +52,13 @@ $\quad$ **return** $r$
 
 **Step 3:** *Task Tree Creation*
 
-**if** $\text{worker\_route} = \text{TASK\_CREATION}$ **then**
+**if** $\texttt{worker\_route} = \texttt{TASK\_CREATION}$ **then**
 
-$\quad T \leftarrow \text{CreateTaskTree}(\text{digest}, \text{effort})$
+$\quad T \leftarrow \texttt{CreateTaskTree}(d, \texttt{effort})$
 
-**else if** $\text{worker\_route} \in \{\text{TASK\_RECREATION}, \text{TASK\_REANALYSIS}\}$ **then**
+**else if** $\texttt{worker\_route} \in \{\texttt{TASK\_RECREATION}, \texttt{TASK\_REANALYSIS}\}$ **then**
 
-$\quad T \leftarrow \text{TaskAnalyzer}(\text{digest}, T)$
+$\quad T \leftarrow \texttt{TaskAnalyzer}(d, T)$
 
 **end if**
 
@@ -70,33 +70,33 @@ $\quad T \leftarrow \text{TaskAnalyzer}(\text{digest}, T)$
 
 $\quad$ *Step 4.1: Select next task*
 
-$\quad t \leftarrow \text{SelectNextUnfinishedLeaf}(T)$
+$\quad t \leftarrow \texttt{SelectNextUnfinishedLeaf}(T)$
 
 $\quad$ *Step 4.2: Execute task*
 
-$\quad y \leftarrow \text{TaskExecutor}(t, \text{ShallowRoadmap}(T))$
+$\quad y \leftarrow \texttt{TaskExecutor}(t, \texttt{ShallowRoadmap}(T))$
 
 $\quad$ *Step 4.3: Review result*
 
-$\quad v \leftarrow \text{ResultReviewer}(t, y, \text{ExecutionLog}(t), \text{ShallowRoadmap}(T))$
+$\quad v \leftarrow \texttt{ResultReviewer}(t, y, \texttt{ExecutionLog}(t), \texttt{ShallowRoadmap}(T))$
 
 $\quad$ *Step 4.4: Handle review decision*
 
-$\quad$ **if** $v.\text{status} = \text{APPROVED}$ **then**
+$\quad$ **if** $v.\texttt{status} = \texttt{APPROVED}$ **then**
 
-$\quad\quad \text{PropagateContext}(T, t, v)$
+$\quad\quad \texttt{PropagateContext}(T, t, v)$
 
-$\quad\quad \text{MarkAccepted}(T, t, y, v)$
+$\quad\quad \texttt{MarkAccepted}(T, t, y, v)$
 
-$\quad$ **else if** $v.\text{status} \in \{\text{NEEDS\_REVISION}, \text{REJECTED}\}$ **then**
+$\quad$ **else if** $v.\texttt{status} \in \{\texttt{NEEDS\_REVISION}, \texttt{REJECTED}\}$ **then**
 
-$\quad\quad \text{RecordFailureContext}(t, v)$
+$\quad\quad \texttt{RecordFailureContext}(t, v)$
 
-$\quad$ **else if** $v.\text{status} = \text{REPLAN}$ **then**
+$\quad$ **else if** $v.\texttt{status} = \texttt{REPLAN}$ **then**
 
-$\quad\quad S \leftarrow \text{TaskAnalyzer}(t.\text{context}, v.\text{rationale})$
+$\quad\quad S \leftarrow \texttt{TaskAnalyzer}(t.\texttt{context}, v.\texttt{rationale})$
 
-$\quad\quad \text{ReplaceLeafWithSubtasks}(T, t, S)$
+$\quad\quad \texttt{ReplaceLeafWithSubtasks}(T, t, S)$
 
 $\quad$ **end if**
 
@@ -106,9 +106,9 @@ $\quad$ **end if**
 
 **Step 5:** *Result Aggregation and Response*
 
-$a \leftarrow \text{ResultAggregationNode}(T)$
+$a \leftarrow \texttt{ResultAggregationNode}(T)$
 
-$r \leftarrow \text{ResponseNode}(a)$
+$r \leftarrow \texttt{ResponseNode}(a)$
 
 **return** $r$
 
@@ -116,24 +116,24 @@ $r \leftarrow \text{ResponseNode}(a)$
 
 **Algorithm 2:** Pseudocode of task tree creation
 
-**Function:** $\text{CreateTaskTree}(\text{digest}, \text{effort})$
+**Function:** $`\texttt{CreateTaskTree(d, effort)}`$
 
 **Input:**
-- Digested information $\text{digest}$
-- Worker effort $\text{effort}$
+- Digested information $d$
+- Worker effort $\texttt{effort}$
 
 **Output:**
 - Sequential task tree $T$
 
 ---
 
-$T \leftarrow \text{TaskAnalyzer}(\text{digest})$
+$T \leftarrow \texttt{TaskAnalyzer}(d)$
 
-$p_{\max} \leftarrow \text{AnalysisEffortNode}(\text{effort})$
+$p_\max \leftarrow \texttt{AnalysisEffortNode}(\texttt{effort})$
 
-**for** $p = 1$ **to** $p_{\max}$ **do**
+**for** $p = 1$ **to** $p_\max$ **do**
 
-$\quad S \leftarrow \text{TaskAssessor}(T)$
+$\quad S \leftarrow \texttt{TaskAssessor}(T)$
 
 $\quad$ **if** $S = \emptyset$ **then**
 
@@ -143,9 +143,9 @@ $\quad$ **end if**
 
 $\quad$ **for each** task $t \in S$ **do**
 
-$\quad\quad \text{children} \leftarrow \text{TaskAnalyzer}(t.\text{context})$
+$\quad\quad c \leftarrow \texttt{TaskAnalyzer}(t.\texttt{context})$
 
-$\quad\quad \text{AttachChildren}(T, t, \text{children})$
+$\quad\quad \texttt{AttachChildren}(T, t, c)$
 
 $\quad$ **end for**
 
@@ -157,101 +157,101 @@ $\quad$ **end for**
 
 **Algorithm 3:** Pseudocode of query analyst
 
-**Function:** $\text{QueryAnalyst}(q, C)$
+**Function:** $`\texttt{QueryAnalyst(q, C)}`$
 
 **Input:**
 - User query $q$
 - Session context $C$
 
 **Output:**
-- Context Enhanced Query $q_{\text{enhanced}}$
-- Classification $\text{route}$
+- Context Enhanced Query $q_\texttt{enhanced}$
+- Classification $\texttt{route}$
 
 ---
 
-$q_{\text{enhanced}} \leftarrow \text{EnhanceQuery}(q, C.\text{chat\_history}, C.\text{context})$
+$q_\texttt{enhanced} \leftarrow \texttt{EnhanceQuery}(q, C.\texttt{chat\_history}, C.\texttt{context})$
 
-$\text{route} \leftarrow \text{ClassifyRequest}(q_{\text{enhanced}})$
+$\texttt{route} \leftarrow \texttt{ClassifyRequest}(q_\texttt{enhanced})$
 
-$\text{ValidateClassification}(\text{route})$
+$\texttt{ValidateClassification}(\texttt{route})$
 
-**return** $q_{\text{enhanced}}, \text{route}$
+**return** $q_\texttt{enhanced}, \texttt{route}$
 
 ---
 
 **Algorithm 4:** Pseudocode of information digester
 
-**Function:** $\text{InformationDigester}(\text{ceq}, C)$
+**Function:** $`\texttt{InformationDigester(ceq, C)}`$
 
 **Input:**
-- Context Enhanced Query $\text{ceq}$
+- Context Enhanced Query $\texttt{ceq}$
 - Session context $C$
 
 **Output:**
-- Digested information $\text{digest}$
+- Digested information $d$
 
 ---
 
-$\text{gaps} \leftarrow \text{IdentifyInformationGaps}(\text{ceq})$
+$g \leftarrow \texttt{IdentifyInformationGaps}(\texttt{ceq})$
 
-$\text{retrieved} \leftarrow \text{EnhancedContextRetrieval}(\text{gaps}, C.\text{context})$
+$r \leftarrow \texttt{EnhancedContextRetrieval}(g, C.\texttt{context})$
 
-$\text{topics} \leftarrow \text{IdentifyRelevantTopics}(\text{retrieved})$
+$t \leftarrow \texttt{IdentifyRelevantTopics}(r)$
 
-$\text{extracted} \leftarrow \text{ExtractRelevantContext}(\text{retrieved}, \text{topics})$
+$e \leftarrow \texttt{ExtractRelevantContext}(r, t)$
 
-$\text{filtered} \leftarrow \text{RemoveDistractingContext}(\text{extracted})$
+$f \leftarrow \texttt{RemoveDistractingContext}(e)$
 
-$\text{preserved} \leftarrow \text{PreserveTaskCriticalDetails}(\text{filtered})$
+$p \leftarrow \texttt{PreserveTaskCriticalDetails}(f)$
 
-$\text{digest} \leftarrow \text{StructureDigest}(\text{preserved})$
+$d \leftarrow \texttt{StructureDigest}(p)$
 
-**return** $\text{digest}$
+**return** $d$
 
 ---
 
 **Algorithm 5:** Pseudocode of task executor
 
-**Function:** $\text{TaskExecutor}(\text{task}, \text{roadmap})$
+**Function:** $`\texttt{TaskExecutor(task, roadmap)}`$
 
 **Input:**
-- Current task $\text{task}$ with context and success criteria
-- Shallow roadmap $\text{roadmap}$
+- Current task $\texttt{task}$ with context and success criteria
+- Shallow roadmap $\texttt{roadmap}$
 
 **Output:**
-- Task result $\text{result}$
+- Task result $\texttt{result}$
 
 ---
 
-$\text{log} \leftarrow \text{ExecutionLog}()$
+$log \leftarrow \texttt{ExecutionLog}()$
 
-$\text{results} \leftarrow []$
+$results \leftarrow []$
 
 **while** true **do**
 
 $\quad$ *Think: Plan action*
 
-$\quad \text{action} \leftarrow \text{Think}(\text{task}, \text{results}, \text{roadmap})$
+$\quad a \leftarrow \texttt{Think}(\texttt{task}, results, \texttt{roadmap})$
 
 $\quad$ *Act: Execute tool or reasoning*
 
-$\quad \text{observation} \leftarrow \text{Act}(\text{action}, \text{task}.\text{context})$
+$\quad o \leftarrow \texttt{Act}(a, \texttt{task}.\texttt{context})$
 
 $\quad$ *Observe: Record result*
 
-$\quad \text{log}.\text{record}(\text{action}, \text{observation})$
+$\quad \texttt{log.record}(a, o)$
 
-$\quad \text{results}.\text{append}(\text{observation})$
+$\quad \texttt{results.append}(o)$
 
 $\quad$ *Check stop conditions*
 
-$\quad$ **if** $\text{SuccessCriteriaMet}(\text{task}, \text{results})$ **then**
+$\quad$ **if** $\texttt{SuccessCriteriaMet}(\texttt{task}, results)$ **then**
 
 $\quad\quad$ **break**
 
 $\quad$ **end if**
 
-$\quad$ **if** $\text{CannotProceed}(\text{observation})$ **then**
+$\quad$ **if** $\texttt{CannotProceed}(o)$ **then**
 
 $\quad\quad$ **break**
 
@@ -259,52 +259,52 @@ $\quad$ **end if**
 
 **end while**
 
-$\text{result} \leftarrow \text{TaskResult}(\text{COMPILE}(\text{results}), \text{log})$
+$\texttt{result} \leftarrow \texttt{TaskResult}(\texttt{COMPILE}(results), log)$
 
-**return** $\text{result}$
+**return** $\texttt{result}$
 
 ---
 
 **Algorithm 6:** Pseudocode of result reviewer
 
-**Function:** $\text{ResultReviewer}(\text{task}, \text{result}, \text{log}, \text{roadmap})$
+**Function:** $`\texttt{ResultReviewer(task, result, log, roadmap)}`$
 
 **Input:**
-- Current task $\text{task}$
-- Task result $\text{result}$
-- Execution log $\text{log}$
-- Shallow roadmap $\text{roadmap}$
+- Current task $\texttt{task}$
+- Task result $\texttt{result}$
+- Execution log $\texttt{log}$
+- Shallow roadmap $\texttt{roadmap}$
 
 **Output:**
-- Reviewer decision $\text{decision}$
+- Reviewer decision $\texttt{decision}$
 
 ---
 
-**if** $\neg \text{SanityCheckResult}(\text{result})$ **then**
+**if** $\neg \texttt{SanityCheckResult}(\texttt{result})$ **then**
 
-$\quad$ **return** $\text{Decision}(\text{NEEDS\_REVISION}, \text{"Schema validation failed"})$
+$\quad$ **return** $\texttt{Decision}(\texttt{NEEDS\_REVISION}, \text{"Schema validation failed"})$
 
 **end if**
 
-$\text{review} \leftarrow \text{SemanticReview}(\text{task}, \text{result}, \text{log})$
+$rv \leftarrow \texttt{SemanticReview}(\texttt{task}, \texttt{result}, \texttt{log})$
 
-**if** $\text{review}.\text{approved}$ **then**
+**if** $rv.\texttt{approved}$ **then**
 
-$\quad \text{updates} \leftarrow \text{ConsolidateContext}(\text{task}, \text{result}, \text{roadmap})$
+$\quad u \leftarrow \texttt{ConsolidateContext}(\texttt{task}, \texttt{result}, \texttt{roadmap})$
 
-$\quad$ **return** $\text{Decision}(\text{APPROVED}, \text{updates}, \text{review}.\text{evidence})$
+$\quad$ **return** $\texttt{Decision}(\texttt{APPROVED}, u, rv.\texttt{evidence})$
 
-**else if** $\text{review}.\text{needs\_revision}$ **then**
+**else if** $rv.\texttt{needs\_revision}$ **then**
 
-$\quad$ **return** $\text{Decision}(\text{NEEDS\_REVISION}, \text{review}.\text{rationale})$
+$\quad$ **return** $\texttt{Decision}(\texttt{NEEDS\_REVISION}, rv.\texttt{rationale})$
 
-**else if** $\text{review}.\text{replan\_needed}$ **then**
+**else if** $rv.\texttt{replan\_needed}$ **then**
 
-$\quad$ **return** $\text{Decision}(\text{REPLAN}, \text{review}.\text{rationale})$
+$\quad$ **return** $\texttt{Decision}(\texttt{REPLAN}, rv.\texttt{rationale})$
 
 **else**
 
-$\quad$ **return** $\text{Decision}(\text{REJECTED}, \text{review}.\text{rationale})$
+$\quad$ **return** $\texttt{Decision}(\texttt{REJECTED}, rv.\texttt{rationale})$
 
 **end if**
 
@@ -312,20 +312,20 @@ $\quad$ **return** $\text{Decision}(\text{REJECTED}, \text{review}.\text{rationa
 
 **Algorithm 7:** Pseudocode of task analyzer
 
-**Function:** $\text{TaskAnalyzer}(\text{input\_data}, \text{rationale})$
+**Function:** $`\texttt{TaskAnalyzer(input\_data, rationale)}`$
 
 **Input:**
-- Input data $\text{input\_data}$ (digest, task context, or rationale)
-- Optional rationale $\text{rationale}$
+- Input data $\texttt{input\_data}$ (digest, task context, or rationale)
+- Optional rationale $\texttt{rationale}$
 
 **Output:**
 - List of tasks $T$
 
 ---
 
-$T \leftarrow \text{AnalyzeAndDecompose}(\text{input\_data}, \text{rationale})$
+$T \leftarrow \texttt{AnalyzeAndDecompose}(\texttt{input\_data}, \texttt{rationale})$
 
-$\text{ValidateSequentialStructure}(T)$
+$\texttt{ValidateSequentialStructure}(T)$
 
 **return** $T$
 
@@ -333,27 +333,27 @@ $\text{ValidateSequentialStructure}(T)$
 
 **Algorithm 8:** Pseudocode of context propagation
 
-**Function:** $\text{PropagateContext}(T, \text{approved\_task}, \text{review})$
+**Function:** $`\texttt{PropagateContext(T, approved\_task, review)}`$
 
 **Input:**
 - Task tree $T$
-- Approved task $\text{approved\_task}$
-- Review decision $\text{review}$
+- Approved task $\texttt{approved\_task}$
+- Review decision $\texttt{review}$
 
 **Output:**
 - Updated task tree $T$
 
 ---
 
-$\text{future} \leftarrow \text{GetFutureTasks}(T, \text{approved\_task})$
+$f \leftarrow \texttt{GetFutureTasks}(T, \texttt{approved\_task})$
 
-**for each** $\text{update} \in \text{review}.\text{context\_updates}$ **do**
+**for each** $u \in \texttt{review}.\texttt{context\_updates}$ **do**
 
-$\quad \text{target} \leftarrow \text{FindTargetTask}(T, \text{update}.\text{target\_task\_id})$
+$\quad tgt \leftarrow \texttt{FindTargetTask}(T, u.\texttt{target\_task\_id})$
 
-$\quad$ **if** $\text{target} \neq \text{null}$ **then**
+$\quad$ **if** $tgt \neq \texttt{null}$ **then**
 
-$\quad\quad \text{UpdateTaskContext}(\text{target}, \text{update})$
+$\quad\quad \texttt{UpdateTaskContext}(tgt, u)$
 
 $\quad$ **end if**
 
@@ -363,21 +363,21 @@ $\quad$ **end if**
 
 **Algorithm 9:** Pseudocode of result aggregation
 
-**Function:** $\text{ResultAggregationNode}(T)$
+**Function:** $`\texttt{ResultAggregationNode(T)}`$
 
 **Input:**
 - Completed task tree $T$
 
 **Output:**
-- Aggregated result $\text{aggregate}$
+- Aggregated result $\texttt{aggregate}$
 
 ---
 
-$\text{approved} \leftarrow \text{CollectApprovedResults}(T)$
+$a \leftarrow \texttt{CollectApprovedResults}(T)$
 
-$\text{aggregate} \leftarrow \text{StructureForResponse}(\text{approved})$
+$\texttt{aggregate} \leftarrow \texttt{StructureForResponse}(a)$
 
-**return** $\text{aggregate}$
+**return** $\texttt{aggregate}$
 
 ---
 
