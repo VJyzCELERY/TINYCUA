@@ -2,6 +2,9 @@
 
 import json
 import sys
+import urllib.parse
+import urllib.request
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
 from types import ModuleType, SimpleNamespace
@@ -60,8 +63,8 @@ def test_check_result_rejects_unknown_status() -> None:
         CheckResult("load", "skipped", "not allowed")
 
 
-def test_write_report_serializes_all_checks(tmp_path: Path) -> None:
-    """Reports retain every mandatory result and evidence reference."""
+def test_report_labels_deterministic_functional_correctness(tmp_path: Path) -> None:
+    """Reports label the aggregate without implying a sampling metric."""
     checks = [
         CheckResult("load", "pass", "loaded", evidence=("evidence/load.txt",)),
         CheckResult("reload", "blocked", "no browser"),
@@ -80,8 +83,18 @@ def test_write_report_serializes_all_checks(tmp_path: Path) -> None:
 
     payload = json.loads(result_path.read_text())
     assert payload["summary"] == {"pass": 1, "fail": 0, "blocked": 1, "total": 2}
+    assert payload["functional_correctness"] == {
+        "label": "Functional Correctness (deterministic single-run)",
+        "pass": 1,
+        "fail": 0,
+        "blocked": 1,
+        "total": 2,
+    }
+    assert "Pass@1" not in json.dumps(payload)
     assert payload["checks"][0]["evidence"] == ["evidence/load.txt"]
-    assert "blocked" in result_path.with_name("summary.md").read_text()
+    summary = result_path.with_name("summary.md").read_text()
+    assert "Functional Correctness (deterministic single-run)" in summary
+    assert "Pass@1" not in summary
 
 
 def test_parse_agents_and_explicit_clock_adapter(tmp_path: Path) -> None:
@@ -155,7 +168,7 @@ def test_experiment_four_uses_declared_dependency_environment(
     assert dependency.status == "pass"
     assert interpreter == workspace / ".evaluator-venv" / "bin" / "python"
     assert commands == [
-        (sys.executable, "-m", "venv", str(interpreter.parent.parent)),
+        (sys.executable, "-m", "venv", str(interpreter.parent.parent.resolve())),
         (
             str(interpreter),
             "-m",
@@ -163,9 +176,39 @@ def test_experiment_four_uses_declared_dependency_environment(
             "install",
             "uvicorn",
             "-r",
-            str(manifest),
+            str(manifest.resolve()),
         ),
     ]
+
+
+def test_relative_output_root_uses_existing_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Dependency installation receives an absolute copied-manifest path."""
+    monkeypatch.chdir(tmp_path)
+    workspace = Path("artifact")
+    workspace.mkdir()
+    manifest = workspace / "requirements.txt"
+    manifest.touch()
+    commands: list[tuple[str, ...]] = []
+
+    def fake_run(
+        name: str,
+        command: tuple[str, ...],
+        _workspace: Path,
+        _evidence: Path,
+        timeout: int = 90,
+    ) -> CheckResult:
+        del name, _workspace, _evidence, timeout
+        commands.append(command)
+        return CheckResult("command", "pass", "")
+
+    monkeypatch.setattr(evaluator, "run_command", fake_run)
+
+    evaluator._prepare_environment(workspace, Path("evidence"), manifest)
+
+    assert Path(commands[-1][-1]).is_file()
+    assert Path(commands[-1][-1]).is_absolute()
 
 
 def test_flask_adapter_starts_with_its_registered_server(tmp_path: Path) -> None:
@@ -193,10 +236,8 @@ def test_flask_adapter_starts_with_its_registered_server(tmp_path: Path) -> None
     )
 
 
-def test_experiment_four_serves_submitted_frontend_and_exercises_block_flow(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A registered frontend is served instead of browsing a backend root."""
+def test_frontend_block_action_reaches_registered_backend(tmp_path: Path) -> None:
+    """A static frontend forwards relative API calls to its submitted backend."""
     artifact = tmp_path / "artifact"
     backend = artifact / "backend"
     frontend = artifact / "frontend"
@@ -206,53 +247,34 @@ def test_experiment_four_serves_submitted_frontend_and_exercises_block_flow(
     (frontend / "index.html").write_text("<button>add block</button>")
     (artifact / "requirements.txt").touch()
     adapter = resolve_adapter("opencode", 4, artifact)
-    served: list[Path] = []
 
-    def fake_prepare(
-        _workspace: Path, _evidence: Path, _manifest: Path
-    ) -> tuple[Path, CheckResult]:
-        return Path("/venv/bin/python"), CheckResult("dependency-install", "pass", "")
+    class BackendHandler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"submitted backend")
 
-    def fake_command(
-        name: str,
-        command: tuple[str, ...],
-        workspace: Path,
-        evidence: Path,
-        timeout: int = 90,
-    ) -> CheckResult:
-        del command, workspace, evidence, timeout
-        return CheckResult(name, "pass", "")
+        def log_message(self, *_: object) -> None:
+            return None
 
-    def fake_server(
-        _adapter: evaluator.Adapter, _evidence: Path, _interpreter: Path
-    ) -> CheckResult:
-        return CheckResult("backend-startup", "pass", "")
-
-    def fake_frontend(
-        served_adapter: evaluator.Adapter,
-    ) -> tuple[object, Thread, evaluator.Adapter]:
-        served.append(served_adapter.frontend)
-        return SimpleNamespace(shutdown=lambda: None), Thread(), served_adapter
-
-    monkeypatch.setattr(evaluator, "_prepare_environment", fake_prepare)
-    monkeypatch.setattr(evaluator, "run_command", fake_command)
-    monkeypatch.setattr(evaluator, "_run_server", fake_server)
-    monkeypatch.setattr(evaluator, "_start_server", lambda *_: (object(), (), adapter))
-    monkeypatch.setattr(evaluator, "_stop_server", lambda _: "")
-    monkeypatch.setattr(evaluator, "_serve_frontend", fake_frontend)
-    monkeypatch.setattr(
-        evaluator,
-        "_browser_checks",
-        lambda *_: [
-            CheckResult("page-block", "pass", ""),
-            CheckResult("browser-e2e", "pass", ""),
-        ],
+    backend_server = ThreadingHTTPServer(("127.0.0.1", 0), BackendHandler)
+    Thread(target=backend_server.serve_forever, daemon=True).start()
+    backend_adapter = evaluator.replace(
+        adapter, url=f"http://127.0.0.1:{backend_server.server_port}/"
     )
-
-    results = evaluator._experiment_four(adapter, artifact, tmp_path / "evidence")
-
-    assert served == [frontend]
-    assert results[-2].name == "page-block"
+    try:
+        frontend_server, _, frontend_adapter = evaluator._serve_frontend(
+            adapter, backend_adapter
+        )
+        try:
+            with urllib.request.urlopen(
+                urllib.parse.urljoin(frontend_adapter.url, "/api/blocks")
+            ) as response:
+                assert response.read() == b"submitted backend"
+        finally:
+            frontend_server.shutdown()
+    finally:
+        backend_server.shutdown()
 
 
 def test_submitted_browser_failure_is_not_blocked(

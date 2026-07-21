@@ -12,8 +12,10 @@ import socket
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass, field, replace
+from email.message import Message
 from pathlib import Path
 from threading import Thread
 from typing import Final
@@ -21,6 +23,9 @@ from typing import Final
 
 AGENTS: Final = ("opencode", "hermes", "openclaw", "tinycua")
 STATUSES: Final = ("pass", "fail", "blocked")
+FUNCTIONAL_CORRECTNESS_LABEL: Final = (
+    "Functional Correctness (deterministic single-run)"
+)
 CONTRACTS: Final = {
     3: ("load", "runtime-errors", "visible-clock", "time-update", "reload"),
     4: (
@@ -63,7 +68,7 @@ BACKENDS: Final = {
         "app.main:app",
         ".",
         "asgi",
-        "templates/pages/page_template.html",
+        "",
         "textarea",
         "textarea",
     ),
@@ -606,7 +611,9 @@ def _experiment_four(
         process, _, runtime_adapter = _start_server(adapter, interpreter)
         try:
             if adapter.frontend:
-                frontend_server, _, frontend_adapter = _serve_frontend(adapter)
+                frontend_server, _, frontend_adapter = _serve_frontend(
+                    adapter, runtime_adapter
+                )
                 try:
                     browser = _browser_checks(frontend_adapter, evidence_root, 4)
                 finally:
@@ -632,6 +639,8 @@ def _prepare_environment(
     workspace: Path, evidence_root: Path, manifest: Path
 ) -> tuple[Path, CheckResult]:
     """Create and populate an isolated interpreter for one copied artifact."""
+    workspace = workspace.resolve()
+    manifest = manifest.resolve()
     environment = workspace / ".evaluator-venv"
     interpreter = environment / "bin" / "python"
     created = run_command(
@@ -658,14 +667,74 @@ def _prepare_environment(
     )
 
 
-def _serve_frontend(adapter: Adapter) -> tuple[object, Thread, Adapter]:
-    """Serve a registered submitted frontend instead of the backend root."""
+def _serve_frontend(
+    adapter: Adapter, backend: Adapter
+) -> tuple[object, Thread, Adapter]:
+    """Serve static assets while forwarding their relative API calls to the backend."""
     if adapter.frontend is None:
         msg = "adapter has no standalone frontend"
         raise ValueError(msg)
-    if adapter.frontend.is_file():
-        return _serve_directory(adapter, adapter.frontend.parent, adapter.frontend.name)
-    return _serve_directory(adapter, adapter.frontend, "index.html")
+    from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+
+    directory = (
+        adapter.frontend.parent if adapter.frontend.is_file() else adapter.frontend
+    )
+    filename = adapter.frontend.name if adapter.frontend.is_file() else "index.html"
+
+    class FrontendHandler(SimpleHTTPRequestHandler):
+        def _forward_api(self) -> None:
+            size = int(self.headers.get("Content-Length", 0))
+            request = urllib.request.Request(
+                f"{backend.url.rstrip('/')}{self.path}",
+                data=self.rfile.read(size) if size else None,
+                headers={"Content-Type": self.headers["Content-Type"]}
+                if "Content-Type" in self.headers
+                else {},
+                method=self.command,
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=15) as response:
+                    self._respond(response.status, response.read(), response.headers)
+            except urllib.error.HTTPError as error:
+                self._respond(error.code, error.read(), error.headers)
+            except OSError as error:
+                self.send_error(502, str(error))
+
+        def _respond(self, status: int, body: bytes, headers: Message) -> None:
+            self.send_response(status)
+            for name in ("Content-Type", "Content-Length"):
+                value = headers.get(name)
+                if value:
+                    self.send_header(name, value)
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self) -> None:  # noqa: N802
+            if self.path == "/api" or self.path.startswith("/api/"):
+                self._forward_api()
+            else:
+                super().do_GET()
+
+        def do_POST(self) -> None:  # noqa: N802
+            self._forward_api()
+
+        def do_PUT(self) -> None:  # noqa: N802
+            self._forward_api()
+
+        def do_DELETE(self) -> None:  # noqa: N802
+            self._forward_api()
+
+    def handler(*args: object, **kwargs: object) -> FrontendHandler:
+        return FrontendHandler(*args, directory=str(directory), **kwargs)
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return (
+        server,
+        thread,
+        replace(adapter, url=f"http://127.0.0.1:{server.server_port}/{filename}"),
+    )
 
 
 def write_report(
@@ -684,7 +753,11 @@ def write_report(
     report = ArtifactReport(
         agent, experiment, str(source), digest_before, digest_after, adapter, checks
     )
-    payload = asdict(report) | {"summary": summarize_checks(checks)}
+    summary = summarize_checks(checks)
+    payload = asdict(report) | {
+        "functional_correctness": {"label": FUNCTIONAL_CORRECTNESS_LABEL, **summary},
+        "summary": summary,
+    }
     result = output / "result.json"
     result.write_text(json.dumps(payload, indent=2) + "\n")
     rows = [
@@ -700,7 +773,12 @@ def write_report(
         for check in checks
     )
     rows.extend(
-        ["", f"Summary: `{json.dumps(payload['summary'], sort_keys=True)}`", ""]
+        [
+            "",
+            f"{FUNCTIONAL_CORRECTNESS_LABEL}: "
+            f"`{json.dumps(payload['summary'], sort_keys=True)}`",
+            "",
+        ]
     )
     result.with_name("summary.md").write_text("\n".join(rows))
     return result
