@@ -1,0 +1,8 @@
+<!doctype html>
+<title>Analog clock</title>
+<canvas id="clock" width="120" height="120"></canvas>
+<script>
+const canvas = document.querySelector("#clock");
+const context = canvas.getContext("2d");
+setInterval(() => { context.clearRect(0, 0, 120, 120); context.fillText(new Date().toISOString(), 1, 60); }, 100);
+</script>

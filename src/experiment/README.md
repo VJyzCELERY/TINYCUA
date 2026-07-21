@@ -177,6 +177,33 @@ The host port defaults to `18080`; override `EXPERIMENT_SEARXNG_HOST_PORT` if ne
 uv run pytest
 ```
 
+## Evaluate frozen coding artifacts
+
+`evaluate_artifacts.py` applies the same fixed functional contract to the
+checked-in Experiment 3 and 4 workdirs for all four harnesses. It hashes each
+source tree before and after evaluation, runs only a copied workspace, and
+never repairs artifacts, adds undeclared artifact dependencies, or substitutes
+their UI or endpoints.
+
+Install the browser runtime once after syncing the project dependencies:
+
+```bash
+uv run playwright install chromium
+```
+
+Evaluate every supported harness, or select a subset while developing:
+
+```bash
+uv run python evaluate_artifacts.py
+uv run python evaluate_artifacts.py --agents opencode,tinycua
+```
+
+Reports are written under `evaluator-output/<harness>/experiment-<number>/`.
+Each directory contains `result.json`, `summary.md`, command logs, browser
+console output, and screenshots when browser checks can run. Every mandatory
+check is `pass`, `fail`, or `blocked`; blocked checks remain in the reported
+total and make the command exit nonzero.
+
 ## Cleanup
 
 Remove generated local outputs when done:
