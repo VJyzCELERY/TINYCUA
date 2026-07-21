@@ -40,10 +40,42 @@ CLOCK_FILES: Final = {
     "tinycua": "clock.html",
 }
 BACKENDS: Final = {
-    "opencode": ("backend/app.py", "app:app", "backend"),
-    "hermes": ("notion-app/run.py", "run:app", "notion-app"),
-    "openclaw": ("app/main.py", "app.main:app", "."),
-    "tinycua": ("src/main.py", "src.main:app", "."),
+    "opencode": (
+        "backend/app.py",
+        "app:app",
+        "backend",
+        "flask",
+        "frontend",
+        "button.btn-new-page",
+        "#pageHeader",
+    ),
+    "hermes": (
+        "notion-app/run.py",
+        "run:app",
+        "notion-app",
+        "flask",
+        "",
+        "button[title^='New Page']",
+        "#createPageModal",
+    ),
+    "openclaw": (
+        "app/main.py",
+        "app.main:app",
+        ".",
+        "asgi",
+        "templates/pages/page_template.html",
+        "textarea",
+        "textarea",
+    ),
+    "tinycua": (
+        "src/main.py",
+        "src.main:app",
+        ".",
+        "asgi",
+        "frontend/dist",
+        "button[aria-label^='Insert']",
+        ".noteion-block",
+    ),
 }
 
 
@@ -72,6 +104,10 @@ class Adapter:
     root: Path
     entrypoint: Path
     url: str = "http://127.0.0.1:8765/"
+    server: str = "asgi"
+    frontend: Path | None = None
+    action_selector: str = ""
+    result_selector: str = ""
 
 
 @dataclass
@@ -153,7 +189,15 @@ def resolve_adapter(agent: str, experiment: int, source: Path) -> Adapter:
                 f"http://127.0.0.1:8765/{filename}",
             )
     elif experiment == 4:
-        submitted, module, relative_root = BACKENDS[agent]
+        (
+            submitted,
+            _module,
+            relative_root,
+            server,
+            frontend,
+            action_selector,
+            result_selector,
+        ) = BACKENDS[agent]
         entrypoint = source / submitted
         if entrypoint.is_file():
             return Adapter(
@@ -161,15 +205,24 @@ def resolve_adapter(agent: str, experiment: int, source: Path) -> Adapter:
                 source / relative_root,
                 entrypoint,
                 "http://127.0.0.1:8765/",
+                server,
+                source / frontend if frontend else None,
+                action_selector,
+                result_selector,
             )
     msg = f"unsupported {agent} experiment-{experiment} layout"
     raise ValueError(msg)
 
 
-def _write_evidence(path: Path, text: str) -> str:
+def _evidence_path(path: Path, evidence_root: Path) -> str:
+    """Return an evidence path that resolves from the report directory."""
+    return str(path.relative_to(evidence_root.parent))
+
+
+def _write_evidence(path: Path, text: str, evidence_root: Path) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text)
-    return str(path.relative_to(path.parents[1]))
+    return _evidence_path(path, evidence_root)
 
 
 def _safe_environment(workspace: Path) -> dict[str, str]:
@@ -199,14 +252,16 @@ def run_command(
             check=False,
         )
     except FileNotFoundError as error:
-        evidence = _write_evidence(log, str(error))
+        evidence = _write_evidence(log, str(error), evidence_root)
         return CheckResult(name, "blocked", str(error), command, (evidence,))
     except subprocess.TimeoutExpired as error:
-        evidence = _write_evidence(log, (error.stdout or "") + (error.stderr or ""))
+        evidence = _write_evidence(
+            log, (error.stdout or "") + (error.stderr or ""), evidence_root
+        )
         return CheckResult(
             name, "fail", f"timed out after {timeout}s", command, (evidence,)
         )
-    evidence = _write_evidence(log, completed.stdout + completed.stderr)
+    evidence = _write_evidence(log, completed.stdout + completed.stderr, evidence_root)
     status = "pass" if completed.returncode == 0 else "fail"
     return CheckResult(
         name, status, f"exit code {completed.returncode}", command, (evidence,)
@@ -221,16 +276,27 @@ def _browser_checks(
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
-        evidence = _write_evidence(console, "playwright is not installed")
+        evidence = _write_evidence(
+            console, "playwright is not installed", evidence_root
+        )
         return [
             CheckResult(
                 name, "blocked", "browser dependency unavailable", evidence=(evidence,)
             )
             for name in CONTRACTS[experiment][-2:]
         ]
-    try:
-        with sync_playwright() as playwright:
+    with sync_playwright() as playwright:
+        try:
             browser = playwright.chromium.launch()
+        except Exception as error:  # Browser launch is an evaluator prerequisite.
+            evidence = _write_evidence(console, str(error), evidence_root)
+            return [
+                CheckResult(
+                    name, "blocked", "browser runtime unavailable", evidence=(evidence,)
+                )
+                for name in CONTRACTS[experiment][-2:]
+            ]
+        try:
             page = browser.new_page()
             messages: list[str] = []
             page.on(
@@ -253,13 +319,13 @@ def _browser_checks(
                 page.screenshot(path=str(second))
                 page.reload(wait_until="networkidle", timeout=15_000)
                 browser.close()
-                evidence = _write_evidence(console, "\n".join(messages))
+                evidence = _write_evidence(console, "\n".join(messages), evidence_root)
                 return [
                     CheckResult(
                         "load",
                         "pass",
                         "page loaded",
-                        evidence=(evidence, "browser-before.png"),
+                        evidence=(evidence, _evidence_path(first, evidence_root)),
                     ),
                     CheckResult(
                         "runtime-errors",
@@ -271,7 +337,7 @@ def _browser_checks(
                         "visible-clock",
                         "pass" if visible else "fail",
                         "clock selector visible" if visible else "no clock selector",
-                        evidence=("browser-before.png",),
+                        evidence=(_evidence_path(first, evidence_root),),
                     ),
                     CheckResult(
                         "time-update",
@@ -279,69 +345,98 @@ def _browser_checks(
                         "screenshots differ"
                         if first.read_bytes() != second.read_bytes()
                         else "no visual update",
-                        evidence=("browser-before.png", "browser-after.png"),
+                        evidence=(
+                            _evidence_path(first, evidence_root),
+                            _evidence_path(second, evidence_root),
+                        ),
                     ),
                     CheckResult(
                         "reload", "pass", "page reloaded", evidence=(evidence,)
                     ),
                 ]
-            body = page.locator("body").inner_text().strip()
-            interactive = page.locator("a, button, input, textarea").count() > 0
-            browser.close()
-            evidence = _write_evidence(console, "\n".join(messages))
+            action = page.locator(adapter.action_selector).first
+            if adapter.action_selector == adapter.result_selector == "textarea":
+                action.fill("evaluator block")
+                changed = action.input_value() == "evaluator block"
+            else:
+                before = page.locator(adapter.result_selector).all_inner_texts()
+                action.click()
+                changed = (
+                    page.locator(adapter.result_selector).all_inner_texts() != before
+                )
+            evidence = _write_evidence(console, "\n".join(messages), evidence_root)
             return [
                 CheckResult(
                     "page-block",
-                    "pass" if body and interactive else "fail",
-                    "submitted page has content and controls"
-                    if body and interactive
-                    else "page or controls missing",
-                    evidence=(evidence, "browser-before.png"),
+                    "pass" if changed else "fail",
+                    "submitted block action changed visible state"
+                    if changed
+                    else "submitted block action did not change visible state",
+                    evidence=(evidence, _evidence_path(first, evidence_root)),
                 ),
                 CheckResult(
-                    "browser-e2e", "pass", "submitted page loaded", evidence=(evidence,)
+                    "browser-e2e",
+                    "pass" if changed else "fail",
+                    "submitted frontend block flow completed"
+                    if changed
+                    else "submitted frontend block flow failed",
+                    evidence=(evidence,),
                 ),
             ]
-    except (
-        Exception
-    ) as error:  # Browser runtime availability is an evaluator prerequisite.
-        evidence = _write_evidence(console, str(error))
-        return [
-            CheckResult(
-                name, "blocked", "browser runtime unavailable", evidence=(evidence,)
-            )
-            for name in CONTRACTS[experiment][-2:]
-        ]
+        except Exception as error:
+            evidence = _write_evidence(console, str(error), evidence_root)
+            return [
+                CheckResult(name, "fail", str(error), evidence=(evidence,))
+                for name in CONTRACTS[experiment][-2:]
+            ]
+        finally:
+            browser.close()
 
 
 def _serve_static(adapter: Adapter) -> tuple[object, Thread, Adapter]:
     """Serve a copied clock artifact on the adapter's fixed local address."""
+    return _serve_directory(adapter, adapter.root, adapter.entrypoint.name)
+
+
+def _serve_directory(
+    adapter: Adapter, directory: Path, filename: str
+) -> tuple[object, Thread, Adapter]:
+    """Serve one submitted static directory at an evaluator-owned address."""
     from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
     def handler(*args: object, **kwargs: object) -> SimpleHTTPRequestHandler:
-        return SimpleHTTPRequestHandler(*args, directory=str(adapter.root), **kwargs)
+        return SimpleHTTPRequestHandler(*args, directory=str(directory), **kwargs)
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
     runtime_adapter = replace(
         adapter,
-        url=f"http://127.0.0.1:{server.server_port}/{adapter.entrypoint.name}",
+        url=f"http://127.0.0.1:{server.server_port}/{filename}",
     )
     return server, thread, runtime_adapter
 
 
-def _server_command(adapter: Adapter, port: int) -> tuple[str, ...]:
+def _server_command(adapter: Adapter, interpreter: Path, port: int) -> tuple[str, ...]:
     """Build the fixed submitted-backend command for a registered adapter."""
-    _, module, _ = BACKENDS[
-        next(
-            agent
-            for agent, spec in BACKENDS.items()
-            if spec[0] in str(adapter.entrypoint)
+    module = next(
+        spec[1] for spec in BACKENDS.values() if spec[0] in str(adapter.entrypoint)
+    )
+    if adapter.server == "flask":
+        return (
+            str(interpreter),
+            "-m",
+            "flask",
+            "--app",
+            module,
+            "run",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(port),
         )
-    ]
     return (
-        sys.executable,
+        str(interpreter),
         "-m",
         "uvicorn",
         module,
@@ -353,13 +448,13 @@ def _server_command(adapter: Adapter, port: int) -> tuple[str, ...]:
 
 
 def _start_server(
-    adapter: Adapter,
+    adapter: Adapter, interpreter: Path
 ) -> tuple[subprocess.Popen[str], tuple[str, ...], Adapter]:
     """Start a submitted backend in an evaluator-owned process group."""
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
         port = listener.getsockname()[1]
-    command = _server_command(adapter, port)
+    command = _server_command(adapter, interpreter, port)
     runtime_adapter = replace(adapter, url=f"http://127.0.0.1:{port}/")
     return (
         subprocess.Popen(
@@ -387,10 +482,16 @@ def _stop_server(process: subprocess.Popen[str]) -> str:
         return process.communicate()[0]
 
 
-def _run_server(adapter: Adapter, evidence_root: Path) -> CheckResult:
-    """Start a submitted ASGI app, probe its submitted root, and clean it up."""
+def _run_server(
+    adapter: Adapter, evidence_root: Path, interpreter: Path
+) -> CheckResult:
+    """Start a submitted app, probe its submitted root, and clean it up."""
     log = evidence_root / "commands" / "backend-startup.log"
-    process, command, runtime_adapter = _start_server(adapter)
+    try:
+        process, command, runtime_adapter = _start_server(adapter, interpreter)
+    except OSError as error:
+        evidence = _write_evidence(log, str(error), evidence_root)
+        return CheckResult("backend-startup", "fail", str(error), evidence=(evidence,))
     status = "fail"
     message = "submitted root did not start"
     try:
@@ -407,7 +508,7 @@ def _run_server(adapter: Adapter, evidence_root: Path) -> CheckResult:
                 time.sleep(0.25)
     finally:
         output = _stop_server(process)
-    evidence = _write_evidence(log, output)
+    evidence = _write_evidence(log, output, evidence_root)
     return CheckResult("backend-startup", status, message, command, (evidence,))
 
 
@@ -429,39 +530,58 @@ def _experiment_four(
     """Evaluate declared Experiment 4 dependencies, backend, and submitted UI."""
     manifests = [path for path in workspace.rglob("requirements.txt")]
     if manifests:
-        dependency = run_command(
-            "dependency-install",
-            (
-                sys.executable,
-                "-m",
-                "pip",
-                "install",
-                "--target",
-                str(evidence_root / "dependencies"),
-                "-r",
-                str(manifests[0]),
-            ),
-            workspace,
-            evidence_root,
+        interpreter, dependency = _prepare_environment(
+            workspace, evidence_root, manifests[0]
         )
     else:
+        interpreter = None
+        evidence = _write_evidence(
+            evidence_root / "dependency-installation.txt",
+            "no declared requirements.txt",
+            evidence_root,
+        )
         dependency = CheckResult(
-            "dependency-install", "fail", "no declared requirements.txt"
+            "dependency-install",
+            "fail",
+            "no declared requirements.txt",
+            evidence=(evidence,),
         )
     compile_check = run_command(
         "python-compile",
-        (sys.executable, "-m", "compileall", "-q", "."),
+        (
+            str(interpreter) if interpreter else sys.executable,
+            "-m",
+            "compileall",
+            "-q",
+            ".",
+        ),
         workspace,
         evidence_root,
     )
-    backend = _run_server(adapter, evidence_root)
+    backend = (
+        _run_server(adapter, evidence_root, interpreter)
+        if dependency.status == "pass" and interpreter
+        else CheckResult(
+            "backend-startup",
+            "blocked",
+            "declared dependency environment unavailable",
+            evidence=dependency.evidence,
+        )
+    )
     sqlite_files = list(workspace.rglob("*.db")) + list(workspace.rglob("*.sqlite"))
+    sqlite_message = (
+        "SQLite database initialized"
+        if sqlite_files
+        else "no SQLite database initialized"
+    )
+    sqlite_evidence = _write_evidence(
+        evidence_root / "sqlite-initialization.txt", sqlite_message, evidence_root
+    )
     sqlite = CheckResult(
         "sqlite-initialization",
         "pass" if sqlite_files else "fail",
-        "SQLite database initialized"
-        if sqlite_files
-        else "no SQLite database initialized",
+        sqlite_message,
+        evidence=(sqlite_evidence,),
     )
     packages = list(workspace.rglob("package.json"))
     frontend = (
@@ -469,12 +589,30 @@ def _experiment_four(
             "frontend-build", ("npm", "run", "build"), packages[0].parent, evidence_root
         )
         if packages
-        else CheckResult("frontend-build", "pass", "no declared frontend build")
+        else CheckResult(
+            "frontend-build",
+            "pass",
+            "no declared frontend build",
+            evidence=(
+                _write_evidence(
+                    evidence_root / "frontend-build.txt",
+                    "no declared frontend build",
+                    evidence_root,
+                ),
+            ),
+        )
     )
-    if backend.status == "pass":
-        process, _, runtime_adapter = _start_server(adapter)
+    if backend.status == "pass" and frontend.status == "pass" and interpreter:
+        process, _, runtime_adapter = _start_server(adapter, interpreter)
         try:
-            browser = _browser_checks(runtime_adapter, evidence_root, 4)
+            if adapter.frontend:
+                frontend_server, _, frontend_adapter = _serve_frontend(adapter)
+                try:
+                    browser = _browser_checks(frontend_adapter, evidence_root, 4)
+                finally:
+                    frontend_server.shutdown()
+            else:
+                browser = _browser_checks(runtime_adapter, evidence_root, 4)
         finally:
             _stop_server(process)
     else:
@@ -488,6 +626,46 @@ def _experiment_four(
             for name in CONTRACTS[4][-2:]
         ]
     return [dependency, compile_check, backend, sqlite, frontend, *browser]
+
+
+def _prepare_environment(
+    workspace: Path, evidence_root: Path, manifest: Path
+) -> tuple[Path, CheckResult]:
+    """Create and populate an isolated interpreter for one copied artifact."""
+    environment = workspace / ".evaluator-venv"
+    interpreter = environment / "bin" / "python"
+    created = run_command(
+        "environment-create",
+        (sys.executable, "-m", "venv", str(environment)),
+        workspace,
+        evidence_root,
+    )
+    if created.status != "pass":
+        return interpreter, replace(created, name="dependency-install")
+    return interpreter, run_command(
+        "dependency-install",
+        (
+            str(interpreter),
+            "-m",
+            "pip",
+            "install",
+            "uvicorn",
+            "-r",
+            str(manifest),
+        ),
+        workspace,
+        evidence_root,
+    )
+
+
+def _serve_frontend(adapter: Adapter) -> tuple[object, Thread, Adapter]:
+    """Serve a registered submitted frontend instead of the backend root."""
+    if adapter.frontend is None:
+        msg = "adapter has no standalone frontend"
+        raise ValueError(msg)
+    if adapter.frontend.is_file():
+        return _serve_directory(adapter, adapter.frontend.parent, adapter.frontend.name)
+    return _serve_directory(adapter, adapter.frontend, "index.html")
 
 
 def write_report(

@@ -1,7 +1,10 @@
 """Unit tests for the deterministic artifact evaluator."""
 
 import json
+import sys
 from pathlib import Path
+from threading import Thread
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -15,6 +18,7 @@ from evaluate_artifacts import (
     summarize_checks,
     write_report,
 )
+import evaluate_artifacts as evaluator
 
 
 FIXTURES = Path(__file__).parents[1] / "fixtures" / "evaluate_artifacts"
@@ -119,3 +123,171 @@ def test_known_good_fixtures_match_registered_layouts() -> None:
 
     assert resolve_adapter("opencode", 3, clock).entrypoint.name == "analog-clock.html"
     assert resolve_adapter("opencode", 4, app).entrypoint.name == "app.py"
+
+
+def test_experiment_four_uses_declared_dependency_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Artifact commands use the interpreter that installed requirements."""
+    workspace = tmp_path / "artifact"
+    workspace.mkdir()
+    manifest = workspace / "requirements.txt"
+    manifest.write_text("example-dependency\n")
+    commands: list[tuple[str, ...]] = []
+
+    def fake_run(
+        name: str,
+        command: tuple[str, ...],
+        _workspace: Path,
+        _evidence: Path,
+        timeout: int = 90,
+    ) -> CheckResult:
+        del timeout
+        commands.append(command)
+        return CheckResult(name, "pass", "installed")
+
+    monkeypatch.setattr(evaluator, "run_command", fake_run)
+
+    interpreter, dependency = evaluator._prepare_environment(
+        workspace, tmp_path / "evidence", manifest
+    )
+
+    assert dependency.status == "pass"
+    assert interpreter == workspace / ".evaluator-venv" / "bin" / "python"
+    assert commands == [
+        (sys.executable, "-m", "venv", str(interpreter.parent.parent)),
+        (
+            str(interpreter),
+            "-m",
+            "pip",
+            "install",
+            "uvicorn",
+            "-r",
+            str(manifest),
+        ),
+    ]
+
+
+def test_flask_adapter_starts_with_its_registered_server(tmp_path: Path) -> None:
+    """Flask artifacts use the WSGI launcher rather than Uvicorn."""
+    artifact = tmp_path / "artifact"
+    backend = artifact / "backend"
+    backend.mkdir(parents=True)
+    (backend / "app.py").touch()
+
+    command = evaluator._server_command(
+        resolve_adapter("opencode", 4, artifact), Path("/venv/bin/python"), 8765
+    )
+
+    assert command == (
+        "/venv/bin/python",
+        "-m",
+        "flask",
+        "--app",
+        "app:app",
+        "run",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8765",
+    )
+
+
+def test_experiment_four_serves_submitted_frontend_and_exercises_block_flow(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A registered frontend is served instead of browsing a backend root."""
+    artifact = tmp_path / "artifact"
+    backend = artifact / "backend"
+    frontend = artifact / "frontend"
+    backend.mkdir(parents=True)
+    frontend.mkdir()
+    (backend / "app.py").touch()
+    (frontend / "index.html").write_text("<button>add block</button>")
+    (artifact / "requirements.txt").touch()
+    adapter = resolve_adapter("opencode", 4, artifact)
+    served: list[Path] = []
+
+    def fake_prepare(
+        _workspace: Path, _evidence: Path, _manifest: Path
+    ) -> tuple[Path, CheckResult]:
+        return Path("/venv/bin/python"), CheckResult("dependency-install", "pass", "")
+
+    def fake_command(
+        name: str,
+        command: tuple[str, ...],
+        workspace: Path,
+        evidence: Path,
+        timeout: int = 90,
+    ) -> CheckResult:
+        del command, workspace, evidence, timeout
+        return CheckResult(name, "pass", "")
+
+    def fake_server(
+        _adapter: evaluator.Adapter, _evidence: Path, _interpreter: Path
+    ) -> CheckResult:
+        return CheckResult("backend-startup", "pass", "")
+
+    def fake_frontend(
+        served_adapter: evaluator.Adapter,
+    ) -> tuple[object, Thread, evaluator.Adapter]:
+        served.append(served_adapter.frontend)
+        return SimpleNamespace(shutdown=lambda: None), Thread(), served_adapter
+
+    monkeypatch.setattr(evaluator, "_prepare_environment", fake_prepare)
+    monkeypatch.setattr(evaluator, "run_command", fake_command)
+    monkeypatch.setattr(evaluator, "_run_server", fake_server)
+    monkeypatch.setattr(evaluator, "_start_server", lambda *_: (object(), (), adapter))
+    monkeypatch.setattr(evaluator, "_stop_server", lambda _: "")
+    monkeypatch.setattr(evaluator, "_serve_frontend", fake_frontend)
+    monkeypatch.setattr(
+        evaluator,
+        "_browser_checks",
+        lambda *_: [
+            CheckResult("page-block", "pass", ""),
+            CheckResult("browser-e2e", "pass", ""),
+        ],
+    )
+
+    results = evaluator._experiment_four(adapter, artifact, tmp_path / "evidence")
+
+    assert served == [frontend]
+    assert results[-2].name == "page-block"
+
+
+def test_submitted_browser_failure_is_not_blocked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Page failures are artifact failures once Chromium has launched."""
+    browser = SimpleNamespace(close=lambda: None)
+    playwright = SimpleNamespace(chromium=SimpleNamespace(launch=lambda: browser))
+
+    class PlaywrightContext:
+        def __enter__(self) -> SimpleNamespace:
+            return playwright
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+    sync_api = ModuleType("playwright.sync_api")
+    sync_api.sync_playwright = PlaywrightContext
+    monkeypatch.setitem(sys.modules, "playwright", ModuleType("playwright"))
+    monkeypatch.setitem(sys.modules, "playwright.sync_api", sync_api)
+
+    adapter = evaluator.Adapter("test", tmp_path, tmp_path / "index.html")
+    results = evaluator._browser_checks(adapter, tmp_path / "evidence", 4)
+
+    assert {result.status for result in results} == {"fail"}
+    assert all(
+        "browser runtime unavailable" not in result.message for result in results
+    )
+
+
+def test_report_evidence_paths_resolve_from_report_directory(tmp_path: Path) -> None:
+    """Command evidence paths resolve relative to their result report."""
+    result = evaluator.run_command(
+        "command", (sys.executable, "-c", ""), tmp_path, tmp_path / "evidence"
+    )
+
+    assert result.evidence == ("evidence/commands/command.log",)
+    assert (tmp_path / result.evidence[0]).is_file()

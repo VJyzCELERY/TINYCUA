@@ -5,6 +5,7 @@ description = "Minimal runner for comparing agent harnesses."
 requires-python = ">=3.12"
 dependencies = [
     "playwright>=1.54.0",
+    "uvicorn>=0.30.0",
 ]
 
 [dependency-groups]
