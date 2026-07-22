@@ -11,46 +11,52 @@
 \label{alg:query-analyst}
 \begin{algorithmic}[1]
 \Require User query $q$, session context $C$
-\Ensure Enhanced query $q_{\text{enhanced}}$, route label $\textit{route}$
+\Ensure Enhanced query $q_{\text{enhanced}}$, route label $\mathit{route}$
 
-\If{$\textsc{QueryAnalystAlreadyActive}(C)$}
-    \State \Return $\textsc{None}$
+\Statex \textit{--- Deduplication guard ---}
+\If{\textsc{QueryAnalystAlreadyActive}($C$)}
+    \State \Return $\bot$
 \EndIf
 
-\State $\textit{rootCtx} \gets \textsc{ReadRootSession}(C)$
-\State $\textit{nodeCtx} \gets \textsc{InspectExistingNodes}(C)$
-\State $\textit{exploratoryCtx} \gets \textsc{ExploreInformation}(q,\; C)$
+\Statex \textit{--- Context collection (read-only) ---}
+\State $\mathit{rootCtx} \gets \textsc{ReadRootSession}(C)$
+\State $\mathit{nodeCtx} \gets \textsc{InspectExistingNodes}(C)$
+\State $\mathit{exploratoryCtx} \gets \textsc{ExploreInformation}(q,\; C)$
 
-\State $\textit{reasoningWindow} \gets \big\{$
+\Statex \textit{--- Temporary reasoning window (not merged back to parent) ---}
+\State $\mathit{reasoningWindow} \gets \big\{$
 \quad $q,\;$
-\quad $\textsc{FilterRelevant}(\textit{rootCtx},\; q),\;$
-\quad $\textsc{FilterRelevant}(\textit{nodeCtx},\; q),\;$
-\quad $\textit{exploratoryCtx}$
+\quad $\textsc{FilterRelevant}(\mathit{rootCtx},\; q),\;$
+\quad $\textsc{FilterRelevant}(\mathit{nodeCtx},\; q),\;$
+\quad $\mathit{exploratoryCtx}$
 \ $\big\}$
 
-\State $\textit{analysis} \gets \textsc{SLMAnalyze}(\textit{reasoningWindow})$
-\State $\textit{route} \gets \textsc{ClassifyRoute}(\textit{analysis})$
+\Statex \textit{--- SLM classification ---}
+\State $\mathit{analysis} \gets \textsc{SLMAnalyze}(\mathit{reasoningWindow})$
+\State $\mathit{route} \gets \textsc{ClassifyRoute}(\mathit{analysis})$
 
-\State $\textit{retryCount} \gets 0$
-\While{$\textit{route}$ is invalid \textbf{or} $\textit{route}$ is not invoked}
-    \State $\textit{retryCount} \gets \textit{retryCount} + 1$
-    \If{$\textit{retryCount} > \textsc{NodeRetryPolicy.MaxRetries}$}
-        \State $\textit{route} \gets \textsc{DefaultRoute}()$
+\Statex \textit{--- Route validation and retry ---}
+\State $\mathit{retryCount} \gets 0$
+\While{$\mathit{route}$ is invalid \textbf{or} $\mathit{route}$ is not invoked}
+    \State $\mathit{retryCount} \gets \mathit{retryCount} + 1$
+    \If{$\mathit{retryCount} > \textsc{NodeRetryPolicy.MaxRetries}$}
+        \State $\mathit{route} \gets \textsc{DefaultRoute}()$
         \State \textbf{break}
     \EndIf
-    \State $\textit{analysis} \gets \textsc{SLMAnalyze}(\textit{reasoningWindow})$
-    \State $\textit{route} \gets \textsc{ClassifyRoute}(\textit{analysis})$
+    \State $\mathit{analysis} \gets \textsc{SLMAnalyze}(\mathit{reasoningWindow})$
+    \State $\mathit{route} \gets \textsc{ClassifyRoute}(\mathit{analysis})$
 \EndWhile
 
+\Statex \textit{--- Route dispatch ---}
 \State $q_{\text{enhanced}} \gets \big\{$
 \quad $q,\;$
-\quad $\textsc{FilterRelevant}(\textit{reasoningWindow},\; q)$
+\quad $\textsc{FilterRelevant}(\mathit{reasoningWindow},\; q)$
 \ $\big\}$
 
-\If{$\textit{route} = \textsc{Worker}$}
+\If{$\mathit{route} = \textsc{Worker}$}
     \State $\textsc{SpawnInformationDigester}()$
     \State \Return $q_{\text{enhanced}},\; \textsc{Worker}$
-\ElsIf{$\textit{route} = \textsc{Passthrough}$}
+\ElsIf{$\mathit{route} = \textsc{Passthrough}$}
     \State \Return $q_{\text{enhanced}},\; \textsc{Passthrough}$
 \EndIf
 \end{algorithmic}

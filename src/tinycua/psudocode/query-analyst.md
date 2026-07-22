@@ -1,111 +1,121 @@
 # Algorithm 2: Query Analyst Node
 
-> Pseudocode derived from subsection explanation of `QueryAnalystNode`
-
-**Function:** `QueryAnalystNode(UserQuery, SessionContext)`
-
-**Input:**
-- `UserQuery` — the raw user input
-- `SessionContext` — full session context (chat history + retrieved context)
-
-**Output:**
-- `EnhancedQuery` — query enriched with filtered context
-- `Route` — classification label (`Passthrough` | `Worker`)
+> **Methodology section pairing:** The prose below accompanies Algorithm 2
+> in the paper. It covers design invariants and constraints that are not
+> algorithmic and therefore remain outside the pseudocode block.
 
 ---
 
-## Query Analyst Workflow
+## Pseudocode (Algorithm 2)
+
+**Input:** User query $q$, session context $C$
+**Output:** Enhanced query $q_{\text{enhanced}}$, route label $\mathit{route}$
 
 ```
-Function QueryAnalystNode(UserQuery, SessionContext):
+─────────────────────────────────────────────────────
+STEP 1: Deduplication Guard
+─────────────────────────────────────────────────────
 
-    ─────────────────────────────────────────────
-    STEP 1: Deduplication Guard
-    ─────────────────────────────────────────────
+if QueryAnalystAlreadyActive(C):
+    return ⊥
+```
 
-    if QueryAnalystAlreadyActive(SessionContext):
-        return None  // skip — only one Query Analyst per session
+```
+─────────────────────────────────────────────────────
+STEP 2: Context Collection (Read-Only)
+─────────────────────────────────────────────────────
 
-    ─────────────────────────────────────────────
-    STEP 2: Context Collection (Read-Only)
-    ─────────────────────────────────────────────
+rootCtx  ← ReadRootSession(C)
+nodeCtx  ← InspectExistingNodes(C)
+exploratoryCtx ← ExploreInformation(q, C)
+```
 
-    // Inspect existing task status and explore information
-    // using read-only tools only (no write operations)
+```
+─────────────────────────────────────────────────────
+STEP 3: Temporary Reasoning Window
+─────────────────────────────────────────────────────
 
-    RootContext = ReadRootSession(SessionContext)
-    ExistingNodeContext = InspectExistingNodes(SessionContext)
-    ExploratoryContext = ExploreInformation(UserQuery, SessionContext)
-        // e.g., read files, web search — read-only only
+reasoningWindow ← { q,
+    FilterRelevant(rootCtx, q),
+    FilterRelevant(nodeCtx, q),
+    exploratoryCtx }
+```
 
-    ─────────────────────────────────────────────
-    STEP 3: Temporary Reasoning Window
-    ─────────────────────────────────────────────
+```
+─────────────────────────────────────────────────────
+STEP 4: SLM Classification
+─────────────────────────────────────────────────────
 
-    // Assemble a temporary reasoning window for classification
-    // This window is NOT merged back to parent node
-    // Output becomes durable only when merged into next node
+analysis ← SLMAnalyze(reasoningWindow)
+route    ← ClassifyRoute(analysis)
+```
 
-    ReasoningWindow = {
-        UserQuery,
-        FilteredRootContext = FilterRelevant(RootContext, UserQuery),
-        FilteredNodeContext = FilterRelevant(ExistingNodeContext, UserQuery),
-        ExploratoryContext
-    }
+```
+─────────────────────────────────────────────────────
+STEP 5: Route Validation and Retry
+─────────────────────────────────────────────────────
 
-    ─────────────────────────────────────────────
-    STEP 4: SLM Classification
-    ─────────────────────────────────────────────
+retryCount ← 0
+while route is invalid or route is not invoked:
+    retryCount ← retryCount + 1
+    if retryCount > NodeRetryPolicy.MaxRetries:
+        route ← DefaultRoute()
+        break
+    analysis ← SLMAnalyze(reasoningWindow)
+    route    ← ClassifyRoute(analysis)
+```
 
-    // Call SLM to analyze context and user query
-    Analysis = SLMAnalyze(ReasoningWindow)
+```
+─────────────────────────────────────────────────────
+STEP 6: Route Dispatch
+─────────────────────────────────────────────────────
 
-    // SLM invokes classification tool to assign route
-    Route = ClassifyRoute(Analysis)
+q_enhanced ← { q, FilterRelevant(reasoningWindow, q) }
 
-    ─────────────────────────────────────────────
-    STEP 5: Route Validation and Retry
-    ─────────────────────────────────────────────
-
-    RetryCount = 0
-    MaxRetries = NodeRetryPolicy.MaxRetries
-
-    while Route is invalid or Route is not invoked:
-
-        RetryCount = RetryCount + 1
-
-        if RetryCount > MaxRetries:
-            // Fallback: default to passthrough or escalate
-            Route = DefaultRoute()
-            break
-
-        // Retry classification
-        Analysis = SLMAnalyze(ReasoningWindow)
-        Route = ClassifyRoute(Analysis)
-
-    ─────────────────────────────────────────────
-    STEP 6: Route Dispatch
-    ─────────────────────────────────────────────
-
-    // Enhance query with filtered context from reasoning window
-    EnhancedQuery = {
-        UserQuery,
-        Context = FilterRelevant(ReasoningWindow, UserQuery)
-    }
-
-    // Route map dispatches to appropriate handler
-    if Route == Worker:
-        // Spawn Information Digester before routing to Worker
-        SpawnInformationDigester()
-        return EnhancedQuery, Worker
-
-    else if Route == Passthrough:
-        return EnhancedQuery, Passthrough
+if route = Worker:
+    SpawnInformationDigester()
+    return q_enhanced, Worker
+else if route = Passthrough:
+    return q_enhanced, Passthrough
 ```
 
 ---
 
-## Tool Permissions
+## Companion Prose (Not in Pseudocode)
+
+The following design properties are described in the surrounding methodology
+text and are **not** captured by the algorithm above:
+
+### Queue Position Invariant
+
+The Query Analyst node is always enqueued as the first node in the
+`NodeQueue`. It serves as the initial input layer of the TinyCUA loop,
+receiving the full context overhead from the root session or existing nodes.
+
+### Segmented Context Model
+
+The temporary reasoning window (Step 3) is a **volatile construct**. It is
+not merged back into the parent node's session. The output produced by the
+Query Analyst becomes durable only when it is received by and merged into the
+next node in the queue (either the Information Digester or the Response Node).
+
+### Read-Only Tool Constraint
+
+The Query Analyst is restricted to **read-only exploratory tools**. It may
+inspect the status of existing tasks and explore external information (e.g.,
+reading files, web search) to assist routing decisions. It is **not permitted**
+to perform any write operation, ensuring its role is solely to classify and
+route.
+
+### Deduplication Policy
+
+A Query Analyst is spawned only when no Query Analyst already exists in the
+active queue. This ensures a single classification pass per query and prevents
+redundant routing decisions.
+
+---
+
+## Tool Permissions Summary
 
 | Tool | Allowed | Purpose |
 |------|---------|---------|
@@ -114,27 +124,15 @@ Function QueryAnalystNode(UserQuery, SessionContext):
 | ExploreInformation | Yes | Read files, web search for routing context |
 | WriteFile | **No** | Read-only node — no mutations |
 | ModifyTask | **No** | Read-only node — no mutations |
-| SpawnAgent | Conditional | Spawn Information Digester if Worker route |
+| SpawnInformationDigester | Conditional | Only when route = Worker |
 
 ---
 
-## Retry Policy
+## Retry Policy Summary
 
 | Condition | Action |
 |-----------|--------|
-| Route is invalid | Retry classification up to `MaxRetries` |
-| Route is not invoked | Retry classification up to `MaxRetries` |
-| MaxRetries exceeded | Use `DefaultRoute()` (passthrough fallback) |
+| Route is invalid | Retry classification up to MaxRetries |
+| Route is not invoked | Retry classification up to MaxRetries |
+| MaxRetries exceeded | Use DefaultRoute() (passthrough fallback) |
 | Query Analyst already active | Skip — deduplication enforced |
-
----
-
-## Context Model
-
-| Aspect | Behavior |
-|--------|----------|
-| Input | Full session context overhead |
-| Processing | Filter to relevant information only |
-| Reasoning window | Temporary — not merged back to parent |
-| Output durability | Becomes durable only when merged into next node |
-| Downstream merge | `EnhancedQuery` merged into Information Digester or Response Node |
