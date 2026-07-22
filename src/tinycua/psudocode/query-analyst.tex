@@ -1,0 +1,67 @@
+\documentclass{article}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+\begin{document}
+
+\begin{algorithm}[t]
+\caption{TINYCUA Query Analyst Node}
+\label{alg:query-analyst}
+\begin{algorithmic}[1]
+\Require User query $q$, session context $C$
+\Ensure Enhanced query $q_{\text{enhanced}}$, route label $\textit{route}$
+
+\State \textbf{// Step 1: Deduplication Guard}
+\If{$\textsc{QueryAnalystAlreadyActive}(C)$}
+    \State \Return $\textsc{None}$
+\EndIf
+
+\State \textbf{// Step 2: Context Collection (Read-Only)}
+\State $\textit{rootCtx} \gets \textsc{ReadRootSession}(C)$
+\State $\textit{nodeCtx} \gets \textsc{InspectExistingNodes}(C)$
+\State $\textit{exploratoryCtx} \gets \textsc{ExploreInformation}(q, C)$
+
+\State \textbf{// Step 3: Temporary Reasoning Window}
+\State $\textit{reasoningWindow} \gets \big\{$
+\quad $q,$
+\quad $\textsc{FilterRelevant}(\textit{rootCtx},\; q),$
+\quad $\textsc{FilterRelevant}(\textit{nodeCtx},\; q),$
+\quad $\textit{exploratoryCtx}$
+\ $\big\}$
+
+\State \textbf{// Step 4: SLM Classification}
+\State $\textit{analysis} \gets \textsc{SLMAnalyze}(\textit{reasoningWindow})$
+\State $\textit{route} \gets \textsc{ClassifyRoute}(\textit{analysis})$
+
+\State \textbf{// Step 5: Route Validation and Retry}
+\State $\textit{retryCount} \gets 0$
+\State $\textit{maxRetries} \gets \textsc{NodeRetryPolicy.MaxRetries}$
+
+\While{$\textit{route}$ is invalid \textbf{or} $\textit{route}$ is not invoked}
+    \State $\textit{retryCount} \gets \textit{retryCount} + 1$
+    \If{$\textit{retryCount} > \textit{maxRetries}$}
+        \State $\textit{route} \gets \textsc{DefaultRoute}()$
+        \State \textbf{break}
+    \EndIf
+    \State $\textit{analysis} \gets \textsc{SLMAnalyze}(\textit{reasoningWindow})$
+    \State $\textit{route} \gets \textsc{ClassifyRoute}(\textit{analysis})$
+\EndWhile
+
+\State \textbf{// Step 6: Route Dispatch}
+\State $q_{\text{enhanced}} \gets \big\{$
+\quad $q,$
+\quad $\textsc{FilterRelevant}(\textit{reasoningWindow},\; q)$
+\ $\big\}$
+
+\If{$\textit{route} = \textsc{Worker}$}
+    \State $\textsc{SpawnInformationDigester}()$
+    \State \Return $q_{\text{enhanced}},\; \textsc{Worker}$
+\ElsIf{$\textit{route} = \textsc{Passthrough}$}
+    \State \Return $q_{\text{enhanced}},\; \textsc{Passthrough}$
+\EndIf
+\end{algorithmic}
+\end{algorithm}
+
+\end{document}
