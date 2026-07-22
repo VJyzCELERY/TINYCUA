@@ -27,7 +27,11 @@ Generate IEEE-style pseudocode from my paper subsection write. Output two files.
 
 ## Instructions to Model
 
-From the user's prose, extract and produce:
+Reconstruct the user's write into two outputs:
+1. **Pseudocode** — the algorithmic core, extracted as numbered steps
+2. **Companion prose** — a compact explanation of design invariants that cannot be expressed as pseudocode
+
+The companion prose must be **shorter and more compact** than the original write. Compress redundant sentences, merge overlapping ideas, and use concise technical language. Do not repeat information already captured in the pseudocode.
 
 ### Separation Rules
 
@@ -40,13 +44,15 @@ From the user's prose, extract and produce:
 - Retry logic
 - Route decisions / dispatch
 
-**Companion Prose (methodology text)** — keep these as prose, NOT in the algorithm:
-- Queue position invariants
-- Propagation rules ("not merged back to parent", "durable only when merged")
-- Tool constraints ("read-only", "no write operations")
-- Deduplication policies
-- Architectural role descriptions
-- Design rationale
+**Companion Prose (methodology text)** — keep these as prose, NOT in the algorithm. Write compactly:
+- Queue position invariants (1-2 sentences)
+- Propagation rules (1-2 sentences)
+- Tool constraints (1 sentence)
+- Deduplication policies (1 sentence)
+- Architectural role (1-2 sentences)
+- Design rationale (1-2 sentences max)
+
+Rule: companion prose total should be ~30-50% of the original write length.
 
 ### File 1: <section-name>.tex
 
