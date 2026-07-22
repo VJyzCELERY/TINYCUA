@@ -12,49 +12,26 @@
 **Output:** Enhanced query $q_{\text{enhanced}}$, route label $\mathit{route}$
 
 ```
-─────────────────────────────────────────────────────
-STEP 1: Deduplication Guard
-─────────────────────────────────────────────────────
-
+// Step 1: Deduplication Guard
 if QueryAnalystAlreadyActive(C):
     return ⊥
-```
 
-```
-─────────────────────────────────────────────────────
-STEP 2: Context Collection (Read-Only)
-─────────────────────────────────────────────────────
-
+// Step 2: Context Collection (Read-Only)
 rootCtx  ← ReadRootSession(C)
 nodeCtx  ← InspectExistingNodes(C)
 exploratoryCtx ← ExploreInformation(q, C)
-```
 
-```
-─────────────────────────────────────────────────────
-STEP 3: Temporary Reasoning Window
-─────────────────────────────────────────────────────
-
+// Step 3: Temporary Reasoning Window
 reasoningWindow ← { q,
     FilterRelevant(rootCtx, q),
     FilterRelevant(nodeCtx, q),
     exploratoryCtx }
-```
 
-```
-─────────────────────────────────────────────────────
-STEP 4: SLM Classification
-─────────────────────────────────────────────────────
-
+// Step 4: SLM Classification
 analysis ← SLMAnalyze(reasoningWindow)
 route    ← ClassifyRoute(analysis)
-```
 
-```
-─────────────────────────────────────────────────────
-STEP 5: Route Validation and Retry
-─────────────────────────────────────────────────────
-
+// Step 5: Route Validation and Retry
 retryCount ← 0
 while route is invalid or route is not invoked:
     retryCount ← retryCount + 1
@@ -63,13 +40,8 @@ while route is invalid or route is not invoked:
         break
     analysis ← SLMAnalyze(reasoningWindow)
     route    ← ClassifyRoute(analysis)
-```
 
-```
-─────────────────────────────────────────────────────
-STEP 6: Route Dispatch
-─────────────────────────────────────────────────────
-
+// Step 6: Route Dispatch
 q_enhanced ← { q, FilterRelevant(reasoningWindow, q) }
 
 if route = Worker:

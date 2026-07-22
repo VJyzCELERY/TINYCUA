@@ -13,17 +13,17 @@
 \Require User query $q$, session context $C$
 \Ensure Enhanced query $q_{\text{enhanced}}$, route label $\mathit{route}$
 
-\Statex \textit{--- Deduplication guard ---}
+// Deduplication guard
 \If{\textsc{QueryAnalystAlreadyActive}($C$)}
     \State \Return $\bot$
 \EndIf
 
-\Statex \textit{--- Context collection (read-only) ---}
+// Context collection (read-only)
 \State $\mathit{rootCtx} \gets \textsc{ReadRootSession}(C)$
 \State $\mathit{nodeCtx} \gets \textsc{InspectExistingNodes}(C)$
 \State $\mathit{exploratoryCtx} \gets \textsc{ExploreInformation}(q,\; C)$
 
-\Statex \textit{--- Temporary reasoning window (not merged back to parent) ---}
+// Temporary reasoning window (not merged back to parent)
 \State $\mathit{reasoningWindow} \gets \big\{$
 \quad $q,\;$
 \quad $\textsc{FilterRelevant}(\mathit{rootCtx},\; q),\;$
@@ -31,11 +31,11 @@
 \quad $\mathit{exploratoryCtx}$
 \ $\big\}$
 
-\Statex \textit{--- SLM classification ---}
+// SLM classification
 \State $\mathit{analysis} \gets \textsc{SLMAnalyze}(\mathit{reasoningWindow})$
 \State $\mathit{route} \gets \textsc{ClassifyRoute}(\mathit{analysis})$
 
-\Statex \textit{--- Route validation and retry ---}
+// Route validation and retry
 \State $\mathit{retryCount} \gets 0$
 \While{$\mathit{route}$ is invalid \textbf{or} $\mathit{route}$ is not invoked}
     \State $\mathit{retryCount} \gets \mathit{retryCount} + 1$
@@ -47,7 +47,7 @@
     \State $\mathit{route} \gets \textsc{ClassifyRoute}(\mathit{analysis})$
 \EndWhile
 
-\Statex \textit{--- Route dispatch ---}
+// Route dispatch
 \State $q_{\text{enhanced}} \gets \big\{$
 \quad $q,\;$
 \quad $\textsc{FilterRelevant}(\mathit{reasoningWindow},\; q)$
