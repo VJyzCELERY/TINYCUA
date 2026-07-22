@@ -13,27 +13,31 @@
 \Require User query $q$, session context $C$, worker effort $e$
 \Ensure Final user response $r$
 
+\Statex \textit{--- Query Analysis: classify and route query ---}
 \State $(q_{\text{enhanced}},\; \textit{route}) \gets \textsc{QueryAnalystNode}(q,\; C)$
 \If{$\textit{route} = \textsc{Passthrough}$}
     \State \Return $\textsc{ResponseNode}(q_{\text{enhanced}},\; C)$
 \EndIf
 
+\Statex \textit{--- Information Digester: explore and condense context ---}
 \State $d \gets \textsc{InformationDigesterNode}(q_{\text{enhanced}},\; C)$
-\State $\textit{workerRoute} \gets \textsc{WorkerNode}(d)$
 
+\Statex \textit{--- Worker: decide task route ---}
+\State $\textit{workerRoute} \gets \textsc{WorkerNode}(d)$
 \If{$\textit{workerRoute} = \textsc{Passthrough}$}
     \State \Return $\textsc{ResponseNode}(d,\; C)$
 \EndIf
 
+\Statex \textit{--- Task Processing: create task tree ---}
 \If{$\textit{workerRoute} = \textsc{TaskCreation}$}
     \State $T \gets \textsc{TaskCreateNode}(d,\; e)$
 \ElsIf{$\textit{workerRoute} \in \{\textsc{TaskRecreation},\; \textsc{TaskReanalysis}\}$}
     \State $T \gets \textsc{TaskAnalyzerNode}(d)$
 \EndIf
 
+\Statex \textit{--- Task Processing: effort-controlled decomposition loop ---}
 \State $\textit{passCount} \gets 0$
 \State $\textit{passLimit} \gets \textsc{AnalysisEffortNode}(e)$
-
 \While{$\textit{passCount} < \textit{passLimit}$}
     \State $\textit{selectedTasks} \gets \textsc{TaskAssessorNode}(T)$
     \If{$\textit{selectedTasks} = \emptyset$}
@@ -46,6 +50,7 @@
     \State $\textit{passCount} \gets \textit{passCount} + 1$
 \EndWhile
 
+\Statex \textit{--- Task Processing: sequential execution and review loop ---}
 \While{$\exists$ unfinished leaf task in $T$}
     \State $\textit{task} \gets \textsc{SelectNextUnfinishedLeaf}(T)$
     \State $\textit{result} \gets \textsc{TaskExecutorNode}(\textit{task},\; \textsc{ShallowRoadmap}(T))$
@@ -81,6 +86,7 @@
     \EndIf
 \EndWhile
 
+\Statex \textit{--- Response to User: aggregate and respond ---}
 \State $a \gets \textsc{ResultAggregationNode}(T)$
 \State \Return $\textsc{ResponseNode}(a)$
 \end{algorithmic}
