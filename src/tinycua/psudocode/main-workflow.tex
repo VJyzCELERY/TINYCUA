@@ -13,31 +13,24 @@
 \Require User query $q$, session context $C$, worker effort $e$
 \Ensure Final user response $r$
 
-\State \textbf{// Phase 1: Query Analyst}
-\State $q_{\text{enhanced}},\; \textit{route} \gets \textsc{QueryAnalystNode}(q,\; C)$
-
+\State $(q_{\text{enhanced}},\; \textit{route}) \gets \textsc{QueryAnalystNode}(q,\; C)$
 \If{$\textit{route} = \textsc{Passthrough}$}
     \State \Return $\textsc{ResponseNode}(q_{\text{enhanced}},\; C)$
 \EndIf
 
-\State \textbf{// Phase 2: Information Digester}
 \State $d \gets \textsc{InformationDigesterNode}(q_{\text{enhanced}},\; C)$
-
-\State \textbf{// Phase 3: Worker Routing}
 \State $\textit{workerRoute} \gets \textsc{WorkerNode}(d)$
 
 \If{$\textit{workerRoute} = \textsc{Passthrough}$}
     \State \Return $\textsc{ResponseNode}(d,\; C)$
 \EndIf
 
-\State \textbf{// Phase 4: Task Tree Creation}
 \If{$\textit{workerRoute} = \textsc{TaskCreation}$}
     \State $T \gets \textsc{TaskCreateNode}(d,\; e)$
 \ElsIf{$\textit{workerRoute} \in \{\textsc{TaskRecreation},\; \textsc{TaskReanalysis}\}$}
     \State $T \gets \textsc{TaskAnalyzerNode}(d)$
 \EndIf
 
-\State \textbf{// Phase 5: Analysis-Effort Loop}
 \State $\textit{passCount} \gets 0$
 \State $\textit{passLimit} \gets \textsc{AnalysisEffortNode}(e)$
 
@@ -53,14 +46,10 @@
     \State $\textit{passCount} \gets \textit{passCount} + 1$
 \EndWhile
 
-\State \textbf{// Phase 6: Sequential Task Execution Loop}
 \While{$\exists$ unfinished leaf task in $T$}
     \State $\textit{task} \gets \textsc{SelectNextUnfinishedLeaf}(T)$
     \State $\textit{result} \gets \textsc{TaskExecutorNode}(\textit{task},\; \textsc{ShallowRoadmap}(T))$
-
-    \State $\textit{review} \gets \textsc{ResultReviewerNode}($
-    \quad $\textit{task},\; \textit{result},\; \textsc{ExecutionLog}(\textit{task}),\; \textsc{ShallowRoadmap}(T)$
-    \ $)$
+    \State $\textit{review} \gets \textsc{ResultReviewerNode}(\textit{task},\; \textit{result},\; \textsc{ExecutionLog}(\textit{task}),\; \textsc{ShallowRoadmap}(T))$
 
     \If{$\textit{review.Status} = \textsc{Accept}$}
         \If{$\textit{review.RootDone}$}
@@ -71,15 +60,11 @@
             \State $\textsc{PropagateContext}(T,\; \textit{task},\; \textit{review})$
             \State $\textsc{MarkAccepted}(T,\; \textit{task},\; \textit{result},\; \textit{review})$
         \EndIf
-
     \ElsIf{$\textit{review.Status} = \textsc{Retry}$}
         \State $\textsc{RecordFailureContext}(\textit{task},\; \textit{review})$
-
     \ElsIf{$\textit{review.Status} = \textsc{Replan}$}
         \State $\textit{subtasks} \gets \textsc{TaskAnalyzerNode}(\textit{task.Context},\; \textit{review.Rationale})$
         \State $\textsc{ReplaceLeafWithSubtasks}(T,\; \textit{task},\; \textit{subtasks})$
-
-        \State \textbf{// Re-enter decomposition loop}
         \State $\textit{passCount} \gets 0$
         \State $\textit{passLimit} \gets \textsc{AnalysisEffortNode}(e)$
         \While{$\textit{passCount} < \textit{passLimit}$}
@@ -96,7 +81,6 @@
     \EndIf
 \EndWhile
 
-\State \textbf{// Phase 7: Result Aggregation and Response}
 \State $a \gets \textsc{ResultAggregationNode}(T)$
 \State \Return $\textsc{ResponseNode}(a)$
 \end{algorithmic}
