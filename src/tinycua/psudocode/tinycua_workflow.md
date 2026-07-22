@@ -10,7 +10,7 @@
 
 **Input:**
 - User query $q$
-- Session context $C$ ($\text{chat\_history} + \text{context}$)
+- Session context $C$ ($`\text{chat\_history} + \text{context}`$)
 - Worker effort configuration $\text{effort}$
 
 **Output:**
