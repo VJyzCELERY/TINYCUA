@@ -1,41 +1,54 @@
-# TinyCUA Node Pseudocode Generator
+# TinyCUA Pseudocode Generator
 
 ## How to Use
 
-1. Fill in the fields below
+1. Fill in the 3 fields below
 2. Paste this entire prompt into the conversation
-3. The model will output two files: `<node-name>.tex` and `<node-name>.md`
+3. The model will output two files: `<section-name>.tex` and `<section-name>.md`
 
 ---
 
 ## Template
 
 ```
-Generate IEEE-style pseudocode for a TinyCUA node. Output two files.
+Generate IEEE-style pseudocode from my paper subsection write. Output two files.
 
-## Node Name
-[QUERY_ANALYST | WORKER | INFORMATION_DIGESTER | TASK_CREATE | TASK_ANALYZER | TASK_ASSESSOR | TASK_EXECUTOR | RESULT_REVIEWER | RESULT_AGGREGATION | RESPONSE | your custom name]
+## Section
+[SECTION NAME — e.g., Query Analyst, Worker, Information Digester, Task Executor, etc.]
 
 ## Algorithm Number
 [Algorithm N]
 
-## Node Type
-[DecisionNode | ProcessNode]
-
-## Input Variables
-[Example: User query q, session context C, task tree T]
-
-## Output Variables
-[Example: Enhanced query q_enhanced, route label route]
-
-## Your Prose Description
-[PASTE YOUR WRITE HERE — describe what the node does, its steps, decisions, tool usage, constraints]
+## My Paper Write
+[PASTE YOUR SUBSECTION WRITE HERE — the prose you wrote for this section of your methodology]
+```
 
 ---
 
-## Output Format
+## Instructions to Model
 
-### File 1: <node-name>.tex
+From the user's prose, extract and produce:
+
+### Separation Rules
+
+**Pseudocode (algorithm block)** — extract these as algorithmic steps:
+- Boolean checks / guards
+- Data collection / function calls
+- Loop control flow (while, for)
+- Conditional branching (if/else)
+- Variable assignments and data construction
+- Retry logic
+- Route decisions / dispatch
+
+**Companion Prose (methodology text)** — keep these as prose, NOT in the algorithm:
+- Queue position invariants
+- Propagation rules ("not merged back to parent", "durable only when merged")
+- Tool constraints ("read-only", "no write operations")
+- Deduplication policies
+- Architectural role descriptions
+- Design rationale
+
+### File 1: <section-name>.tex
 
 Use this exact LaTeX structure:
 
@@ -48,8 +61,8 @@ Use this exact LaTeX structure:
 \begin{document}
 
 \begin{algorithm}[t]
-\caption{TINYCUA [Node Name]}
-\label{alg:[node-name]}
+\caption{TINYCUA [Section Name]}
+\label{alg:[section-name]}
 \begin{algorithmic}[1]
 \Require [input variables with math notation]
 \Ensure [output variables with math notation]
@@ -68,17 +81,18 @@ Use this exact LaTeX structure:
 Rules for .tex:
 - Use \textsc{} for function names (e.g., \textsc{SLMAnalyze})
 - Use \mathit{} for variables (e.g., \mathit{route})
-- Use // for section comments (NOT \Statex \textit{--- ... ---})
+- Use // for section comments
 - Use \gets for assignments
 - Use \If, \ElsIf, \While, \For, \ForAll, \EndIf, \EndWhile, \EndFor
 - Line numbers are automatic via algorithmic[1]
+- Infer input/output variables from the prose
 - Keep it algorithmic: loops, conditionals, data transforms only
 
-### File 2: <node-name>.md
+### File 2: <section-name>.md
 
 Use this exact markdown structure:
 
-# Algorithm N: [Node Name]
+# Algorithm N: [Section Name]
 
 > **Methodology section pairing:** The prose below accompanies Algorithm N
 > in the paper. It covers design invariants and constraints that are not
@@ -108,7 +122,7 @@ The following design properties are described in the surrounding methodology
 text and are **not** captured by the algorithm above:
 
 ### [Invariant Name 1]
-[Prose description of design rule, constraint, or invariant]
+[Prose description]
 
 ### [Invariant Name 2]
 [Prose description]
@@ -131,21 +145,11 @@ text and are **not** captured by the algorithm above:
 
 ---
 
-## Separation Rules
+## Output Naming
 
-What goes into PSEUDOCODE (the algorithm block):
-- Boolean checks and guards
-- Data collection / function calls
-- Loop control flow (while, for)
-- Conditional branching (if/else)
-- Variable assignments and data construction
-- Retry logic
+Save files as:
+- `psudocode/[section-name].tex`
+- `psudocode/[section-name].md`
 
-What stays in COMPANION PROSE (methodology text):
-- Queue position invariants ("always first in queue")
-- Propagation rules ("not merged back to parent", "durable only when merged")
-- Tool constraints ("read-only", "no write operations")
-- Deduplication policies ("only spawned when none exists")
-- Architectural role descriptions
-- Design rationale
+Where [section-name] is lowercase, hyphenated (e.g., query-analyst, task-executor, information-digester).
 ```
