@@ -397,6 +397,7 @@ class TaskStateStore:
         if parent is None:
             msg = f"Task {task_id} has no parent."
             raise ValueError(msg)
+        self._require_mutable(parent)
         replacement = Task(
             title=replacement_title,
             parent_id=parent.task_id,
@@ -434,6 +435,7 @@ class TaskStateStore:
         if parent is None:
             msg = f"Task {task_id} has no parent."
             raise ValueError(msg)
+        self._require_mutable(parent)
         parent.children.remove(task_id)
         del self.tasks[task_id]
         self._finalize_mutation("delete_task", task_id, rationale=rationale)
