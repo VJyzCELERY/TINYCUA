@@ -374,9 +374,6 @@ class TaskStateStore:
             for clause_id in definition.get("clause_ids", [])
             if isinstance(clause_id, str)
         }
-        if task_id == self.root_task_id and required_ids and supplied_ids != required_ids:
-            msg = "Decomposition must cover every explicit acceptance clause."
-            raise ValueError(msg)
         if not supplied_ids.issubset(required_ids):
             msg = "Task references an unknown acceptance clause."
             raise ValueError(msg)
