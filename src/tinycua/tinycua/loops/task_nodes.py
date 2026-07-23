@@ -97,8 +97,9 @@ _TASK_ASSESSOR_UPFRONT_INSTRUCTION = (
     "target current entities, not stale assumptions. You do not execute "
     "tasks or mutate task state. Inspect the whole roadmap and select "
     "unfinished tasks that are complex enough to warrant further "
-    "decomposition. Identify duplicate or overlapping unfinished work and hand "
-    "off the specific task IDs to prune or merge before any new decomposition. "
+    "decomposition. Identify duplicate, overlapping, obsolete, or invalid unfinished "
+    "work and hand off the specific task IDs to prune, merge, cancel, or supersede "
+    "before any new decomposition. "
     "Use read-only assessment and summarize which tasks need analysis and why. "
     "Be concise and do not repeat upstream context."
 )
@@ -106,7 +107,7 @@ _TASK_ASSESSOR_UPFRONT_CONTINUATION = (
     "Based on the whole roadmap above, assess decomposition readiness across "
     "the roadmap. Explore (web_search/fetch_url/read_file/run_shell) to "
     "verify the roadmap targets current reality for research tasks. Summarize "
-    "selected task IDs, duplicate task IDs to prune or merge, reasons, "
+    "selected task IDs, task IDs to prune, merge, cancel, or supersede, reasons, "
     "constraints, or that no further upfront decomposition is useful."
 )
 _TASK_ASSESSOR_LOCAL_REPLAN_INSTRUCTION = (
@@ -219,6 +220,11 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
         )
         if commit_tools:
             guidance = "Tool guidance: Commit the planned structural change with " + ", ".join(sorted(commit_tools)) + "."
+            if "task_shrink" in commit_tools:
+                guidance += (
+                    " Resolve task IDs identified by the TaskAssessor as duplicate, "
+                    "overlapping, obsolete, or invalid with task_shrink before adding work."
+                )
             if (
                 "task_update" in commit_tools
                 and self.config.metadata.get("task_analyzer_mode") == "local_replan"
