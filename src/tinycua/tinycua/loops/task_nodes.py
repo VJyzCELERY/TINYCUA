@@ -75,7 +75,9 @@ _TASK_ANALYZER_CONTINUATION = (
     "(web_search/fetch_url/read_file/run_shell) when the task involves a "
     "fast-moving domain (research, current state of tech, models, "
     "frameworks) so your decomposition targets what is current today. "
-    "Then summarize the needed structural change. If previous tasks already write to "
+    "Then summarize the needed structural change. When the assessor handoff identifies "
+    "duplicate work, use task_shrink to prune or merge it before adding tasks. "
+    "If previous tasks already write to "
     "the report file, do not create a final 'write report' task — "
     "decompose it as 'review and reorganize the existing deliverable file' instead."
 )
@@ -97,15 +99,17 @@ _TASK_ASSESSOR_UPFRONT_INSTRUCTION = (
     "target current entities, not stale assumptions. You do not execute "
     "tasks or mutate task state. Inspect the whole roadmap and select "
     "unfinished tasks that are complex enough to warrant further "
-    "decomposition. Use read-only assessment and summarize which tasks need "
-    "analysis and why. Be concise and do not repeat upstream context."
+    "decomposition. Identify duplicate or overlapping unfinished work and hand "
+    "off the specific task IDs to prune or merge before any new decomposition. "
+    "Use read-only assessment and summarize which tasks need analysis and why. "
+    "Be concise and do not repeat upstream context."
 )
 _TASK_ASSESSOR_UPFRONT_CONTINUATION = (
     "Based on the whole roadmap above, assess decomposition readiness across "
     "the roadmap. Explore (web_search/fetch_url/read_file/run_shell) to "
     "verify the roadmap targets current reality for research tasks. Summarize "
-    "selected task IDs, reasons, constraints, or that no further upfront "
-    "decomposition is useful."
+    "selected task IDs, duplicate task IDs to prune or merge, reasons, "
+    "constraints, or that no further upfront decomposition is useful."
 )
 _TASK_ASSESSOR_LOCAL_REPLAN_INSTRUCTION = (
     "You are the TaskAssessor for a ResultReviewer-requested local replan. "
