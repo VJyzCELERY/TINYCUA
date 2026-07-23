@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
+from types import SimpleNamespace
+
+from tinycua_sdk.agent.executor import ToolExecutor
+
 from tinycua.loops.task_nodes import (
     _render_active_task_work_order,
     _render_task_tree_markdown,
@@ -55,8 +60,14 @@ def test_task_tools_are_active_task_aware_and_error_safe() -> None:
     for tool in (init, decompose, execute, result_update):
         tool.bind_task_store(store)
 
-    root = init("Root")
-    decompose(root["task_id"], ["First child", "Second child"])
+    root = init("Root", acceptance_clauses=["First child is completed"])
+    decompose(
+        root["task_id"],
+        [
+            {"title": "First child", "clause_ids": ["acceptance-1"]},
+            {"title": "Second child"},
+        ],
+    )
 
     executed = execute()
     assert executed["task_id"] == store.active_task_id
@@ -99,6 +110,26 @@ def test_task_init_retains_explicit_acceptance_clauses() -> None:
         raise AssertionError("approved task without clause evidence")
 
 
+def test_task_init_executor_derives_clause_from_title_when_omitted() -> None:
+    """Title-only SDK calls retain an acceptance clause instead of empty metadata."""
+    store = TaskStateStore()
+    init = TaskInitTool()
+    init.bind_task_store(store)
+
+    result = asyncio.run(
+        ToolExecutor.execute(
+            init,
+            {"title": "Deliver a CLI that exits zero"},
+            SimpleNamespace(tool_permissions={}),
+        )
+    )
+
+    assert result["success"] is True
+    assert store.get_task(result["task_id"]).metadata["acceptance_clauses"] == [
+        {"id": "acceptance-1", "text": "Deliver a CLI that exits zero"}
+    ]
+
+
 def test_task_update_cannot_complete_without_execution_result() -> None:
     """TaskUpdate cannot mark work complete; execution result tool owns that."""
     store = TaskStateStore()
@@ -129,8 +160,16 @@ def test_task_decompose_preserves_all_analyzer_subtasks() -> None:
     for tool in (init, decompose):
         tool.bind_task_store(store)
 
-    root = init("Build app")
-    result = decompose(root["task_id"], ["one", "two", "three", "four"])
+    root = init("Build app", acceptance_clauses=["Build app"])
+    result = decompose(
+        root["task_id"],
+        [
+            {"title": "one", "clause_ids": ["acceptance-1"]},
+            "two",
+            "three",
+            "four",
+        ],
+    )
 
     assert result["success"] is True
     assert len(result["child_task_ids"]) == 4
@@ -155,8 +194,14 @@ def test_task_decompose_does_not_collapse_app_web_ui_to_vertical_slice() -> None
     for tool in (init, decompose):
         tool.bind_task_store(store)
 
-    root = init("Build note taking app with web UI")
-    result = decompose(root["task_id"], ["backend", "frontend", "api"])
+    root = init(
+        "Build note taking app with web UI",
+        acceptance_clauses=["Build note taking app with web UI"],
+    )
+    result = decompose(
+        root["task_id"],
+        [{"title": "backend", "clause_ids": ["acceptance-1"]}, "frontend", "api"],
+    )
 
     assert result["success"] is True
     assert len(result["child_task_ids"]) == 3
@@ -192,22 +237,26 @@ def test_task_update_can_correct_title() -> None:
 def test_task_update_title_rejected_on_completed_task() -> None:
     """Title edits are rejected on completed tasks (immutable history)."""
     store = TaskStateStore()
-    init = TaskInitTool()
     update = TaskUpdateTool()
-    for tool in (init, update):
-        tool.bind_task_store(store)
+    update.bind_task_store(store)
 
-    root = init("Stale title")
+    root = store.create_task("Stale title")
     # Complete via the proven record_result + approve pattern.
-    store.record_result(root["task_id"], TaskResult(content="done", success=True))
-    store.record_reviewer_decision(root["task_id"], "approved")
-    assert store.get_task(root["task_id"]).status.value == "completed"
+    store.record_result(
+        root.task_id,
+        TaskResult(
+            content="done",
+            success=True,
+        ),
+    )
+    store.record_reviewer_decision(root.task_id, "approved")
+    assert store.get_task(root.task_id).status.value == "completed"
 
-    result = update(task_id=root["task_id"], title="new title")
+    result = update(task_id=root.task_id, title="new title")
 
     assert result["success"] is False
     assert "immutable" in result["error"]
-    assert store.get_task(root["task_id"]).title == "Stale title"
+    assert store.get_task(root.task_id).title == "Stale title"
 
 
 def test_task_update_title_propagates_to_roadmap_rendering() -> None:
@@ -242,8 +291,11 @@ def test_task_shrink_cancels_and_supersedes_with_a_rationale() -> None:
     for tool in (init, decompose, shrink):
         tool.bind_task_store(store)
 
-    root = init("Root")
-    children = decompose(root["task_id"], ["Impossible", "Remaining"])["child_task_ids"]
+    root = init("Root", acceptance_clauses=["Remaining work"])
+    children = decompose(
+        root["task_id"],
+        ["Impossible", {"title": "Remaining", "clause_ids": ["acceptance-1"]}],
+    )["child_task_ids"]
     missing_rationale = shrink("cancel", children[0], "")
     cancelled = shrink("cancel", children[0], "source lacks required data")
     superseded = shrink(
