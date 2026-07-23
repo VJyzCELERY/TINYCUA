@@ -266,7 +266,7 @@ async def test_empty_terminal_response_is_not_synthetic_success() -> None:
     """
     loop = TinyCUALoop(queue=NodeQueue(items=[ResponseNode()]))
 
-    result = await loop.run(
+    await loop.run(
         EmptyResponseAgent(),
         messages=[{"role": "user", "content": "do work"}],
         tools=[],
@@ -515,32 +515,39 @@ def test_reviewer_approval_with_nonempty_result_is_valid() -> None:
     assert validation.is_valid is True
 
 
-def test_reviewer_approval_with_empty_result_auto_generates() -> None:
-    """FR-079: Approving a task with no result auto-generates a synthetic result.
-
-    Previously this was invalid and caused the reviewer to loop (approve →
-    status doesn't flip → queue re-dispatches reviewer). Now the approval
-    auto-generates a result and transitions to COMPLETED.
-    """
+def test_reviewer_approval_without_result_is_rejected() -> None:
+    """Approval cannot create synthetic executor evidence."""
     reviewer = TinyCUAResultReviewerNode(
         node_id="result_reviewer",
         config=create_node_config("result_reviewer"),
     )
     loop = TinyCUALoop(queue=NodeQueue(items=[reviewer, ResponseNode()]))
     task = loop.root_session.task_store.create_task("Build app")
-    # No result recorded — task.result is None
-    loop.root_session.task_store.record_reviewer_decision(
-        task.task_id,
-        ReviewerDecision.APPROVED,
-        rationale="looks fine",
+    with pytest.raises(ValueError, match="requires successful executor evidence"):
+        loop.root_session.task_store.record_reviewer_decision(
+            task.task_id,
+            ReviewerDecision.APPROVED,
+            rationale="looks fine",
+        )
+
+    assert task.result is None
+    assert task.status == TaskStatus.IN_PROGRESS
+    assert task.reviewer_decisions == []
+
+
+def test_exhausted_replan_response_allows_failure_summary() -> None:
+    """Only the explicit exhausted-budget route may answer before completion."""
+    loop = TinyCUALoop()
+    loop.root_session.task_store.create_task("unfinished worker task")
+    config = create_node_config("response")
+    config.metadata["replan_budget_exhausted"] = {"task_id": "task", "rationale": "cap"}
+
+    validation = loop._validate_node_result(
+        ResponseNode(config=config),
+        LLMResult(content="The task failed after its replan budget was exhausted."),
     )
 
-    # FR-079: auto-generated result, task transitions to COMPLETED.
-    assert task.result is not None
-    assert task.result.metadata.get("auto_generated") is True
-    assert task.status == TaskStatus.COMPLETED
-    assert len(task.reviewer_decisions) == 1
-    assert task.reviewer_decisions[0]["decision"] == "approved"
+    assert validation.is_valid is True
 
 
 def test_invalid_reviewer_approval_rolls_back_completed_parent() -> None:
