@@ -112,7 +112,8 @@ class TaskInitTool(SessionTaskToolMixin, Tool):
                 "Initialize the worker roadmap with exactly one root task. "
                 "Choose the title and description from the actual user request; "
                 "extract every explicit observable acceptance requirement into "
-                "acceptance_clauses (use an empty list when none are explicit); "
+                "acceptance_clauses; use the request wording when it has no separate "
+                "acceptance statement; "
                 "do not create subtasks with this tool."
             ),
             parameters={
@@ -144,6 +145,20 @@ class TaskInitTool(SessionTaskToolMixin, Tool):
         acceptance_clauses: list[str] | None = None,
     ) -> dict[str, Any]:
         """Initialize a root task tree."""
+        if not isinstance(title, str) or not title.strip():
+            return {"success": False, "error": "Root task title is required."}
+        if not isinstance(description, str):
+            return {"success": False, "error": "Root task description must be a string."}
+        if acceptance_clauses is None or acceptance_clauses == []:
+            acceptance_clauses = [description.strip() or title.strip()]
+        elif not isinstance(acceptance_clauses, list) or any(
+            not isinstance(clause, str) or not clause.strip()
+            for clause in acceptance_clauses
+        ):
+            return {
+                "success": False,
+                "error": "Acceptance clauses must be non-empty strings.",
+            }
         self._store.tasks.clear()
         self._store.root_task_id = None
         self._store.active_task_id = None
