@@ -52,18 +52,35 @@ def test_approved_result_propagates_context_to_next_sibling() -> None:
     assert "backend/app.py" in module.metadata["context"]
 
 
-def test_failed_leaf_remains_active_and_not_done() -> None:
-    """Failed reviewed leaves are retry targets, not completed work."""
+@pytest.mark.parametrize(
+    "result",
+    [
+        None,
+        TaskResult(content="failed", success=False),
+        TaskResult(content="   "),
+        TaskResult(content="generated", metadata={"auto_generated": True}),
+    ],
+)
+def test_approval_without_executor_evidence_leaves_task_in_progress(
+    result: TaskResult | None,
+) -> None:
+    """Invalid approval cannot mutate review, task, parent, or sibling state."""
     store = TaskStateStore()
     root = store.create_task("Root")
     first = store.create_task("First", parent_id=root.task_id)
     second = store.create_task("Second", parent_id=root.task_id)
 
-    store.record_result(first.task_id, TaskResult(content="failed", success=False))
-    store.record_reviewer_decision(first.task_id, ReviewerDecision.APPROVED)
+    if result is not None:
+        store.record_result(first.task_id, result)
+    with pytest.raises(ValueError, match="requires successful executor evidence"):
+        store.record_reviewer_decision(first.task_id, ReviewerDecision.APPROVED)
 
-    assert first.status == TaskStatus.FAILED
+    assert first.status == TaskStatus.IN_PROGRESS
+    assert first.result is result
+    assert first.reviewer_decisions == []
+    assert root.status == TaskStatus.PENDING
     assert second.status == TaskStatus.PENDING
+    assert "context" not in second.metadata
     assert store.active_task_id == first.task_id
     assert store.get_active_task() is first
     assert store.all_done() is False
@@ -75,8 +92,9 @@ def test_failed_leaf_can_be_retried_and_completed() -> None:
     task = store.create_task("Retry me")
 
     store.record_result(task.task_id, TaskResult(content="failed", success=False))
-    store.record_reviewer_decision(task.task_id, ReviewerDecision.APPROVED)
-    assert task.status == TaskStatus.FAILED
+    with pytest.raises(ValueError, match="requires successful executor evidence"):
+        store.record_reviewer_decision(task.task_id, ReviewerDecision.APPROVED)
+    assert task.status == TaskStatus.IN_PROGRESS
 
     store.record_result(task.task_id, TaskResult(content="fixed", success=True))
     store.record_reviewer_decision(task.task_id, ReviewerDecision.APPROVED)
