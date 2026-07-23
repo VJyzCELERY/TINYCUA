@@ -1,0 +1,5 @@
+prompt: |
+  Hello there! Reply exactly: `Hello Reply`
+outcome_group: conversation
+eval_image: busybox:1.36
+eval_command: ["sh", "/eval/run.sh", "/submission"]

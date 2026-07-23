@@ -1,0 +1,4 @@
+prompt: |
+  Read TASK.md in your workdir and complete the task.
+eval_image: python:3.12-alpine
+eval_command: ["sh", "/eval/run.sh", "/submission"]
