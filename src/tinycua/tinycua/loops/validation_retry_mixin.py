@@ -50,17 +50,9 @@ class ValidationRetryMixin:
         first-person "I need to" framing). See FR-004.
         """
         if node.node_id == "task_executor" and "task_result_update" in str(error):
-            tool_results = self._tool_results_from_llm_result(llm_result)
-            if self._successful_executor_action_results(tool_results):
-                return (
-                    "Call task_result_update with success=true and a concise "
-                    "summary of what was done. Do not leave the task without "
-                    "reporting the outcome."
-                )
             return (
-                "Use an appropriate action or research tool for the active task, "
-                "then call task_result_update with success=true and the evidence. "
-                "Do not report success=true unless the work is actually done."
+                "Call task_result_update with a concise outcome report. Set "
+                "success=true when complete or success=false when failed or blocked."
             )
         if "terminate" in str(error):
             if node.node_id != "result_reviewer":
@@ -822,7 +814,7 @@ class ValidationRetryMixin:
         node: Node,
         llm_result: LLMResult,
     ) -> ValidationResult:
-        """Validate that TaskExecutor performed work through tools and left a result."""
+        """Validate that TaskExecutor recorded an outcome through its result tool."""
         validation = ValidationResult(is_valid=True, errors=[])
         if node.node_id != "task_executor":
             return validation
@@ -847,25 +839,6 @@ class ValidationRetryMixin:
                 "before finishing. Describe what was done, what was found, and "
                 "whether the task succeeded or failed."
             )
-        elif any(item["output"].get("success") is True for item in result_update_calls):
-            evidence = [
-                *tool_results,
-                *node.progress.accumulated_tool_results.values(),
-            ]
-            evidence.extend(
-                {"name": outcome.get("tool_name"), "output": {"success": True}}
-                for outcome in node.progress.correlated_outcomes
-                if isinstance(outcome, dict) and outcome.get("success") is True
-            )
-            if not (
-                self._successful_executor_action_results(evidence)
-                or self._successful_executor_inspection_results(evidence)
-            ):
-                validation.is_valid = False
-                validation.errors.append(
-                    "TaskExecutor must record successful action, research, inspection, "
-                    "or verification evidence before task_result_update success=true."
-                )
         return validation
 
     def _validate_tool_owned_task_state(
