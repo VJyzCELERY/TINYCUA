@@ -78,7 +78,7 @@ def test_worker_runtime_failed_task_retries_same_leaf() -> None:
     first = store.create_task("First", parent_id=root.task_id)
     second = store.create_task("Second", parent_id=root.task_id)
     store.record_result(first.task_id, TaskResult(content="failed", success=False))
-    store.record_reviewer_decision(first.task_id, ReviewerDecision.APPROVED)
+    store.transition(first.task_id, TaskStatus.FAILED)
     queue = NodeQueue()
 
     WorkerRuntimeController(store).schedule_after_review(queue)
@@ -86,6 +86,21 @@ def test_worker_runtime_failed_task_retries_same_leaf() -> None:
     assert first.status == TaskStatus.FAILED
     assert second.status == TaskStatus.PENDING
     assert store.active_task_id == first.task_id
+    assert [node.node_id for node in queue.items] == ["task_executor", "result_reviewer"]
+
+
+def test_worker_runtime_skips_cancelled_active_leaf() -> None:
+    """A disposed leaf is never retried; its sibling becomes executable."""
+    store = TaskStateStore()
+    root = store.create_task("Root")
+    impossible = store.create_task("Impossible", parent_id=root.task_id)
+    remaining = store.create_task("Remaining", parent_id=root.task_id)
+    store.cancel_task(impossible.task_id, "source lacks benchmark data")
+    queue = NodeQueue()
+
+    WorkerRuntimeController(store).schedule_next(queue)
+
+    assert store.active_task_id == remaining.task_id
     assert [node.node_id for node in queue.items] == ["task_executor", "result_reviewer"]
 
 

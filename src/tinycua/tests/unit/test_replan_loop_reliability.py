@@ -4,7 +4,7 @@ Covers:
 - FR-049: ``consecutive_failures`` resets when ``schedule_replan`` inserts a
   ``replan_boundary`` entry into ``reviewer_decisions``.
 - FR-050: ``max_replans`` caps replans per task (effort-profiled); at cap the
-  next send-back force-approves instead of queueing another replan.
+  next send-back records failure and queues a terminal response.
 """
 
 from __future__ import annotations
@@ -95,14 +95,14 @@ class TestReplanBoundaryResetsConsecutiveFailures:
 
 
 # ---------------------------------------------------------------------------
-# FR-050 — max_replans cap force-approves at the budget limit
+# FR-050 — max_replans cap records terminal failure
 # ---------------------------------------------------------------------------
 
 
 class TestMaxReplansCap:
-    """At max_replans, the next send-back force-approves instead of replanning."""
+    """At max_replans, the next send-back fails instead of replanning."""
 
-    def test_force_approve_at_cap(self):
+    def test_cap_exhaustion_records_failed_result(self):
         store, child_id = _make_store_with_active_child()
         _reject(store, child_id, 5)
         # Insert 3 replan_boundary entries manually to simulate 3 prior replans.
@@ -117,12 +117,15 @@ class TestMaxReplansCap:
 
         WorkerRuntimeController(store, max_replans=3).schedule_after_review(queue)
 
-        # Should force-approve: the last decision should now be approved.
+        # The task fails without fabricating an approval or success result.
         child = store.get_task(child_id)
-        assert child.reviewer_decisions[-1]["decision"] == "approved"
-        assert "replan budget exhausted" in child.reviewer_decisions[-1]["rationale"].lower()
+        assert child.status == TaskStatus.FAILED
+        assert child.result is not None
+        assert child.result.success is False
+        assert "replan budget exhausted" in child.result.content.lower()
+        assert all(d["decision"] != "approved" for d in child.reviewer_decisions)
 
-    def test_force_approve_schedules_next_not_replan(self):
+    def test_cap_exhaustion_queues_only_failure_response(self):
         store, child_id = _make_store_with_active_child()
         _reject(store, child_id, 5)
         child = store.get_task(child_id)
@@ -136,8 +139,8 @@ class TestMaxReplansCap:
         WorkerRuntimeController(store, max_replans=3).schedule_after_review(queue)
 
         ids = [n.node_id for n in queue.items]
-        # No task_analyzer (no replan). Should schedule next/aggregation.
-        assert "task_analyzer" not in ids
+        assert ids == ["response"]
+        assert queue.items[0].config.metadata["replan_budget_exhausted"]["task_id"] == child_id
 
     def test_below_cap_still_replans(self):
         store, child_id = _make_store_with_active_child()

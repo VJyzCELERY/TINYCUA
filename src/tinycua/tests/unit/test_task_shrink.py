@@ -8,16 +8,14 @@ from tinycua.models.task import TaskResult, TaskStateStore, TaskStatus
 
 
 class TestDeleteTask:
-    """delete_task removes a task and its pending subtree."""
+    """delete_task removes only untouched unfinished leaves."""
 
-    def test_delete_pending_task_removes_subtree(self):
+    def test_delete_pending_leaf_removes_it(self):
         store = TaskStateStore()
         root = store.create_task("Root")
         child = store.create_task("Child", parent_id=root.task_id)
-        grandchild = store.create_task("GC", parent_id=child.task_id)
-        store.delete_task(child.task_id)
+        store.delete_task(child.task_id, rationale="planning duplicate")
         assert child.task_id not in store.tasks
-        assert grandchild.task_id not in store.tasks
         assert child.task_id not in store.tasks[root.task_id].children
 
     def test_delete_completed_task_raises(self):
@@ -27,43 +25,48 @@ class TestDeleteTask:
         store.transition(child.task_id, TaskStatus.IN_PROGRESS)
         store.transition(child.task_id, TaskStatus.COMPLETED)
         with pytest.raises(ValueError, match="immutable"):
-            store.delete_task(child.task_id)
+            store.delete_task(child.task_id, rationale="no longer needed")
+
+    def test_delete_rejects_child_of_completed_parent_without_mutating_tree(self):
+        store = TaskStateStore()
+        root = store.create_task("Root")
+        child = store.create_task("Child", parent_id=root.task_id)
+        store.transition(root.task_id, TaskStatus.IN_PROGRESS)
+        store.transition(root.task_id, TaskStatus.COMPLETED)
+        before = store.snapshot()
+
+        with pytest.raises(ValueError, match="immutable"):
+            store.delete_task(child.task_id, rationale="no longer needed")
+
+        assert store.snapshot() == before
 
     def test_delete_root_raises(self):
         store = TaskStateStore()
         root = store.create_task("Root")
         with pytest.raises(ValueError, match="root"):
-            store.delete_task(root.task_id)
+            store.delete_task(root.task_id, rationale="no longer needed")
 
-    def test_delete_active_task_raises(self):
+    def test_delete_active_leaf_advances_to_next_task(self):
         store = TaskStateStore()
         root = store.create_task("Root")
         child = store.create_task("Child", parent_id=root.task_id)
-        store.transition(child.task_id, TaskStatus.IN_PROGRESS)
-        store.active_task_id = child.task_id
-        with pytest.raises(ValueError, match="active"):
-            store.delete_task(child.task_id)
+        next_child = store.create_task("Next", parent_id=root.task_id)
+        store.delete_task(child.task_id, rationale="duplicate planning leaf")
+        assert child.task_id not in store.tasks
+        assert store.active_task_id == next_child.task_id
 
     def test_delete_not_found_raises(self):
         store = TaskStateStore()
         with pytest.raises(ValueError, match="not found"):
-            store.delete_task("nonexistent")
+            store.delete_task("nonexistent", rationale="no longer needed")
 
-    def test_delete_preserves_completed_children(self):
+    def test_delete_rejects_task_with_descendants(self):
         store = TaskStateStore()
         root = store.create_task("Root")
         child = store.create_task("Child", parent_id=root.task_id)
-        completed_gc = store.create_task("DoneGC", parent_id=child.task_id)
-        store.transition(completed_gc.task_id, TaskStatus.IN_PROGRESS)
-        store.transition(completed_gc.task_id, TaskStatus.COMPLETED)
-        pending_gc = store.create_task("PendingGC", parent_id=child.task_id)
-        store.delete_task(child.task_id)
-        # Completed grandchild is re-parented to root.
-        assert completed_gc.task_id in store.tasks
-        assert store.tasks[completed_gc.task_id].parent_id == root.task_id
-        assert completed_gc.task_id in store.tasks[root.task_id].children
-        # Pending grandchild is removed.
-        assert pending_gc.task_id not in store.tasks
+        store.create_task("GC", parent_id=child.task_id)
+        with pytest.raises(ValueError, match="descendants"):
+            store.delete_task(child.task_id, rationale="no longer needed")
 
     def test_delete_bumps_version(self):
         store = TaskStateStore()
@@ -72,8 +75,25 @@ class TestDeleteTask:
         child2 = store.create_task("C2", parent_id=root.task_id)
         v = store.version
         # child1 is active — delete child2 (not active).
-        store.delete_task(child2.task_id)
+        store.delete_task(child2.task_id, rationale="planning duplicate")
         assert store.version > v
+
+
+class TestSupersedeTask:
+    """supersede_task retains lineage without changing terminal history."""
+
+    def test_supersede_rejects_child_of_completed_parent_without_mutating_tree(self):
+        store = TaskStateStore()
+        root = store.create_task("Root")
+        child = store.create_task("Child", parent_id=root.task_id)
+        store.transition(root.task_id, TaskStatus.IN_PROGRESS)
+        store.transition(root.task_id, TaskStatus.COMPLETED)
+        before = store.snapshot()
+
+        with pytest.raises(ValueError, match="immutable"):
+            store.supersede_task(child.task_id, "Replacement", "new plan")
+
+        assert store.snapshot() == before
 
 
 class TestMergeTasks:
@@ -84,7 +104,7 @@ class TestMergeTasks:
         root = store.create_task("Root")
         child = store.create_task("Child", parent_id=root.task_id)
         store.record_result(child.task_id, TaskResult(content="child work"))
-        store.merge_tasks(child.task_id, root.task_id)
+        store.merge_tasks(child.task_id, root.task_id, rationale="combine work")
         assert child.task_id not in store.tasks
         assert root.result is not None
         assert root.result.content == "child work"
@@ -95,7 +115,7 @@ class TestMergeTasks:
         store.record_result(root.task_id, TaskResult(content="root work"))
         child = store.create_task("Child", parent_id=root.task_id)
         store.record_result(child.task_id, TaskResult(content="child work"))
-        store.merge_tasks(child.task_id, root.task_id)
+        store.merge_tasks(child.task_id, root.task_id, rationale="combine work")
         assert "root work" in root.result.summary
         assert "child work" in root.result.summary
 
@@ -104,7 +124,7 @@ class TestMergeTasks:
         root = store.create_task("Root")
         child = store.create_task("Child", parent_id=root.task_id)
         # Child has no result, parent has no result.
-        store.merge_tasks(child.task_id, root.task_id)
+        store.merge_tasks(child.task_id, root.task_id, rationale="combine work")
         assert child.task_id not in store.tasks
         assert root.result is None
 
@@ -112,7 +132,7 @@ class TestMergeTasks:
         store = TaskStateStore()
         root = store.create_task("Root")
         with pytest.raises(ValueError, match="itself"):
-            store.merge_tasks(root.task_id, root.task_id)
+            store.merge_tasks(root.task_id, root.task_id, rationale="combine work")
 
     def test_merge_completed_raises(self):
         store = TaskStateStore()
@@ -121,14 +141,14 @@ class TestMergeTasks:
         store.transition(child.task_id, TaskStatus.IN_PROGRESS)
         store.transition(child.task_id, TaskStatus.COMPLETED)
         with pytest.raises(ValueError, match="immutable"):
-            store.merge_tasks(child.task_id, root.task_id)
+            store.merge_tasks(child.task_id, root.task_id, rationale="combine work")
 
     def test_merge_removes_child_from_parent_children(self):
         store = TaskStateStore()
         root = store.create_task("Root")
         child1 = store.create_task("C1", parent_id=root.task_id)
         child2 = store.create_task("C2", parent_id=root.task_id)
-        store.merge_tasks(child1.task_id, root.task_id)
+        store.merge_tasks(child1.task_id, root.task_id, rationale="combine work")
         assert child1.task_id not in store.tasks[root.task_id].children
         assert child2.task_id in store.tasks[root.task_id].children
 
@@ -139,8 +159,20 @@ class TestMergeTasks:
         child2 = store.create_task("C2", parent_id=root.task_id)
         v = store.version
         # child1 is active — merge child2 (not active).
-        store.merge_tasks(child2.task_id, root.task_id)
+        store.merge_tasks(child2.task_id, root.task_id, rationale="combine work")
         assert store.version > v
+
+    def test_merge_rejects_non_parent_without_mutating_tree(self):
+        store = TaskStateStore()
+        root = store.create_task("Root")
+        parent = store.create_task("Parent", parent_id=root.task_id)
+        child = store.create_task("Child", parent_id=parent.task_id)
+        before = store.snapshot()
+
+        with pytest.raises(ValueError, match="direct parent"):
+            store.merge_tasks(child.task_id, root.task_id, rationale="combine work")
+
+        assert store.snapshot() == before
 
 
 class TestEffortProfiledThreshold:

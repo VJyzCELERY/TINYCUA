@@ -269,18 +269,6 @@ class TaskUpdateTool(SessionTaskToolMixin, Tool):
         active_id, error = self._resolve_task_ref(task_id)
         if error is not None:
             return error
-        try:
-            task = self._store.get_task(active_id)
-        except ValueError as exc:
-            return {"success": False, "error": str(exc)}
-        if task.status == TaskStatus.COMPLETED:
-            return {
-                "success": False,
-                "error": (
-                    f"Task {active_id} is completed and immutable. "
-                    "Completed tasks cannot be updated."
-                ),
-            }
         if status in {TaskStatus.COMPLETED.value, TaskStatus.FAILED.value}:
             return {
                 "success": False,
@@ -290,13 +278,13 @@ class TaskUpdateTool(SessionTaskToolMixin, Tool):
                 ),
             }
         try:
-            if status is not None:
-                task = self._store.transition(active_id, TaskStatus(status))
-            if title is not None:
-                task.title = title
-            if description is not None:
-                task.description = description
-            task.metadata.update(metadata)
+            task = self._store.update_task(
+                active_id,
+                title=title,
+                description=description,
+                status=status,
+                metadata=metadata,
+            )
         except ValueError as exc:
             return {"success": False, "error": str(exc)}
         return {"success": True, "task_id": task.task_id, "status": task.status.value}
@@ -377,19 +365,23 @@ class TaskShrinkTool(SessionTaskToolMixin, Tool):
             self,
             name="task_shrink",
             description=(
-                "Shrink the task tree by deleting a pending task (and its "
-                "pending subtree) or merging a child into its parent (preserving "
-                "the child's result). Use when the tree is over-decomposed. "
-                "Completed tasks are immutable and cannot be shrunk. "
+                "Repair the task tree by deleting an untouched planning leaf, "
+                "merging a child into its direct parent, cancelling impossible "
+                "work, or superseding it with a replacement. "
                 "task_id may be UUID or roadmap number."
             ),
             parameters={
                 "type": "object",
                 "properties": {
-                    "action": {"type": "string", "enum": ["delete", "merge"]},
+                    "action": {
+                        "type": "string",
+                        "enum": ["delete", "merge", "cancel", "supersede"],
+                    },
                     "task_id": {"type": "string"},
                     "parent_id": {"type": "string"},
                     "rationale": {"type": "string"},
+                    "replacement_title": {"type": "string"},
+                    "replacement_description": {"type": "string"},
                 },
                 "required": ["action", "task_id", "rationale"],
                 "additionalProperties": False,
@@ -402,6 +394,8 @@ class TaskShrinkTool(SessionTaskToolMixin, Tool):
         task_id: str,
         rationale: str,
         parent_id: str | None = None,
+        replacement_title: str | None = None,
+        replacement_description: str = "",
     ) -> dict[str, Any]:
         """Delete or merge a task to shrink the tree.
 
@@ -410,28 +404,45 @@ class TaskShrinkTool(SessionTaskToolMixin, Tool):
             task_id: The task to delete or the child to merge.
             rationale: Why this shrink is needed (for audit trail).
             parent_id: Required for merge — the parent to merge into.
+            replacement_title: Required when superseding a task.
+            replacement_description: Optional context for the replacement task.
         """
         resolved = self._store.resolve_task_id(task_id)
         if resolved is None:
             return {"success": False, "error": f"Task {task_id} not found."}
+        if not rationale.strip():
+            return {"success": False, "error": "rationale is required."}
         try:
             if action == "delete":
-                self._store.delete_task(resolved)
+                self._store.delete_task(resolved, rationale=rationale)
                 logger.info("task_tree_shrink action=delete task_id=%s rationale=%s new_tree_size=%d",
                             resolved, rationale[:100], len(self._store.tasks))
                 return {"success": True, "action": "delete", "task_id": resolved, "rationale": rationale}
-            elif action == "merge":
+            if action == "merge":
                 if parent_id is None:
                     return {"success": False, "error": "parent_id is required for merge."}
                 resolved_parent = self._store.resolve_task_id(parent_id)
                 if resolved_parent is None:
                     return {"success": False, "error": f"Parent {parent_id} not found."}
-                self._store.merge_tasks(resolved, resolved_parent)
+                self._store.merge_tasks(resolved, resolved_parent, rationale=rationale)
                 logger.info("task_tree_shrink action=merge task_id=%s parent_id=%s rationale=%s new_tree_size=%d",
                             resolved, resolved_parent, rationale[:100], len(self._store.tasks))
                 return {"success": True, "action": "merge", "task_id": resolved, "parent_id": resolved_parent, "rationale": rationale}
-            else:
-                return {"success": False, "error": f"Unknown action: {action}. Use 'delete' or 'merge'."}
+            if action == "cancel":
+                task = self._store.cancel_task(resolved, rationale)
+                return {"success": True, "action": "cancel", "task_id": resolved, "status": task.status.value}
+            if action == "supersede":
+                replacement = self._store.supersede_task(
+                    resolved, replacement_title or "", rationale, replacement_description
+                )
+                return {
+                    "success": True,
+                    "action": "supersede",
+                    "task_id": resolved,
+                    "replacement_task_id": replacement.task_id,
+                    "status": TaskStatus.SUPERSEDED.value,
+                }
+            return {"success": False, "error": f"Unknown action: {action}."}
         except ValueError as exc:
             return {"success": False, "error": str(exc)}
 

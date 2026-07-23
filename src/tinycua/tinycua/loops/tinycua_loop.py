@@ -1268,8 +1268,13 @@ class TinyCUALoop(
                 if node.is_terminal:
                     content_parts.append(delta_text)
                     continue
-                content_parts.append(delta_text)
                 _delta_count += 1
+                transcript = self._handle_stream_event(
+                    node,
+                    event,
+                    content_parts,
+                    collected_tool_calls,
+                )
                 # Periodically check for degenerate repetition.
                 if _delta_count % _rep_check_interval == 0:
                     full_content = "".join(content_parts)
@@ -1277,12 +1282,6 @@ class TinyCUALoop(
                         full_content = full_content[-_rep_max_content:]
                     if _detect_repetition(full_content, _rep_min_block, _rep_threshold):
                         break
-                transcript = self._handle_stream_event(
-                    node,
-                    event,
-                    content_parts,
-                    collected_tool_calls,
-                )
                 enriched = self._enrich_and_yield(
                     event,
                     include_meta,

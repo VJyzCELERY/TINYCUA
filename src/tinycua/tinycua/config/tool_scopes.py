@@ -114,9 +114,8 @@ def task_analyzer_tool_scope(
 ) -> NodeToolPolicy:
     """Structural task tools with mode-dependent TaskInit/TaskCreate.
 
-    TaskAnalyzerNode receives task_inspect, task_update, and task_decompose
-    in all modes. TaskInit and TaskCreate are only included in
-    task_recreation mode.
+    TaskAnalyzerNode receives mutation tools in all modes. Reanalysis can add
+    missing local work but cannot recreate the root.
 
     Args:
         mode: One of "task_creation", "task_recreation", or "task_reanalysis".
@@ -127,6 +126,8 @@ def task_analyzer_tool_scope(
     base_tools = [TaskInspectTool(), TaskUpdateTool(), TaskDecomposeTool(), TaskShrinkTool()]
     if mode == "task_recreation":
         base_tools.extend([TaskInitTool(), TaskCreateTool()])
+    elif mode in {"task_reanalysis", "local_replan"}:
+        base_tools.append(TaskCreateTool())
     return NodeToolPolicy(
         node_tools=base_tools,
         include_agent_tools="selected",

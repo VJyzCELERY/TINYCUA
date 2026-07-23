@@ -155,6 +155,33 @@ def test_write_file_binary_content():
         assert Path(filepath).read_bytes() == content.encode("utf-8")
 
 
+def test_file_mutations_preserve_exact_decoded_content():
+    """File mutation tools persist decoded content without reinterpretation."""
+    content = (
+        'python = "\\n"\n'
+        'regex = r"\\t\\w+"\n'
+        'json = "{\\"escape\\": \\\"\\\\u2208\\\"}"\n'
+        'latex = r"\\text{value}"\n'
+        "tab =\tvalue\ncarriage =\rvalue\nunicode = ∈"
+    )
+    with tempfile.TemporaryDirectory() as tmpdir:
+        bind_workspace(tmpdir)
+        from tinycua.agent.tools.native.files import append_file, str_replace, write_file
+
+        write_path = Path(tmpdir, "write.txt")
+        assert write_file(str(write_path), content)["success"] is True
+        assert write_path.read_bytes() == content.encode("utf-8")
+
+        replace_path = Path(tmpdir, "replace.txt")
+        replace_path.write_text("replace me", encoding="utf-8")
+        assert str_replace(str(replace_path), "replace me", content)["success"] is True
+        assert replace_path.read_bytes() == content.encode("utf-8")
+
+        append_path = Path(tmpdir, "append.txt")
+        assert append_file(str(append_path), content)["success"] is True
+        assert append_path.read_bytes() == content.encode("utf-8")
+
+
 # --- str_replace edge cases ---
 
 
@@ -410,72 +437,6 @@ def test_read_file_accepts_string_start_and_offset():
 
         result = read_file(filepath, start="2", offset="2")
         assert result == "two\nthree\n"
-
-
-# --- _normalize_newlines: unescape literal \n/\t/\r from local models ---
-
-
-def test_normalize_newlines_unescapes_literal_backslash_n():
-    """Literal \\n (two chars) without real newlines → real newline."""
-    from tinycua.agent.tools.native.files import _normalize_newlines
-
-    assert _normalize_newlines("hello\\nworld") == "hello\nworld"
-
-
-def test_normalize_newlines_preserves_real_newlines():
-    """Content with real newlines is not changed."""
-    from tinycua.agent.tools.native.files import _normalize_newlines
-
-    assert _normalize_newlines("hello\nworld") == "hello\nworld"
-
-
-def test_normalize_newlines_does_not_mangle_source_code():
-    """Source code with literal \\n string AND real newlines is preserved."""
-    from tinycua.agent.tools.native.files import _normalize_newlines
-
-    src = 'sep = "\\n"\nprint("hi")'
-    assert _normalize_newlines(src) == src
-
-
-def test_normalize_newlines_unescapes_literal_backslash_t():
-    """Literal \\t without real tabs → real tab."""
-    from tinycua.agent.tools.native.files import _normalize_newlines
-
-    assert _normalize_newlines("col1\\tcol2") == "col1\tcol2"
-
-
-# --- str_replace with literal \n from local models ---
-
-
-def test_str_replace_unescapes_literal_newline_in_new_string():
-    """str_replace writes real newlines when model sends literal \\n."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        bind_workspace(tmpdir)
-        filepath = os.path.join(tmpdir, "literal_nl.txt")
-        Path(filepath).write_text("old text\n")
-        from tinycua.agent.tools.native.files import str_replace
-
-        # Model sends \\n as two literal characters in new_string
-        result = str_replace(filepath, old_string="old text", new_string="line 1\\nline 2")
-        assert result["success"] is True
-        content = Path(filepath).read_text()
-        # The literal \\n should have been unescaped to real newlines
-        # Original file was "old text\n", replacing "old text" leaves trailing \n
-        assert content == "line 1\nline 2\n"
-
-
-def test_write_file_unescapes_literal_newline_in_content():
-    """write_file writes real newlines when model sends literal \\n."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        bind_workspace(tmpdir)
-        filepath = os.path.join(tmpdir, "write_literal_nl.txt")
-        from tinycua.agent.tools.native.files import write_file
-
-        # Model sends \\n as two literal characters in content
-        result = write_file(filepath, content="line 1\\nline 2\\n")
-        assert result["success"] is True
-        content = Path(filepath).read_text()
-        assert content == "line 1\nline 2\n"
 
 
 # --- read_file literal \\n warning ---

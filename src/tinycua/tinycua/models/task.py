@@ -19,6 +19,8 @@ class TaskStatus(StrEnum):
     COMPLETED = "completed"
     FAILED = "failed"
     BLOCKED = "blocked"
+    CANCELLED = "cancelled"
+    SUPERSEDED = "superseded"
 
 
 class ReviewerDecision(StrEnum):
@@ -175,11 +177,92 @@ class TaskStateStore:
         TaskStatus.BLOCKED: {TaskStatus.IN_PROGRESS, TaskStatus.FAILED},
         TaskStatus.FAILED: {TaskStatus.PENDING, TaskStatus.IN_PROGRESS},
         TaskStatus.COMPLETED: set(),
+        TaskStatus.CANCELLED: set(),
+        TaskStatus.SUPERSEDED: set(),
+    }
+    _TERMINAL_STATUSES: ClassVar[set[TaskStatus]] = {
+        TaskStatus.COMPLETED,
+        TaskStatus.CANCELLED,
+        TaskStatus.SUPERSEDED,
     }
 
     def _bump_version(self) -> None:
         """Increment the monotonic version (called on every mutation)."""
         self.version += 1
+
+    def validate_tree(self) -> None:  # noqa: C901
+        """Validate the retained task tree before committing a mutation."""
+        if self.root_task_id is None:
+            if self.tasks:
+                msg = "Task tree has tasks but no root."
+                raise ValueError(msg)
+            return
+        if self.root_task_id not in self.tasks:
+            msg = f"Root task not found: {self.root_task_id}"
+            raise ValueError(msg)
+        root = self.tasks[self.root_task_id]
+        if root.parent_id is not None:
+            msg = "Root task cannot have a parent."
+            raise ValueError(msg)
+
+        visited: set[str] = set()
+
+        def visit(task_id: str, ancestors: set[str]) -> None:
+            if task_id in ancestors:
+                msg = f"Task tree contains a cycle at {task_id}."
+                raise ValueError(msg)
+            if task_id in visited:
+                msg = f"Task {task_id} is reachable more than once."
+                raise ValueError(msg)
+            task = self.tasks.get(task_id)
+            if task is None:
+                msg = f"Task link references missing task: {task_id}"
+                raise ValueError(msg)
+            if len(task.children) != len(set(task.children)):
+                msg = f"Task {task_id} has duplicate child links."
+                raise ValueError(msg)
+            visited.add(task_id)
+            for child_id in task.children:
+                child = self.tasks.get(child_id)
+                if child is None:
+                    msg = f"Task link references missing task: {child_id}"
+                    raise ValueError(msg)
+                if child.parent_id != task_id:
+                    msg = f"Task {child_id} does not agree with parent {task_id}."
+                    raise ValueError(msg)
+                visit(child_id, ancestors | {task_id})
+
+        visit(self.root_task_id, set())
+        if visited != set(self.tasks):
+            msg = "Task tree contains unreachable tasks."
+            raise ValueError(msg)
+        for task_id, task in self.tasks.items():
+            if task_id == self.root_task_id:
+                continue
+            if task.parent_id not in self.tasks:
+                msg = f"Task {task_id} has a missing parent."
+                raise ValueError(msg)
+            if self.tasks[task.parent_id].children.count(task_id) != 1:
+                msg = f"Task {task_id} does not have exactly one parent link."
+                raise ValueError(msg)
+
+    def _finalize_mutation(
+        self, action: str, task_id: str | None = None, **event: Any
+    ) -> None:
+        """Publish one validated mutation to readers, caches, and the audit trail."""
+        self.validate_tree()
+        self._ordered_task_ids = None
+        self._render_cache = None
+        self.transition_log.append({"action": action, "task_id": task_id, **event})
+        self._bump_version()
+        self._refresh_active_task()
+        self._log_tree_snapshot(action)
+
+    def _require_mutable(self, task: Task) -> None:
+        """Reject mutations of terminal task history."""
+        if task.status in self._TERMINAL_STATUSES:
+            msg = f"Task {task.task_id} is {task.status.value} and immutable."
+            raise ValueError(msg)
 
     def _log_tree_snapshot(self, method: str) -> None:
         """Log the task tree state after a mutation (FR-075).
@@ -217,8 +300,14 @@ class TaskStateStore:
         description: str = "",
     ) -> Task:
         """Create and store a task."""
+        self.validate_tree()
         if parent_id is not None and parent_id not in self.tasks:
             msg = f"Parent task not found: {parent_id}"
+            raise ValueError(msg)
+        if parent_id is not None:
+            self._require_mutable(self.tasks[parent_id])
+        if self.root_task_id is not None and parent_id is None:
+            msg = "New tasks require an existing parent."
             raise ValueError(msg)
         task = Task(title=title, parent_id=parent_id, description=description)
         self.tasks[task.task_id] = task
@@ -226,99 +315,132 @@ class TaskStateStore:
             self.tasks[parent_id].children.append(task.task_id)
         if self.root_task_id is None:
             self.root_task_id = task.task_id
-        self._ordered_task_ids = None  # structural change: invalidate cache
-        self._bump_version()
-        self._refresh_active_task()
-        if not self._suppress_log:
-            self._log_tree_snapshot("create_task")
+        self._finalize_mutation("create_task", task.task_id)
         return task
 
     def decompose_task(self, task_id: str, subtasks: list[str]) -> list[str]:
-        """Create child tasks only for an undecomposed parent.
-
-        Decomposition is intentionally idempotent. Once a parent owns children,
-        repeated analyzer/replan passes must refine metadata or focus on a local
-        child, not append another copy of the same roadmap.
-        """
+        """Append child tasks below an unfinished parent."""
         task = self.get_task(task_id)
-        if task.children:
+        self.validate_tree()
+        self._require_mutable(task)
+        titles = [title for title in subtasks if title.strip()]
+        if not titles:
             return list(task.children)
-        self._suppress_log = True
-        child_ids = []
-        try:
-            for title in subtasks:
-                if title.strip():
-                    child_ids.append(self.create_task(title, parent_id=task_id).task_id)
-        finally:
-            self._suppress_log = False
-        self._log_tree_snapshot("decompose_task")
-        return child_ids
+        for title in titles:
+            child = Task(title=title, parent_id=task_id)
+            self.tasks[child.task_id] = child
+            task.children.append(child.task_id)
+        self._finalize_mutation("decompose_task", task_id, child_count=len(titles))
+        return list(task.children)
 
-    def _reparent_completed_child(
-        self, child: Task, child_id: str, new_parent_id: str | None
-    ) -> None:
-        """Re-parent a completed child to ``new_parent_id`` (completed tasks are immutable history)."""
-        if new_parent_id and new_parent_id in self.tasks:
-            self.tasks[new_parent_id].children.append(child_id)
-            child.parent_id = new_parent_id
-
-    def delete_task(self, task_id: str) -> None:
-        """Remove a task and its pending subtree, re-linking siblings.
-
-        Completed tasks are immutable history and cannot be deleted. The root
-        task and the active task cannot be deleted (runtime integrity). Only
-        pending or in-progress tasks (and their pending subtrees) can be
-        removed — this lets the TaskAnalyzer correct over-decomposition mid-run.
-
-        Args:
-            task_id: The task to delete.
-
-        Raises:
-            ValueError: If the task is completed, not found, is the root, or
-                is the active task.
-        """
-        if task_id not in self.tasks:
-            msg = f"Task not found: {task_id}"
+    def update_task(
+        self,
+        task_id: str,
+        *,
+        title: str | None = None,
+        description: str | None = None,
+        status: TaskStatus | str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> Task:
+        """Apply validated content edits through the authoritative store."""
+        self.validate_tree()
+        task = self.get_task(task_id)
+        self._require_mutable(task)
+        if title is None and description is None and status is None and not metadata:
+            msg = "Task update requires at least one change."
             raise ValueError(msg)
-        task = self.tasks[task_id]
-        if task.status == TaskStatus.COMPLETED:
-            msg = f"Task {task_id} is completed and immutable."
+        next_status = TaskStatus(status) if status is not None else task.status
+        if next_status in {TaskStatus.CANCELLED, TaskStatus.SUPERSEDED}:
+            msg = "Use cancellation or supersession with a rationale."
             raise ValueError(msg)
+        if next_status != task.status and next_status not in self._ALLOWED_TRANSITIONS[task.status]:
+            msg = f"Invalid task transition {task.status.value}->{next_status.value} for task {task_id}"
+            raise ValueError(msg)
+        task.title = title if title is not None else task.title
+        task.description = description if description is not None else task.description
+        task.status = next_status
+        if metadata:
+            task.metadata.update(metadata)
+        self._finalize_mutation("update_task", task_id)
+        return task
+
+    def cancel_task(self, task_id: str, rationale: str) -> Task:
+        """Retain an impossible unfinished task as terminal history."""
+        self.validate_tree()
+        task = self.get_task(task_id)
+        if task_id == self.root_task_id:
+            msg = "Cannot cancel the root task."
+            raise ValueError(msg)
+        self._require_mutable(task)
+        if not rationale.strip():
+            msg = "Cancellation requires a rationale."
+            raise ValueError(msg)
+        task.status = TaskStatus.CANCELLED
+        task.metadata["cancellation_rationale"] = rationale
+        self._finalize_mutation("cancel_task", task_id, rationale=rationale)
+        return task
+
+    def supersede_task(
+        self, task_id: str, replacement_title: str, rationale: str, description: str = ""
+    ) -> Task:
+        """Replace unfinished work while retaining bidirectional lineage."""
+        self.validate_tree()
+        task = self.get_task(task_id)
+        if task_id == self.root_task_id:
+            msg = "Cannot supersede the root task."
+            raise ValueError(msg)
+        self._require_mutable(task)
+        if not rationale.strip() or not replacement_title.strip():
+            msg = "Supersession requires a rationale and replacement title."
+            raise ValueError(msg)
+        parent = self.tasks[task.parent_id] if task.parent_id else None
+        if parent is None:
+            msg = f"Task {task_id} has no parent."
+            raise ValueError(msg)
+        self._require_mutable(parent)
+        replacement = Task(
+            title=replacement_title,
+            parent_id=parent.task_id,
+            description=description,
+            metadata={"supersedes": task_id, "supersession_rationale": rationale},
+        )
+        task.status = TaskStatus.SUPERSEDED
+        task.metadata["superseded_by"] = replacement.task_id
+        task.metadata["supersession_rationale"] = rationale
+        self.tasks[replacement.task_id] = replacement
+        parent.children.insert(parent.children.index(task_id) + 1, replacement.task_id)
+        self._finalize_mutation(
+            "supersede_task", task_id, replacement_task_id=replacement.task_id, rationale=rationale
+        )
+        return replacement
+
+    def delete_task(self, task_id: str, *, rationale: str) -> None:
+        """Delete an untouched unfinished planning leaf, including the active leaf."""
+        self.validate_tree()
+        task = self.get_task(task_id)
         if task_id == self.root_task_id:
             msg = "Cannot delete the root task."
             raise ValueError(msg)
-        if task_id == self.active_task_id:
-            msg = "Cannot delete the active task."
+        if not rationale.strip():
+            msg = "Deletion requires a rationale."
             raise ValueError(msg)
-        # Remove from parent's children list.
-        if task.parent_id and task.parent_id in self.tasks:
-            parent = self.tasks[task.parent_id]
-            parent.children = [c for c in parent.children if c != task_id]
-        # Recursively delete the subtree (only pending/in-progress — skip
-        # completed children, they're immutable history).
-        to_remove: list[str] = []
+        self._require_mutable(task)
+        if task.status != TaskStatus.PENDING or task.result or task.reviewer_decisions or task.artifacts:
+            msg = f"Task {task_id} is not an untouched unfinished task."
+            raise ValueError(msg)
+        if task.children:
+            msg = "Cannot delete a task with descendants."
+            raise ValueError(msg)
+        parent = self.tasks[task.parent_id] if task.parent_id else None
+        if parent is None:
+            msg = f"Task {task_id} has no parent."
+            raise ValueError(msg)
+        self._require_mutable(parent)
+        parent.children.remove(task_id)
+        del self.tasks[task_id]
+        self._finalize_mutation("delete_task", task_id, rationale=rationale)
 
-        def collect(tid: str) -> None:
-            t = self.tasks.get(tid)
-            if t is None:
-                return
-            for child_id in list(t.children):
-                child = self.tasks.get(child_id)
-                if child and child.status != TaskStatus.COMPLETED:
-                    collect(child_id)
-                elif child_id in self.tasks:
-                    self._reparent_completed_child(child, child_id, task.parent_id)
-            to_remove.append(tid)
-
-        collect(task_id)
-        for tid in to_remove:
-            self.tasks.pop(tid, None)
-        self._ordered_task_ids = None
-        self._bump_version()
-        self._refresh_active_task()
-        self._log_tree_snapshot("delete_task")
-
-    def merge_tasks(self, child_id: str, parent_id: str) -> Task:
+    def merge_tasks(self, child_id: str, parent_id: str, *, rationale: str) -> Task:
         """Collapse a child into its parent, preserving work.
 
         If the child has a result and the parent does not, the child's result
@@ -329,6 +451,7 @@ class TaskStateStore:
         Args:
             child_id: The child task to merge into its parent.
             parent_id: The parent task.
+            rationale: Why the merge is needed for the audit trail.
 
         Returns:
             The updated parent task.
@@ -336,6 +459,7 @@ class TaskStateStore:
         Raises:
             ValueError: If child == parent, either is completed, or not found.
         """
+        self.validate_tree()
         if child_id == parent_id:
             msg = "Cannot merge a task into itself."
             raise ValueError(msg)
@@ -344,8 +468,20 @@ class TaskStateStore:
             raise ValueError(msg)
         child = self.tasks[child_id]
         parent = self.tasks[parent_id]
-        if child.status == TaskStatus.COMPLETED or parent.status == TaskStatus.COMPLETED:
+        if child.parent_id != parent_id:
+            msg = "Merge target must be the task's direct parent."
+            raise ValueError(msg)
+        if not rationale.strip():
+            msg = "Merge requires a rationale."
+            raise ValueError(msg)
+        if child.status in self._TERMINAL_STATUSES or parent.status in self._TERMINAL_STATUSES:
             msg = "Cannot merge — one or both tasks are completed (immutable)."
+            raise ValueError(msg)
+        if any(
+            self.tasks[child_id].status not in self._TERMINAL_STATUSES
+            for child_id in child.children
+        ):
+            msg = "Cannot merge a task with unfinished descendants."
             raise ValueError(msg)
         # Preserve work: child's result → parent's result if parent has none.
         if child.result is not None:
@@ -356,23 +492,12 @@ class TaskStateStore:
                     f"{parent.result.summary}\n\nMerged from {child.title}: "
                     f"{child.result.summary}"
                 )
-        # Move child's completed children to parent (preserve immutable history).
-        for cc_id in list(child.children):
-            cc = self.tasks.get(cc_id)
-            if cc is not None and cc.status == TaskStatus.COMPLETED:
-                parent.children.append(cc_id)
-                cc.parent_id = parent_id
-            elif cc is not None:
-                # Pending child — discard (the merge collapses the subtree).
-                pass
-        # Remove child from parent's children.
-        parent.children = [c for c in parent.children if c != child_id]
-        # Delete the child (and its pending subtree).
+        child_index = parent.children.index(child_id)
+        parent.children[child_index : child_index + 1] = child.children
+        for grandchild_id in child.children:
+            self.tasks[grandchild_id].parent_id = parent_id
         self.tasks.pop(child_id, None)
-        self._ordered_task_ids = None
-        self._bump_version()
-        self._refresh_active_task()
-        self._log_tree_snapshot("merge_tasks")
+        self._finalize_mutation("merge_tasks", child_id, parent_id=parent_id, rationale=rationale)
         return parent
 
     def get_task(self, task_id: str) -> Task:
@@ -450,7 +575,9 @@ class TaskStateStore:
 
     def transition(self, task_id: str, status: TaskStatus | str) -> Task:
         """Transition a task after validating its lifecycle edge."""
+        self.validate_tree()
         task = self.get_task(task_id)
+        self._require_mutable(task)
         next_status = TaskStatus(status)
         allowed = self._ALLOWED_TRANSITIONS[task.status]
         if next_status != task.status and next_status not in allowed:
@@ -461,28 +588,30 @@ class TaskStateStore:
             raise ValueError(msg)
         previous = task.status
         task.status = next_status
-        self.transition_log.append(
-            {
-                "task_id": task_id,
-                "from": previous.value,
-                "to": next_status.value,
-            }
+        self._finalize_mutation(
+            "transition", task_id, **{"from": previous.value, "to": next_status.value}
         )
-        self._bump_version()
-        self._refresh_active_task()
-        self._log_tree_snapshot("transition")
         return task
 
     def record_result(self, task_id: str, result: TaskResult) -> Task:
         """Persist task execution output without completing review state."""
         task = self.get_task(task_id)
+        self._require_mutable(task)
         if task.status in {TaskStatus.PENDING, TaskStatus.FAILED}:
             self.transition(task_id, TaskStatus.IN_PROGRESS)
         task.result = result
-        self._bump_version()
-        self._refresh_active_task()
-        self._log_tree_snapshot("record_result")
+        self._finalize_mutation("record_result", task_id)
         return task
+
+    @staticmethod
+    def _has_approval_evidence(result: TaskResult | None) -> bool:
+        """Return whether an executor result can support approval."""
+        return bool(
+            result
+            and result.success
+            and result.content.strip()
+            and not result.metadata.get("auto_generated")
+        )
 
     def record_reviewer_decision(
         self,
@@ -494,7 +623,16 @@ class TaskStateStore:
     ) -> Task:
         """Append a reviewer decision to a task audit trail."""
         task = self.get_task(task_id)
+        self._require_mutable(task)
         reviewer_decision = ReviewerDecision(decision)
+        if (
+            reviewer_decision == ReviewerDecision.APPROVED
+            and not self._has_approval_evidence(task.result)
+        ):
+            if task.status == TaskStatus.PENDING:
+                self.transition(task_id, TaskStatus.IN_PROGRESS)
+            msg = "Approval requires successful executor evidence with non-empty content."
+            raise ValueError(msg)
         task.reviewer_decisions.append(
             {
                 "decision": reviewer_decision.value,
@@ -512,46 +650,14 @@ class TaskStateStore:
             self.active_task_id = task.task_id
             self._bump_version()
         elif reviewer_decision == ReviewerDecision.APPROVED:
-            # FR-079: auto-generate a synthetic result when APPROVED and no
-            # result exists — for BOTH parent and leaf tasks. Previously only
-            # parent tasks with completed children got the fallback; leaf
-            # tasks with no result stayed pending, causing the reviewer to
-            # loop (approve → status doesn't flip → queue re-dispatches
-            # reviewer → approve again → same loop).
-            if task.result is None:
-                if task.children:
-                    all_children_done = all(
-                        self.tasks[cid].status == TaskStatus.COMPLETED
-                        for cid in task.children
-                        if cid in self.tasks
-                    )
-                    if all_children_done:
-                        task.result = TaskResult(
-                            content="All child tasks completed — parent goal achieved.",
-                            success=True,
-                            metadata={"aggregated": True},
-                        )
-                if task.result is None:
-                    task.result = TaskResult(
-                        content="Approved by reviewer (no executor result recorded).",
-                        success=True,
-                        metadata={"auto_generated": True},
-                    )
-            if task.result is not None:
-                target = TaskStatus.COMPLETED if task.result.success else TaskStatus.FAILED
-                if task.status != target:
-                    # Parent tasks may be IN_PROGRESS (from _complete_ready_parents)
-                    # or PENDING. IN_PROGRESS→COMPLETED is allowed; PENDING is not.
-                    if task.status == TaskStatus.PENDING:
-                        task.status = TaskStatus.IN_PROGRESS
-                        self._bump_version()
-                    if task.status != target:
-                        self.transition(task_id, target)  # transition bumps version
-                self._complete_ready_parents()
-                self._propagate_result_to_next_sibling(task)
-                self._refresh_active_task()
-                self._bump_version()
-        self._log_tree_snapshot("record_reviewer_decision")
+            if task.status == TaskStatus.PENDING:
+                self.transition(task_id, TaskStatus.IN_PROGRESS)
+            self.transition(task_id, TaskStatus.COMPLETED)
+            self._complete_ready_parents()
+            self._propagate_result_to_next_sibling(task)
+            self._refresh_active_task()
+            self._bump_version()
+        self._finalize_mutation("record_reviewer_decision", task_id)
         return task
 
     def next_unfinished_leaf(self) -> Task | None:
@@ -572,19 +678,19 @@ class TaskStateStore:
                     found = visit(child_id)
                     if found is not None:
                         return found
-                if task.status != TaskStatus.COMPLETED:
+                if task.status not in self._TERMINAL_STATUSES:
                     return task
                 return None
-            if task.status != TaskStatus.COMPLETED:
+            if task.status not in self._TERMINAL_STATUSES:
                 return task
             return None
 
         return visit(self.root_task_id)
 
     def all_done(self) -> bool:
-        """Return True only when every task is actually completed."""
+        """Return True when no retained task remains executable."""
         return bool(self.tasks) and all(
-            task.status == TaskStatus.COMPLETED for task in self.tasks.values()
+            task.status in self._TERMINAL_STATUSES for task in self.tasks.values()
         )
 
     def snapshot(self) -> dict[str, Any]:
@@ -684,15 +790,20 @@ class TaskStateStore:
         reviews it, and THEN the parent completes via record_reviewer_decision.
 
         This method only transitions PENDING parents to IN_PROGRESS so they
-        become the active task and get scheduled for execution. The synthetic
-        result + completion happens in record_reviewer_decision when the
-        reviewer approves the executor's verification report.
+        become the active task and get scheduled for execution.
         """
         for task in self.tasks.values():
-            if not task.children or task.status == TaskStatus.COMPLETED:
+            if not task.children or task.status in self._TERMINAL_STATUSES:
                 continue
             children = [self.tasks[child_id] for child_id in task.children]
-            if all(child.status == TaskStatus.COMPLETED for child in children):
+            if all(
+                child.status in {TaskStatus.CANCELLED, TaskStatus.SUPERSEDED}
+                or (
+                    child.status == TaskStatus.COMPLETED
+                    and self._has_approval_evidence(child.result)
+                )
+                for child in children
+            ):
                 if task.status == TaskStatus.PENDING:
                     task.status = TaskStatus.IN_PROGRESS
                     self._bump_version()
@@ -707,7 +818,7 @@ class TaskStateStore:
         """
         if task.parent_id is None or task.parent_id not in self.tasks:
             return
-        if task.result is None:
+        if not self._has_approval_evidence(task.result):
             return
         parent = self.tasks[task.parent_id]
         # Find the next pending sibling (in children order, after this task).

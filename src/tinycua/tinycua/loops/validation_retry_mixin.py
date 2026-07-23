@@ -660,7 +660,11 @@ class ValidationRetryMixin:
         if node_id == "task_create":
             return "task_init" in successful
         if node_id == "task_analyzer":
-            return bool(successful.intersection({"task_decompose", "task_update"}))
+            return bool(
+                successful.intersection(
+                    {"task_create", "task_decompose", "task_shrink", "task_update"}
+                )
+            )
         if node_id == "task_assessor":
             return "node_handoff" in successful
         if node_id == "task_executor":
@@ -790,6 +794,7 @@ class ValidationRetryMixin:
         if (
             store.root_task_id is not None
             and not store.all_done()
+            and not node.config.metadata.get("replan_budget_exhausted")
         ):
             validation.is_valid = False
             validation.errors.append(
@@ -1291,6 +1296,8 @@ class ValidationRetryMixin:
             "task_result_update": "Call task_result_update with a concise summary of what you did and whether it succeeded.",
             "task_review_decision": "Call task_review_decision with your decision (approved, needs_revision, rejected, or replan).",
             "task_decompose": "Call task_decompose with the task_id and concrete subtasks.",
+            "task_create": "Call task_create with a parent_id and missing task title.",
+            "task_shrink": "Call task_shrink with a safe action and rationale.",
             "task_update": "Call task_update with the task_id and updated description.",
             "node_handoff": "Call node_handoff with your assessment instructions for the TaskAnalyzer.",
             "task_init": "Call task_init with a root task title derived from the request.",
@@ -1471,4 +1478,3 @@ class ValidationRetryMixin:
             f"artifacts ({', '.join(artifact_paths)}); consider verifying before "
             "final aggregation.",
         )
-

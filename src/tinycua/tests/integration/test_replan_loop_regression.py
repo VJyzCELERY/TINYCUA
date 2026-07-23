@@ -2,7 +2,7 @@
 
 Simulates the full replan loop cycle that experiment-2 exhibited: a task
 that the reviewer keeps sending back. Verifies the loop is bounded by
-``max_replans`` and force-approves at the cap instead of looping forever.
+``max_replans`` and records failure at the cap instead of looping forever.
 
 This is a focused integration test on ``WorkerRuntimeController`` — it does
 not run the full TinyCUALoop with an LLM (that would require a live model).
@@ -24,7 +24,7 @@ def _simulate_replan_cycle(
     ctrl: WorkerRuntimeController,
     max_cycles: int = 50,
 ) -> tuple[int, int, str]:
-    """Simulate the reject→replan→reject loop until force-approve or max_cycles.
+    """Simulate the reject→replan→reject loop until failure or max_cycles.
 
     Returns (executor_runs, replan_count, final_decision).
     """
@@ -34,9 +34,9 @@ def _simulate_replan_cycle(
         cycles += 1
         task = store.get_task(task_id)
         if task is None or task.status in (TaskStatus.COMPLETED, TaskStatus.FAILED):
-            # Task already terminated — return the final decision.
+            # Task already terminated — return its final status.
             decisions = task.reviewer_decisions if task else []
-            final = decisions[-1]["decision"] if decisions else "completed"
+            final = task.status.value if task else "completed"
             return executor_runs, sum(
                 1 for d in decisions if d.get("decision") == "replan_boundary"
             ), final
@@ -46,11 +46,11 @@ def _simulate_replan_cycle(
         ctrl.schedule_after_review(queue)
         ids = [n.node_id for n in queue.items]
 
-        # Check if the task was force-approved (status changed to COMPLETED).
+        # Check if the task exhausted its budget and failed.
         task = store.get_task(task_id)
-        if task is not None and task.status == TaskStatus.COMPLETED:
+        if task is not None and task.status == TaskStatus.FAILED:
             decisions = task.reviewer_decisions
-            final = decisions[-1]["decision"] if decisions else "approved"
+            final = task.status.value
             return executor_runs, sum(
                 1 for d in decisions if d.get("decision") == "replan_boundary"
             ), final
@@ -75,7 +75,7 @@ class TestReplanLoopBounded:
     """The replan loop is bounded by max_replans (FR-049/050)."""
 
     def test_loop_terminates_within_max_replans_plus_one(self):
-        """With max_replans=3, the loop force-approves (not loops forever)."""
+        """With max_replans=3, the loop fails honestly (not loops forever)."""
         store = TaskStateStore()
         root = store.create_task("Root")
         child = store.create_task("Child", parent_id=root.task_id)
@@ -92,8 +92,7 @@ class TestReplanLoopBounded:
             f"Loop did not terminate: {executor_runs} executor runs, "
             f"final={final_decision}"
         )
-        # FR-050: force-approve at cap.
-        assert final_decision == "approved", f"Expected force-approve, got {final_decision}"
+        assert final_decision == "failed", f"Expected failure, got {final_decision}"
         # The loop is bounded: replan_count <= max_replans (3).
         # Executor runs are bounded by max_replans × (threshold + 1) = 3 × 6 = 18.
         # The key assertion is replan_count <= max_replans (the loop is capped).
@@ -101,7 +100,7 @@ class TestReplanLoopBounded:
         assert executor_runs <= 18, f"Too many executor runs: {executor_runs}"
 
     def test_loop_with_high_effort_allows_more_replans(self):
-        """max_replans=6 (high effort) allows more replans before force-approve."""
+        """max_replans=6 (high effort) allows more replans before failure."""
         store = TaskStateStore()
         root = store.create_task("Root")
         child = store.create_task("Child", parent_id=root.task_id)
@@ -113,13 +112,13 @@ class TestReplanLoopBounded:
             store, child.task_id, ctrl
         )
 
-        assert final_decision == "approved"
+        assert final_decision == "failed"
         assert replan_count <= 6
         # More replans allowed than the medium=3 case.
         assert replan_count > 3, f"High effort should allow >3 replans, got {replan_count}"
 
-    def test_loop_with_zero_max_replans_force_approves_immediately(self):
-        """max_replans=0 (none effort) force-approves on the first threshold crossing."""
+    def test_loop_with_zero_max_replans_fails_immediately(self):
+        """max_replans=0 (none effort) fails on the first threshold crossing."""
         store = TaskStateStore()
         root = store.create_task("Root")
         child = store.create_task("Child", parent_id=root.task_id)
@@ -132,14 +131,14 @@ class TestReplanLoopBounded:
         )
 
         # With max_replans=0, the first threshold crossing (5 rejections)
-        # should force-approve immediately — no replans, no extra executor runs.
-        assert final_decision == "approved"
+        # should fail immediately — no replans, no extra executor runs.
+        assert final_decision == "failed"
         assert replan_count == 0
         # Only the initial result; no executor re-runs from replans.
         assert executor_runs == 0
 
-    def test_force_approve_rationale_records_budget(self):
-        """The force-approve rationale records the effort + cap for observability."""
+    def test_failure_rationale_records_budget(self):
+        """The exhaustion failure records effort and cap for observability."""
         store = TaskStateStore()
         root = store.create_task("Root")
         child = store.create_task("Child", parent_id=root.task_id)
@@ -151,10 +150,27 @@ class TestReplanLoopBounded:
             store, child.task_id, ctrl
         )
 
-        assert final_decision == "approved"
+        assert final_decision == "failed"
         task = store.get_task(child.task_id)
-        approve_entry = next(
-            d for d in reversed(task.reviewer_decisions) if d["decision"] == "approved"
-        )
-        assert "replan budget exhausted" in approve_entry["rationale"].lower()
-        assert "cap=2" in approve_entry["rationale"]
+        assert task.result is not None
+        assert "replan budget exhausted" in task.result.content.lower()
+        assert "cap=2" in task.result.content
+
+
+def test_impossible_leaf_is_disposed_once_and_never_dispatched_again() -> None:
+    """Experiment 2-shaped replan advances after impossible evidence."""
+    store = TaskStateStore()
+    root = store.create_task("Write report")
+    impossible = store.create_task("Fetch missing benchmark", parent_id=root.task_id)
+    remaining = store.create_task("Write report from available evidence", parent_id=root.task_id)
+    dispatched: list[str] = []
+
+    store.cancel_task(impossible.task_id, "selected source contains no benchmark data")
+    controller = WorkerRuntimeController(store)
+    queue = NodeQueue()
+    controller.schedule_next(queue)
+    dispatched.append(store.active_task_id or "")
+
+    assert impossible.status == TaskStatus.CANCELLED
+    assert remaining.task_id in dispatched
+    assert impossible.task_id not in dispatched
