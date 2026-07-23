@@ -174,7 +174,14 @@ def _succeeded_mutation(message: dict) -> bool:
         result = json.loads(str(message.get("content", "")))
     except (TypeError, ValueError):
         return True
-    return not isinstance(result, dict) or result.get("success") is not False
+    if not isinstance(result, dict):
+        return True
+    if result.get("allowed") is False:
+        return False
+    output = result.get("output", result)
+    return not isinstance(output, dict) or (
+        output.get("success") is not False and not output.get("error")
+    )
 
 
 def evict_superseded_file_reads(tool_messages: list[dict]) -> list[dict]:
