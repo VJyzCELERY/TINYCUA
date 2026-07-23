@@ -631,11 +631,16 @@ class TinyCUALoop(
         """Execute allowed tool calls against the active session state."""
         allowed_tools = {tool.name: tool for tool in resolved_tools}
         results: list[dict[str, Any]] = []
+        terminate_seen = False
         for tool_call in tool_calls:
             function = tool_call.get("function") or {}
             name = function.get("name") or tool_call.get("name")
             if not name:
                 continue
+            if name == "terminate":
+                if terminate_seen:
+                    continue
+                terminate_seen = True
             call_id = str(tool_call.get("id") or "")
 
             def record(result: dict[str, Any]) -> None:
