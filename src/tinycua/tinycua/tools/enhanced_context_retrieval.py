@@ -28,10 +28,19 @@ class EnhancedContextRetrievalTool(Tool):
         super().__init__(name="enhanced_context_retrieval")
         self._cache: dict[str, Any] = {}
         self._workspace_dir: Path | None = None
+        self._session_id = ""
+        self._session_context: list[dict[str, Any]] | None = None
 
     def bind_workspace(self, workspace_dir: str | Path | None) -> None:
         """Bind cache-file storage to a session workspace."""
         self._workspace_dir = Path(workspace_dir).resolve() if workspace_dir else None
+
+    def bind_session_context(
+        self, session_id: str, session_context: list[dict[str, Any]]
+    ) -> None:
+        """Bind retrieval to the authoritative root session context."""
+        self._session_id = session_id
+        self._session_context = list(session_context)
 
     def _get_cache_key(self, session_context: list[dict[str, Any]]) -> str:
         """Generate a deterministic cache key from session context.
@@ -42,7 +51,11 @@ class EnhancedContextRetrievalTool(Tool):
         Returns:
             A hex digest string for use as cache key.
         """
-        context_str = json.dumps(session_context, sort_keys=True, default=str)
+        context_str = json.dumps(
+            {"session_id": self._session_id, "context": session_context},
+            sort_keys=True,
+            default=str,
+        )
         return hashlib.sha256(context_str.encode()).hexdigest()[:16]
 
     def _ensure_cache(self, session_context: list[dict[str, Any]]) -> dict[str, Any]:
@@ -76,7 +89,7 @@ class EnhancedContextRetrievalTool(Tool):
         """Persist selected context to a scoped cache file when possible."""
         if self._workspace_dir is None:
             return None
-        cache_dir = self._workspace_dir / ".tinycua_context_cache"
+        cache_dir = self._workspace_dir / ".tinycua_context_cache" / (self._session_id or "unbound")
         cache_dir.mkdir(parents=True, exist_ok=True)
         cache_path = cache_dir / f"{cache_key}.json"
         cache_path.write_text(
@@ -105,7 +118,9 @@ class EnhancedContextRetrievalTool(Tool):
         Returns:
             A dict with retrieval results from cache or fresh search.
         """
-        if session_context is None:
+        if self._session_context is not None:
+            session_context = self._session_context
+        elif session_context is None:
             session_context = []
 
         cache = self._ensure_cache(session_context)
@@ -137,6 +152,7 @@ class EnhancedContextRetrievalTool(Tool):
         return {
             "source": source,
             "cache_path": cache.get("cache_path"),
+            "source_session_id": self._session_id or None,
             "results": results[start:end],
             "page": {
                 "page": safe_page,

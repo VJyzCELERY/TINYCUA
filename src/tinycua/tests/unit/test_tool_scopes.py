@@ -436,6 +436,24 @@ class TestEnhancedContextRetrievalCache:
         assert result1 is not None
         assert result2 is not None
 
+    def test_bound_root_session_overrides_caller_context(self, tmp_path) -> None:
+        """Retrieval scopes cache and search to the authoritative root session."""
+        tool = EnhancedContextRetrievalTool()
+        tool.bind_workspace(tmp_path)
+        tool.bind_session_context(
+            "root-session",
+            [{"role": "user", "content": "authoritative evidence"}],
+        )
+
+        result = tool(
+            session_context=[{"role": "user", "content": "caller supplied"}],
+            query="authoritative",
+        )
+
+        assert result["source_session_id"] == "root-session"
+        assert result["results"][0]["snippet"] == "authoritative evidence"
+        assert "root-session" in result["cache_path"]
+
 
 class TestDigestInformationOutput:
     """Test digest_information output format."""

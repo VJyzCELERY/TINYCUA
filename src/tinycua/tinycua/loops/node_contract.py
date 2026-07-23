@@ -29,6 +29,15 @@ class NodeState(StrEnum):
     FAILED = "failed"
 
 
+class LifecyclePhase(StrEnum):
+    """Focused tool exposure phases for lifecycle nodes."""
+
+    ACTION = "action"
+    SUMMARY = "summary"
+    COMMIT = "commit"
+    TERMINATE = "terminate"
+
+
 @dataclass
 class NodeProgress:
     """Per-node runtime tracking. Lives on ``session.node_progress[node_id]``.
@@ -57,6 +66,10 @@ class NodeProgress:
     recovery_fingerprint: str = ""
     recovery_escalations: list[dict[str, Any]] = None  # type: ignore[assignment]
     recovery_last_error: str = ""
+    lifecycle_phase: LifecyclePhase = LifecyclePhase.ACTION
+    action_summary: str = ""
+    lifecycle_history: list[dict[str, str]] = None  # type: ignore[assignment]
+    correlated_outcomes: list[dict[str, Any]] = None  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
         """Initialize mutable default fields (dataclass mutable-default safe)."""
@@ -74,6 +87,17 @@ class NodeProgress:
             self.recovery_attempts = {}
         if self.recovery_escalations is None:
             self.recovery_escalations = []
+        if self.lifecycle_history is None:
+            self.lifecycle_history = []
+        if self.correlated_outcomes is None:
+            self.correlated_outcomes = []
+
+    def advance_lifecycle(self, phase: LifecyclePhase, summary: str = "") -> None:
+        """Record a phase transition and retain the bounded action summary."""
+        if summary:
+            self.action_summary = summary[:8_000]
+        self.lifecycle_phase = phase
+        self.lifecycle_history.append({"phase": phase.value, "summary": summary[:8_000]})
 
     def transition(self, to: NodeState, reason: str = "") -> None:
         """Transition to a new phase, recording the transition in history.
@@ -116,6 +140,10 @@ class NodeProgress:
         self.recovery_fingerprint = ""
         self.recovery_escalations.clear()
         self.recovery_last_error = ""
+        self.lifecycle_phase = LifecyclePhase.ACTION
+        self.action_summary = ""
+        self.lifecycle_history.clear()
+        self.correlated_outcomes.clear()
 
 
 @dataclass(frozen=True)
@@ -343,6 +371,25 @@ def get_node_contract(node_id: str) -> NodeContract:
             requires_terminate=False,
         ),
     )
+
+
+def phase_tool_names(
+    node_id: str,
+    tool_names: set[str],
+    phase: LifecyclePhase,
+) -> set[str]:
+    """Return the contract-derived existing tools exposed in one lifecycle phase."""
+    contract = get_node_contract(node_id)
+    commit_tools = set(contract.required_tools)
+    for group in contract.any_of_tools:
+        commit_tools.update(group)
+    if phase == LifecyclePhase.ACTION:
+        return tool_names - commit_tools - {"terminate"}
+    if phase == LifecyclePhase.COMMIT:
+        return tool_names & commit_tools
+    if phase == LifecyclePhase.TERMINATE:
+        return tool_names & {"terminate"}
+    return set()
 
 
 def terminated_node_ids() -> frozenset[str]:
