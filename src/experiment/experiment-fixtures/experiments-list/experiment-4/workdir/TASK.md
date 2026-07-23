@@ -4,6 +4,10 @@
 
 Build a Python-backed web app with SQLite in the root `app.py` entrypoint.
 
+For browser verification, use your harness browser tool or run
+`sh .agent_scripts/browser.sh --url http://127.0.0.1:8765/`. Use selector
+`--click` by default; `--click-at X Y` is available for Canvas or SVG.
+
 If web search is useful, use your harness's web-search tool, run
 `sh .agent_scripts/search.sh "query"`, or query the SearXNG API directly with curl.
 

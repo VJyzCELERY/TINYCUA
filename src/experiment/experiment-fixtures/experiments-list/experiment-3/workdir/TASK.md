@@ -4,6 +4,10 @@
 
 Create a single self-contained file named `clock.html`.
 
+For browser verification, use your harness browser tool or run
+`sh .agent_scripts/browser.sh --url file:///workspace/clock.html`. Use selector
+`--click` by default; `--click-at X Y` is available for Canvas or SVG.
+
 If web search is useful, use your harness's web-search tool, run
 `sh .agent_scripts/search.sh "query"`, or query the SearXNG API directly with curl.
 

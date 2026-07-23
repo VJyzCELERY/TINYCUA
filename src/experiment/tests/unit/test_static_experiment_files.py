@@ -101,7 +101,7 @@ def test_harnesses_receive_searxng_config() -> None:
 
 
 def test_browser_fixtures_share_one_evaluator_image_and_toolset() -> None:
-    """Clock and web-app candidates use one identical browser evaluator image."""
+    """Clock and web-app candidates share browser evaluation and agent tools."""
     fixtures = ROOT / "experiment-fixtures" / "experiments-list"
     experiment_3 = fixtures / "experiment-3"
     experiment_4 = fixtures / "experiment-4"
@@ -113,6 +113,18 @@ def test_browser_fixtures_share_one_evaluator_image_and_toolset() -> None:
     assert (experiment_3 / "eval" / "Dockerfile").read_bytes() == (
         experiment_4 / "eval" / "Dockerfile"
     ).read_bytes()
+    assert (experiment_3 / "docker" / "Dockerfile").read_bytes() == (
+        experiment_4 / "docker" / "Dockerfile"
+    ).read_bytes()
+    for fixture in (experiment_3, experiment_4):
+        workdir = fixture / "workdir"
+        task = workdir / "TASK.md"
+        browser = workdir / ".agent_scripts" / "browser.py"
+        assert (workdir / ".agent_scripts" / "browser.sh").is_file()
+        assert browser.is_file()
+        assert "--click" in browser.read_text()
+        assert "--click-at" in browser.read_text()
+        assert "browser.sh" in task.read_text()
 
 
 def test_research_fixtures_report_bleu_and_rouge_metrics() -> None:
