@@ -262,7 +262,10 @@ class _RouteMatrixScript:
                     {
                         "function": {
                             "name": "task_review_decision",
-                            "arguments": f'{{"decision":"approved","task_id":"{task_id}"}}',
+                            "arguments": (
+                                f'{{"decision":"approved","task_id":"{task_id}",'
+                                '"rationale":"[validated]: scripted evidence"}'
+                            ),
                         }
                     },
                     {

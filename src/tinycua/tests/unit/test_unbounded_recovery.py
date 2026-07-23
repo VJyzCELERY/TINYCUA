@@ -11,12 +11,13 @@ Covers:
 from __future__ import annotations
 
 import json
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from tinycua.config.node_config import create_node_config
 from tinycua.config.types import LLMResult, ValidationResult
+from tinycua.loops.node import NodeExecutionError
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.recovery_stages_mixin import RecoveryStagesMixin
 from tinycua.loops.task_create import TinyCUATaskCreateNode
@@ -135,19 +136,17 @@ class TestUnboundedRecovery:
         assert validation.is_valid
 
     @pytest.mark.asyncio
-    async def test_recovery_logs_state_on_cycle_failure(self) -> None:
-        """The recovery loop logs system state and signals re-entry after budget exhaustion.
-
-        FR-060: the loop is no longer truly unbounded — it has a per-method
-        budget (15/10/3 = 30 total). When all budgets are exhausted, it returns
-        None to signal node re-entry. This test verifies the re-entry signal.
-        """
+    async def test_recovery_logs_state_and_fails_after_budget_exhaustion(self) -> None:
+        """Repeated malformed output fails instead of re-entering forever."""
         loop = TinyCUALoop()
         node = TinyCUATaskCreateNode(
             node_id="task_create",
             config=create_node_config("task_create"),
         )
         node.ensure_session(loop.root_session)
+        loop._structured_output_retry = AsyncMock(return_value=None)
+        loop._recovery_retry = AsyncMock(return_value=None)
+        loop._judge_retry = AsyncMock(return_value=None)
 
         agent = MagicMock()
         agent.tool_permissions = {}
@@ -159,19 +158,18 @@ class TestUnboundedRecovery:
 
         agent._call_llm = mock_llm
 
-        # FR-060: after 30 cycles (15+10+3), the loop returns None (re-entry).
-        result = await loop._unbounded_recovery(
-            node,
-            agent,
-            [],
-            LLMResult(content="fails"),
-            ValidationResult(
-                is_valid=False,
-                errors=["task_create must call task_init"],
-            ),
-        )
-        assert result is None  # re-entry signal
-        assert loop._recovery_reentry is True
+        with pytest.raises(NodeExecutionError, match="task_create must call task_init"):
+            await loop._unbounded_recovery(
+                node,
+                agent,
+                [],
+                LLMResult(content="fails"),
+                ValidationResult(
+                    is_valid=False,
+                    errors=["task_create must call task_init"],
+                ),
+            )
+        assert loop._recovery_reentry is False
 
 
 class TestOnCompleteFiresAfterRecovery:

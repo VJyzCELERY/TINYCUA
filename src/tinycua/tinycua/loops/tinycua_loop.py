@@ -14,37 +14,38 @@ from typing import TYPE_CHECKING, Any
 from tinycua_sdk.agent.executor import ToolExecutor
 from tinycua_sdk.agent.loop import BaseLoop
 
+from tinycua.agent.tools.native.output_persist import (
+    enforce_turn_budget,
+    evict_superseded_file_reads,
+    persist_if_oversized,
+)
 from tinycua.config.types import LLMResult, ValidationResult
 from tinycua.loops._loop_constants import (
     _MAX_PROVIDER_RETRIES,
     _MAX_TOOL_CONTINUATIONS,
 )
 from tinycua.loops.context_rendering import render_llm_content, sanitize_internal_reprs
+from tinycua.loops.lazy_retry_mixin import LazyRetryMixin
 from tinycua.loops.node_contract import NodeState
 from tinycua.loops.node_queue import NodeQueue
-from tinycua.models.node_handoff import NodeHandoff
-from tinycua.models.session_context_entry import entry_content
-from tinycua.agent.tools.native.output_persist import (
-    enforce_turn_budget,
-    evict_superseded_file_reads,
-    persist_if_oversized,
-)
 from tinycua.loops.orchestration_mixin import OrchestrationMixin
 from tinycua.loops.prompt_protocol_mixin import PromptProtocolMixin
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
+from tinycua.loops.recovery_stages_mixin import RecoveryGuardMixin, RecoveryStagesMixin
 from tinycua.loops.task_tree_rendering import render_task_tree
 from tinycua.loops.trace_state_mixin import TraceStateMixin
-from tinycua.loops.lazy_retry_mixin import LazyRetryMixin
-from tinycua.loops.recovery_stages_mixin import RecoveryGuardMixin, RecoveryStagesMixin
 from tinycua.loops.validation_retry_mixin import ValidationRetryMixin
+from tinycua.models.node_handoff import NodeHandoff
 from tinycua.models.session import Session
+from tinycua.models.session_context_entry import entry_content
 
 if TYPE_CHECKING:
+    from tinycua_sdk.agent.agent import Agent
+    from tinycua_sdk.tools.decorators import Tool
+
     from tinycua.config.session_config import SessionConfig
     from tinycua.config.types import AgentMonitor
     from tinycua.loops.node import Node
-    from tinycua_sdk.agent.agent import Agent
-    from tinycua_sdk.tools.decorators import Tool
 
 logger = logging.getLogger(__name__)
 
@@ -649,6 +650,8 @@ class TinyCUALoop(
                     and tr["output"].get("success") is not False
                 )
                 node.progress.mark_tool_called(tr["name"], success=success)
+                if success:
+                    node.progress.accumulated_tool_results[str(tr["name"])] = tr
 
     def _track_input_tokens(self, node: Node, last_result: LLMResult) -> None:
         """Record the latest input-token count on the session for compaction triggers."""
@@ -896,9 +899,17 @@ class TinyCUALoop(
         if self._recovery_reentry:
             preserved = dict(node.progress.accumulated_tool_results)
             preserved_history = list(node.progress.stage_tool_history)
+            recovery_attempts = dict(node.progress.recovery_attempts)
+            recovery_fingerprint = node.progress.recovery_fingerprint
+            recovery_escalations = list(node.progress.recovery_escalations)
+            recovery_last_error = node.progress.recovery_last_error
             node.progress.reset()
             node.progress.accumulated_tool_results = preserved
             node.progress.stage_tool_history = preserved_history
+            node.progress.recovery_attempts = recovery_attempts
+            node.progress.recovery_fingerprint = recovery_fingerprint
+            node.progress.recovery_escalations = recovery_escalations
+            node.progress.recovery_last_error = recovery_last_error
             self._recovery_reentry = False
         else:
             node.progress.reset()
