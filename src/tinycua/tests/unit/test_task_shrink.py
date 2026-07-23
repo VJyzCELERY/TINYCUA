@@ -78,6 +78,20 @@ class TestDeleteTask:
         store.delete_task(child2.task_id, rationale="planning duplicate")
         assert store.version > v
 
+    def test_delete_rejects_sole_acceptance_clause_owner(self):
+        store = TaskStateStore()
+        root = store.create_task("Root", acceptance_clauses=["Behavior works"])
+        child = store.create_task(
+            "Implement behavior",
+            parent_id=root.task_id,
+            clause_ids=["acceptance-1"],
+        )
+
+        with pytest.raises(ValueError, match="acceptance clause"):
+            store.delete_task(child.task_id, rationale="planning duplicate")
+
+        assert child.task_id in store.tasks
+
 
 class TestSupersedeTask:
     """supersede_task retains lineage without changing terminal history."""
@@ -94,6 +108,19 @@ class TestSupersedeTask:
             store.supersede_task(child.task_id, "Replacement", "new plan")
 
         assert store.snapshot() == before
+
+    def test_supersede_preserves_acceptance_clause_owner(self):
+        store = TaskStateStore()
+        root = store.create_task("Root", acceptance_clauses=["Behavior works"])
+        child = store.create_task(
+            "Implement behavior",
+            parent_id=root.task_id,
+            clause_ids=["acceptance-1"],
+        )
+
+        replacement = store.supersede_task(child.task_id, "Replacement", "new plan")
+
+        assert replacement.metadata["acceptance_clause_ids"] == ["acceptance-1"]
 
 
 class TestMergeTasks:
@@ -161,6 +188,19 @@ class TestMergeTasks:
         # child1 is active — merge child2 (not active).
         store.merge_tasks(child2.task_id, root.task_id, rationale="combine work")
         assert store.version > v
+
+    def test_merge_preserves_acceptance_clause_owner_on_parent(self):
+        store = TaskStateStore()
+        root = store.create_task("Root", acceptance_clauses=["Behavior works"])
+        child = store.create_task(
+            "Implement behavior",
+            parent_id=root.task_id,
+            clause_ids=["acceptance-1"],
+        )
+
+        store.merge_tasks(child.task_id, root.task_id, rationale="combine work")
+
+        assert root.metadata["acceptance_clause_ids"] == ["acceptance-1"]
 
     def test_merge_rejects_non_parent_without_mutating_tree(self):
         store = TaskStateStore()

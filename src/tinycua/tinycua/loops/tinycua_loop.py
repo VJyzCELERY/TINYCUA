@@ -532,21 +532,9 @@ class TinyCUALoop(
         result: LLMResult,
         resolved_tools: list[Tool],
     ) -> list[Tool]:
-        """Advance to the phase requested by an otherwise unavailable tool call."""
+        """Keep unavailable lifecycle calls confined to their current phase."""
         if not node.contract.requires_terminate:
             return resolved_tools
-        called = {
-            (tool_call.get("function") or {}).get("name") or tool_call.get("name")
-            for tool_call in result.tool_calls
-        }
-        commit_tools = set(node.contract.required_tools)
-        for group in node.contract.any_of_tools:
-            commit_tools.update(group)
-        if node.progress.lifecycle_phase == LifecyclePhase.ACTION and called & commit_tools:
-            node.progress.advance_lifecycle(LifecyclePhase.SUMMARY, result.content.strip())
-            node.progress.advance_lifecycle(LifecyclePhase.COMMIT)
-        elif node.progress.lifecycle_phase == LifecyclePhase.COMMIT and "terminate" in called:
-            node.progress.advance_lifecycle(LifecyclePhase.TERMINATE)
         return self._phase_tools(node, resolved_tools, node.progress.lifecycle_phase)
 
     def _can_stop_tool_batch(
