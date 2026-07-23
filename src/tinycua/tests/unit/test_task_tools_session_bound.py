@@ -13,6 +13,7 @@ from tinycua.tools.task_tools import (
     TaskInitTool,
     TaskInspectTool,
     TaskResultUpdateTool,
+    TaskShrinkTool,
     TaskUpdateTool,
 )
 
@@ -198,3 +199,25 @@ def test_task_update_title_propagates_to_roadmap_rendering() -> None:
 
     assert "corrected title" in rendered
     assert "original title" not in rendered
+
+
+def test_task_shrink_cancels_and_supersedes_with_a_rationale() -> None:
+    """Existing shrink tool exposes terminal local-replan operations."""
+    store = TaskStateStore()
+    init = TaskInitTool()
+    decompose = TaskDecomposeTool()
+    shrink = TaskShrinkTool()
+    for tool in (init, decompose, shrink):
+        tool.bind_task_store(store)
+
+    root = init("Root")
+    children = decompose(root["task_id"], ["Impossible", "Remaining"])["child_task_ids"]
+    missing_rationale = shrink("cancel", children[0], "")
+    cancelled = shrink("cancel", children[0], "source lacks required data")
+    superseded = shrink(
+        "supersede", children[1], "use an available source", replacement_title="Replacement"
+    )
+
+    assert missing_rationale["success"] is False
+    assert cancelled["status"] == "cancelled"
+    assert superseded["replacement_task_id"] in store.tasks

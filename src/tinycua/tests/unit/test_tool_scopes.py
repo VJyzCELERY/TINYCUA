@@ -184,11 +184,11 @@ class TestTaskAnalyzerToolScope:
         assert "task_decompose" in tool_names
 
     def test_reanalysis_mode_excludes_task_init(self) -> None:
-        """task_reanalysis mode excludes task_init."""
+        """task_reanalysis can add work without recreating the root."""
         policy = task_analyzer_tool_scope(mode="task_reanalysis")
         tool_names = [t.name for t in policy.node_tools]
         assert "task_init" not in tool_names
-        assert "task_create" not in tool_names
+        assert "task_create" in tool_names
 
     def test_reanalysis_mode_includes_structural_tools(self) -> None:
         """task_reanalysis mode includes structural tools."""

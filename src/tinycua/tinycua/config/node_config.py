@@ -291,8 +291,8 @@ def create_node_config(
             "Do not describe task creation only in prose."
         ),
         "task_analyzer": (
-            "Use task_inspect plus task_decompose or task_update when task "
-            "analysis changes or confirms the roadmap."
+            "Use task_inspect, then create, decompose, update, or safely dispose "
+            "of local work to repair the roadmap."
         ),
         "task_assessor": (
             "Use task_inspect for read-only assessment and node_handoff to "
@@ -307,7 +307,8 @@ def create_node_config(
             "then call task_review_decision with approved, needs_revision, "
             "rejected, or replan. On approval, use task_update to curate "
             "unfinished task descriptions with relevant discoveries. "
-            "On regression, call replan with the regression details."
+            "Use replan when evidence makes the task itself impossible; use "
+            "needs_revision for fixable execution defects."
         ),
     }.get(normalized)
     custom_retry_append = config.custom_retry_append
