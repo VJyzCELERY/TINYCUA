@@ -847,6 +847,25 @@ class ValidationRetryMixin:
                 "before finishing. Describe what was done, what was found, and "
                 "whether the task succeeded or failed."
             )
+        elif any(item["output"].get("success") is True for item in result_update_calls):
+            evidence = [
+                *tool_results,
+                *node.progress.accumulated_tool_results.values(),
+            ]
+            evidence.extend(
+                {"name": outcome.get("tool_name"), "output": {"success": True}}
+                for outcome in node.progress.correlated_outcomes
+                if isinstance(outcome, dict) and outcome.get("success") is True
+            )
+            if not (
+                self._successful_executor_action_results(evidence)
+                or self._successful_executor_inspection_results(evidence)
+            ):
+                validation.is_valid = False
+                validation.errors.append(
+                    "TaskExecutor must record successful action, research, inspection, "
+                    "or verification evidence before task_result_update success=true."
+                )
         return validation
 
     def _validate_tool_owned_task_state(

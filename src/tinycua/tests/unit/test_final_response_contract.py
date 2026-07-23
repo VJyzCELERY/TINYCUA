@@ -10,6 +10,7 @@ from tinycua.config.session_config import SessionConfig
 from tinycua.config.types import LLMResult, ValidationResult
 from tinycua.config.node_config import NodeConfigBase
 from tinycua.loops.node_queue import NodeQueue
+from tinycua.loops.node_contract import LifecyclePhase
 from tinycua.loops.node import ProcessNode
 from tinycua.loops.response_node import ResponseNode
 from tinycua.loops.task_nodes import TinyCUAResultReviewerNode
@@ -170,7 +171,7 @@ class ExecutorValidationFailureAgent:
 
 
 class ExecutorResultThenReviewerAgent:
-    """Agent double: executor records a result and must stop for reviewer."""
+    """Agent double: executor inspects, records a result, then stops for review."""
 
     def __init__(self) -> None:
         self.executor_calls = 0
@@ -186,7 +187,7 @@ class ExecutorResultThenReviewerAgent:
         )
         if "You are the TaskExecutor" in system_text:
             self.executor_calls += 1
-            if self.executor_calls > 1:
+            if self.executor_calls > 2:
                 return {
                     "role": "assistant",
                     "content": "",
@@ -194,6 +195,20 @@ class ExecutorResultThenReviewerAgent:
                         {
                             "type": "function",
                             "function": {"name": "terminate", "arguments": "{}"},
+                        }
+                    ],
+                }
+            if self.executor_calls == 1:
+                return {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": "enhanced_context_retrieval",
+                                "arguments": '{"query":"requirements"}',
+                            },
                         }
                     ],
                 }
@@ -212,7 +227,7 @@ class ExecutorResultThenReviewerAgent:
             }
         if "You are the ResultReviewer" in system_text:
             self.reviewer_calls += 1
-            if self.reviewer_calls > 1:
+            if self.reviewer_calls > 2:
                 return {
                     "role": "assistant",
                     "content": "",
@@ -220,6 +235,17 @@ class ExecutorResultThenReviewerAgent:
                         {
                             "type": "function",
                             "function": {"name": "terminate", "arguments": "{}"},
+                        }
+                    ],
+                }
+            if self.reviewer_calls == 1:
+                return {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "type": "function",
+                            "function": {"name": "task_inspect", "arguments": "{}"},
                         }
                     ],
                 }
@@ -805,8 +831,8 @@ def test_task_executor_read_only_evidence_retries_executor_not_replan() -> None:
     ]
 
 
-def test_task_executor_success_without_action_evidence_is_structurally_valid() -> None:
-    """Executor can report weak success; reviewer owns quality rejection."""
+def test_task_executor_task_state_update_only_is_rejected() -> None:
+    """A task-state update alone is not executor evidence."""
     loop = TinyCUALoop()
     task = loop.root_session.task_store.create_task("initialize backend")
     loop.root_session.task_store.record_result(
@@ -817,7 +843,6 @@ def test_task_executor_success_without_action_evidence_is_structurally_valid() -
         node_id="task_executor",
         config=create_node_config("task_executor"),
     )
-
     validation = loop._validate_node_result(
         executor,
         LLMResult(
@@ -837,7 +862,30 @@ def test_task_executor_success_without_action_evidence_is_structurally_valid() -
         ),
     )
 
-    assert validation.is_valid is True
+    assert validation.is_valid is False
+
+
+def test_task_executor_success_without_action_evidence_is_rejected() -> None:
+    """A success report alone cannot complete executor work."""
+    loop = TinyCUALoop()
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    executor.progress.advance_lifecycle(LifecyclePhase.COMMIT)
+
+    validation = loop._validate_task_executor_action(
+        executor,
+        LLMResult(
+            metadata={
+                "tool_results": [
+                    {"name": "task_result_update", "output": {"success": True}},
+                ]
+            },
+        ),
+    )
+
+    assert validation.is_valid is False
 
 
 def test_task_executor_failure_without_action_evidence_is_valid() -> None:
@@ -871,8 +919,8 @@ def test_task_executor_failure_without_action_evidence_is_valid() -> None:
     assert validation.is_valid is True
 
 
-def test_task_executor_success_without_action_evidence_reaches_reviewer() -> None:
-    """Weak executor success is preserved for reviewer judgment."""
+def test_task_executor_success_without_action_evidence_cannot_reach_reviewer() -> None:
+    """Unsupported executor success is rejected before reviewer handoff."""
     loop = TinyCUALoop()
     task = loop.root_session.task_store.create_task("initialize backend")
     loop.root_session.task_store.record_result(
@@ -905,13 +953,13 @@ def test_task_executor_success_without_action_evidence_reaches_reviewer() -> Non
     )
     validation = loop._validate_node_result(executor, result)
 
-    assert validation.is_valid is True
+    assert validation.is_valid is False
     assert task.result is not None
     assert task.result.success is True
 
 
-def test_task_executor_repeated_success_without_evidence_stays_structural() -> None:
-    """Repeated weak success remains executor-valid; reviewer decides quality."""
+def test_task_executor_repeated_success_without_evidence_is_rejected() -> None:
+    """Repeated unsupported success remains invalid."""
     loop = TinyCUALoop()
     task = loop.root_session.task_store.create_task("create requirements file")
     executor = TinyCUATaskExecutorNode(
@@ -950,7 +998,7 @@ def test_task_executor_repeated_success_without_evidence_stays_structural() -> N
     loop._enrich_task_results_from_tool_batch(executor, unsupported_results)
     validation = loop._validate_node_result(executor, result)
 
-    assert validation.is_valid is True
+    assert validation.is_valid is False
 
 
 def test_task_executor_read_only_evidence_is_left_to_reviewer() -> None:
@@ -1240,7 +1288,7 @@ def test_optional_task_analyzer_validation_failure_skips_pass() -> None:
 
 @pytest.mark.asyncio
 async def test_task_executor_stops_after_successful_result_update() -> None:
-    """Result update plus terminate ends executor turn before reviewer."""
+    """Evidence-backed result update and termination advance to reviewer."""
     executor = TinyCUATaskExecutorNode(
         node_id="task_executor",
         config=create_node_config("task_executor"),
@@ -1260,8 +1308,8 @@ async def test_task_executor_stops_after_successful_result_update() -> None:
         tools=[],
     )
 
-    assert agent.executor_calls == 2
-    assert agent.reviewer_calls == 2
+    assert agent.executor_calls == 3
+    assert agent.reviewer_calls == 3
     assert result == "Final success summary."
     transcript = loop.get_transcript_text(include_node_calls=True)
     assert "[TaskExecutor] LLM input" in transcript
