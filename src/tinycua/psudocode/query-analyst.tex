@@ -19,46 +19,26 @@
 \EndIf
 
 // Context collection (read-only)
-\State $\mathit{rootCtx} \gets \textsc{ReadRootSession}(C)$
-\State $\mathit{nodeCtx} \gets \textsc{InspectExistingNodes}(C)$
-\State $\mathit{exploratoryCtx} \gets \textsc{ExploreInformation}(q,\; C)$
+\State $\mathit{ctx} \gets \textsc{CollectContext}(q,\; C)$
 
-// Temporary reasoning window (not merged back to parent)
-\State $\mathit{reasoningWindow} \gets \big\{$
-\quad $q,\;$
-\quad $\textsc{FilterRelevant}(\mathit{rootCtx},\; q),\;$
-\quad $\textsc{FilterRelevant}(\mathit{nodeCtx},\; q),\;$
-\quad $\mathit{exploratoryCtx}$
-\ $\big\}$
+// Build reasoning window and classify
+\State $\mathit{rw} \gets \{q\} \cup \textsc{FilterRelevant}(\mathit{ctx},\; q)$
+\State $\mathit{route} \gets \textsc{ClassifyRoute}(\textsc{SLMAnalyze}(\mathit{rw}))$
 
-// SLM classification
-\State $\mathit{analysis} \gets \textsc{SLMAnalyze}(\mathit{reasoningWindow})$
-\State $\mathit{route} \gets \textsc{ClassifyRoute}(\mathit{analysis})$
-
-// Route validation and retry
-\State $\mathit{retryCount} \gets 0$
-\While{$\mathit{route}$ is invalid \textbf{or} $\mathit{route}$ is not invoked}
-    \State $\mathit{retryCount} \gets \mathit{retryCount} + 1$
-    \If{$\mathit{retryCount} > \textsc{NodeRetryPolicy.MaxRetries}$}
-        \State $\mathit{route} \gets \textsc{DefaultRoute}()$
-        \State \textbf{break}
+// Validate route with retry
+\While{$\mathit{route}$ is invalid \textbf{or} not invoked}
+    \State $\mathit{route} \gets \textsc{ClassifyRoute}(\textsc{SLMAnalyze}(\mathit{rw}))$
+    \If{retries exceeded}
+        \State \Return $q,\; \textsc{DefaultRoute}()$
     \EndIf
-    \State $\mathit{analysis} \gets \textsc{SLMAnalyze}(\mathit{reasoningWindow})$
-    \State $\mathit{route} \gets \textsc{ClassifyRoute}(\mathit{analysis})$
 \EndWhile
 
-// Route dispatch
-\State $q_{\text{enhanced}} \gets \big\{$
-\quad $q,\;$
-\quad $\textsc{FilterRelevant}(\mathit{reasoningWindow},\; q)$
-\ $\big\}$
-
+// Dispatch
+\State $q_{\text{enhanced}} \gets \{q\} \cup \textsc{FilterRelevant}(\mathit{rw},\; q)$
 \If{$\mathit{route} = \textsc{Worker}$}
     \State $\textsc{SpawnInformationDigester}()$
-    \State \Return $q_{\text{enhanced}},\; \textsc{Worker}$
-\ElsIf{$\mathit{route} = \textsc{Passthrough}$}
-    \State \Return $q_{\text{enhanced}},\; \textsc{Passthrough}$
 \EndIf
+\State \Return $q_{\text{enhanced}},\; \mathit{route}$
 \end{algorithmic}
 \end{algorithm}
 

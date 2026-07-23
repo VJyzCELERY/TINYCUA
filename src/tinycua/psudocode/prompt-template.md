@@ -27,15 +27,36 @@ Generate IEEE-style pseudocode from my paper subsection write. Output two files.
 
 ## Instructions to Model
 
-Reconstruct the user's write into two outputs:
-1. **Pseudocode** — the algorithmic core, extracted as numbered steps
-2. **Companion prose** — a compact explanation of design invariants that cannot be expressed as pseudocode
+### Step 1: Read the Architecture
 
-The companion prose must be **shorter and more compact** than the original write. Compress redundant sentences, merge overlapping ideas, and use concise technical language. Do not repeat information already captured in the pseudocode.
+Read `src/tinycua/psudocode/TinyCUA_Architecture.png`. Identify the node(s) relevant to this section. Note the incoming and outgoing edges, and how this node connects to the overall workflow.
+
+### Step 2: Read the User's Write
+
+Analyze the user's prose. Extract the algorithmic steps (control flow, data transforms, decisions, function calls) and the design invariants (constraints, policies, rationale).
+
+### Step 3: Validate Against Design Docs
+
+Cross-reference with `src/tinycua/docs/design/` to verify correctness. If the user's write omits details that exist in the design docs, note them but **do not add them** — the paper focuses on agent loops, not user uncertainty handling or other out-of-scope topics.
+
+### Step 4: Generate Compact Pseudocode
+
+**Max 15 lines of pseudocode.** Compress aggressively:
+- Merge related assignments into single lines
+- Combine simple if/else into one block
+- Remove redundant intermediate variables
+- Use inline conditionals where possible
+- Skip trivial steps (e.g., `retryCount ← 0` can be implicit in the while condition)
+
+If the algorithmic core exceeds 15 lines, prioritize the essential control flow and move secondary steps to companion prose.
+
+### Step 5: Generate Compact Companion Prose
+
+The companion prose explains what the pseudocode does NOT cover. It must be **shorter than the original write** — compress to ~30-50% length. One sentence per invariant.
 
 ### Separation Rules
 
-**Pseudocode (algorithm block)** — extract these as algorithmic steps:
+**Pseudocode (algorithm block)** — extract these:
 - Boolean checks / guards
 - Data collection / function calls
 - Loop control flow (while, for)
@@ -44,15 +65,13 @@ The companion prose must be **shorter and more compact** than the original write
 - Retry logic
 - Route decisions / dispatch
 
-**Companion Prose (methodology text)** — keep these as prose, NOT in the algorithm. Write compactly:
-- Queue position invariants (1-2 sentences)
-- Propagation rules (1-2 sentences)
+**Companion Prose (methodology text)** — keep as prose, NOT in algorithm:
+- Queue position invariants (1 sentence)
+- Propagation rules (1 sentence)
 - Tool constraints (1 sentence)
 - Deduplication policies (1 sentence)
-- Architectural role (1-2 sentences)
-- Design rationale (1-2 sentences max)
-
-Rule: companion prose total should be ~30-50% of the original write length.
+- Architectural role (1 sentence)
+- Design rationale (1 sentence)
 
 ### File 1: <section-name>.tex
 
@@ -91,8 +110,8 @@ Rules for .tex:
 - Use \gets for assignments
 - Use \If, \ElsIf, \While, \For, \ForAll, \EndIf, \EndWhile, \EndFor
 - Line numbers are automatic via algorithmic[1]
-- Infer input/output variables from the prose
-- Keep it algorithmic: loops, conditionals, data transforms only
+- **Max 15 numbered lines** (excluding comments)
+- Compress: merge assignments, combine if/else, inline where possible
 
 ### File 2: <section-name>.md
 
@@ -128,10 +147,10 @@ The following design properties are described in the surrounding methodology
 text and are **not** captured by the algorithm above:
 
 ### [Invariant Name 1]
-[Prose description]
+[1-2 sentence description]
 
 ### [Invariant Name 2]
-[Prose description]
+[1-2 sentence description]
 
 ---
 
@@ -158,4 +177,13 @@ Save files as:
 - `psudocode/[section-name].md`
 
 Where [section-name] is lowercase, hyphenated (e.g., query-analyst, task-executor, information-digester).
+
+---
+
+## Scope Note
+
+The paper focuses on the agent loop architecture. If the user's write or the
+design docs mention features outside this scope (e.g., user uncertainty handling,
+HITL UX, interrupt handling, resume flow), **exclude them from the pseudocode**.
+They may be briefly noted in companion prose as "deferred" or "out of scope."
 ```

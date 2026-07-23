@@ -12,78 +12,45 @@
 **Output:** Enhanced query $q_{\text{enhanced}}$, route label $\mathit{route}$
 
 ```
-// Step 1: Deduplication Guard
+// Deduplication guard
 if QueryAnalystAlreadyActive(C):
     return ⊥
 
-// Step 2: Context Collection (Read-Only)
-rootCtx  ← ReadRootSession(C)
-nodeCtx  ← InspectExistingNodes(C)
-exploratoryCtx ← ExploreInformation(q, C)
+// Context collection (read-only)
+ctx ← CollectContext(q, C)
 
-// Step 3: Temporary Reasoning Window
-reasoningWindow ← { q,
-    FilterRelevant(rootCtx, q),
-    FilterRelevant(nodeCtx, q),
-    exploratoryCtx }
+// Build reasoning window and classify
+rw ← {q} ∪ FilterRelevant(ctx, q)
+route ← ClassifyRoute(SLMAnalyze(rw))
 
-// Step 4: SLM Classification
-analysis ← SLMAnalyze(reasoningWindow)
-route    ← ClassifyRoute(analysis)
+// Validate route with retry
+while route is invalid or not invoked:
+    route ← ClassifyRoute(SLMAnalyze(rw))
+    if retries exceeded:
+        return q, DefaultRoute()
 
-// Step 5: Route Validation and Retry
-retryCount ← 0
-while route is invalid or route is not invoked:
-    retryCount ← retryCount + 1
-    if retryCount > NodeRetryPolicy.MaxRetries:
-        route ← DefaultRoute()
-        break
-    analysis ← SLMAnalyze(reasoningWindow)
-    route    ← ClassifyRoute(analysis)
-
-// Step 6: Route Dispatch
-q_enhanced ← { q, FilterRelevant(reasoningWindow, q) }
-
+// Dispatch
+q_enhanced ← {q} ∪ FilterRelevant(rw, q)
 if route = Worker:
     SpawnInformationDigester()
-    return q_enhanced, Worker
-else if route = Passthrough:
-    return q_enhanced, Passthrough
+return q_enhanced, route
 ```
 
 ---
 
 ## Companion Prose (Not in Pseudocode)
 
-The following design properties are described in the surrounding methodology
-text and are **not** captured by the algorithm above:
-
-### Queue Position Invariant
-
-The Query Analyst node is always enqueued as the first node in the
-`NodeQueue`. It serves as the initial input layer of the TinyCUA loop,
-receiving the full context overhead from the root session or existing nodes.
+### Queue Position
+Query Analyst is always the first node in the queue, receiving full context overhead.
 
 ### Segmented Context Model
+The reasoning window is volatile — not merged back to the parent. Output becomes durable only when merged into the next node.
 
-The temporary reasoning window (Step 3) is a **volatile construct**. It is
-not merged back into the parent node's session. The output produced by the
-Query Analyst becomes durable only when it is received by and merged into the
-next node in the queue (either the Information Digester or the Response Node).
+### Read-Only Constraint
+Only read-only exploratory tools (file read, web search). No write operations permitted.
 
-### Read-Only Tool Constraint
-
-The Query Analyst is restricted to **read-only exploratory tools**. It may
-inspect the status of existing tasks and explore external information (e.g.,
-reading files, web search) to assist routing decisions. It is **not permitted**
-to perform any write operation, ensuring its role is solely to classify and
-route.
-
-### Deduplication Policy
-
-A Query Analyst is spawned only when no Query Analyst already exists in the
-active queue. This ensures a single classification pass per query and prevents
-redundant routing decisions.
+### Deduplication
+Spawned only when no Query Analyst already exists in the active queue.
 
 ---
 
@@ -91,12 +58,12 @@ redundant routing decisions.
 
 | Tool | Allowed | Purpose |
 |------|---------|---------|
-| ReadRootSession | Yes | Collect root session context |
-| InspectExistingNodes | Yes | Check status of existing tasks |
-| ExploreInformation | Yes | Read files, web search for routing context |
-| WriteFile | **No** | Read-only node — no mutations |
-| ModifyTask | **No** | Read-only node — no mutations |
+| CollectContext | Yes | Gather root, node, and exploratory context |
+| FilterRelevant | Yes | Filter context to relevant information |
+| SLMAnalyze | Yes | Analyze reasoning window via SLM |
+| ClassifyRoute | Yes | Assign route label from analysis |
 | SpawnInformationDigester | Conditional | Only when route = Worker |
+| WriteFile | **No** | Read-only node — no mutations |
 
 ---
 
@@ -104,7 +71,6 @@ redundant routing decisions.
 
 | Condition | Action |
 |-----------|--------|
-| Route is invalid | Retry classification up to MaxRetries |
-| Route is not invoked | Retry classification up to MaxRetries |
-| MaxRetries exceeded | Use DefaultRoute() (passthrough fallback) |
-| Query Analyst already active | Skip — deduplication enforced |
+| Route is invalid | Retry classification |
+| Route is not invoked | Retry classification |
+| MaxRetries exceeded | Return DefaultRoute (passthrough fallback) |
