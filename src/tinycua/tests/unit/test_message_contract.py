@@ -239,12 +239,17 @@ def test_lifecycle_action_tool_call_enters_commit(
         config=create_node_config(node_id),
     )
 
+    result = LLMResult(
+        content="Action Summary: wrote the requested file.",
+        tool_calls=[{"function": {"name": "write_file"}}],
+    )
+    if node_id == "task_executor":
+        assert not TinyCUALoop._advance_lifecycle_phase(node, result)
+        node.progress.satisfied_requirements.add("task_result_update")
+
     assert TinyCUALoop._advance_lifecycle_phase(
         node,
-        LLMResult(
-            content="Action Summary: wrote the requested file.",
-            tool_calls=[{"function": {"name": "write_file"}}],
-        ),
+        result,
     )
     assert node.progress.lifecycle_phase is LifecyclePhase.COMMIT
     assert node.progress.action_summary == "Action Summary: wrote the requested file."
@@ -292,6 +297,27 @@ def test_terminate_phase_hides_terminate_without_executor_commit() -> None:
     )
 
     assert [tool.name for tool in tools] == ["task_result_update"]
+
+
+def test_executor_action_phase_keeps_actions_until_result_update() -> None:
+    """Executor can continue work after an inspection without exposing terminate."""
+    loop = TinyCUALoop()
+    node = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+
+    tools = loop._phase_tools(
+        node,
+        [Tool(name="read_file"), Tool(name="write_file"), Tool(name="task_result_update"), Tool(name="terminate")],
+        LifecyclePhase.ACTION,
+    )
+
+    assert [tool.name for tool in tools] == ["read_file", "write_file", "task_result_update"]
+    assert not TinyCUALoop._advance_lifecycle_phase(
+        node,
+        LLMResult(metadata={"tool_results": [{"name": "read_file", "output": {"success": True}}]}),
+    )
 
 
 def test_internal_output_context_uses_assistant_role_not_user() -> None:
@@ -551,7 +577,6 @@ def test_task_executor_prompt_includes_workspace_path_discipline(tmp_path) -> No
             {"task_create", "task_decompose", "task_shrink", "task_update", "terminate"},
         ),
         ("task_assessor", {"node_handoff", "terminate"}),
-        ("task_executor", {"task_result_update", "terminate"}),
         ("result_reviewer", {"task_review_decision", "terminate"}),
     ],
 )
