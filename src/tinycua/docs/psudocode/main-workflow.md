@@ -23,16 +23,20 @@ Function TinyCUA(UserQuery, SessionContext, Effort):
     PHASE 1: Query Analyst
     ─────────────────────────────────────────────
 
-    EnhancedQuery, Route = QueryAnalystNode(UserQuery, SessionContext)
+    Route = QueryAnalystNode(UserQuery, SessionContext)
+
+    if Route == DROP_QUERY:
+        return // Skip if active QueryAnalyst exists
 
     if Route == Passthrough:
-        return ResponseNode(EnhancedQuery, SessionContext)
+        Forward to ResponseNode
+        return
 
     ─────────────────────────────────────────────
     PHASE 2: Information Digester
     ─────────────────────────────────────────────
 
-    DigestedInformation = InformationDigesterNode(EnhancedQuery, SessionContext)
+    DigestedInformation = InformationDigesterNode(SessionContext)
 
     ─────────────────────────────────────────────
     PHASE 3: Worker Routing
@@ -134,7 +138,7 @@ Function TinyCUA(UserQuery, SessionContext, Effort):
 
 | Phase | Node | Type | Output |
 |-------|------|------|--------|
-| 1 | QueryAnalystNode | DecisionNode | `EnhancedQuery`, `Route` |
+| 1 | QueryAnalystNode | DecisionNode | `Route` (Worker, Passthrough, or DROP_QUERY) |
 | 2 | InformationDigesterNode | ProcessNode | `DigestedInformation` |
 | 3 | WorkerNode | DecisionNode | `WorkerRoute` |
 | 4 | TaskCreateNode / TaskAnalyzerNode | ProcessNode | `TaskTree` |
@@ -148,8 +152,9 @@ Function TinyCUA(UserQuery, SessionContext, Effort):
 
 | From | Edge Label | To |
 |------|------------|-----|
+| QueryAnalystNode | `drop_query` | (skip) |
 | QueryAnalystNode | `passthrough` | ResponseNode |
-| QueryAnalystNode | `enhanced query` | InformationDigesterNode |
+| QueryAnalystNode | `worker` | InformationDigesterNode |
 | InformationDigesterNode | `digested information` | WorkerNode |
 | WorkerNode | `passthrough` | ResponseNode |
 | WorkerNode | `task_creation` | TaskCreateNode |

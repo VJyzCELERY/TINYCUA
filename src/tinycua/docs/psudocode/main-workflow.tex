@@ -14,13 +14,17 @@
 \Ensure Final user response $r$
 
 \Statex \textit{--- Query Analysis: classify and route query ---}
-\State $(q_{\text{enhanced}},\; \textit{route}) \gets \textsc{QueryAnalystNode}(q,\; C)$
+\State $\textit{route} \gets \textsc{QueryAnalystNode}(q,\; C)$
+\If{$\textit{route} = \textsc{DROP\_QUERY}$}
+    \State \Return // Skip if active QueryAnalyst exists
+\EndIf
 \If{$\textit{route} = \textsc{Passthrough}$}
-    \State \Return $\textsc{ResponseNode}(q_{\text{enhanced}},\; C)$
+    \State Forward to ResponseNode
+    \State \Return
 \EndIf
 
 \Statex \textit{--- Information Digester: explore and condense context ---}
-\State $d \gets \textsc{InformationDigesterNode}(q_{\text{enhanced}},\; C)$
+\State $d \gets \textsc{InformationDigesterNode}(C)$
 
 \Statex \textit{--- Worker: decide task route ---}
 \State $\textit{workerRoute} \gets \textsc{WorkerNode}(d)$
