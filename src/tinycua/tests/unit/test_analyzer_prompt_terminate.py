@@ -13,16 +13,16 @@ from tinycua.models.session import Session
 
 
 class TestAnalyzerPromptTerminate:
-    """FR-054: analyzer instruction tells the model to call terminate after state tools."""
+    """Analyzer action prompts defer state changes to their later phases."""
 
-    def test_instruction_mentions_terminate_after_state_tools(self):
-        assert "terminate" in _TASK_ANALYZER_INSTRUCTION.lower()
+    def test_instruction_defers_termination(self):
+        assert "terminate" not in _TASK_ANALYZER_INSTRUCTION.lower()
 
-    def test_continuation_mentions_terminate(self):
-        assert "terminate" in _TASK_ANALYZER_CONTINUATION.lower()
+    def test_continuation_defers_termination(self):
+        assert "terminate" not in _TASK_ANALYZER_CONTINUATION.lower()
 
-    def test_local_replan_continuation_mentions_terminate(self):
-        assert "terminate" in _TASK_ANALYZER_LOCAL_REPLAN_CONTINUATION.lower()
+    def test_local_replan_continuation_defers_termination(self):
+        assert "terminate" not in _TASK_ANALYZER_LOCAL_REPLAN_CONTINUATION.lower()
 
     def test_continuation_does_not_trap_with_task_inspect_first(self):
         """FR-054: the continuation MUST NOT instruct calling task_inspect first.

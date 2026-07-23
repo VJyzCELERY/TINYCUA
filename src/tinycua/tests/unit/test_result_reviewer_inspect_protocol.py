@@ -29,11 +29,11 @@ def _reviewer_node(session) -> TinyCUAResultReviewerNode:
     return node
 
 
-def test_approval_without_inspect_is_not_rolled_back() -> None:
-    """Approving without task_inspect must NOT revert completed -> in_progress.
+def test_approval_without_inspect_is_accepted() -> None:
+    """The commit phase accepts an approval without unavailable action tools.
 
-    Core regression: the decision sticks, active task advances to the next
-    unfinished leaf, and the validator only asks for a missing inspect retry.
+    The lifecycle now separates inspection from review commit, so an approval
+    does not request an unavailable inspection call.
     """
     loop = TinyCUALoop()
     store = loop.root_session.task_store
@@ -66,10 +66,7 @@ def test_approval_without_inspect_is_not_rolled_back() -> None:
 
     validation = loop._validate_result_reviewer_inspects_after_decision(node, llm_result)
 
-    # Missing inspect -> retry requested ...
-    assert not validation.is_valid
-    assert any("task_inspect" in error for error in validation.errors)
-    # ... but the approval is NOT rolled back (the bug being fixed).
+    assert validation.is_valid
     assert first.status == TaskStatus.COMPLETED
     assert first.reviewer_decisions  # approval still on the audit trail
     assert store.active_task_id == second.task_id  # active advanced, not reset
@@ -241,10 +238,8 @@ def test_reviewer_surfaces_failure_count_as_soft_context() -> None:
 
     assert "5 times" in continuation
     assert "replan" in continuation.lower()
-    # The note is soft context, not a forced instruction — the continuation
-    # still invites the reviewer to decide (task_review_decision with any of
-    # the four outcomes).
-    assert "task_review_decision" in node.build_instruction()
+    # The note is soft context, not a forced action-phase commit instruction.
+    assert "task_review_decision" not in node.build_instruction()
 
 
 def test_reviewer_no_failure_note_below_threshold() -> None:

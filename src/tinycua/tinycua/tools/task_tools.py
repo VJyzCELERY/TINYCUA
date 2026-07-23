@@ -47,22 +47,22 @@ class TerminateTool(Tool):
         """Record an explicit node termination request."""
         result: dict[str, Any] = {"success": True, "terminated": True}
         if self._source_node == "result_reviewer":
-            active = self._store.active_task_id
-            if active is None:
-                return {"success": False, "error": "No active task"}
+            if not self._store._staged_reviewer_decisions:
+                return {"success": False, "error": "No provisional reviewer decision is staged."}
             try:
-                task = self._store.commit_staged_reviewer_decision(active)
+                task = self._store.commit_staged_reviewer_decision(
+                    next(reversed(self._store._staged_reviewer_decisions))
+                )
             except ValueError as exc:
                 return {"success": False, "error": str(exc)}
             result["task_id"] = task.task_id
             result["decision"] = task.reviewer_decisions[-1]["decision"]
         if self._source_node == "task_executor":
-            active = self._store.active_task_id
-            if active is None:
-                return {"success": False, "error": "No active task"}
-            if active in self._store._staged_results:
+            if self._store._staged_results:
                 try:
-                    task = self._store.commit_staged_result(active)
+                    task = self._store.commit_staged_result(
+                        next(reversed(self._store._staged_results))
+                    )
                 except ValueError as exc:
                     return {"success": False, "error": str(exc)}
                 result["task_id"] = task.task_id
