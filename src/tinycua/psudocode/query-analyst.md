@@ -24,7 +24,7 @@ if valid mandatory_passthrough exists then
 window ← root_session.context ‖ queue.contexts ‖ user_query
 
 // Step 4: Two-step classification (LLM + tool)
-route ← ⊥; valid ← False
+route ← null; valid ← False
 while ¬valid do
     analysis ← SLMAnalyze(window)
     route ← Classify(analysis); valid ← route ∈ {Worker, Passthrough}

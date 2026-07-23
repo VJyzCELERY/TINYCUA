@@ -28,7 +28,7 @@
 \State $\mathit{window} \gets \mathit{root\_session}.\mathit{context} \;\Vert\; \mathit{queue}.\mathit{contexts} \;\Vert\; \mathit{user\_query}$
 
 // Step 4: Two-step classification (LLM + tool)
-\State $\mathit{route} \gets \bot$; $\mathit{valid} \gets \textsc{False}$
+\State $\mathit{route} \gets \textsc{null}$; $\mathit{valid} \gets \textsc{False}$
 \While{$\neg\mathit{valid}$}
     \State $\mathit{analysis} \gets \textsc{SLMAnalyze}(\mathit{window})$
     \State $\mathit{route} \gets \textsc{Classify}(\mathit{analysis})$; $\mathit{valid} \gets \mathit{route} \in \{\textsc{Worker}, \textsc{Passthrough}\}$
