@@ -157,6 +157,7 @@ def test_web_app_fixture_scores_maintainability_bonuses() -> None:
     fixture = ROOT / "experiment-fixtures" / "experiments-list" / "experiment-4"
     evaluator = (fixture / "eval" / "check.py").read_text()
     task = (fixture / "workdir" / "TASK.md").read_text().lower()
+    run_script = (fixture / "workdir" / "run.sh").read_text()
     normalized_task = " ".join(task.split())
     critical = evaluator.split("CRITICAL_CATEGORIES = (", 1)[1].split(")", 1)[0]
 
@@ -169,7 +170,15 @@ def test_web_app_fixture_scores_maintainability_bonuses() -> None:
     ):
         assert f'"{category}"' in evaluator
     assert '"modular_structure"' not in critical
-    assert "single-file app.py" not in normalized_task
+    assert "app.py" not in normalized_task
+    assert "only prescribed application entrypoint" in normalized_task
+    assert "black-box behavior" in normalized_task
+    assert "app.py" not in run_script
+    assert 'workspace / "app.py"' not in evaluator
+    for requirement in ("`get /health`", "`post /blocks`", "`get /blocks`", "`get /`"):
+        assert requirement in normalized_task
+    for selector in ("#block-text", "#add-block", "#blocks"):
+        assert selector in normalized_task
     assert "local module" not in normalized_task
     assert "root readme" not in normalized_task
     assert "pass_threshold = 15" in evaluator.lower()

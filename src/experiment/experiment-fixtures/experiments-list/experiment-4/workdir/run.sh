@@ -18,7 +18,8 @@ build_app() {
 
 start_app() {
   # AGENT_START_COMMAND_BEGIN
-  exec uv run python app.py --port "$PORT"
+  printf '%s\n' 'Replace this section with the app start command.' >&2
+  return 1
   # AGENT_START_COMMAND_END
 }
 
