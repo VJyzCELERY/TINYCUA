@@ -30,13 +30,13 @@ route ← Classify(analysisResult, taskExists, queue.hasWorkerSpawnedNodes())
 if route = task_creation:
     queue ← [TaskCreate, TaskAnalyzer, AnalysisEffort, TaskExecutor, ResultReviewer, Response]
 elif route = task_recreation:
-    queue.clearAfterCurrent()
+    remove all nodes after Worker from queue
     queue ← [TaskAnalyzer(+TaskInit), AnalysisEffort, TaskExecutor, ResultReviewer, Response]
 elif route = task_reanalysis:
-    queue.clearAfterCurrent()
+    remove all nodes after Worker from queue
     queue ← [TaskAnalyzer, AnalysisEffort, TaskExecutor, ResultReviewer, Response]
 elif route = passthrough:
-    queue.advance()
+    queue ← [Response]
 elif route = proceed_execution:
     queue ← [TaskExecutor, ResultReviewer, Response]
 ```

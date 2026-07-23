@@ -32,13 +32,13 @@
 \If{$\mathit{route} = \text{task\_creation}$}
     \State $\mathit{queue} \gets [\textsc{TaskCreate}, \textsc{TaskAnalyzer}, \textsc{AnalysisEffort}, \textsc{TaskExecutor}, \textsc{ResultReviewer}, \textsc{Response}]$
 \ElsIf{$\mathit{route} = \text{task\_recreation}$}
-    \State $\mathit{queue.clearAfterCurrent()}$
+    \State remove all nodes after Worker from queue
     \State $\mathit{queue} \gets [\textsc{TaskAnalyzer}(\textsc{TaskInit}), \textsc{AnalysisEffort}, \textsc{TaskExecutor}, \textsc{ResultReviewer}, \textsc{Response}]$
 \ElsIf{$\mathit{route} = \text{task\_reanalysis}$}
-    \State $\mathit{queue.clearAfterCurrent()}$
+    \State remove all nodes after Worker from queue
     \State $\mathit{queue} \gets [\textsc{TaskAnalyzer}, \textsc{AnalysisEffort}, \textsc{TaskExecutor}, \textsc{ResultReviewer}, \textsc{Response}]$
 \ElsIf{$\mathit{route} = \text{passthrough}$}
-    \State $\mathit{queue.advance()}$
+    \State $\mathit{queue} \gets [\textsc{Response}]$
 \ElsIf{$\mathit{route} = \text{proceed\_execution}$}
     \State $\mathit{queue} \gets [\textsc{TaskExecutor}, \textsc{ResultReviewer}, \textsc{Response}]$
 \EndIf

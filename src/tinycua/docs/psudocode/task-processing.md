@@ -1,12 +1,12 @@
-# Algorithm 3: Task Processing
+# Algorithm 4: Task Processing
 
-> **Methodology section pairing:** The prose below accompanies Algorithm 3
+> **Methodology section pairing:** The prose below accompanies Algorithm 4
 > in the paper. It covers design invariants and constraints that are not
 > algorithmic and therefore remain outside the pseudocode block.
 
 ---
 
-## Pseudocode (Algorithm 3)
+## Pseudocode (Algorithm 4)
 
 **Input:** $\mathit{route}$, $\mathit{queue}$, $\mathit{effort}$
 **Output:** $\mathit{aggregatedResult}$
@@ -20,22 +20,29 @@ if route = task_creation:
 TaskAnalyze(rootTask, initial_analysis)
 
 // Step 3: Effort-Gated Analysis Loop
-passLimit ← EffortToLimit(effort);  pass ← 0
-while pass < passLimit:
+pass ← 0
+while AnalysisEffort(effort, pass) = continue:
     selected ← TaskAssess(rootTask)
     if selected = ∅:
         break
     TaskAnalyze(selected, effort_loop);  pass ← pass + 1
 
 // Step 4: Execute and Review Loop
+completedResults ← ∅
 active ← NextTask(rootTask)
 while active ≠ null:
+    context ← BuildContext(active, completedResults)
     result ← TaskExecute(active, context)
+    retries ← 0
     decision ← ResultReview(result)
+    while decision = reject AND retries < retryLimit:
+        result ← TaskExecute(active, context)
+        decision ← ResultReview(result);  retries ← retries + 1
     if decision = replan:
         TaskAssess(active);  TaskAnalyze(active, local_replan)
         result ← TaskExecute(active, context)
         decision ← ResultReview(result)
+    completedResults ← completedResults ∪ {result}
     active ← NextTask(rootTask)
 
 // Step 5: Aggregate Results
@@ -59,13 +66,31 @@ Each subtask $t_i$ receives context $C(t_i) = \text{Decompose}(t_i) \cup \bigcup
 When all subtasks complete, results aggregate upward: $R(T) = \text{Aggregate}(\bigcup_{i=1}^{n} R(t_i))$. Only results from completed siblings and a task's own subtask outputs are included.
 
 ### Analysis Effort Levels
-The effort parameter maps to pass limits: none (0 passes, skip directly to execution), low (1 pass), medium (2 passes), high (3 passes). Each pass runs a TaskAssessor → TaskAnalyzer cycle. AnalysisEffortNode is deterministic and requires no LLM call.
+The effort parameter controls planning depth via AnalysisEffortNode, a deterministic decision node. Effort levels: none (skip to execution), low (1 pass), medium (2 passes), high (3 passes). Each pass runs a TaskAssessor → TaskAnalyzer cycle. The node gates whether to continue analysis (pass < limit) or proceed to execution (pass ≥ limit).
 
 ### ResultReviewer Recovery Budget
-Reviewer uses structured recovery budgets: 15 structured retries + 10 focused retries + 3 judge retries = 30 total per task. A same-error guard halts re-entry after 3 consecutive identical errors. Replan is capped by max_replans and scoped by replan_boundary.
+Reviewer uses structured recovery budgets: 15 structured retries + 10 focused retries + 3 judge retries = 30 total per task. A same-error guard halts re-entry after 3 consecutive identical errors. Replan is capped by max_replans and scoped by replan_boundary. The three decision categories are:
+- **Accept**: task advances; if root task, proceeds to aggregation
+- **Reject**: task is retried up to retryLimit; beyond limit, escalates to replan
+- **Replan**: task is sent to TaskAssessor → TaskAnalyzer for decomposition before re-execution
 
 ### Task Execution Strategy
-TaskExecutorNode uses ReAct framework (thought-act-observation loops) with write tool-calls. Execution stops when success criteria are met or a blocking issue is encountered. Post-order traversal is used for task tree execution.
+TaskExecutorNode uses ReAct framework (thought-act-observation loops) with write tool-calls. Execution stops when success criteria are met or a blocking issue is encountered. Post-order traversal is used for task tree execution. The executor processes tasks sequentially, yielding to ResultReviewerNode after each task completion.
+
+### Route Handling
+When route is task_recreation or task_reanalysis, the existing task tree is passed to TaskAnalyzerNode directly (TaskCreateNode is skipped). When route is proceed_execution, the queue proceeds directly to TaskExecutorNode (planning phase is skipped).
+
+The WorkerNode dispatches different node sequences depending on the selected route:
+
+| Route | Queue Contents | Description |
+|-------|---------------|-------------|
+| task_creation | TaskCreate → TaskAnalyzer → AnalysisEffort → TaskExecutor → ResultReviewer → Response | Full planning pipeline from scratch |
+| task_reanalysis | TaskAnalyzer → AnalysisEffort → TaskExecutor → ResultReviewer → Response | Clear stale nodes, re-analyze existing tree |
+| task_recreation | TaskAnalyzer(+TaskInit) → AnalysisEffort → TaskExecutor → ResultReviewer → Response | Clear stale nodes, rebuild tree from init |
+| proceed_execution | TaskExecutor → ResultReviewer → Response | Skip planning, execute existing tree |
+| passthrough | Response | Return immediately without task processing |
+
+For task_recreation and task_reanalysis, the WorkerNode first removes all previously queued nodes that followed it (clearing the old plan), then inserts the new node sequence. This ensures no stale planning artifacts remain in the queue.
 
 ---
 
@@ -87,8 +112,8 @@ TaskExecutorNode uses ReAct framework (thought-act-observation loops) with write
 | Condition | Action |
 |-----------|--------|
 | TaskAnalyzer completes with null tree | Contract violation; retry per NodeRetryPolicy |
-| TaskExecutor execution failure | ResultReviewer decides: needs_revision, rejected, or replan |
-| ResultReviewer needs_revision | Requeue [TaskExecutor, ResultReviewer] |
+| TaskExecutor execution failure | ResultReviewer decides: accept, reject, or replan |
+| ResultReviewer reject | Requeue TaskExecutor for same task (up to retryLimit) |
 | ResultReviewer replan | Spawn [TaskAssessor, TaskAnalyzer(local_replan), TaskExecutor] |
 | Same error raised 3× in succession | Take alternative action (replan or revised instructions) |
 | Replan cap (max_replans) exceeded | Stop replanning; send back with explicit guidance or escalate |
