@@ -1,0 +1,6 @@
+prompt: |
+  Read TASK.md and input.txt in your workdir. Create output.txt containing
+  exactly the required response. Do not modify TASK.md or input.txt.
+outcome_group: conversation
+eval_image: busybox:1.36
+eval_command: ["sh", "/eval/run.sh", "/submission"]

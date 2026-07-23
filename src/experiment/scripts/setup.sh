@@ -10,4 +10,4 @@ fi
 
 docker compose build
 docker compose pull searxng
-docker pull docker.io/library/busybox:1.36
+docker pull python:3.12-alpine

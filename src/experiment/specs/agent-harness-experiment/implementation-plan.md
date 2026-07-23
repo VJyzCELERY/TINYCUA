@@ -208,12 +208,12 @@ def test_runner_rejects_empty_prompt_before_docker(tmp_path: Path):
 
 #### [NEW] `src/experiment/docker/opencode.Dockerfile`
 
-- **Description**: Node image installing `opencode-ai`, with visible config setup for shared model/provider values.
+- **Description**: Node image installing pinned `opencode-ai@1.18.4`, with visible config setup for shared model/provider values.
 - **Rationale**: Separate Opencode container with readable failure if config is wrong.
 
 #### [NEW] `src/experiment/docker/openclaw.Dockerfile`
 
-- **Description**: Node or official OpenClaw image installing `openclaw@latest`, with startup config writing `~/.openclaw/openclaw.json`.
+- **Description**: Node image installing pinned `openclaw@2026.7.1-2`, with startup config writing `~/.openclaw/openclaw.json`.
 - **Rationale**: Separate OpenClaw container with visible provider mapping.
 
 #### [NEW] `src/experiment/docker/hermes.Dockerfile`

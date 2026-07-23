@@ -36,12 +36,12 @@ Implementation tasks for Agent Harness Experiment. Check off items as completed.
   - [x] Run `tinycua run` with `--dir`, `--provider-url`, `--api-key`, `--model`, `--provider-type`, and `--timeout`
 - [x] Add Opencode container setup <!-- id: 9 -->
   - [x] Add `docker/opencode.Dockerfile`
-  - [x] Install `opencode-ai`
+  - [x] Install pinned `opencode-ai@1.18.4`
   - [x] Map shared model/provider config visibly, with `EXPERIMENT_OPENCODE_MODEL` as the only override
   - [x] Preserve config/setup failures in stderr
 - [x] Add OpenClaw container setup <!-- id: 10 -->
   - [x] Add `docker/openclaw.Dockerfile`
-  - [x] Install `openclaw@latest` or use official image if simpler
+  - [x] Install pinned `openclaw@2026.7.1-2`
   - [x] Generate minimal `~/.openclaw/openclaw.json` from shared env
   - [x] Run `openclaw agent --message "$EXPERIMENT_PROMPT"`
 - [x] Add Hermes container setup <!-- id: 11 -->
