@@ -27,6 +27,19 @@ class TestDeleteTask:
         with pytest.raises(ValueError, match="immutable"):
             store.delete_task(child.task_id, rationale="no longer needed")
 
+    def test_delete_rejects_child_of_completed_parent_without_mutating_tree(self):
+        store = TaskStateStore()
+        root = store.create_task("Root")
+        child = store.create_task("Child", parent_id=root.task_id)
+        store.transition(root.task_id, TaskStatus.IN_PROGRESS)
+        store.transition(root.task_id, TaskStatus.COMPLETED)
+        before = store.snapshot()
+
+        with pytest.raises(ValueError, match="immutable"):
+            store.delete_task(child.task_id, rationale="no longer needed")
+
+        assert store.snapshot() == before
+
     def test_delete_root_raises(self):
         store = TaskStateStore()
         root = store.create_task("Root")
@@ -64,6 +77,23 @@ class TestDeleteTask:
         # child1 is active — delete child2 (not active).
         store.delete_task(child2.task_id, rationale="planning duplicate")
         assert store.version > v
+
+
+class TestSupersedeTask:
+    """supersede_task retains lineage without changing terminal history."""
+
+    def test_supersede_rejects_child_of_completed_parent_without_mutating_tree(self):
+        store = TaskStateStore()
+        root = store.create_task("Root")
+        child = store.create_task("Child", parent_id=root.task_id)
+        store.transition(root.task_id, TaskStatus.IN_PROGRESS)
+        store.transition(root.task_id, TaskStatus.COMPLETED)
+        before = store.snapshot()
+
+        with pytest.raises(ValueError, match="immutable"):
+            store.supersede_task(child.task_id, "Replacement", "new plan")
+
+        assert store.snapshot() == before
 
 
 class TestMergeTasks:
