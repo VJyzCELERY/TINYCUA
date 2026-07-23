@@ -9,7 +9,7 @@
 ## Pseudocode (Algorithm 1)
 
 **Input:** $\mathit{root\_session}$, $\mathit{user\_query}$, $\mathit{queue}$
-**Output:** $\mathit{route} \in \{\textsc{Worker}, \textsc{Passthrough}, \textsc{Uncertain}\}$
+**Output:** $\mathit{route} \in \{\textsc{Worker}, \textsc{Passthrough}\}$
 
 ```
 // Step 1: Deduplication guard
@@ -27,7 +27,7 @@ window ← root_session.context ‖ queue.contexts ‖ user_query
 route ← ⊥; valid ← False
 while ¬valid do
     analysis ← SLMAnalyze(window)
-    route ← Classify(analysis); valid ← route ∈ {Worker, Passthrough, Uncertain}
+    route ← Classify(analysis); valid ← route ∈ {Worker, Passthrough}
 
 // Step 5: Dispatch via route map
 Dispatch(route)
@@ -56,7 +56,6 @@ Query Analyst is spawned only when no active Query Analyst already exists in the
 
 ### Route Behavior
 - **Worker**: Spawns InformationDigester to gather context, then routes to WorkerNode for task planning/execution.
-- **Uncertain**: Query Analyst remains active and waits for user continuation.
 - **Passthrough**: Forwards user input to an already active or queued node/session.
 
 ### Two-Step Decision Process

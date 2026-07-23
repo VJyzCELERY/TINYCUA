@@ -11,7 +11,7 @@
 \label{alg:query-analyst}
 \begin{algorithmic}[1]
 \Require $\mathit{root\_session}$, $\mathit{user\_query}$, $\mathit{queue}$
-\Ensure $\mathit{route} \in \{\textsc{Worker}, \textsc{Passthrough}, \textsc{Uncertain}\}$
+\Ensure $\mathit{route} \in \{\textsc{Worker}, \textsc{Passthrough}\}$
 
 // Step 1: Deduplication guard
 \If{$\mathit{queue}$ contains active $\mathit{QueryAnalyst}$}
@@ -31,7 +31,7 @@
 \State $\mathit{route} \gets \bot$; $\mathit{valid} \gets \textsc{False}$
 \While{$\neg\mathit{valid}$}
     \State $\mathit{analysis} \gets \textsc{SLMAnalyze}(\mathit{window})$
-    \State $\mathit{route} \gets \textsc{Classify}(\mathit{analysis})$; $\mathit{valid} \gets \mathit{route} \in \{\textsc{Worker}, \textsc{Passthrough}, \textsc{Uncertain}\}$
+    \State $\mathit{route} \gets \textsc{Classify}(\mathit{analysis})$; $\mathit{valid} \gets \mathit{route} \in \{\textsc{Worker}, \textsc{Passthrough}\}$
 \EndWhile
 
 // Step 5: Dispatch via route map
