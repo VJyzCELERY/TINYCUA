@@ -4,6 +4,27 @@ import os
 import tempfile
 from pathlib import Path
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def native_tools_workspace(tmp_path, monkeypatch):
+    """Bind each test's temporary files to an isolated native-tools workspace."""
+    from tinycua.agent.tools.native.context import bind_workspace
+
+    original_chdir = os.chdir
+
+    def chdir(path):
+        original_chdir(path)
+        target = Path(path).resolve()
+        bind_workspace(target if target.is_relative_to(tmp_path) else tmp_path)
+
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    monkeypatch.setattr(os, "chdir", chdir)
+    bind_workspace(tmp_path)
+    yield
+    bind_workspace(None)
+
 
 # --- read_file ---
 
@@ -100,7 +121,7 @@ def test_read_file_not_found():
     """Error dict returned for missing file."""
     from tinycua.agent.tools.native.files import read_file
 
-    result = read_file("/nonexistent/path/file.txt")
+    result = read_file("missing.txt")
     assert isinstance(result, dict)
     assert "error" in result
     assert "not found" in result["error"].lower()
@@ -310,7 +331,8 @@ def test_list_files_all():
         assert isinstance(result, list)
         assert len(result) == 3
         assert all(
-            os.path.join(tmpdir, f) in result for f in ["a.txt", "b.txt", "c.py"]
+            str(Path(tmpdir).relative_to(tempfile.tempdir) / f) in result
+            for f in ["a.txt", "b.txt", "c.py"]
         )
 
 
@@ -324,7 +346,7 @@ def test_list_files_with_pattern():
 
         result = list_files(tmpdir, "*.py")
         assert len(result) == 1
-        assert os.path.join(tmpdir, "c.py") in result
+        assert str(Path(tmpdir).relative_to(tempfile.tempdir) / "c.py") in result
 
 
 def test_list_files_directory_not_found():
