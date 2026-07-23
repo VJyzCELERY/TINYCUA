@@ -30,6 +30,7 @@ from tinycua.tools.task_tools import (
     TaskInspectTool,
     TaskResultUpdateTool,
     TaskReviewDecisionTool,
+    TaskShrinkTool,
     TaskUpdateTool,
 )
 
@@ -101,6 +102,21 @@ def test_task_assessor_commit_guidance_names_only_handoff() -> None:
 
     assert "node_handoff" in guidance
     assert "task_inspect" not in guidance
+    assert "recommendations" in guidance
+    assert "task_ids" in guidance
+
+
+def test_task_analyzer_treats_assessor_recommendations_as_advisory() -> None:
+    """Analyzer chooses how to address Assessor recommendations."""
+    node = TinyCUATaskAnalyzerNode(
+        node_id="task_analyzer", config=create_node_config("task_analyzer")
+    )
+
+    guidance = node.build_tool_system_prompt([TaskShrinkTool(), TaskUpdateTool()])
+
+    assert "TaskAssessor recommendation" in guidance
+    assert "decide" in guidance
+    assert "Do not change tasks merely" in guidance
 
 
 def test_tool_guidance_empty_when_no_tools_present() -> None:
