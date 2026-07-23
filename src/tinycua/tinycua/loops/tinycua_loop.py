@@ -461,12 +461,34 @@ class TinyCUALoop(
                 workspace_binder(self.workspace_dir)
             context_binder = getattr(tool, "bind_session_context", None)
             if callable(context_binder):
+                context = [
+                    {"role": message.get("role", "unknown"), "content": message.get("content", "")}
+                    for message in self.root_session.input_context
+                ]
+                context.extend(
+                    {
+                        "role": entry.get("role", "unknown") if isinstance(entry, dict) else entry.role,
+                        "content": entry_content(entry),
+                        "segment": entry.get("segment") if isinstance(entry, dict) else entry.segment,
+                        "source_node_id": entry.get("source_node_id") if isinstance(entry, dict) else entry.source_node_id,
+                        "source_session_id": entry.get("source_session_id") if isinstance(entry, dict) else entry.source_session_id,
+                    }
+                    for entry in self.root_session.session_context
+                )
+                context.extend(
+                    {
+                        "role": record.role,
+                        "content": record.content,
+                        "record_type": record.record_type,
+                        "source_node_id": record.source_node_id,
+                        "source_session_id": record.source_session_id,
+                    }
+                    for record in self.root_session.chat_history
+                    if record.record_type == "tool_result"
+                )
                 context_binder(
                     self.root_session.session_id,
-                    [
-                        {"role": message.get("role", "unknown"), "content": message.get("content", "")}
-                        for message in self.root_session.input_context
-                    ],
+                    context[-100:],
                 )
             handoff_binder = getattr(tool, "bind_handoff_store", None)
             if callable(handoff_binder):

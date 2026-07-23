@@ -227,6 +227,28 @@ def test_task_shrink_cancels_and_supersedes_with_a_rationale() -> None:
     assert superseded["replacement_task_id"] in store.tasks
 
 
+def test_clause_owner_cannot_be_cancelled_or_reassigned_through_metadata() -> None:
+    """Root acceptance clauses retain an executable owner after every mutation."""
+    store = TaskStateStore()
+    root = store.create_task("Root", acceptance_clauses=["behavior"])
+    child = store.create_task(
+        "Child", parent_id=root.task_id, clause_ids=["acceptance-1"]
+    )
+    update = TaskUpdateTool()
+    update.bind_task_store(store)
+
+    result = update(task_id=child.task_id, acceptance_clause_ids="")
+
+    assert result["success"] is False
+    assert child.metadata["acceptance_clause_ids"] == ["acceptance-1"]
+    try:
+        store.cancel_task(child.task_id, "obsolete")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("cancelled sole acceptance-clause owner")
+
+
 def test_review_tool_stages_corrections_until_reviewer_termination() -> None:
     """Review decisions remain provisional while the reviewer can correct them."""
     store = TaskStateStore()
@@ -247,6 +269,29 @@ def test_review_tool_stages_corrections_until_reviewer_termination() -> None:
 
     assert terminated["decision"] == "needs_revision"
     assert store.get_task(task_id).reviewer_decisions[-1]["decision"] == "needs_revision"
+
+
+def test_reviewer_termination_commits_the_selected_staged_task() -> None:
+    """Termination commits the task selected by the staged review decision."""
+    store = TaskStateStore()
+    root = store.create_task("Root")
+    store.create_task("First", parent_id=root.task_id)
+    second = store.create_task("Second", parent_id=root.task_id)
+    store.record_result(second.task_id, TaskResult(content="evidence"))
+    review = TaskReviewDecisionTool()
+    terminate = TerminateTool()
+    for tool in (review, terminate):
+        tool.bind_task_store(store)
+    terminate.bind_source_node("result_reviewer")
+
+    assert review(
+        task_id=second.task_id,
+        decision="approved",
+        rationale="[validated]: command passed",
+    )["success"]
+    assert terminate()["success"]
+
+    assert store.get_task(second.task_id).reviewer_decisions[-1]["decision"] == "approved"
 
 
 def test_executor_result_stays_staged_until_executor_termination() -> None:

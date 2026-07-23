@@ -423,13 +423,17 @@ class TaskStateStore:
         if next_status != task.status and next_status not in self._ALLOWED_TRANSITIONS[task.status]:
             msg = f"Invalid task transition {task.status.value}->{next_status.value} for task {task_id}"
             raise ValueError(msg)
+        if metadata and "acceptance_clause_ids" in metadata:
+            self._require_acceptance_coverage(
+                task_id, metadata["acceptance_clause_ids"]
+            )
+        if metadata and task_id == self.root_task_id and "acceptance_clauses" in metadata:
+            msg = "Root acceptance clauses are immutable."
+            raise ValueError(msg)
         task.title = title if title is not None else task.title
         task.description = description if description is not None else task.description
         task.status = next_status
         if metadata:
-            if task_id == self.root_task_id and "acceptance_clauses" in metadata:
-                msg = "Root acceptance clauses are immutable."
-                raise ValueError(msg)
             task.metadata.update(metadata)
         self._finalize_mutation("update_task", task_id)
         return task
@@ -445,6 +449,7 @@ class TaskStateStore:
         if not rationale.strip():
             msg = "Cancellation requires a rationale."
             raise ValueError(msg)
+        self._require_acceptance_coverage(task_id, [])
         task.status = TaskStatus.CANCELLED
         task.metadata["cancellation_rationale"] = rationale
         self._finalize_mutation("cancel_task", task_id, rationale=rationale)
@@ -511,25 +516,41 @@ class TaskStateStore:
             msg = f"Task {task_id} has no parent."
             raise ValueError(msg)
         self._require_mutable(parent)
-        root = self.tasks[self.root_task_id] if self.root_task_id else None
+        self._require_acceptance_coverage(task_id, [])
+        parent.children.remove(task_id)
+        del self.tasks[task_id]
+        self._finalize_mutation("delete_task", task_id, rationale=rationale)
+
+    def _require_acceptance_coverage(self, task_id: str, clause_ids: Any) -> None:
+        """Reject a mutation that leaves a root acceptance clause unowned."""
+        if not isinstance(clause_ids, list) or not all(
+            isinstance(clause_id, str) for clause_id in clause_ids
+        ):
+            msg = "Acceptance clause references must be a list of clause IDs."
+            raise ValueError(msg)
+        root = self.tasks.get(self.root_task_id or "")
         required_ids = {
             clause["id"]
             for clause in (root.metadata.get("acceptance_clauses", []) if root else [])
             if isinstance(clause, dict) and isinstance(clause.get("id"), str)
         }
+        if not set(clause_ids).issubset(required_ids):
+            msg = "Task references an unknown acceptance clause."
+            raise ValueError(msg)
         covered_ids = {
             clause_id
             for candidate_id, candidate in self.tasks.items()
-            if candidate_id != task_id
-            for clause_id in candidate.metadata.get("acceptance_clause_ids", [])
+            if candidate.status not in {TaskStatus.CANCELLED, TaskStatus.SUPERSEDED}
+            for clause_id in (
+                clause_ids
+                if candidate_id == task_id
+                else candidate.metadata.get("acceptance_clause_ids", [])
+            )
             if isinstance(clause_id, str)
         }
         if not required_ids.issubset(covered_ids):
-            msg = "Cannot delete a task that would orphan an acceptance clause."
+            msg = "Cannot remove the final owner of an acceptance clause."
             raise ValueError(msg)
-        parent.children.remove(task_id)
-        del self.tasks[task_id]
-        self._finalize_mutation("delete_task", task_id, rationale=rationale)
 
     def merge_tasks(self, child_id: str, parent_id: str, *, rationale: str) -> Task:
         """Collapse a child into its parent, preserving work.
@@ -704,6 +725,7 @@ class TaskStateStore:
         """Stage a task result until the executor terminates."""
         task = self.get_task(task_id)
         self._require_mutable(task)
+        self._staged_results.pop(task_id, None)
         self._staged_results[task_id] = result
         return task
 
@@ -866,6 +888,7 @@ class TaskStateStore:
         if reviewer_decision == ReviewerDecision.APPROVED and not self._has_approval_evidence(task.result):
             msg = "Approval requires successful executor evidence with non-empty content."
             raise ValueError(msg)
+        self._staged_reviewer_decisions.pop(task_id, None)
         self._staged_reviewer_decisions[task_id] = {
             "decision": reviewer_decision,
             "rationale": rationale,

@@ -521,13 +521,26 @@ class Node(ABC):
             contract_lines: list[str] = []
             if contract.goal:
                 contract_lines.append(f"## Your Goal\n{contract.goal}")
-            if contract.success_criteria:
+            commit_tools = set(contract.required_tools)
+            for group in contract.any_of_tools:
+                commit_tools.update(group)
+            visible_names = {getattr(tool, "name", "") for tool in resolved_tools or []}
+            if contract.success_criteria and (
+                resolved_tools is None or bool(visible_names & commit_tools)
+            ):
                 contract_lines.append(
                     f"## Success Criteria (what 'done' looks like)\n{contract.success_criteria}"
                 )
-            if contract.tool_rationale:
+            visible_rationale = contract.tool_rationale
+            if resolved_tools is not None:
+                visible_rationale = {
+                    name: rationale
+                    for name, rationale in contract.tool_rationale.items()
+                    if name in visible_names
+                }
+            if visible_rationale:
                 lines = ["## Required Tools — Why Each Is Needed"]
-                for tool_name, rationale in contract.tool_rationale.items():
+                for tool_name, rationale in visible_rationale.items():
                     lines.append(f"- {tool_name}: {rationale}")
                 contract_lines.append("\n".join(lines))
             if contract_lines:
