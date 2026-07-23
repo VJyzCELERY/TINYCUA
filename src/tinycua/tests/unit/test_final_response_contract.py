@@ -831,8 +831,8 @@ def test_task_executor_read_only_evidence_retries_executor_not_replan() -> None:
     ]
 
 
-def test_task_executor_task_state_update_only_is_rejected() -> None:
-    """A task-state update alone is not executor evidence."""
+def test_task_executor_result_update_satisfies_lifecycle_contract() -> None:
+    """A result update alone satisfies the executor lifecycle contract."""
     loop = TinyCUALoop()
     task = loop.root_session.task_store.create_task("initialize backend")
     loop.root_session.task_store.record_result(
@@ -862,11 +862,11 @@ def test_task_executor_task_state_update_only_is_rejected() -> None:
         ),
     )
 
-    assert validation.is_valid is False
+    assert validation.is_valid is True
 
 
-def test_task_executor_success_without_action_evidence_is_rejected() -> None:
-    """A success report alone cannot complete executor work."""
+def test_task_executor_result_update_without_action_evidence_is_valid() -> None:
+    """A staged executor result, not performed work, satisfies orchestration."""
     loop = TinyCUALoop()
     executor = TinyCUATaskExecutorNode(
         node_id="task_executor",
@@ -885,7 +885,7 @@ def test_task_executor_success_without_action_evidence_is_rejected() -> None:
         ),
     )
 
-    assert validation.is_valid is False
+    assert validation.is_valid is True
 
 
 def test_task_executor_failure_without_action_evidence_is_valid() -> None:
@@ -919,8 +919,8 @@ def test_task_executor_failure_without_action_evidence_is_valid() -> None:
     assert validation.is_valid is True
 
 
-def test_task_executor_success_without_action_evidence_cannot_reach_reviewer() -> None:
-    """Unsupported executor success is rejected before reviewer handoff."""
+def test_task_executor_result_update_can_reach_reviewer() -> None:
+    """Reviewer judges executor results without orchestration evidence gates."""
     loop = TinyCUALoop()
     task = loop.root_session.task_store.create_task("initialize backend")
     loop.root_session.task_store.record_result(
@@ -953,13 +953,13 @@ def test_task_executor_success_without_action_evidence_cannot_reach_reviewer() -
     )
     validation = loop._validate_node_result(executor, result)
 
-    assert validation.is_valid is False
+    assert validation.is_valid is True
     assert task.result is not None
     assert task.result.success is True
 
 
-def test_task_executor_repeated_success_without_evidence_is_rejected() -> None:
-    """Repeated unsupported success remains invalid."""
+def test_task_executor_repeated_result_updates_are_valid() -> None:
+    """Executor result quality is reviewed outside lifecycle validation."""
     loop = TinyCUALoop()
     task = loop.root_session.task_store.create_task("create requirements file")
     executor = TinyCUATaskExecutorNode(
@@ -998,7 +998,7 @@ def test_task_executor_repeated_success_without_evidence_is_rejected() -> None:
     loop._enrich_task_results_from_tool_batch(executor, unsupported_results)
     validation = loop._validate_node_result(executor, result)
 
-    assert validation.is_valid is False
+    assert validation.is_valid is True
 
 
 def test_task_executor_read_only_evidence_is_left_to_reviewer() -> None:
@@ -1070,8 +1070,8 @@ def test_task_executor_success_result_accepts_concrete_action_evidence() -> None
     assert validation.is_valid is True
 
 
-def test_reviewer_approval_requires_task_inspect() -> None:
-    """Reviewer must call task_inspect before approving, even with a result report."""
+def test_reviewer_approval_requires_rationale() -> None:
+    """Reviewer approval needs validation rationale."""
     loop = TinyCUALoop()
     task = loop.root_session.task_store.create_task("create models")
     loop.root_session.task_store.record_result(
@@ -1083,7 +1083,7 @@ def test_reviewer_approval_requires_task_inspect() -> None:
         config=create_node_config("result_reviewer"),
     )
 
-    # Approval without task_inspect should be rejected
+    # Approval without a rationale is rejected.
     validation = loop._validate_node_result(
         reviewer,
         LLMResult(
@@ -1112,7 +1112,7 @@ def test_reviewer_approval_requires_task_inspect() -> None:
     )
 
     assert validation.is_valid is False
-    assert any("task_inspect" in error for error in validation.errors)
+    assert any("rationale" in error for error in validation.errors)
 
     # But with task_inspect, approval is valid
     loop.root_session.task_store.record_result(
