@@ -204,14 +204,23 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
     ),
     "task_analyzer": NodeContract(
         node_id="task_analyzer",
-        any_of_tools=frozenset({frozenset({"task_decompose"}), frozenset({"task_update"})}),
+        any_of_tools=frozenset(
+            {
+                frozenset({"task_create"}),
+                frozenset({"task_decompose"}),
+                frozenset({"task_shrink"}),
+                frozenset({"task_update"}),
+            }
+        ),
         requires_terminate=True,
         early_stop_tool="task_decompose",
         goal="Break down the active task into concrete, executable subtasks grounded in current reality.",
-        success_criteria="task_decompose (or task_update) called successfully, then terminate. The roadmap now has actionable children or is confirmed as-is.",
+        success_criteria="A supported task mutation succeeds, then terminate. The roadmap is actionable or safely repaired.",
         tool_rationale={
             "task_decompose": "Creates child tasks the executor can pick up. Without this, the roadmap has no executable next steps.",
             "task_update": "Confirms the existing roadmap is sufficient. Use when no useful decomposition remains.",
+            "task_create": "Adds a missing child or sibling without recreating completed roadmap history.",
+            "task_shrink": "Cancels, supersedes, deletes, or merges invalid local work safely.",
             "terminate": "Ends this node so the runtime advances to the executor. Without terminate, the loop is stuck here.",
         },
     ),
