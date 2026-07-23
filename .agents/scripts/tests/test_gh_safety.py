@@ -144,6 +144,27 @@ def test_generated_payload_is_cleaned_after_mutation_failure(
             generated_tmp.rmdir()
 
 
+def test_api_uses_json_payload_for_collection_values(monkeypatch):
+    payload_paths = []
+
+    def capture_run(command, *args, **kwargs):
+        payload = Path(command[command.index("--input") + 1])
+        payload_paths.append(payload)
+        assert json.loads(payload.read_text()) == {
+            "labels": ["spec"],
+            "title": "Spec: Ship widgets",
+        }
+        return "{}", "", 0
+
+    monkeypatch.setattr(gh, "get_owner_repo", lambda: "acme/widgets")
+    monkeypatch.setattr(gh, "run", capture_run)
+
+    assert gh.api(
+        "POST", "issues", {"title": "Spec: Ship widgets", "labels": ["spec"]}
+    ) == ("{}", "", 0)
+    assert all(not path.exists() for path in payload_paths)
+
+
 def test_successful_mutation_does_not_delete_caller_file_in_tmp(monkeypatch):
     body_file = TMP / "gh-safety-caller-owned.md"
     body_file.write_text("caller owned")

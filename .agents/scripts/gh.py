@@ -135,11 +135,16 @@ def api(method: str, endpoint: str, data: dict | None = None, input_file: str | 
     
     if input_file:
         cmd.extend(["--input", input_file])
-    elif data:
-        for k, v in data.items():
-            cmd.extend(["-f", f"{k}={v}"])
-    
-    out, err, rc = run(cmd)
+        out, err, rc = run(cmd)
+    elif data and any(isinstance(value, (dict, list)) for value in data.values()):
+        with generated_payload("gh-api-", data) as payload:
+            cmd.extend(["--input", str(payload)])
+            out, err, rc = run(cmd)
+    else:
+        if data:
+            for key, value in data.items():
+                cmd.extend(["-f", f"{key}={value}"])
+        out, err, rc = run(cmd)
     if paginate and rc == 0:
         try:
             decoder = json.JSONDecoder()
