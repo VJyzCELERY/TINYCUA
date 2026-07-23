@@ -271,6 +271,20 @@ def test_decomposition_rejects_duplicate_sibling_titles() -> None:
     assert len(root.children) == 1
 
 
+def test_only_first_in_progress_leaf_remains_active() -> None:
+    """Conflicting planning updates retain the first executable task only."""
+    store = TaskStateStore()
+    root = store.create_task("Root")
+    first, second = store.decompose_task(root.task_id, ["First", "Second"])
+
+    store.update_task(first, status=TaskStatus.IN_PROGRESS)
+    store.update_task(second, status=TaskStatus.IN_PROGRESS)
+
+    assert store.get_task(first).status is TaskStatus.IN_PROGRESS
+    assert store.get_task(second).status is TaskStatus.PENDING
+    assert store.active_task_id == first
+
+
 def test_reviewer_decision_is_replaceable_until_committed() -> None:
     """Only termination commits the final staged reviewer decision."""
     store = TaskStateStore()
