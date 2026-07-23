@@ -1,0 +1,49 @@
+\documentclass{article}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+\begin{document}
+
+\begin{algorithm}[t]
+\caption{TINYCUA Worker Node}
+\label{alg:worker}
+\begin{algorithmic}[1]
+\Require $\mathit{digestedContext}$, $\mathit{queue}$, $\mathit{existingWorker}$
+\Ensure $\mathit{route}$, $\mathit{queue}$
+
+// Step 1: Check if WorkerNode already exists (deduplication)
+\If{$\mathit{existingWorker} \neq \textsc{null}$}
+    \State $\mathit{existingWorker.input} \gets \mathit{digestedContext}$
+    \State \Return
+\EndIf
+
+// Step 2: Check if task exists
+\State $\mathit{taskExists} \gets \mathit{queue.hasTask()}$
+
+// Step 3: Analysis call
+\State $\mathit{analysisResult} \gets \textsc{SLMAnalyze}(\mathit{digestedContext}, \mathit{taskExists}, \mathit{queue})$
+
+// Step 4: Verdict / classification call
+\State $\mathit{route} \gets \textsc{Classify}(\mathit{analysisResult}, \mathit{taskExists}, \mathit{queue.hasWorkerSpawnedNodes()})$
+
+// Step 5: Dispatch via RouteMap
+\If{$\mathit{route} = \text{task\_creation}$}
+    \State $\mathit{queue} \gets [\textsc{TaskCreate}, \textsc{TaskAnalyzer}, \textsc{AnalysisEffort}, \textsc{TaskExecutor}, \textsc{ResultReviewer}, \textsc{Response}]$
+\ElsIf{$\mathit{route} = \text{task\_recreation}$}
+    \State $\mathit{queue.clearAfterCurrent()}$
+    \State $\mathit{queue} \gets [\textsc{TaskAnalyzer}(\textsc{TaskInit}), \textsc{AnalysisEffort}, \textsc{TaskExecutor}, \textsc{ResultReviewer}, \textsc{Response}]$
+\ElsIf{$\mathit{route} = \text{task\_reanalysis}$}
+    \State $\mathit{queue.clearAfterCurrent()}$
+    \State $\mathit{queue} \gets [\textsc{TaskAnalyzer}, \textsc{AnalysisEffort}, \textsc{TaskExecutor}, \textsc{ResultReviewer}, \textsc{Response}]$
+\ElsIf{$\mathit{route} = \text{passthrough}$}
+    \State $\mathit{queue.advance()}$
+\ElsIf{$\mathit{route} = \text{proceed\_execution}$}
+    \State $\mathit{queue} \gets [\textsc{TaskExecutor}, \textsc{ResultReviewer}, \textsc{Response}]$
+\EndIf
+
+\end{algorithmic}
+\end{algorithm}
+
+\end{document}
