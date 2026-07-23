@@ -8,6 +8,7 @@ from __future__ import annotations
 
 
 from tinycua.config.node_config import NodeToolPolicy
+from tinycua.config.node_config import create_node_config
 from tinycua.config.tool_scopes import (
     information_digester_tool_scope,
     query_analyst_tool_scope,
@@ -22,6 +23,9 @@ from tinycua.config.tool_scopes import (
 )
 from tinycua.tools.digest_information import DigestInformationTool
 from tinycua.tools.enhanced_context_retrieval import EnhancedContextRetrievalTool
+from tinycua.loops.task_nodes import TinyCUATaskExecutorNode
+from tinycua.loops.tinycua_loop import TinyCUALoop
+from tinycua.models.session_context_entry import SessionContextEntry
 
 
 class TestQueryAnalystToolScope:
@@ -435,6 +439,43 @@ class TestEnhancedContextRetrievalCache:
         result2 = tool2(session_context=context2, query="test")
         assert result1 is not None
         assert result2 is not None
+
+    def test_bound_root_session_overrides_caller_context(self, tmp_path) -> None:
+        """Retrieval scopes cache and search to the authoritative root session."""
+        tool = EnhancedContextRetrievalTool()
+        tool.bind_workspace(tmp_path)
+        tool.bind_session_context(
+            "root-session",
+            [{"role": "user", "content": "authoritative evidence"}],
+        )
+
+        result = tool(
+            session_context=[{"role": "user", "content": "caller supplied"}],
+            query="authoritative",
+        )
+
+        assert result["source_session_id"] == "root-session"
+        assert result["results"][0]["snippet"] == "authoritative evidence"
+        assert "root-session" in result["cache_path"]
+
+    def test_bound_context_includes_reusable_session_outcomes(self) -> None:
+        """Bound retrieval searches root-session outputs, not only user input."""
+        loop = TinyCUALoop()
+        loop.root_session.input_context = [{"role": "user", "content": "original request"}]
+        loop.root_session.session_context.append(
+            SessionContextEntry(content="tool failure: permission denied", segment="output")
+        )
+        tool = EnhancedContextRetrievalTool()
+        node = TinyCUATaskExecutorNode(
+            node_id="task_executor", config=create_node_config("task_executor")
+        )
+
+        loop._bind_session_tools([tool], node)
+        result = tool(query="permission denied")
+
+        assert result["source_session_id"] == loop.root_session.session_id
+        assert result["results"]
+        assert result["results"][0]["snippet"] == "tool failure: permission denied"
 
 
 class TestDigestInformationOutput:

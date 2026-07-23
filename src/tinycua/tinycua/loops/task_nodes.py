@@ -66,19 +66,16 @@ _TASK_ANALYZER_INSTRUCTION = (
     "current today instead of assuming from prior knowledge. You do not "
     "execute the task or produce the deliverable — that is the "
     "TaskExecutor's job. Inspect the roadmap. If the active task needs "
-    "subtasks, call task_decompose or task_create. If no useful decomposition "
-    "remains, call task_update. To repair impossible work, use task_shrink to "
-    "cancel, supersede, delete, or merge it. After a successful mutation, call "
-    "terminate. Do not write a plan — call a tool, then terminate."
+    "subtasks, identify the needed structural change. Return a concise action "
+    "summary after exploring; the next lifecycle phase will expose the state "
+    "mutation. Do not execute the task itself."
 )
 _TASK_ANALYZER_CONTINUATION = (
     "Based on the roadmap and mission context above, explore first "
     "(web_search/fetch_url/read_file/run_shell) when the task involves a "
     "fast-moving domain (research, current state of tech, models, "
     "frameworks) so your decomposition targets what is current today. "
-    "Then call task_decompose or task_create for missing sequential subtasks, "
-    "or task_update if the task should stay as-is. After a successful mutation, "
-    "call terminate. If previous tasks already write to "
+    "Then summarize the needed structural change. If previous tasks already write to "
     "the report file, do not create a final 'write report' task — "
     "decompose it as 'review and reorganize the existing deliverable file' instead."
 )
@@ -86,11 +83,9 @@ _TASK_ANALYZER_LOCAL_REPLAN_CONTINUATION = (
     "Refine only the active local region. Explore the local region "
     "(read_file/run_shell/search_files) if it helps you understand the "
     "current task before refining. If the existing plan is correct and "
-    "the task failed due to execution (not planning), call task_update "
-    "with metadata {\"plan_unchanged\": true} so the runtime skips "
-    "re-execution. If the plan is wrong, call task_shrink to cancel, supersede, "
-    "delete, or merge local work, or task_create/task_decompose to add work. "
-    "After a successful mutation, call terminate. Do "
+    "the task failed due to execution (not planning), summarize that the plan "
+    "is unchanged so the runtime can skip re-execution. If the plan is wrong, "
+    "summarize the local structural change needed. Do "
     "not decompose the root roadmap from a local replan."
 )
 
@@ -102,16 +97,15 @@ _TASK_ASSESSOR_UPFRONT_INSTRUCTION = (
     "target current entities, not stale assumptions. You do not execute "
     "tasks or mutate task state. Inspect the whole roadmap and select "
     "unfinished tasks that are complex enough to warrant further "
-    "decomposition. Use task_inspect for read-only assessment and "
-    "node_handoff to instruct TaskAnalyzer which tasks to analyze and why. "
-    "Be concise and do not repeat upstream context."
+    "decomposition. Use read-only assessment and summarize which tasks need "
+    "analysis and why. Be concise and do not repeat upstream context."
 )
 _TASK_ASSESSOR_UPFRONT_CONTINUATION = (
     "Based on the whole roadmap above, assess decomposition readiness across "
     "the roadmap. Explore (web_search/fetch_url/read_file/run_shell) to "
-    "verify the roadmap targets current reality for research tasks. Use "
-    "node_handoff to instruct TaskAnalyzer with selected task IDs, "
-    "reasons, constraints, or that no further upfront decomposition is useful."
+    "verify the roadmap targets current reality for research tasks. Summarize "
+    "selected task IDs, reasons, constraints, or that no further upfront "
+    "decomposition is useful."
 )
 _TASK_ASSESSOR_LOCAL_REPLAN_INSTRUCTION = (
     "You are the TaskAssessor for a ResultReviewer-requested local replan. "
@@ -119,16 +113,15 @@ _TASK_ASSESSOR_LOCAL_REPLAN_INSTRUCTION = (
     "that local region needs refinement before execution continues. You may "
     "explore the local region (read_file, run_shell, search_files) to "
     "understand it. Do not reassess the whole roadmap, do not execute "
-    "tasks, and do not discuss execution tools. Use task_inspect for "
-    "read-only assessment and node_handoff to instruct TaskAnalyzer. Do "
-    "not mutate task state."
+    "tasks, and do not discuss execution tools. Use read-only assessment and "
+    "summarize the local recommendation. Do not mutate task state."
 )
 _TASK_ASSESSOR_LOCAL_REPLAN_CONTINUATION = (
     "Based on the active task and local roadmap region above, assess whether "
     "the reviewed task needs local decomposition or planning metadata updates. "
-    "Explore the local region if it helps your assessment. "
-    "Use node_handoff to pass the local assessment, selected decomposition "
-    "target, blocked planning gap, or that no local replan is useful."
+    "Explore the local region if it helps your assessment. Summarize the local "
+    "assessment, selected decomposition target, blocked planning gap, or that "
+    "no local replan is useful."
 )
 
 _TASK_EXECUTOR_INSTRUCTION = (
@@ -138,22 +131,19 @@ _TASK_EXECUTOR_INSTRUCTION = (
     "fetch_url) before making changes — plan and analyze before you act. "
     "You MUST use tools for workspace changes, inspection, commands, "
     "Python, research, or verification. Preserve explicit user constraints "
-    "from the work order. Your final action MUST call task_result_update "
-    "with success=true/false and a concise outcome report. Do not describe "
-    "what you will do — use the tools and report the result. "
+    "from the work order. Do not describe what you will do — use the tools and "
+    "return a concise action summary. "
     "After completing the active task, check for sibling tasks (same "
     "parent) your work also completed. For each, call task_inspect to "
-    "verify, then task_result_update with success=true and 'completed as "
-    "part of task N'. Only report siblings you actually completed."
+    "verify, then summarize only siblings you actually completed."
 )
 _TASK_EXECUTOR_CONTINUATION = (
     "Based on the active task above, explore the current state (read_file/"
     "list_files/search_files/web_search) before making changes. Then use "
-    "tools to complete it. Call task_result_update with what changed or was "
-    "found and success=true/false. If blocked, call task_result_update with "
-    "success=false and the concrete blocker; do not keep repeating "
+    "tools to complete it. Summarize what changed, was found, or blocked; do "
+    "not keep repeating "
     "read/list inspection. After completing the active task, check for "
-    "sibling tasks you also completed — inspect and report results for each."
+    "sibling tasks you also completed — inspect and summarize each."
 )
 
 _RESULT_REVIEWER_INSTRUCTION = _RESULT_REVIEWER_INSTRUCTION  # re-exported from node_guidance
@@ -222,16 +212,26 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
     def build_tool_system_prompt(self, resolved_tools: list[Any] | None = None) -> str:
         """Behavioral guidance keyed on present analyzer tools (FR-005)."""
         names = {getattr(tool, "name", "") for tool in (resolved_tools or [])}
-        if not names.intersection({"task_inspect", "task_create", "task_decompose", "task_shrink", "task_update"}):
+        commit_tools = names.intersection(
+            {"task_create", "task_decompose", "task_shrink", "task_update"}
+        )
+        if commit_tools:
+            guidance = "Tool guidance: Commit the planned structural change with " + ", ".join(sorted(commit_tools)) + "."
+            if (
+                "task_update" in commit_tools
+                and self.config.metadata.get("task_analyzer_mode") == "local_replan"
+            ):
+                guidance += " Use metadata plan_unchanged=true when the plan needs no change."
+            return guidance
+        if "terminate" in names:
+            return "Tool guidance: Call terminate now."
+        if not names.intersection({"task_inspect", "web_search", "fetch_url", "read_file", "list_files", "search_files", "run_shell"}):
             return ""
         return (
-            "Tool guidance: call task_inspect to read state. Explore first "
+            "Tool guidance: use task_inspect to read state when available. Explore first "
             "(web_search/fetch_url/read_file/list_files/search_files/"
-            "run_shell) to ground your decomposition in current reality, "
-            "especially for research tasks. Then call task_create or task_decompose "
-            "to add work, task_update to edit it, or task_shrink to safely dispose "
-            "of impossible work. After a successful mutation, call terminate. Do not execute "
-            "the task itself — decompose and hand off to the executor."
+            "run_shell) to ground your decomposition in current reality, especially "
+            "for research tasks. Do not execute the task itself."
         )
 
     def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
@@ -492,6 +492,17 @@ def _render_active_task_work_order(session: Session) -> str:
                 active.result.summary.strip() or active.result.content.strip(),
             ]
         )
+    clauses = store.unmet_acceptance_clauses(active)
+    unmet = store.unmet_acceptance_clauses()
+    if clauses or unmet:
+        lines.extend(["", "## Acceptance Clauses"])
+        if clauses:
+            lines.append("Active task coverage:")
+            lines.extend(f"- {clause['text']}" for clause in clauses)
+        other_unmet = [clause for clause in unmet if clause not in clauses]
+        if other_unmet:
+            lines.append("Unmet root clauses:")
+            lines.extend(f"- {clause['text']}" for clause in other_unmet)
     if active.reviewer_decisions:
         lines.append("")
         lines.append("## Past Review Feedback")
@@ -524,9 +535,7 @@ def _render_active_task_work_order(session: Session) -> str:
             "",
             "## Success Criteria",
             "- At least one action/research/file/shell tool result supports success.",
-            "- Call `task_result_update` after the evidence exists.",
-            "- If blocked, call `task_result_update` with `success=false` and the "
-            "specific blocker/evidence.",
+            "- Summarize the evidence and any specific blocker for the commit phase.",
         ]
     )
     return "\n".join(lines)
@@ -659,13 +668,16 @@ class TinyCUATaskAssessorNode(ProcessNode):
     def build_tool_system_prompt(self, resolved_tools: list[Any] | None = None) -> str:
         """Behavioral guidance keyed on present assessor tools (FR-005)."""
         names = {getattr(tool, "name", "") for tool in (resolved_tools or [])}
-        if not names.intersection({"task_inspect", "node_handoff"}):
+        if "node_handoff" in names:
+            return "Tool guidance: Commit the assessment with node_handoff."
+        if "terminate" in names:
+            return "Tool guidance: Call terminate now."
+        if not names.intersection({"task_inspect", "web_search", "fetch_url", "read_file", "run_shell"}):
             return ""
         return (
-            "Tool guidance: call task_inspect for read-only assessment. "
+            "Tool guidance: use task_inspect for read-only assessment when available. "
             "Explore (web_search/fetch_url/read_file/run_shell) to verify "
-            "the roadmap targets current reality for research tasks. Then "
-            "node_handoff to instruct TaskAnalyzer. Do not mutate task state."
+            "the roadmap targets current reality for research tasks. Do not mutate task state."
         )
 
 class TinyCUATaskExecutorNode(ProcessNode):
@@ -774,6 +786,8 @@ class TinyCUATaskExecutorNode(ProcessNode):
             lines.append("Use search_files instead of run_shell grep for content search.")
         if "task_result_update" in names:
             lines.append("Your final action MUST call task_result_update with the outcome report.")
+        if "terminate" in names:
+            lines.append("Call terminate now.")
         if not lines:
             return ""
         return "Tool guidance: " + " ".join(lines)
@@ -872,13 +886,19 @@ class TinyCUAResultReviewerNode(ProcessNode):
         mission = _render_mission_block(session)
         mission_prefix = f"{mission}\n\n" if mission else ""
         context_blocks = self._reviewer_context_blocks(task, session)
+        clauses = session.task_store.unmet_acceptance_clauses(task)
+        clause_block = ""
+        if clauses:
+            clause_block = "Acceptance clauses under review:\n" + "\n".join(
+                f"- {clause['text']}" for clause in clauses
+            )
         return (
             f"{mission_prefix}Task under review: {task.task_id} — {task.title}\n"
             f"Task status: {task.status.value}\n"
             f"Outcome report: {result_content}\n"
             f"{_render_request_contract(session)}\n"
             f"Unified task context:\n{session.task_store.render_markdown()}\n"
-            f"{context_blocks}\n{base}"
+            f"{context_blocks}\n{clause_block}\n{base}"
         )
 
     def _task_to_review(self):

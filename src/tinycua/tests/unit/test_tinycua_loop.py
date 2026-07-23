@@ -11,9 +11,16 @@ from tinycua.config.node_config import NodeConfigBase, NodeToolPolicy, create_no
 from tinycua.config.types import LLMResult, Tool
 from tinycua.config.types import ValidationError
 from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
+from tinycua.loops.node_contract import LifecyclePhase
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
-from tinycua.loops.task_nodes import TinyCUATaskAssessorNode, TinyCUATaskExecutorNode
+from tinycua.loops.task_create import TinyCUATaskCreateNode
+from tinycua.loops.task_nodes import (
+    TinyCUAResultReviewerNode,
+    TinyCUATaskAssessorNode,
+    TinyCUATaskExecutorNode,
+)
+from tinycua.models.task import ReviewerDecision, TaskResult
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.session import Session
 from tinycua_sdk import Agent, LanguageModel
@@ -197,6 +204,27 @@ def test_executor_retry_keeps_all_tools_after_inspection() -> None:
         "write_file",
         "task_result_update",
     }
+
+
+def test_lifecycle_commit_tool_stays_denied_during_action_phase() -> None:
+    """Action calls cannot bypass the required tool-free summary."""
+    loop = TinyCUALoop()
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    result = LLMResult(
+        tool_calls=[{"function": {"name": "task_result_update"}}]
+    )
+
+    scoped = loop._tools_for_lifecycle_result(
+        executor,
+        result,
+        [Tool(name="read_file"), Tool(name="task_result_update"), Tool(name="terminate")],
+    )
+
+    assert executor.progress.lifecycle_phase is LifecyclePhase.ACTION
+    assert [tool.name for tool in scoped] == ["read_file"]
 
 
 def test_response_validation_rejects_internal_transcript_replay() -> None:
@@ -730,6 +758,115 @@ async def test_stream_true_returns_async_iterator():
     events = [e async for e in result]
     assert len(events) > 0
     assert any(e["type"] == "response.output_text.delta" for e in events)
+
+
+async def test_streamed_termination_does_not_restart_completed_lifecycle_node() -> None:
+    """A successful terminate phase completes instead of being redispatched."""
+    node = TinyCUATaskCreateNode(
+        node_id="task_create",
+        config=create_node_config("task_create"),
+    )
+    loop = TinyCUALoop(queue=NodeQueue(items=[node]))
+    node.ensure_session(loop.root_session)
+    node.progress.mark_tool_called("task_init")
+    node.progress.advance_lifecycle(LifecyclePhase.TERMINATE)
+    calls = 0
+
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+    agent.tool_permissions = {}
+
+    async def mock_stream(*args, **kwargs):
+        nonlocal calls
+        del args, kwargs
+        calls += 1
+        assert calls == 1, "completed lifecycle node was redispatched"
+        yield {"type": "response.completed", "finish_reason": "completed"}
+
+    agent._call_llm = mock_stream
+
+    async for _event in loop._stream_node_events(
+        node,
+        agent,
+        [],
+        None,
+        loop.queue.input_for_current(),
+    ):
+        pass
+
+    assert node.node_id not in loop.root_session.node_progress
+
+
+async def test_streamed_termination_failure_returns_to_commit() -> None:
+    """A failed reviewer approval is replaced before a later termination."""
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="result_reviewer",
+        config=create_node_config("result_reviewer"),
+    )
+    loop = TinyCUALoop(queue=NodeQueue(items=[reviewer]))
+    store = loop.root_session.task_store
+    root = store.create_task("Root", acceptance_clauses=["Behavior works"])
+    task = store.create_task(
+        "Implement behavior",
+        parent_id=root.task_id,
+        clause_ids=["acceptance-1"],
+    )
+    store.record_result(task.task_id, TaskResult(content="done", success=True))
+    store.stage_reviewer_decision(
+        task.task_id,
+        ReviewerDecision.APPROVED,
+        rationale="[validated]: initial review",
+    )
+    reviewer.ensure_session(loop.root_session)
+    reviewer.progress.mark_tool_called("task_review_decision")
+    reviewer.progress.advance_lifecycle(LifecyclePhase.TERMINATE)
+    tool_scopes: list[list[str]] = []
+
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+    agent.tool_permissions = {}
+
+    async def mock_stream(_messages, tools, *, stream=False):
+        del stream
+        names = [tool.name for tool in tools]
+        tool_scopes.append(names)
+        assert len(tool_scopes) <= 3, tool_scopes
+        if names == ["terminate"]:
+            yield {
+                "type": "tool_call.ready",
+                "id": f"terminate-{len(tool_scopes)}",
+                "name": "terminate",
+                "arguments": "{}",
+            }
+        else:
+            assert names == ["task_review_decision"]
+            yield {
+                "type": "tool_call.ready",
+                "id": "correct-decision",
+                "name": "task_review_decision",
+                "arguments": (
+                    '{"decision":"needs_revision",'
+                    '"rationale":"[finding]: evidence missing"}'
+                ),
+            }
+
+    agent._call_llm = mock_stream
+
+    async for _event in loop._stream_node_events(
+        reviewer,
+        agent,
+        [],
+        None,
+        loop.queue.input_for_current(),
+    ):
+        pass
+
+    assert tool_scopes == [["terminate"], ["task_review_decision"], ["terminate"]]
+    assert [decision["decision"] for decision in task.reviewer_decisions] == [
+        "needs_revision"
+    ]
 
 
 async def test_run_sync_consumes_canonical_stream_runtime():

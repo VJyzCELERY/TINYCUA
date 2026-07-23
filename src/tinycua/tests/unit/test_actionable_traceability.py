@@ -219,7 +219,7 @@ def test_task_executor_instruction_requires_real_tool_actions(tmp_path: Path) ->
         tool.name for tool in tools
     }
     assert "MUST use tools" in instruction
-    assert "task_result_update" in instruction
+    assert "task_result_update" not in instruction
 
 
 def test_task_executor_work_order_preserves_original_request_constraints() -> None:
@@ -394,6 +394,8 @@ async def test_task_executor_validates_tool_owned_result_update(tmp_path: Path) 
                 ],
             }
         if len(captured_tool_choices) == 2:
+            return {"content": "Created app.py", "tool_calls": []}
+        if len(captured_tool_choices) == 3:
             return {
                 "content": "",
                 "tool_calls": [
@@ -407,7 +409,7 @@ async def test_task_executor_validates_tool_owned_result_update(tmp_path: Path) 
                     }
                 ],
             }
-        if len(captured_tool_choices) == 3:
+        if len(captured_tool_choices) == 4:
             return {
                 "content": "",
                 "tool_calls": [
@@ -432,11 +434,22 @@ async def test_task_executor_validates_tool_owned_result_update(tmp_path: Path) 
     assert validation.is_valid
     assert result.content == "Created app.py"
     assert (tmp_path / "app.py").read_text() == 'print("ok")'
-    assert captured_tool_choices == [None, None, "required"]
+    assert captured_tool_choices[-1] == "required"
     assert "write_file" in captured_tool_names[0]
     assert "run_shell" in captured_tool_names[0]
     assert "task_execute" not in captured_tool_names[0]
-    assert captured_tool_names[2] == ["terminate"]
+    assert captured_tool_names[2] == ["task_result_update"]
+    assert captured_tool_names[3] == ["terminate"]
+    assert [item["name"] for item in result.metadata["tool_results"]] == [
+        "write_file",
+        "task_result_update",
+        "terminate",
+    ]
+    assert [outcome["tool_name"] for outcome in node.progress.correlated_outcomes] == [
+        "write_file",
+        "task_result_update",
+        "terminate",
+    ]
 
 
 async def test_task_executor_executes_continued_tool_calls(tmp_path: Path) -> None:

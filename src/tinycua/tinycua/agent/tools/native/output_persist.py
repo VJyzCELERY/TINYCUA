@@ -27,6 +27,7 @@ earlier bound).
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 
 _PERSIST_THRESHOLD = 100_000      # persist a single result above this
@@ -41,6 +42,7 @@ _TURN_SAFETY_NET = 200_000
 # a newer result for the same path. read_file/edit_file/write_file on path X
 # are stale once a newer read/edit/write of X exists — the file changed.
 _FILE_PATH_TOOLS = frozenset({"read_file", "str_replace", "append_file", "write_file", "search_files"})
+_MUTATION_TOOLS = frozenset({"str_replace", "append_file", "write_file"})
 
 # ponytail: write to ./tmp/tool-results/ (gitignored, repo-local). Per-session
 # subdirectory would isolate runs; upgrade path if concurrent runs collide.
@@ -166,6 +168,22 @@ def _build_tool_call_id_to_path(messages: list[dict]) -> dict[str, str]:
     return mapping
 
 
+def _succeeded_mutation(message: dict) -> bool:
+    """Return whether a file mutation actually changed the artifact."""
+    try:
+        result = json.loads(str(message.get("content", "")))
+    except (TypeError, ValueError):
+        return True
+    if not isinstance(result, dict):
+        return True
+    if result.get("allowed") is False:
+        return False
+    output = result.get("output", result)
+    return not isinstance(output, dict) or (
+        output.get("success") is not False and not output.get("error")
+    )
+
+
 def evict_superseded_file_reads(tool_messages: list[dict]) -> list[dict]:
     """Stub file-tool results that a NEWER result for the same path has superseded.
 
@@ -203,6 +221,8 @@ def evict_superseded_file_reads(tool_messages: list[dict]) -> list[dict]:
         tc_id = str(msg.get("tool_call_id") or "")
         path = id_to_path.get(tc_id)
         if not path:
+            continue
+        if msg.get("name") in _MUTATION_TOOLS and not _succeeded_mutation(msg):
             continue
         latest_index_for_path[path] = i  # last write wins → latest index
 

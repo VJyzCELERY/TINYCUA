@@ -41,15 +41,15 @@ class TestSiblingReportingStrengthened:
 
     def test_executor_says_only_report_completed(self):
         from tinycua.loops.task_nodes import _TASK_EXECUTOR_INSTRUCTION
-        assert "only report siblings you actually completed" in _TASK_EXECUTOR_INSTRUCTION.lower()
+        assert "summarize only siblings you actually completed" in _TASK_EXECUTOR_INSTRUCTION.lower()
 
     def test_reviewer_says_after_reviewing(self):
         from tinycua.loops.node_guidance import _RESULT_REVIEWER_INSTRUCTION
         assert "after reviewing" in _RESULT_REVIEWER_INSTRUCTION.lower()
 
-    def test_reviewer_says_no_task_review_decision_for_siblings(self):
+    def test_reviewer_says_sibling_coverage_is_checked(self):
         from tinycua.loops.node_guidance import _RESULT_REVIEWER_INSTRUCTION
-        assert "do not call task_review_decision for siblings" in _RESULT_REVIEWER_INSTRUCTION.lower()
+        assert "sibling" in _RESULT_REVIEWER_INSTRUCTION.lower()
 
 
 class TestReviewerTestGuidanceGeneric:

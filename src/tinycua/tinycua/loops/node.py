@@ -409,7 +409,7 @@ class Node(ABC):
         progress only when there IS progress). Computes missing tools from
         the node's contract.
         """
-        if not self.progress.satisfied_requirements:
+        if not self.progress.satisfied_requirements and not self.progress.action_summary:
             return ""
         contract = self.contract
         if not contract:
@@ -432,7 +432,7 @@ class Node(ABC):
         relevant |= set(contract.additional_recovery_tools)
         satisfied = sorted(satisfied_set & relevant)
         missing = sorted(relevant - satisfied_set)
-        if not satisfied:
+        if not satisfied and not self.progress.action_summary:
             return ""
         lines = ["## Your Progress This Session"]
         if satisfied:
@@ -440,6 +440,15 @@ class Node(ABC):
         if missing:
             lines.append(f"Still needed: {', '.join(missing)}")
             lines.append(f"You are {len(missing)} step(s) from completing this node.")
+        if self.progress.action_summary:
+            lines.append(f"Action summary: {self.progress.action_summary}")
+        if self.progress.correlated_outcomes:
+            lines.append("Recent tool outcomes:")
+            lines.extend(
+                f"- {outcome.get('tool_name', 'tool')}: "
+                f"{'ok' if outcome.get('success') else outcome.get('error', 'failed')}"
+                for outcome in self.progress.correlated_outcomes[-5:]
+            )
         return "\n".join(lines)
 
     def build_tool_system_prompt(self, resolved_tools: list[Any] | None = None) -> str:
@@ -512,13 +521,26 @@ class Node(ABC):
             contract_lines: list[str] = []
             if contract.goal:
                 contract_lines.append(f"## Your Goal\n{contract.goal}")
-            if contract.success_criteria:
+            commit_tools = set(contract.required_tools)
+            for group in contract.any_of_tools:
+                commit_tools.update(group)
+            visible_names = {getattr(tool, "name", "") for tool in resolved_tools or []}
+            if contract.success_criteria and (
+                resolved_tools is None or bool(visible_names & commit_tools)
+            ):
                 contract_lines.append(
                     f"## Success Criteria (what 'done' looks like)\n{contract.success_criteria}"
                 )
-            if contract.tool_rationale:
+            visible_rationale = contract.tool_rationale
+            if resolved_tools is not None:
+                visible_rationale = {
+                    name: rationale
+                    for name, rationale in contract.tool_rationale.items()
+                    if name in visible_names
+                }
+            if visible_rationale:
                 lines = ["## Required Tools — Why Each Is Needed"]
-                for tool_name, rationale in contract.tool_rationale.items():
+                for tool_name, rationale in visible_rationale.items():
                     lines.append(f"- {tool_name}: {rationale}")
                 contract_lines.append("\n".join(lines))
             if contract_lines:

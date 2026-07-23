@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from tinycua.loops.node_contract import (
+    LifecyclePhase,
     NodeProgress,
     NodeState,
     get_node_contract,
+    phase_tool_names,
     terminated_node_ids,
 )
 
@@ -66,6 +68,20 @@ class TestNodeProgress:
         assert progress.visited_tools == set()
         assert progress.satisfied_requirements == set()
         assert progress.history == []
+
+    def test_action_summary_transitions_to_isolated_commit_and_termination(self):
+        """Lifecycle phases keep action output available without exposing commit tools."""
+        progress = NodeProgress()
+        progress.advance_lifecycle(LifecyclePhase.SUMMARY, summary="tests passed")
+        progress.advance_lifecycle(LifecyclePhase.COMMIT)
+        progress.advance_lifecycle(LifecyclePhase.TERMINATE)
+
+        assert progress.action_summary == "tests passed"
+        assert [entry["phase"] for entry in progress.lifecycle_history] == [
+            "summary",
+            "commit",
+            "terminate",
+        ]
 
 
 class TestNodeContract:
@@ -138,6 +154,21 @@ class TestNodeContract:
         assert contract.is_satisfied({"task_shrink"})
         assert not contract.is_satisfied(set())
         assert not contract.is_satisfied({"task_init"})
+
+    def test_executor_phase_tools_do_not_expose_finalization_during_action(self):
+        """Action, commit, and termination each expose only their own tools."""
+        names = {"read_file", "run_shell", "task_result_update", "terminate"}
+
+        assert phase_tool_names("task_executor", names, LifecyclePhase.ACTION) == {
+            "read_file",
+            "run_shell",
+        }
+        assert phase_tool_names("task_executor", names, LifecyclePhase.COMMIT) == {
+            "task_result_update",
+        }
+        assert phase_tool_names("task_executor", names, LifecyclePhase.TERMINATE) == {
+            "terminate",
+        }
 
 
 class TestTerminatedNodeIds:

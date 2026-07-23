@@ -22,6 +22,8 @@ class TerminateTool(Tool):
     """Tool for explicitly ending a worker lifecycle node."""
 
     def __init__(self) -> None:
+        self._store = _DEFAULT_STORE
+        self._source_node = ""
         Tool.__init__(
             self,
             name="terminate",
@@ -33,9 +35,38 @@ class TerminateTool(Tool):
             },
         )
 
+    def bind_task_store(self, store: TaskStateStore) -> None:
+        """Bind termination to the active session's task store."""
+        self._store = store
+
+    def bind_source_node(self, node_id: str) -> None:
+        """Bind the terminating lifecycle node."""
+        self._source_node = node_id
+
     def __call__(self) -> dict[str, Any]:
         """Record an explicit node termination request."""
-        return {"success": True, "terminated": True}
+        result: dict[str, Any] = {"success": True, "terminated": True}
+        if self._source_node == "result_reviewer":
+            if not self._store._staged_reviewer_decisions:
+                return {"success": False, "error": "No provisional reviewer decision is staged."}
+            try:
+                task = self._store.commit_staged_reviewer_decision(
+                    next(reversed(self._store._staged_reviewer_decisions))
+                )
+            except ValueError as exc:
+                return {"success": False, "error": str(exc)}
+            result["task_id"] = task.task_id
+            result["decision"] = task.reviewer_decisions[-1]["decision"]
+        if self._source_node == "task_executor":
+            if self._store._staged_results:
+                try:
+                    task = self._store.commit_staged_result(
+                        next(reversed(self._store._staged_results))
+                    )
+                except ValueError as exc:
+                    return {"success": False, "error": str(exc)}
+                result["task_id"] = task.task_id
+        return result
 
 
 class SessionTaskToolMixin:
@@ -80,6 +111,9 @@ class TaskInitTool(SessionTaskToolMixin, Tool):
             description=(
                 "Initialize the worker roadmap with exactly one root task. "
                 "Choose the title and description from the actual user request; "
+                "extract every explicit observable acceptance requirement into "
+                "acceptance_clauses; use the request wording when it has no separate "
+                "acceptance statement; "
                 "do not create subtasks with this tool."
             ),
             parameters={
@@ -93,19 +127,47 @@ class TaskInitTool(SessionTaskToolMixin, Tool):
                         "type": "string",
                         "description": "Optional root task description/context.",
                     },
+                    "acceptance_clauses": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Explicit observable user acceptance clauses.",
+                    },
                 },
-                "required": ["title"],
+                "required": ["title", "acceptance_clauses"],
                 "additionalProperties": False,
             },
         )
 
-    def __call__(self, title: str, description: str = "") -> dict[str, Any]:
+    def __call__(
+        self,
+        title: str,
+        description: str = "",
+        acceptance_clauses: list[str] | None = None,
+    ) -> dict[str, Any]:
         """Initialize a root task tree."""
+        if not isinstance(title, str) or not title.strip():
+            return {"success": False, "error": "Root task title is required."}
+        if not isinstance(description, str):
+            return {"success": False, "error": "Root task description must be a string."}
+        if acceptance_clauses is None or acceptance_clauses == []:
+            acceptance_clauses = [description.strip() or title.strip()]
+        elif not isinstance(acceptance_clauses, list) or any(
+            not isinstance(clause, str) or not clause.strip()
+            for clause in acceptance_clauses
+        ):
+            return {
+                "success": False,
+                "error": "Acceptance clauses must be non-empty strings.",
+            }
         self._store.tasks.clear()
         self._store.root_task_id = None
         self._store.active_task_id = None
         self._store.transition_log.clear()
-        task = self._store.create_task(title, description=description)
+        task = self._store.create_task(
+            title,
+            description=description,
+            acceptance_clauses=acceptance_clauses,
+        )
         return {"success": True, "task_id": task.task_id, "status": task.status.value}
 
 
@@ -309,7 +371,23 @@ class TaskDecomposeTool(SessionTaskToolMixin, Tool):
                     "task_id": {"type": "string"},
                     "subtasks": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                            "oneOf": [
+                                {"type": "string"},
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "title": {"type": "string"},
+                                        "clause_ids": {
+                                            "type": "array",
+                                            "items": {"type": "string"},
+                                        },
+                                    },
+                                    "required": ["title"],
+                                    "additionalProperties": False,
+                                },
+                            ]
+                        },
                     },
                 },
                 "required": ["task_id", "subtasks"],
@@ -317,7 +395,7 @@ class TaskDecomposeTool(SessionTaskToolMixin, Tool):
             },
         )
 
-    def __call__(self, task_id: str, subtasks: list[str]) -> dict[str, Any]:
+    def __call__(self, task_id: str, subtasks: list[Any]) -> dict[str, Any]:
         """Create child tasks below an existing task.
 
         Preserves every analyzer-provided subtask in order. TaskAnalyzer owns
@@ -488,6 +566,7 @@ class TaskResultUpdateTool(SessionTaskToolMixin, Tool):
 
     def __init__(self) -> None:
         SessionTaskToolMixin.__init__(self)
+        self._source_node = ""
         Tool.__init__(
             self,
             name="task_result_update",
@@ -511,30 +590,47 @@ class TaskResultUpdateTool(SessionTaskToolMixin, Tool):
                         ),
                     },
                     "success": {"type": "boolean"},
+                    "metadata": {
+                        "type": "object",
+                        "description": "Clause evidence, call identities, outcomes, and artifacts.",
+                    },
                 },
                 "required": ["content", "success"],
                 "additionalProperties": False,
             },
         )
 
+    def bind_source_node(self, node_id: str) -> None:
+        """Bind the node so executor results can be staged."""
+        self._source_node = node_id
+
     def __call__(
         self,
         task_id: str | None = None,
         content: str = "",
         success: bool = True,
+        metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Persist a task execution result report."""
         active_id, error = self._resolve_task_ref(task_id)
         if error is not None:
             return error
         try:
-            task = self._store.record_result(
-                active_id,
-                TaskResult(content=content, success=success),
-            )
+            result = TaskResult(content=content, success=success, metadata=metadata or {})
+            if self._source_node == "task_executor":
+                task = self._store.stage_result(active_id, result)
+                staged = True
+            else:
+                task = self._store.record_result(active_id, result)
+                staged = False
         except ValueError as exc:
             return {"success": False, "error": str(exc)}
-        return {"success": True, "task_id": active_id, "status": task.status.value}
+        return {
+            "success": True,
+            "task_id": active_id,
+            "status": task.status.value,
+            "staged": staged,
+        }
 
 
 class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
@@ -598,7 +694,7 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
             return {"success": False, "error": "decision is required — cannot default to approved."}
         active_id: str | None
         if task_id:
-            active_id = self._store.resolve_task_id(task_id)
+            active_id = self._store.active_task_id if task_id == "active" else self._store.resolve_task_id(task_id)
             if active_id is None:
                 return {"success": False, "error": f"Task {task_id} not found."}
         else:
@@ -611,7 +707,7 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
         if active_id is None:
             return {"success": False, "error": "No active task"}
         try:
-            task = self._store.record_reviewer_decision(
+            task = self._store.stage_reviewer_decision(
                 active_id,
                 ReviewerDecision(decision),
                 rationale=rationale,
@@ -623,6 +719,7 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
             "task_id": active_id,
             "decision": ReviewerDecision(decision).value,
             "status": task.status.value,
+            "staged": True,
         }
 
 

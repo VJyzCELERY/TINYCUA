@@ -26,7 +26,7 @@ from tinycua.loops._loop_constants import (
 )
 from tinycua.loops.context_rendering import render_llm_content, sanitize_internal_reprs
 from tinycua.loops.lazy_retry_mixin import LazyRetryMixin
-from tinycua.loops.node_contract import NodeState
+from tinycua.loops.node_contract import LifecyclePhase, NodeState, phase_tool_names
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.orchestration_mixin import OrchestrationMixin
 from tinycua.loops.prompt_protocol_mixin import PromptProtocolMixin
@@ -34,6 +34,7 @@ from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.loops.recovery_stages_mixin import RecoveryGuardMixin, RecoveryStagesMixin
 from tinycua.loops.task_tree_rendering import render_task_tree
 from tinycua.loops.trace_state_mixin import TraceStateMixin
+from tinycua.loops.trace_state_mixin import normalize_tool_outcome
 from tinycua.loops.validation_retry_mixin import ValidationRetryMixin
 from tinycua.models.node_handoff import NodeHandoff
 from tinycua.models.session import Session
@@ -458,12 +459,116 @@ class TinyCUALoop(
             workspace_binder = getattr(tool, "bind_workspace", None)
             if callable(workspace_binder):
                 workspace_binder(self.workspace_dir)
+            context_binder = getattr(tool, "bind_session_context", None)
+            if callable(context_binder):
+                context = [
+                    {"role": message.get("role", "unknown"), "content": message.get("content", "")}
+                    for message in self.root_session.input_context
+                ]
+                context.extend(
+                    {
+                        "role": entry.get("role", "unknown") if isinstance(entry, dict) else entry.role,
+                        "content": entry_content(entry),
+                        "segment": entry.get("segment") if isinstance(entry, dict) else entry.segment,
+                        "source_node_id": entry.get("source_node_id") if isinstance(entry, dict) else entry.source_node_id,
+                        "source_session_id": entry.get("source_session_id") if isinstance(entry, dict) else entry.source_session_id,
+                    }
+                    for entry in self.root_session.session_context
+                )
+                context.extend(
+                    {
+                        "role": record.role,
+                        "content": record.content,
+                        "record_type": record.record_type,
+                        "source_node_id": record.source_node_id,
+                        "source_session_id": record.source_session_id,
+                    }
+                    for record in self.root_session.chat_history
+                    if record.record_type == "tool_result"
+                )
+                context_binder(
+                    self.root_session.session_id,
+                    context[-100:],
+                )
             handoff_binder = getattr(tool, "bind_handoff_store", None)
             if callable(handoff_binder):
                 handoff_binder(self._pending_handoffs)
             source_binder = getattr(tool, "bind_source_node", None)
             if callable(source_binder):
                 source_binder(node.node_id)
+
+    def _phase_tools(
+        self,
+        node: Node,
+        tools: list[Tool],
+        phase: LifecyclePhase,
+    ) -> list[Tool]:
+        """Resolve existing node tools for one focused lifecycle phase."""
+        names = phase_tool_names(
+            node.node_id, {tool.name for tool in tools}, phase
+        )
+        return [tool for tool in tools if tool.name in names]
+
+    def _attempt_tools(
+        self,
+        node: Node,
+        resolved_tools: list[Tool],
+        retry_message: str | None,
+    ) -> list[Tool]:
+        """Return tools for the current lifecycle phase or a normal retry."""
+        if node.contract.requires_terminate:
+            return self._phase_tools(
+                node, resolved_tools, node.progress.lifecycle_phase
+            )
+        return self._tools_for_retry_attempt(node, resolved_tools, retry_message)
+
+    @staticmethod
+    def _advance_lifecycle_phase(node: Node, result: LLMResult) -> bool:
+        """Advance a lifecycle node after its action summary or successful commit."""
+        if not node.contract.requires_terminate:
+            return False
+        if (
+            node.progress.lifecycle_phase == LifecyclePhase.ACTION
+            and not result.tool_calls
+        ):
+            node.progress.advance_lifecycle(LifecyclePhase.SUMMARY, result.content.strip())
+            node.progress.advance_lifecycle(LifecyclePhase.COMMIT)
+            return True
+        if (
+            node.progress.lifecycle_phase == LifecyclePhase.COMMIT
+            and node.contract.is_satisfied(node.progress.satisfied_requirements)
+        ):
+            node.progress.advance_lifecycle(LifecyclePhase.TERMINATE)
+            return True
+        if node.progress.lifecycle_phase == LifecyclePhase.TERMINATE and any(
+            item.get("name") == "terminate"
+            and isinstance(item.get("output"), dict)
+            and item["output"].get("success") is False
+            for item in result.metadata.get("tool_results", [])
+            if isinstance(item, dict)
+        ):
+            node.progress.advance_lifecycle(LifecyclePhase.COMMIT)
+            return True
+        return False
+
+    def _tools_for_lifecycle_result(
+        self,
+        node: Node,
+        result: LLMResult,
+        resolved_tools: list[Tool],
+    ) -> list[Tool]:
+        """Keep unavailable lifecycle calls confined to their current phase."""
+        if not node.contract.requires_terminate:
+            return resolved_tools
+        return self._phase_tools(node, resolved_tools, node.progress.lifecycle_phase)
+
+    def _can_stop_tool_batch(
+        self, node: Node, result: LLMResult, validation: ValidationResult
+    ) -> bool:
+        """Return whether a non-lifecycle node can finish after a tool batch."""
+        return not node.contract.requires_terminate and self._can_stop_after_tool_batch(
+            node, result, validation
+        )
 
     async def _await_tool_rate_limit(self, tool_name: str) -> None:
         """Async sleep to enforce per-tool minimum call intervals.
@@ -500,8 +605,22 @@ class TinyCUALoop(
             name = function.get("name") or tool_call.get("name")
             if not name:
                 continue
+            call_id = str(tool_call.get("id") or "")
+
+            def record(result: dict[str, Any]) -> None:
+                result["call_id"] = call_id
+                prompt_content = persist_if_oversized(
+                    json.dumps(result, default=str), call_id or name, tool_name=name
+                )
+                result["prompt_content"] = prompt_content
+                result["outcome"] = normalize_tool_outcome(
+                    tool_call, result, content=prompt_content
+                )
+                self._record_tool_chat_result(result)
+                results.append(result)
+
             if name not in allowed_tools:
-                results.append(
+                record(
                     {"name": name, "allowed": False, "error": "tool_not_allowed"}
                 )
                 continue
@@ -512,10 +631,10 @@ class TinyCUALoop(
                 try:
                     arguments = json.loads(arguments) if arguments else {}
                 except json.JSONDecodeError as exc:
-                    results.append({"name": name, "allowed": True, "error": str(exc)})
+                    record({"name": name, "allowed": True, "error": str(exc)})
                     continue
             if not isinstance(arguments, dict):
-                results.append(
+                record(
                     {"name": name, "allowed": True, "error": "arguments_not_object"}
                 )
                 continue
@@ -527,15 +646,14 @@ class TinyCUALoop(
             try:
                 output = await ToolExecutor.execute(allowed_tools[name], arguments, agent)  # type: ignore[arg-type]
             except Exception as exc:  # noqa: BLE001 - recorded for trace/debugging.
-                results.append({"name": name, "allowed": True, "error": str(exc)})
+                record({"name": name, "allowed": True, "error": str(exc)})
                 continue
             self._sync_root_task()
             tool_result = {"name": name, "allowed": True, "output": output}
             artifact_path = self._write_tool_audit_artifact(name, arguments, output)
             if artifact_path:
                 tool_result["artifact_path"] = artifact_path
-            self._record_tool_chat_result(tool_result)
-            results.append(tool_result)
+            record(tool_result)
         return results
 
     def _log_tool_call_args(self, name: str, arguments: dict[str, Any]) -> None:
@@ -630,13 +748,14 @@ class TinyCUALoop(
                 task = self.root_session.task_store.get_task(task_id)
             except ValueError:
                 continue
+            result = task.result or self.root_session.task_store._staged_results.get(task_id)
             partial_results = list(
                 task.metadata.get("executor_partial_tool_results", [])
             )
             merged_tool_results = [*partial_results, *tool_results]
             evidence = self._json_safe(merged_tool_results)
-            if task.result is not None:
-                task.result.metadata["tool_results"] = evidence
+            if result is not None:
+                result.metadata["tool_results"] = evidence
                 task.metadata.pop("executor_partial_tool_results", None)
 
     def _track_tool_calls_in_progress(
@@ -645,11 +764,31 @@ class TinyCUALoop(
         """Record visited + satisfied tools in node.progress (Milestone 2)."""
         for tr in tool_results:
             if isinstance(tr, dict) and tr.get("name"):
+                prompt_content = tr.get("prompt_content")
+                if not isinstance(prompt_content, str):
+                    prompt_content = persist_if_oversized(
+                        json.dumps(tr, default=str),
+                        str(tr.get("call_id") or tr["name"]),
+                        tool_name=str(tr["name"]),
+                    )
+                    tr["prompt_content"] = prompt_content
+                    tr["outcome"] = normalize_tool_outcome(
+                        {
+                            "id": tr.get("call_id"),
+                            "function": {"name": tr["name"]},
+                        },
+                        tr,
+                        content=prompt_content,
+                    )
+                    self._record_tool_chat_result(tr)
                 success = (
                     isinstance(tr.get("output"), dict)
                     and tr["output"].get("success") is not False
                 )
                 node.progress.mark_tool_called(tr["name"], success=success)
+                outcome = tr.get("outcome")
+                if isinstance(outcome, dict):
+                    node.progress.correlated_outcomes.append(outcome)
                 if success:
                     node.progress.accumulated_tool_results[str(tr["name"])] = tr
 
@@ -798,9 +937,11 @@ class TinyCUALoop(
                 tool_call.get("id") or tool_result.get("name", "")
             )
             tool_name = tool_result.get("name", "")
-            content = persist_if_oversized(
-                raw_content, tool_call_id, tool_name=tool_name
-            )
+            content = tool_result.get("prompt_content")
+            if not isinstance(content, str):
+                content = persist_if_oversized(
+                    raw_content, tool_call_id, tool_name=tool_name
+                )
             attempt_messages.append(
                 {
                     "role": "tool",
@@ -877,6 +1018,71 @@ class TinyCUALoop(
                     base_messages, retry_feedback, retry_message,
                 )
 
+    def _reset_progress_for_retry(self, node: Node) -> None:
+        """Reset node progress while retaining recovery evidence on re-entry."""
+        if not self._recovery_reentry:
+            node.progress.reset()
+            return
+        preserved = dict(node.progress.accumulated_tool_results)
+        preserved_history = list(node.progress.stage_tool_history)
+        recovery_attempts = dict(node.progress.recovery_attempts)
+        recovery_fingerprint = node.progress.recovery_fingerprint
+        recovery_escalations = list(node.progress.recovery_escalations)
+        recovery_last_error = node.progress.recovery_last_error
+        node.progress.reset()
+        node.progress.accumulated_tool_results = preserved
+        node.progress.stage_tool_history = preserved_history
+        node.progress.recovery_attempts = recovery_attempts
+        node.progress.recovery_fingerprint = recovery_fingerprint
+        node.progress.recovery_escalations = recovery_escalations
+        node.progress.recovery_last_error = recovery_last_error
+        self._recovery_reentry = False
+
+    def _record_attempt_tool_results(
+        self,
+        result: LLMResult,
+        tool_results: list[dict[str, Any]],
+        retry_tool_results: list[dict[str, Any]],
+    ) -> None:
+        """Attach accumulated tool results to the final attempt response."""
+        if not tool_results:
+            return
+        result.metadata = dict(result.metadata)
+        result.metadata["tool_results"] = list(tool_results)
+        self._prepend_retry_tool_results(result, retry_tool_results)
+        self._fill_content_from_recorded_task_result(result)
+
+    async def _retry_invalid_attempt(
+        self,
+        node: Node,
+        agent: Agent,
+        resolved_tools: list[Tool],
+        result: LLMResult,
+        validation: ValidationResult,
+        attempt: int,
+        max_attempts: int,
+        lazy_attempts: int,
+    ) -> tuple[
+        str,
+        LLMResult,
+        ValidationResult,
+        int,
+        tuple[str, list[dict[str, Any]], list[dict[str, Any]]] | None,
+    ]:
+        """Return the next retry action and optional standard retry context."""
+        if attempt >= max_attempts:
+            return "exhausted", result, validation, lazy_attempts, None
+        retry_signal = await self._handle_retry_attempt(
+            node, agent, resolved_tools, result, validation, attempt, lazy_attempts
+        )
+        if retry_signal is not None:
+            action, result, validation, lazy_attempts = retry_signal
+            return action, result, validation, lazy_attempts, None
+        retry_context = self._prepare_standard_retry(
+            node, resolved_tools, result, validation, attempt
+        )
+        return "retry", result, validation, lazy_attempts, retry_context
+
     async def _call_node_with_retry(
         self,
         node: Node,
@@ -893,26 +1099,7 @@ class TinyCUALoop(
         retry_feedback: list[dict[str, Any]] = []
         retry_tool_results: list[dict[str, Any]] = []
         lazy_attempts = 0  # FR-091: lazy retry counter; None doesn't burn a slot.
-        # FR-063: reset progress for fresh dispatch. Recovery re-entry
-        # preserves accumulated_tool_results so the node doesn't re-call
-        # tools it already called before the budget exhausted.
-        if self._recovery_reentry:
-            preserved = dict(node.progress.accumulated_tool_results)
-            preserved_history = list(node.progress.stage_tool_history)
-            recovery_attempts = dict(node.progress.recovery_attempts)
-            recovery_fingerprint = node.progress.recovery_fingerprint
-            recovery_escalations = list(node.progress.recovery_escalations)
-            recovery_last_error = node.progress.recovery_last_error
-            node.progress.reset()
-            node.progress.accumulated_tool_results = preserved
-            node.progress.stage_tool_history = preserved_history
-            node.progress.recovery_attempts = recovery_attempts
-            node.progress.recovery_fingerprint = recovery_fingerprint
-            node.progress.recovery_escalations = recovery_escalations
-            node.progress.recovery_last_error = recovery_last_error
-            self._recovery_reentry = False
-        else:
-            node.progress.reset()
+        self._reset_progress_for_retry(node)
 
         for attempt in range(1, max_attempts + 1):
             # Milestone 2: track per-node state transitions.
@@ -934,11 +1121,7 @@ class TinyCUALoop(
                 retry_feedback,
                 retry_message,
             )
-            attempt_tools = self._tools_for_retry_attempt(
-                node,
-                resolved_tools,
-                retry_message,
-            )
+            attempt_tools = self._attempt_tools(node, resolved_tools, retry_message)
             # FR-086: catch provider errors, force-compaction, and retry.
             raw_response = await self._call_llm_with_provider_retry(
                 agent, node, attempt, attempt_messages, attempt_tools,
@@ -957,6 +1140,9 @@ class TinyCUALoop(
             if not node.is_terminal and node.node_id != "result_aggregation":
                 self._coerce_structured_tool_calls(last_result, attempt_tools)
             self._coerce_terminate_only_response(attempt_tools, last_result)
+            attempt_tools = self._tools_for_lifecycle_result(
+                node, last_result, resolved_tools
+            )
             all_tool_results: list[dict[str, Any]] = []
             continuation_rounds = 0
             while continuation_rounds < _MAX_TOOL_CONTINUATIONS:
@@ -980,9 +1166,17 @@ class TinyCUALoop(
                 self._prepend_retry_tool_results(last_result, retry_tool_results)
                 self._fill_content_from_recorded_task_result(last_result)
                 last_validation = self._validate_node_result(node, last_result)
-                if self._can_stop_after_tool_batch(node, last_result, last_validation):
+                if self._can_stop_tool_batch(node, last_result, last_validation):
                     return last_result, attempt, last_validation
-                if self._validation_needs_terminate(last_validation):
+                if self._validation_needs_terminate(last_validation) or (
+                    node.progress.lifecycle_phase == LifecyclePhase.TERMINATE
+                    and any(
+                        item.get("name") == "terminate"
+                        and isinstance(item.get("output"), dict)
+                        and item["output"].get("success") is True
+                        for item in tool_results
+                    )
+                ):
                     break
                 assistant_msg: dict[str, Any] = {
                     "role": "assistant",
@@ -1033,28 +1227,45 @@ class TinyCUALoop(
                 if not node.is_terminal and node.node_id != "result_aggregation":
                     self._coerce_structured_tool_calls(last_result, attempt_tools)
                 self._coerce_terminate_only_response(attempt_tools, last_result)
-            if all_tool_results:
-                last_result.metadata = dict(last_result.metadata)
-                last_result.metadata["tool_results"] = list(all_tool_results)
-                self._prepend_retry_tool_results(last_result, retry_tool_results)
-                self._fill_content_from_recorded_task_result(last_result)
+                attempt_tools = self._tools_for_lifecycle_result(
+                    node, last_result, resolved_tools
+                )
+            self._record_attempt_tool_results(
+                last_result, all_tool_results, retry_tool_results
+            )
+            if self._advance_lifecycle_phase(node, last_result):
+                retry_tool_results = self._tool_results_from_llm_result(last_result)
+                retry_message = (
+                    "Action summary: "
+                    f"{node.progress.action_summary}\n"
+                    "Continue in the current lifecycle phase without repeating action work."
+                )
+                retry_feedback = self._tool_feedback_messages(last_result)
+                continue
             last_validation = self._validate_node_result(node, last_result)
             if last_validation.is_valid:
                 return last_result, attempt, last_validation
-            if attempt < max_attempts:
-                # FR-091: lazy retry → standard retry. The helper handles both
-                # and returns a signal: "return", "break", or None (continue).
-                retry_signal = await self._handle_retry_attempt(
-                    node, agent, resolved_tools, last_result, last_validation,
-                    attempt, lazy_attempts)
-                if retry_signal is not None:
-                    action, last_result, last_validation, lazy_attempts = retry_signal
-                    if action == "return":
-                        return last_result, attempt, last_validation
-                    break  # "break" → _unbounded_recovery
-                retry_message, retry_feedback, retry_tool_results = (
-                    self._prepare_standard_retry(
-                        node, resolved_tools, last_result, last_validation, attempt))
+            action, last_result, last_validation, lazy_attempts, retry_context = (
+                await self._retry_invalid_attempt(
+                    node,
+                    agent,
+                    resolved_tools,
+                    last_result,
+                    last_validation,
+                    attempt,
+                    max_attempts,
+                    lazy_attempts,
+                )
+            )
+            if action == "return":
+                return last_result, attempt, last_validation
+            if action != "retry":
+                break
+            retry_message, retry_feedback, retry_tool_results = retry_context or (
+                "",
+                [],
+                [],
+            )
 
         node._handle_exhaustion(last_validation, max_attempts)
         return last_result, max_attempts, last_validation

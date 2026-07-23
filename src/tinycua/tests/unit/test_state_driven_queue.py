@@ -111,7 +111,7 @@ class TestReviewerTestingGuidance:
     def test_instruction_mentions_sibling_propagation(self):
         from tinycua.loops.node_guidance import _RESULT_REVIEWER_INSTRUCTION
         assert "sibling" in _RESULT_REVIEWER_INSTRUCTION.lower()
-        assert "completed as part of" in _RESULT_REVIEWER_INSTRUCTION.lower()
+        assert "satisfies sibling tasks" in _RESULT_REVIEWER_INSTRUCTION.lower()
 
     def test_continuation_mentions_python_import_check(self):
         from tinycua.loops.node_guidance import _RESULT_REVIEWER_CONTINUATION

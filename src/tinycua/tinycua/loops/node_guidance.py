@@ -68,17 +68,15 @@ _RESULT_REVIEWER_INSTRUCTION = (
     "verification, not re-execution. Verify with run_shell (test -f, grep, "
     "pytest, git diff) and check exit_code, not eyeballed source. For "
     "research, use web_search/fetch_url to verify claims are real — do not "
-    "accept fabricated or stale claims. Then call task_review_decision: "
-    "approved, needs_revision, rejected, or replan. Use replan immediately "
+    "accept fabricated or stale claims. Determine approved, needs_revision, "
+    "rejected, or replan. Use replan immediately "
     "when evidence makes the task itself impossible; reserve needs_revision "
     "for fixable execution defects. If bad, record feedback. "
     "Do not write a long explanation — call the tools. Sanity-check for "
     "common LLM messes: duplicate content (grep -c, sort | uniq -d), "
     "hallucinated claims, structural inconsistency. Every decision must cite "
-    "validation evidence in rationale. After reviewing the active task, "
-    "check if its result also satisfies sibling tasks (same parent). For "
-    "each, call task_result_update (success=true, 'completed as part of "
-    "task N'). Do NOT call task_review_decision for siblings."
+    "validation evidence in rationale. After reviewing the active task, check "
+    "whether its result also satisfies sibling tasks (same parent)."
 )
 _RESULT_REVIEWER_CONTINUATION = (
     "Test the result: run_shell (test -f, grep, pytest, python -c 'import "
@@ -87,10 +85,8 @@ _RESULT_REVIEWER_CONTINUATION = (
     "markdown with math, check for tab corruption AND unicode escape "
     "corruption: grep -cP '\\t' <the_file> and grep -cP '\\\\u[0-9a-fA-F]{4}' "
     "<the_file> (note: use -P and double-backslash so grep matches a literal "
-    "backslash-u, not the letter u). Then call task_review_decision for the "
-    "active task. If its result also completes siblings, propagate via "
-    "task_result_update (success=true, note 'completed as part of task N'). "
-    "Then task_inspect (no task_id), then terminate."
+    "backslash-u, not the letter u). Then summarize the review conclusion and "
+    "any sibling coverage."
 )
 
 
@@ -139,7 +135,9 @@ def build_reviewer_tool_guidance(resolved_tools: list[Any] | None) -> str:
             "and do not re-research the whole task."
         )
     if "task_review_decision" in names:
-        lines.append("Your final action MUST call task_review_decision, then task_inspect.")
+        lines.append("Commit the review with task_review_decision.")
+    if "terminate" in names:
+        lines.append("Call terminate now.")
     # FR-056: when run_shell is available, suggest generic dedup detection.
     if "run_shell" in names:
         lines.append(

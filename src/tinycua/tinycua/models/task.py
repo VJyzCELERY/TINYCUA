@@ -150,6 +150,10 @@ class TaskStateStore:
     root_task_id: str | None = None
     active_task_id: str | None = None
     transition_log: list[dict[str, Any]] = field(default_factory=list)
+    _staged_reviewer_decisions: dict[str, dict[str, Any]] = field(
+        default_factory=dict, repr=False
+    )
+    _staged_results: dict[str, TaskResult] = field(default_factory=dict, repr=False)
     # FR-075: enable task tree snapshot logging via --trace CLI flag.
     _enable_trace: bool = field(default=False, repr=False)
     # Internal flag to suppress per-child logging during decompose_task.
@@ -298,6 +302,8 @@ class TaskStateStore:
         *,
         parent_id: str | None = None,
         description: str = "",
+        acceptance_clauses: list[str] | None = None,
+        clause_ids: list[str] | None = None,
     ) -> Task:
         """Create and store a task."""
         self.validate_tree()
@@ -309,7 +315,33 @@ class TaskStateStore:
         if self.root_task_id is not None and parent_id is None:
             msg = "New tasks require an existing parent."
             raise ValueError(msg)
-        task = Task(title=title, parent_id=parent_id, description=description)
+        if acceptance_clauses is not None and parent_id is not None:
+            msg = "Only the root task can define acceptance clauses."
+            raise ValueError(msg)
+        metadata: dict[str, Any] = {}
+        if acceptance_clauses:
+            metadata["acceptance_clauses"] = [
+                {"id": f"acceptance-{index}", "text": text}
+                for index, text in enumerate(acceptance_clauses, start=1)
+                if text.strip()
+            ]
+        if clause_ids:
+            root = self.tasks.get(self.root_task_id or "")
+            valid_ids = {
+                clause["id"]
+                for clause in (root.metadata.get("acceptance_clauses", []) if root else [])
+                if isinstance(clause, dict) and isinstance(clause.get("id"), str)
+            }
+            if not set(clause_ids).issubset(valid_ids):
+                msg = "Task references an unknown acceptance clause."
+                raise ValueError(msg)
+            metadata["acceptance_clause_ids"] = list(dict.fromkeys(clause_ids))
+        task = Task(
+            title=title,
+            parent_id=parent_id,
+            description=description,
+            metadata=metadata,
+        )
         self.tasks[task.task_id] = task
         if parent_id:
             self.tasks[parent_id].children.append(task.task_id)
@@ -318,19 +350,54 @@ class TaskStateStore:
         self._finalize_mutation("create_task", task.task_id)
         return task
 
-    def decompose_task(self, task_id: str, subtasks: list[str]) -> list[str]:
+    def decompose_task(self, task_id: str, subtasks: list[Any]) -> list[str]:
         """Append child tasks below an unfinished parent."""
         task = self.get_task(task_id)
         self.validate_tree()
         self._require_mutable(task)
-        titles = [title for title in subtasks if title.strip()]
-        if not titles:
+        definitions = [
+            item if isinstance(item, dict) else {"title": item}
+            for item in subtasks
+            if isinstance(item, dict) or (isinstance(item, str) and item.strip())
+        ]
+        if not definitions:
             return list(task.children)
-        for title in titles:
-            child = Task(title=title, parent_id=task_id)
+        root = self.tasks[self.root_task_id] if self.root_task_id else task
+        required_ids = {
+            clause["id"]
+            for clause in root.metadata.get("acceptance_clauses", [])
+            if isinstance(clause, dict) and isinstance(clause.get("id"), str)
+        }
+        supplied_ids = {
+            clause_id
+            for definition in definitions
+            for clause_id in definition.get("clause_ids", [])
+            if isinstance(clause_id, str)
+        }
+        if task_id == self.root_task_id and required_ids and supplied_ids != required_ids:
+            msg = "Decomposition must cover every explicit acceptance clause."
+            raise ValueError(msg)
+        if not supplied_ids.issubset(required_ids):
+            msg = "Task references an unknown acceptance clause."
+            raise ValueError(msg)
+        for definition in definitions:
+            title = str(definition.get("title", "")).strip()
+            if not title:
+                continue
+            child = Task(
+                title=title,
+                parent_id=task_id,
+                metadata={
+                    "acceptance_clause_ids": list(
+                        dict.fromkeys(definition.get("clause_ids", []))
+                    )
+                }
+                if definition.get("clause_ids")
+                else {},
+            )
             self.tasks[child.task_id] = child
             task.children.append(child.task_id)
-        self._finalize_mutation("decompose_task", task_id, child_count=len(titles))
+        self._finalize_mutation("decompose_task", task_id, child_count=len(definitions))
         return list(task.children)
 
     def update_task(
@@ -356,6 +423,13 @@ class TaskStateStore:
         if next_status != task.status and next_status not in self._ALLOWED_TRANSITIONS[task.status]:
             msg = f"Invalid task transition {task.status.value}->{next_status.value} for task {task_id}"
             raise ValueError(msg)
+        if metadata and "acceptance_clause_ids" in metadata:
+            self._require_acceptance_coverage(
+                task_id, metadata["acceptance_clause_ids"]
+            )
+        if metadata and task_id == self.root_task_id and "acceptance_clauses" in metadata:
+            msg = "Root acceptance clauses are immutable."
+            raise ValueError(msg)
         task.title = title if title is not None else task.title
         task.description = description if description is not None else task.description
         task.status = next_status
@@ -375,6 +449,7 @@ class TaskStateStore:
         if not rationale.strip():
             msg = "Cancellation requires a rationale."
             raise ValueError(msg)
+        self._require_acceptance_coverage(task_id, [])
         task.status = TaskStatus.CANCELLED
         task.metadata["cancellation_rationale"] = rationale
         self._finalize_mutation("cancel_task", task_id, rationale=rationale)
@@ -398,11 +473,16 @@ class TaskStateStore:
             msg = f"Task {task_id} has no parent."
             raise ValueError(msg)
         self._require_mutable(parent)
+        clause_ids = list(task.metadata.get("acceptance_clause_ids", []))
         replacement = Task(
             title=replacement_title,
             parent_id=parent.task_id,
             description=description,
-            metadata={"supersedes": task_id, "supersession_rationale": rationale},
+            metadata={
+                "supersedes": task_id,
+                "supersession_rationale": rationale,
+                **({"acceptance_clause_ids": clause_ids} if clause_ids else {}),
+            },
         )
         task.status = TaskStatus.SUPERSEDED
         task.metadata["superseded_by"] = replacement.task_id
@@ -436,9 +516,41 @@ class TaskStateStore:
             msg = f"Task {task_id} has no parent."
             raise ValueError(msg)
         self._require_mutable(parent)
+        self._require_acceptance_coverage(task_id, [])
         parent.children.remove(task_id)
         del self.tasks[task_id]
         self._finalize_mutation("delete_task", task_id, rationale=rationale)
+
+    def _require_acceptance_coverage(self, task_id: str, clause_ids: Any) -> None:
+        """Reject a mutation that leaves a root acceptance clause unowned."""
+        if not isinstance(clause_ids, list) or not all(
+            isinstance(clause_id, str) for clause_id in clause_ids
+        ):
+            msg = "Acceptance clause references must be a list of clause IDs."
+            raise ValueError(msg)
+        root = self.tasks.get(self.root_task_id or "")
+        required_ids = {
+            clause["id"]
+            for clause in (root.metadata.get("acceptance_clauses", []) if root else [])
+            if isinstance(clause, dict) and isinstance(clause.get("id"), str)
+        }
+        if not set(clause_ids).issubset(required_ids):
+            msg = "Task references an unknown acceptance clause."
+            raise ValueError(msg)
+        covered_ids = {
+            clause_id
+            for candidate_id, candidate in self.tasks.items()
+            if candidate.status not in {TaskStatus.CANCELLED, TaskStatus.SUPERSEDED}
+            for clause_id in (
+                clause_ids
+                if candidate_id == task_id
+                else candidate.metadata.get("acceptance_clause_ids", [])
+            )
+            if isinstance(clause_id, str)
+        }
+        if not required_ids.issubset(covered_ids):
+            msg = "Cannot remove the final owner of an acceptance clause."
+            raise ValueError(msg)
 
     def merge_tasks(self, child_id: str, parent_id: str, *, rationale: str) -> Task:
         """Collapse a child into its parent, preserving work.
@@ -492,6 +604,12 @@ class TaskStateStore:
                     f"{parent.result.summary}\n\nMerged from {child.title}: "
                     f"{child.result.summary}"
                 )
+        clause_ids = [
+            *parent.metadata.get("acceptance_clause_ids", []),
+            *child.metadata.get("acceptance_clause_ids", []),
+        ]
+        if clause_ids:
+            parent.metadata["acceptance_clause_ids"] = list(dict.fromkeys(clause_ids))
         child_index = parent.children.index(child_id)
         parent.children[child_index : child_index + 1] = child.children
         for grandchild_id in child.children:
@@ -603,6 +721,22 @@ class TaskStateStore:
         self._finalize_mutation("record_result", task_id)
         return task
 
+    def stage_result(self, task_id: str, result: TaskResult) -> Task:
+        """Stage a task result until the executor terminates."""
+        task = self.get_task(task_id)
+        self._require_mutable(task)
+        self._staged_results.pop(task_id, None)
+        self._staged_results[task_id] = result
+        return task
+
+    def commit_staged_result(self, task_id: str) -> Task:
+        """Commit the executor's staged result exactly once at termination."""
+        result = self._staged_results.pop(task_id, None)
+        if result is None:
+            msg = "No provisional task result is staged."
+            raise ValueError(msg)
+        return self.record_result(task_id, result)
+
     @staticmethod
     def _has_approval_evidence(result: TaskResult | None) -> bool:
         """Return whether an executor result can support approval."""
@@ -612,6 +746,75 @@ class TaskStateStore:
             and result.content.strip()
             and not result.metadata.get("auto_generated")
         )
+
+    def _has_current_clause_evidence(self, task: Task) -> bool:
+        """Return whether every clause owned by task has passing evidence."""
+        clause_ids = task.metadata.get("acceptance_clause_ids", [])
+        if not clause_ids:
+            return True
+        evidence = task.result.metadata.get("clause_evidence", {}) if task.result else {}
+        return all(
+            isinstance(evidence.get(clause_id), list)
+            and any(
+                isinstance(item, dict) and item.get("passed") is True
+                for item in evidence[clause_id]
+            )
+            for clause_id in clause_ids
+        )
+
+    def _root_has_current_clause_evidence(self) -> bool:
+        """Return whether every explicit root clause has passing accepted evidence."""
+        if self.root_task_id is None:
+            return True
+        root = self.tasks[self.root_task_id]
+        clause_ids = [
+            clause["id"]
+            for clause in root.metadata.get("acceptance_clauses", [])
+            if isinstance(clause, dict) and isinstance(clause.get("id"), str)
+        ]
+        for clause_id in clause_ids:
+            if not any(
+                task.status == TaskStatus.COMPLETED
+                and task.result is not None
+                and any(
+                    item.get("passed") is True
+                    for item in task.result.metadata.get("clause_evidence", {}).get(clause_id, [])
+                )
+                for task in self.tasks.values()
+            ):
+                return False
+        return True
+
+    def unmet_acceptance_clauses(self, task: Task | None = None) -> list[dict[str, str]]:
+        """Return root clauses without current passing evidence."""
+        if self.root_task_id is None:
+            return []
+        root = self.tasks[self.root_task_id]
+        clauses = [
+            clause
+            for clause in root.metadata.get("acceptance_clauses", [])
+            if isinstance(clause, dict)
+            and isinstance(clause.get("id"), str)
+            and isinstance(clause.get("text"), str)
+        ]
+        if task is not None:
+            owned = set(task.metadata.get("acceptance_clause_ids", []))
+            clauses = [clause for clause in clauses if clause["id"] in owned]
+        return [
+            clause
+            for clause in clauses
+            if not any(
+                completed.status == TaskStatus.COMPLETED
+                and completed.result is not None
+                and any(
+                    evidence.get("passed") is True
+                    for evidence in completed.result.metadata.get("clause_evidence", {}).get(
+                        clause["id"], []
+                    )
+                )
+                for completed in self.tasks.values()
+            )
+        ]
 
     def record_reviewer_decision(
         self,
@@ -632,6 +835,16 @@ class TaskStateStore:
             if task.status == TaskStatus.PENDING:
                 self.transition(task_id, TaskStatus.IN_PROGRESS)
             msg = "Approval requires successful executor evidence with non-empty content."
+            raise ValueError(msg)
+        if reviewer_decision == ReviewerDecision.APPROVED and not self._has_current_clause_evidence(task):
+            msg = "Approval requires current passing evidence for every acceptance clause."
+            raise ValueError(msg)
+        if (
+            reviewer_decision == ReviewerDecision.APPROVED
+            and task_id == self.root_task_id
+            and not self._root_has_current_clause_evidence()
+        ):
+            msg = "Root approval requires current passing evidence for every acceptance clause."
             raise ValueError(msg)
         task.reviewer_decisions.append(
             {
@@ -658,6 +871,39 @@ class TaskStateStore:
             self._refresh_active_task()
             self._bump_version()
         self._finalize_mutation("record_reviewer_decision", task_id)
+        return task
+
+    def stage_reviewer_decision(
+        self,
+        task_id: str,
+        decision: ReviewerDecision | str,
+        *,
+        rationale: str = "",
+        metadata: dict[str, Any] | None = None,
+    ) -> Task:
+        """Stage a replaceable reviewer decision until node termination."""
+        task = self.get_task(task_id)
+        self._require_mutable(task)
+        reviewer_decision = ReviewerDecision(decision)
+        if reviewer_decision == ReviewerDecision.APPROVED and not self._has_approval_evidence(task.result):
+            msg = "Approval requires successful executor evidence with non-empty content."
+            raise ValueError(msg)
+        self._staged_reviewer_decisions.pop(task_id, None)
+        self._staged_reviewer_decisions[task_id] = {
+            "decision": reviewer_decision,
+            "rationale": rationale,
+            "metadata": metadata,
+        }
+        return task
+
+    def commit_staged_reviewer_decision(self, task_id: str) -> Task:
+        """Commit exactly the latest provisional reviewer decision."""
+        staged = self._staged_reviewer_decisions.get(task_id)
+        if staged is None:
+            msg = "No provisional reviewer decision is staged."
+            raise ValueError(msg)
+        task = self.record_reviewer_decision(task_id, **staged)
+        del self._staged_reviewer_decisions[task_id]
         return task
 
     def next_unfinished_leaf(self) -> Task | None:

@@ -555,41 +555,8 @@ class ValidationRetryMixin:
         decision rule, which rolled back approvals and trapped the executor in
         an infinite re-run of the same task.
         """
-        validation = ValidationResult(is_valid=True, errors=[])
-        if node.node_id != "result_reviewer":
-            return validation
-        tool_results = self._tool_results_from_llm_result(llm_result)
-        has_decision = any(
-            item.get("name") == "task_review_decision"
-            and isinstance(item.get("output"), dict)
-            for item in tool_results
-        )
-        if not has_decision:
-            # No decision in this batch — _validate_tool_owned_task_state
-            # owns the "must call task_review_decision" requirement.
-            return validation
-        has_inspect = any(
-            item.get("name") == "task_inspect"
-            and isinstance(item.get("output"), dict)
-            for item in tool_results
-        )
-        if has_inspect:
-            return validation
-        # Decision recorded but no inspect — retry to add it. No rollback:
-        # the decision (including approval) stays so the active task advances.
-        # FR-053: the error string MUST NOT contain the substring
-        # "task_review_decision" — the _missing_or_required_tool_name heuristic
-        # pattern-matches on substrings, and "task_review_decision" here would
-        # cause it to return the wrong tool (the decision was already called;
-        # the actually-missing tool is task_inspect).
-        validation.is_valid = False
-        validation.errors.append(
-            "ResultReviewer must call task_inspect after the review decision "
-            "is recorded — inspect the remaining unfinished tasks before "
-            "curating context for them. The decision is recorded; now inspect "
-            "the roadmap in the same response."
-        )
-        return validation
+        del node, llm_result
+        return ValidationResult(is_valid=True, errors=[])
 
     def _validate_result_reviewer_rationale_evidence(
         self,
@@ -623,6 +590,17 @@ class ValidationRetryMixin:
         if node.node_id not in self._TERMINATED_NODE_IDS:
             return validation
         tool_results = self._tool_results_from_llm_result(llm_result)
+        if node.progress.lifecycle_phase.value == "terminate":
+            if any(
+                item.get("name") == "terminate"
+                and isinstance(item.get("output"), dict)
+                and item["output"].get("success") is True
+                for item in tool_results
+            ):
+                return validation
+            validation.is_valid = False
+            validation.errors.append(f"{node.node_id} must terminate after commit.")
+            return validation
         if not self._worker_lifecycle_ready_to_terminate(node.node_id, tool_results):
             return validation
         has_terminate = any(
@@ -813,6 +791,8 @@ class ValidationRetryMixin:
         """Return whether a tool batch completed this nonterminal node."""
         if node.is_terminal or not validation.is_valid:
             return False
+        if node.contract.requires_terminate:
+            return False
         required_route = self._required_route_tool_name(node)
         if required_route is not None:
             return True
@@ -867,6 +847,25 @@ class ValidationRetryMixin:
                 "before finishing. Describe what was done, what was found, and "
                 "whether the task succeeded or failed."
             )
+        elif any(item["output"].get("success") is True for item in result_update_calls):
+            evidence = [
+                *tool_results,
+                *node.progress.accumulated_tool_results.values(),
+            ]
+            evidence.extend(
+                {"name": outcome.get("tool_name"), "output": {"success": True}}
+                for outcome in node.progress.correlated_outcomes
+                if isinstance(outcome, dict) and outcome.get("success") is True
+            )
+            if not (
+                self._successful_executor_action_results(evidence)
+                or self._successful_executor_inspection_results(evidence)
+            ):
+                validation.is_valid = False
+                validation.errors.append(
+                    "TaskExecutor must record successful action, research, inspection, "
+                    "or verification evidence before task_result_update success=true."
+                )
         return validation
 
     def _validate_tool_owned_task_state(
@@ -1395,9 +1394,11 @@ class ValidationRetryMixin:
                 tool_call.get("id") or str(tool_result.get("name", ""))
             )
             tool_name = str(tool_result.get("name", ""))
-            content = persist_if_oversized(
-                raw_content, tool_call_id, tool_name=tool_name
-            )
+            content = tool_result.get("prompt_content")
+            if not isinstance(content, str):
+                content = persist_if_oversized(
+                    raw_content, tool_call_id, tool_name=tool_name
+                )
             messages.append(
                 {
                     "role": "tool",

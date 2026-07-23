@@ -471,7 +471,12 @@ async def test_planner_only_worker_run_fails_without_workspace_artifacts(
         if entry.get("node_id") == "task_create" and entry.get("validation_errors")
     )
     assert failed_node["node_id"] == "task_create"
-    assert "task_init" in failed_node["resolved_tool_names"]
+    assert {
+        entry["lifecycle_phase"]
+        for entry in trace
+        if entry.get("node_id") == "task_create"
+        and "task_init" in entry.get("resolved_tool_names", [])
+    } == {"commit"}
 
 
 async def test_prompt_echo_worker_run_keeps_clean_trace_without_artifacts(
@@ -506,7 +511,12 @@ async def test_prompt_echo_worker_run_keeps_clean_trace_without_artifacts(
         if entry.get("node_id") == "task_create" and entry.get("validation_errors")
     )
     assert failed_node["node_id"] == "task_create"
-    assert "task_init" in failed_node["resolved_tool_names"]
+    assert {
+        entry["lifecycle_phase"]
+        for entry in trace
+        if entry.get("node_id") == "task_create"
+        and "task_init" in entry.get("resolved_tool_names", [])
+    } == {"commit"}
 
 
 async def test_streaming_prompt_echo_worker_run_keeps_notebook_state_clean(
@@ -544,4 +554,9 @@ async def test_streaming_prompt_echo_worker_run_keeps_notebook_state_clean(
         if entry.get("node_id") == "task_create" and entry.get("validation_errors")
     )
     assert failed_node["node_id"] == "task_create"
-    assert "task_init" in failed_node["resolved_tool_names"]
+    assert {
+        entry["lifecycle_phase"]
+        for entry in trace
+        if entry.get("node_id") == "task_create"
+        and "task_init" in entry.get("resolved_tool_names", [])
+    } == {"commit"}
