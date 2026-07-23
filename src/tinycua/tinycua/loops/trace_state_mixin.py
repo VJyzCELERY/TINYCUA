@@ -32,12 +32,18 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def normalize_tool_outcome(tool_call: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
+def normalize_tool_outcome(
+    tool_call: dict[str, Any],
+    result: dict[str, Any],
+    *,
+    content: str | None = None,
+) -> dict[str, Any]:
     """Return the bounded prompt-visible outcome correlated to one tool call."""
     function = tool_call.get("function", {}) if isinstance(tool_call, dict) else {}
     output = result.get("output") if isinstance(result, dict) else None
     details = output if isinstance(output, dict) else result
-    rendered = sanitize_internal_reprs(json.dumps(details, default=str))[:8_000]
+    raw_content = json.dumps(details, default=str)
+    rendered = sanitize_internal_reprs(content or raw_content)[:8_000]
     error = details.get("error") if isinstance(details, dict) else None
     exit_code = details.get("exit_code") if isinstance(details, dict) else None
     success = not (
@@ -55,7 +61,7 @@ def normalize_tool_outcome(tool_call: dict[str, Any], result: dict[str, Any]) ->
         "content": rendered,
         "length": len(rendered),
         "hash": sha256(rendered.encode()).hexdigest(),
-        "truncated": len(json.dumps(details, default=str)) > len(rendered),
+        "truncated": len(raw_content) > len(rendered),
     }
 
 class TraceStateMixin:
