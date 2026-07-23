@@ -254,6 +254,23 @@ def test_root_decomposition_allows_incremental_acceptance_coverage() -> None:
     assert store.get_task(second[-1]).metadata["acceptance_clause_ids"] == ["acceptance-2"]
 
 
+def test_decomposition_rejects_duplicate_sibling_titles() -> None:
+    """Repeated analyzer calls cannot append equivalent direct child work."""
+    store = TaskStateStore()
+    root = store.create_task("Root")
+    store.decompose_task(root.task_id, ["Research sources"])
+
+    with pytest.raises(ValueError, match="duplicate"):
+        store.decompose_task(root.task_id, ["  research   SOURCES  "])
+
+    assert len(root.children) == 1
+
+    with pytest.raises(ValueError, match="duplicate"):
+        store.decompose_task(root.task_id, ["New task", "Research sources"])
+
+    assert len(root.children) == 1
+
+
 def test_reviewer_decision_is_replaceable_until_committed() -> None:
     """Only termination commits the final staged reviewer decision."""
     store = TaskStateStore()

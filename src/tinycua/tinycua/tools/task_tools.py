@@ -58,14 +58,15 @@ class TerminateTool(Tool):
             result["task_id"] = task.task_id
             result["decision"] = task.reviewer_decisions[-1]["decision"]
         if self._source_node == "task_executor":
-            if self._store._staged_results:
-                try:
-                    task = self._store.commit_staged_result(
-                        next(reversed(self._store._staged_results))
-                    )
-                except ValueError as exc:
-                    return {"success": False, "error": str(exc)}
-                result["task_id"] = task.task_id
+            if not self._store._staged_results:
+                return {"success": False, "error": "No staged executor result to commit."}
+            try:
+                task = self._store.commit_staged_result(
+                    next(reversed(self._store._staged_results))
+                )
+            except ValueError as exc:
+                return {"success": False, "error": str(exc)}
+            result["task_id"] = task.task_id
         return result
 
 
@@ -272,6 +273,7 @@ class TaskUpdateTool(SessionTaskToolMixin, Tool):
 
     def __init__(self) -> None:
         SessionTaskToolMixin.__init__(self)
+        self._source_node = ""
         Tool.__init__(
             self,
             name="task_update",
@@ -319,6 +321,10 @@ class TaskUpdateTool(SessionTaskToolMixin, Tool):
             },
         )
 
+    def bind_source_node(self, node_id: str) -> None:
+        """Bind the caller so initial planning cannot end as a no-op update."""
+        self._source_node = node_id
+
     def __call__(
         self,
         task_id: str | None = None,
@@ -331,6 +337,15 @@ class TaskUpdateTool(SessionTaskToolMixin, Tool):
         active_id, error = self._resolve_task_ref(task_id)
         if error is not None:
             return error
+        if (
+            self._source_node == "task_analyzer"
+            and active_id == self._store.root_task_id
+            and not self._store.get_task(active_id).children
+        ):
+            return {
+                "success": False,
+                "error": "TaskAnalyzer must create or decompose initial actionable work.",
+            }
         if status in {TaskStatus.COMPLETED.value, TaskStatus.FAILED.value}:
             return {
                 "success": False,

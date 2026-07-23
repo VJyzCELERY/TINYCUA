@@ -11,6 +11,11 @@ from typing import Any, ClassVar
 logger = logging.getLogger(__name__)
 
 
+def _normalized_task_title(title: str) -> str:
+    """Return a title key for deterministic sibling de-duplication."""
+    return " ".join(title.casefold().split())
+
+
 class TaskStatus(StrEnum):
     """Lifecycle status for a task."""
 
@@ -336,6 +341,13 @@ class TaskStateStore:
                 msg = "Task references an unknown acceptance clause."
                 raise ValueError(msg)
             metadata["acceptance_clause_ids"] = list(dict.fromkeys(clause_ids))
+        if parent_id is not None and any(
+            _normalized_task_title(self.tasks[child_id].title)
+            == _normalized_task_title(title)
+            for child_id in self.tasks[parent_id].children
+        ):
+            msg = "Task duplicates an existing sibling title."
+            raise ValueError(msg)
         task = Task(
             title=title,
             parent_id=parent_id,
@@ -377,10 +389,22 @@ class TaskStateStore:
         if not supplied_ids.issubset(required_ids):
             msg = "Task references an unknown acceptance clause."
             raise ValueError(msg)
+        sibling_titles = {
+            _normalized_task_title(self.tasks[child_id].title)
+            for child_id in task.children
+        }
+        titled_definitions: list[tuple[dict[str, Any], str]] = []
         for definition in definitions:
             title = str(definition.get("title", "")).strip()
             if not title:
                 continue
+            title_key = _normalized_task_title(title)
+            if title_key in sibling_titles:
+                msg = "Task duplicates an existing sibling title."
+                raise ValueError(msg)
+            sibling_titles.add(title_key)
+            titled_definitions.append((definition, title))
+        for definition, title in titled_definitions:
             child = Task(
                 title=title,
                 parent_id=task_id,
