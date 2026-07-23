@@ -1,0 +1,43 @@
+\documentclass{article}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+\begin{document}
+
+\begin{algorithm}[t]
+\caption{TINYCUA Information Digester}
+\label{alg:information-digester}
+\begin{algorithmic}[1]
+\Require $\mathit{session\_id}$: root session identifier, $\mathit{agent\_sessions}$: set of active agent session contexts, $\mathit{worker\_query}$: query destined for worker node
+\Ensure $\mathit{context\_cache}$: path to assembled context cache, $\mathit{digested\_info}$: structured digested summary, $\mathit{retrieved\_context}$: relevant context from enhanced retrieval
+
+// Step 1: Assemble session contexts into unified cache
+\State $\mathit{root\_context} \gets \textsc{ExtractSessionContext}(\mathit{session\_id})$
+\State $\mathit{all\_contexts} \gets [\mathit{root\_context}]$
+\ForAll{$s \in \mathit{agent\_sessions}$}
+    \State $\mathit{agent\_ctx} \gets \textsc{ExtractSessionContext}(s)$
+    \State $\mathit{all\_contexts}.\textsc{Append}(\mathit{agent\_ctx})$
+\EndFor
+\State $\mathit{context\_cache} \gets \textsc{WriteCacheFile}(\mathit{all\_contexts})$
+
+// Step 2: Initialize enhanced context retrieval tool
+\State $\mathit{retrieval\_tool} \gets \textsc{InitReActAgent}(\mathit{context\_cache})$
+
+// Step 3: Perform grep-based retrieval from cache
+\State $\mathit{retrieved\_context} \gets \textsc{ReActRetrieve}(\mathit{retrieval\_tool}, \mathit{worker\_query})$
+
+// Step 4: Invoke digest information tool for structured summary
+\State $\mathit{digest\_tool} \gets \textsc{InitDigestTool}(\mathit{context\_cache})$
+\State $\mathit{digested\_info} \gets \textsc{DigestInformation}(\mathit{digest\_tool}, \mathit{worker\_query})$
+
+// Step 5: Validate at least one digest operation occurred
+\If{$\mathit{digested\_info} = \emptyset$}
+    \State $\mathit{digested\_info} \gets \textsc{DigestInformation}(\mathit{digest\_tool}, \mathit{worker\_query})$
+\EndIf
+
+\end{algorithmic}
+\end{algorithm}
+
+\end{document}
