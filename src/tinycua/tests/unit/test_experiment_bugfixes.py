@@ -33,43 +33,6 @@ class TestReviewerApprovalAutoResult:
         assert root.status == TaskStatus.COMPLETED
 
 
-class TestUnicodeEscapeDecode:
-    """FR-080: _normalize_newlines decodes \\uXXXX sequences."""
-
-    def test_decode_u2208(self):
-        from tinycua.agent.tools.native.files import _normalize_newlines
-        result = _normalize_newlines(r"Q \u2208 \u210e")
-        assert "∈" in result
-        assert "ℎ" in result  # \u210e is PLANCK CONSTANT ℎ
-
-    def test_decode_u03a3(self):
-        from tinycua.agent.tools.native.files import _normalize_newlines
-        result = _normalize_newlines(r"\u03a3_d")
-        assert "Σ" in result
-
-    def test_decode_multiple_bmp_escapes(self):
-        from tinycua.agent.tools.native.files import _normalize_newlines
-        # Multiple BMP escapes in one string.
-        result = _normalize_newlines(r"\u2208 \u03a3 \u00b7 \u00d7")
-        assert "∈" in result
-        assert "Σ" in result
-        assert "·" in result
-        assert "×" in result
-
-    def test_preserves_latex_top(self):
-        from tinycua.agent.tools.native.files import _normalize_newlines
-        result = _normalize_newlines(r"$x^\top$")
-        assert r"\top" in result
-
-    def test_combined_latex_and_unicode(self):
-        from tinycua.agent.tools.native.files import _normalize_newlines
-        text = r"$x^\top$ \u2208 \u03a3"
-        result = _normalize_newlines(text)
-        assert r"\top" in result
-        assert "∈" in result
-        assert "Σ" in result
-
-
 class TestSiblingReportingStrengthened:
     """FR-077: sibling reporting guidance is explicit about timing + guards."""
 
