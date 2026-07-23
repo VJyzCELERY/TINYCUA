@@ -492,6 +492,17 @@ def _render_active_task_work_order(session: Session) -> str:
                 active.result.summary.strip() or active.result.content.strip(),
             ]
         )
+    clauses = store.unmet_acceptance_clauses(active)
+    unmet = store.unmet_acceptance_clauses()
+    if clauses or unmet:
+        lines.extend(["", "## Acceptance Clauses"])
+        if clauses:
+            lines.append("Active task coverage:")
+            lines.extend(f"- {clause['text']}" for clause in clauses)
+        other_unmet = [clause for clause in unmet if clause not in clauses]
+        if other_unmet:
+            lines.append("Unmet root clauses:")
+            lines.extend(f"- {clause['text']}" for clause in other_unmet)
     if active.reviewer_decisions:
         lines.append("")
         lines.append("## Past Review Feedback")
@@ -872,13 +883,19 @@ class TinyCUAResultReviewerNode(ProcessNode):
         mission = _render_mission_block(session)
         mission_prefix = f"{mission}\n\n" if mission else ""
         context_blocks = self._reviewer_context_blocks(task, session)
+        clauses = session.task_store.unmet_acceptance_clauses(task)
+        clause_block = ""
+        if clauses:
+            clause_block = "Acceptance clauses under review:\n" + "\n".join(
+                f"- {clause['text']}" for clause in clauses
+            )
         return (
             f"{mission_prefix}Task under review: {task.task_id} — {task.title}\n"
             f"Task status: {task.status.value}\n"
             f"Outcome report: {result_content}\n"
             f"{_render_request_contract(session)}\n"
             f"Unified task context:\n{session.task_store.render_markdown()}\n"
-            f"{context_blocks}\n{base}"
+            f"{context_blocks}\n{clause_block}\n{base}"
         )
 
     def _task_to_review(self):

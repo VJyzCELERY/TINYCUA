@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from tinycua.loops.task_nodes import (
+    _render_active_task_work_order,
     _render_task_tree_markdown,
     _task_context_snapshot_from_store,
 )
+from tinycua.models.session import Session
 from tinycua.models.task import TaskResult, TaskStateStore
 from tinycua.tools.task_tools import (
     TaskDecomposeTool,
@@ -15,6 +17,8 @@ from tinycua.tools.task_tools import (
     TaskResultUpdateTool,
     TaskShrinkTool,
     TaskUpdateTool,
+    TaskReviewDecisionTool,
+    TerminateTool,
 )
 
 
@@ -221,3 +225,45 @@ def test_task_shrink_cancels_and_supersedes_with_a_rationale() -> None:
     assert missing_rationale["success"] is False
     assert cancelled["status"] == "cancelled"
     assert superseded["replacement_task_id"] in store.tasks
+
+
+def test_review_tool_stages_corrections_until_reviewer_termination() -> None:
+    """Review decisions remain provisional while the reviewer can correct them."""
+    store = TaskStateStore()
+    init = TaskInitTool()
+    review = TaskReviewDecisionTool()
+    terminate = TerminateTool()
+    for tool in (init, review, terminate):
+        tool.bind_task_store(store)
+    terminate.bind_source_node("result_reviewer")
+
+    task_id = init("Root")["task_id"]
+    store.record_result(task_id, TaskResult(content="evidence"))
+    assert review(decision="approved", rationale="[validated]: command passed")["staged"] is True
+    assert review(decision="needs_revision", rationale="[finding]: gap [validate]: test")["staged"] is True
+    assert store.get_task(task_id).reviewer_decisions == []
+
+    terminated = terminate()
+
+    assert terminated["decision"] == "needs_revision"
+    assert store.get_task(task_id).reviewer_decisions[-1]["decision"] == "needs_revision"
+
+
+def test_executor_work_order_renders_active_and_unmet_acceptance_clauses() -> None:
+    """Executor prompts retain the clauses that decomposition assigned to work."""
+    session = Session()
+    root = session.task_store.create_task(
+        "Root", acceptance_clauses=["CLI exits zero", "UI renders"]
+    )
+    session.task_store.decompose_task(
+        root.task_id,
+        [
+            {"title": "CLI", "clause_ids": ["acceptance-1"]},
+            {"title": "UI", "clause_ids": ["acceptance-2"]},
+        ],
+    )
+
+    work_order = _render_active_task_work_order(session)
+
+    assert "CLI exits zero" in work_order
+    assert "UI renders" in work_order

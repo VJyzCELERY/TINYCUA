@@ -182,3 +182,68 @@ def test_tree_validation_rejects_duplicate_links_before_mutation() -> None:
         store.update_task(child.task_id, title="Never applied")
 
     assert child.title == "Child"
+
+
+def test_acceptance_clauses_require_coverage_and_passing_evidence() -> None:
+    """A root cannot complete until every explicit clause has current evidence."""
+    store = TaskStateStore()
+    root = store.create_task(
+        "Root",
+        acceptance_clauses=["CLI exits zero", "UI renders the result"],
+    )
+    first, second = store.decompose_task(
+        root.task_id,
+        [
+            {"title": "Run CLI", "clause_ids": ["acceptance-1"]},
+            {"title": "Check UI", "clause_ids": ["acceptance-2"]},
+        ],
+    )
+
+    assert root.metadata["acceptance_clauses"] == [
+        {"id": "acceptance-1", "text": "CLI exits zero"},
+        {"id": "acceptance-2", "text": "UI renders the result"},
+    ]
+    assert store.get_task(first).metadata["acceptance_clause_ids"] == ["acceptance-1"]
+    assert store.get_task(second).metadata["acceptance_clause_ids"] == ["acceptance-2"]
+
+    store.record_result(first, TaskResult(content="source inspected", metadata={}))
+    with pytest.raises(ValueError, match="passing evidence"):
+        store.record_reviewer_decision(first, ReviewerDecision.APPROVED)
+
+    store.record_result(
+        first,
+        TaskResult(
+            content="CLI passed",
+            metadata={"clause_evidence": {"acceptance-1": [{"passed": True}]}},
+        ),
+    )
+    store.record_reviewer_decision(first, ReviewerDecision.APPROVED)
+    store.record_result(
+        second,
+        TaskResult(
+            content="UI passed",
+            metadata={"clause_evidence": {"acceptance-2": [{"passed": True}]}},
+        ),
+    )
+    store.record_reviewer_decision(second, ReviewerDecision.APPROVED)
+
+    store.record_result(root.task_id, TaskResult(content="verified root"))
+    store.record_reviewer_decision(root.task_id, ReviewerDecision.APPROVED)
+
+    assert root.status == TaskStatus.COMPLETED
+
+
+def test_reviewer_decision_is_replaceable_until_committed() -> None:
+    """Only termination commits the final staged reviewer decision."""
+    store = TaskStateStore()
+    task = store.create_task("Review me")
+    store.record_result(task.task_id, TaskResult(content="evidence"))
+
+    store.stage_reviewer_decision(task.task_id, ReviewerDecision.APPROVED)
+    store.stage_reviewer_decision(task.task_id, ReviewerDecision.NEEDS_REVISION)
+
+    assert task.status == TaskStatus.IN_PROGRESS
+    assert task.reviewer_decisions == []
+    assert store.commit_staged_reviewer_decision(task.task_id).reviewer_decisions == [
+        {"decision": "needs_revision", "rationale": "", "metadata": {}}
+    ]

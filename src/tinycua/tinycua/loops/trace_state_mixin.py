@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+from hashlib import sha256
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
@@ -29,6 +30,33 @@ if TYPE_CHECKING:
     from tinycua.models.session import Session
 
 logger = logging.getLogger(__name__)
+
+
+def normalize_tool_outcome(tool_call: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
+    """Return the bounded prompt-visible outcome correlated to one tool call."""
+    function = tool_call.get("function", {}) if isinstance(tool_call, dict) else {}
+    output = result.get("output") if isinstance(result, dict) else None
+    details = output if isinstance(output, dict) else result
+    rendered = sanitize_internal_reprs(json.dumps(details, default=str))[:8_000]
+    error = details.get("error") if isinstance(details, dict) else None
+    exit_code = details.get("exit_code") if isinstance(details, dict) else None
+    success = not (
+        result.get("allowed") is False
+        or bool(error)
+        or isinstance(exit_code, int) and exit_code != 0
+        or isinstance(details, dict) and details.get("success") is False
+    )
+    return {
+        "call_id": str(tool_call.get("id") or result.get("call_id") or ""),
+        "tool_name": str(function.get("name") or result.get("name") or ""),
+        "success": success,
+        "error": str(error) if error is not None else None,
+        "exit_code": exit_code,
+        "content": rendered,
+        "length": len(rendered),
+        "hash": sha256(rendered.encode()).hexdigest(),
+        "truncated": len(json.dumps(details, default=str)) > len(rendered),
+    }
 
 class TraceStateMixin:
     """Mixin extracted from TinyCUALoop for modularity."""
@@ -116,7 +144,10 @@ class TraceStateMixin:
                 visibility="tool_only",
                 source_session_id=self.root_session.session_id,
                 created_seq=len(self.root_session.chat_history),
-                metadata={"tool_name": tool_result.get("name")},
+                metadata={
+                    "tool_name": tool_result.get("name"),
+                    "outcome": tool_result.get("outcome"),
+                },
             )
         )
 
@@ -130,7 +161,7 @@ class TraceStateMixin:
             self._record_transcript_event(
                 "transcript.tool_result",
                 self._node_label(node),
-                json.dumps(tool_result, default=str),
+                json.dumps(tool_result.get("outcome", tool_result), default=str),
                 node_id=node.node_id,
                 tool_name=str(tool_result.get("name", "tool")),
             )
@@ -336,6 +367,9 @@ class TraceStateMixin:
                     "escalations": list(progress.recovery_escalations),
                     "last_error": progress.recovery_last_error,
                 }
+            trace_entry["lifecycle_phase"] = progress.lifecycle_phase.value
+            trace_entry["lifecycle_history"] = list(progress.lifecycle_history)
+            trace_entry["correlated_outcomes"] = list(progress.correlated_outcomes)
         if isinstance(on_complete_response, DecisionResult):
             trace_entry["route_label"] = on_complete_response.route_label
             trace_entry["route_source"] = (

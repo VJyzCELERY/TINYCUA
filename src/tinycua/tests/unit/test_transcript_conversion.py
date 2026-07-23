@@ -12,6 +12,7 @@ from tinycua.cli.transcript import (
     write_openclaw_jsonl,
     write_usage_summary,
 )
+from tinycua.loops.trace_state_mixin import normalize_tool_outcome
 
 
 # --- _usage_int tests ---
@@ -134,6 +135,22 @@ class TestBuildContentBlocks:
         assert isinstance(result, list)
         assert result[0]["type"] == "text"
         assert result[0]["text"] == ""
+
+
+def test_tool_outcome_is_bounded_correlated_and_actionable() -> None:
+    """Prompt-visible tool outcomes preserve the call identity and failure details."""
+    outcome = normalize_tool_outcome(
+        {"id": "call-7", "function": {"name": "run_shell"}},
+        {"name": "run_shell", "allowed": True, "output": {"exit_code": 2, "error": "bad flag"}},
+    )
+
+    assert outcome["call_id"] == "call-7"
+    assert outcome["tool_name"] == "run_shell"
+    assert outcome["success"] is False
+    assert outcome["error"] == "bad flag"
+    assert outcome["exit_code"] == 2
+    assert outcome["length"] > 0
+    assert outcome["hash"]
 
 
 # --- convert_working_messages_to_openclaw tests ---

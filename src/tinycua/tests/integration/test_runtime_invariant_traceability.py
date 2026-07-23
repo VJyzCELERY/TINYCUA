@@ -14,7 +14,7 @@ deterministically.
 from __future__ import annotations
 
 import io
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from typing import Any
 
@@ -264,7 +264,7 @@ def test_cli_run_summary_emits_trace_task_tree_workspace_artifacts(
     artifact_dir.mkdir()
 
     buffer = io.StringIO()
-    with redirect_stdout(buffer):
+    with redirect_stderr(buffer):
         print_summary(
             mock_loop, workspace, artifact_dir, "Final response to the user.",
             trace=True,

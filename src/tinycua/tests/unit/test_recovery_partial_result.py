@@ -12,17 +12,36 @@ the loop retried the same tool forever (experiment-2: 23 cycles, pending
 from __future__ import annotations
 
 import json
-from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
 from tinycua.config.node_config import create_node_config
 from tinycua.config.types import LLMResult, ValidationResult
-from tinycua.loops.task_nodes import TinyCUATaskAnalyzerNode
+from tinycua.loops.node_contract import LifecyclePhase
+from tinycua.loops.task_nodes import TinyCUATaskAnalyzerNode, TinyCUATaskExecutorNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
-from tinycua.models.task import TaskResult, TaskStatus
-from tinycua.tools.task_tools import TaskDecomposeTool, TerminateTool
+from tinycua.tools.task_tools import TaskDecomposeTool, TaskInspectTool, TaskResultUpdateTool, TerminateTool
+
+
+def test_lifecycle_phase_scope_separates_action_commit_and_termination() -> None:
+    """The loop resolves existing tools into non-overlapping lifecycle phases."""
+    loop = TinyCUALoop()
+    node = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    tools = [TaskInspectTool(), TaskResultUpdateTool(), TerminateTool()]
+
+    assert [tool.name for tool in loop._phase_tools(node, tools, LifecyclePhase.ACTION)] == [
+        "task_inspect"
+    ]
+    assert [tool.name for tool in loop._phase_tools(node, tools, LifecyclePhase.COMMIT)] == [
+        "task_result_update"
+    ]
+    assert [tool.name for tool in loop._phase_tools(node, tools, LifecyclePhase.TERMINATE)] == [
+        "terminate"
+    ]
 
 
 class TestRecoveryRetryReturnsPartialResult:

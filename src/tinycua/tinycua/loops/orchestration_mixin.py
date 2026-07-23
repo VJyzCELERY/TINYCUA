@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 from tinycua.config.types import LLMResult, ValidationError, ValidationResult
 from tinycua.loops.context_rendering import sanitize_internal_reprs
 from tinycua.loops.node import NodeRunContext
-from tinycua.loops.node_contract import RECOVERY_CHAINS
+from tinycua.loops.node_contract import LifecyclePhase, RECOVERY_CHAINS
 from tinycua.loops.propagation import (
     PropagationRule,
     finalize_terminal_output,
@@ -124,8 +124,16 @@ class OrchestrationMixin:
         if callable(route_refresher):
             route_refresher()
         resolved_tools = node.config.tool_policy.resolve_tools(tools)
+        if node.contract.requires_terminate and not any(
+            tool.name == "terminate" for tool in resolved_tools
+        ):
+            from tinycua.tools.task_tools import TerminateTool
+
+            resolved_tools.append(TerminateTool())
         self._bind_session_tools(resolved_tools, node)
-        self._resolved_tools_for_prompt = resolved_tools
+        self._resolved_tools_for_prompt = self._phase_tools(
+            node, resolved_tools, node.progress.lifecycle_phase
+        )
         try:
             messages = self._build_node_messages(node, override_instructions)
         finally:
@@ -432,6 +440,17 @@ class OrchestrationMixin:
         elif retry_tool_results:
             self._prepend_retry_tool_results(llm_result, retry_tool_results)
         combined = llm_result.content
+        if node.contract.requires_terminate:
+            phase = node.progress.lifecycle_phase
+            if phase.value == "action":
+                node.progress.advance_lifecycle(
+                    LifecyclePhase.SUMMARY, combined.strip()
+                )
+                node.progress.advance_lifecycle(LifecyclePhase.COMMIT)
+            elif phase.value == "commit" and node.contract.is_satisfied(
+                node.progress.satisfied_requirements
+            ):
+                node.progress.advance_lifecycle(LifecyclePhase.TERMINATE)
         validation = self._validate_node_result(node, llm_result)
         if not validation.is_valid:
             on_complete_response = self._build_on_complete_response(node, llm_result)
@@ -854,15 +873,16 @@ class OrchestrationMixin:
         retry_tool_results: list[dict[str, Any]] = []
         lazy_attempts = 0  # FR-091: lazy retry counter (stream path).
         for attempt_number in range(attempt, max_attempts + 1):
+            phase_before = node.progress.lifecycle_phase
             attempt_messages = self._messages_with_retry_prompt(
                 base_messages,
                 retry_feedback,
                 retry_message,
             )
-            attempt_tools = self._tools_for_retry_attempt(
-                node,
-                resolved_tools,
-                retry_message,
+            attempt_tools = (
+                self._phase_tools(node, resolved_tools, phase_before)
+                if node.contract.requires_terminate
+                else self._tools_for_retry_attempt(node, resolved_tools, retry_message)
             )
             llm_call = self._emit_lifecycle_event(
                 "node.llm_call",
@@ -925,6 +945,18 @@ class OrchestrationMixin:
             last_combined = combined
             last_validation = validation
             last_result = llm_result
+            if (
+                node.contract.requires_terminate
+                and node.progress.lifecycle_phase != phase_before
+            ):
+                retry_message = (
+                    "Action summary: "
+                    f"{node.progress.action_summary}\n"
+                    "Continue in the current lifecycle phase without repeating action work."
+                )
+                retry_feedback = self._tool_feedback_messages(llm_result)
+                retry_tool_results = self._tool_results_from_llm_result(llm_result)
+                continue
             if validation.is_valid:
                 async for event in self._stream_valid_node_completion(
                     node, combined, collected_tool_calls, stream_messages,
