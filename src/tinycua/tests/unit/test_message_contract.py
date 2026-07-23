@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from tinycua.config.node_config import NodeMessagePolicy, create_node_config
@@ -465,6 +467,36 @@ def test_task_executor_prompt_includes_workspace_path_discipline(tmp_path) -> No
     assert "do not keep repeating read/list inspection" in rendered
 
 
+@pytest.mark.parametrize(
+    ("node", "unavailable_tools"),
+    [
+        (
+            "task_analyzer",
+            {"task_create", "task_decompose", "task_shrink", "task_update", "terminate"},
+        ),
+        ("task_assessor", {"node_handoff", "terminate"}),
+        ("task_executor", {"task_result_update", "terminate"}),
+        ("result_reviewer", {"task_review_decision", "terminate"}),
+    ],
+)
+def test_lifecycle_action_prompts_do_not_require_commit_tools(
+    node: str, unavailable_tools: set[str]
+) -> None:
+    """Action prompts name only tools available during the action phase."""
+    loop = TinyCUALoop()
+    task_node = {
+        "task_analyzer": TinyCUATaskAnalyzerNode,
+        "task_assessor": TinyCUATaskAssessorNode,
+        "task_executor": TinyCUATaskExecutorNode,
+        "result_reviewer": TinyCUAResultReviewerNode,
+    }[node](node_id=node, config=create_node_config(node))
+
+    messages, _ = loop._prepare_node(task_node, [])
+
+    rendered = json.dumps(messages)
+    assert not any(tool_name in rendered for tool_name in unavailable_tools)
+
+
 def test_result_reviewer_prompt_excludes_stale_session_review_context() -> None:
     """Reviewer sees the active result under review, not old review blobs."""
     loop = TinyCUALoop()
@@ -628,7 +660,7 @@ def test_task_assessor_prompt_is_whole_tree_decomposition_only() -> None:
     assert "further decomposition" in rendered.lower()
     assert "task_result_update" not in combined
     assert "task_update" not in combined
-    assert "node_handoff" in combined
+    assert "node_handoff" not in rendered
     assert "complete" not in combined.lower()
     assert "fail executed work" not in combined.lower()
     assert "execution evidence" not in combined.lower()
@@ -660,7 +692,7 @@ def test_task_assessor_local_replan_prompt_is_active_region_only() -> None:
     assert "whole roadmap" in rendered.lower()
     assert "task_result_update" not in combined
     assert "task_update" not in combined
-    assert "node_handoff" in combined
+    assert "node_handoff" not in rendered
     assert "execution evidence" not in combined.lower()
 
 

@@ -75,8 +75,8 @@ def test_result_reviewer_tool_guidance_requires_verification() -> None:
     assert "task_review_decision" in guidance
 
 
-def test_task_analyzer_tool_guidance_names_inspect_and_decompose() -> None:
-    """Analyzer guidance names task_inspect + task_decompose/task_update."""
+def test_task_analyzer_commit_guidance_names_only_commit_tools() -> None:
+    """Analyzer commit guidance omits action-only inspection tools."""
     node = TinyCUATaskAnalyzerNode(
         node_id="task_analyzer", config=create_node_config("task_analyzer")
     )
@@ -84,12 +84,12 @@ def test_task_analyzer_tool_guidance_names_inspect_and_decompose() -> None:
 
     guidance = node.build_tool_system_prompt(tools)
 
-    assert "task_inspect" in guidance
+    assert "task_inspect" not in guidance
     assert "task_decompose" in guidance or "task_update" in guidance
 
 
-def test_task_assessor_tool_guidance_names_handoff() -> None:
-    """Assessor guidance names task_inspect + node_handoff, forbids mutation."""
+def test_task_assessor_commit_guidance_names_only_handoff() -> None:
+    """Assessor commit guidance omits action-only inspection tools."""
     node = TinyCUATaskAssessorNode(
         node_id="task_assessor", config=create_node_config("task_assessor")
     )
@@ -100,7 +100,7 @@ def test_task_assessor_tool_guidance_names_handoff() -> None:
     guidance = node.build_tool_system_prompt(tools)
 
     assert "node_handoff" in guidance
-    assert "task_inspect" in guidance
+    assert "task_inspect" not in guidance
 
 
 def test_tool_guidance_empty_when_no_tools_present() -> None:
@@ -128,27 +128,27 @@ def test_query_analyst_instruction_has_proactive_required_tool_line() -> None:
     assert "MUST" in instruction
 
 
-def test_task_executor_instruction_has_proactive_required_tool_line() -> None:
-    """TaskExecutor initial instruction says the final action MUST call task_result_update."""
+def test_task_executor_instruction_defers_commit_tool_to_commit_phase() -> None:
+    """TaskExecutor action instruction does not require an unavailable commit tool."""
     node = TinyCUATaskExecutorNode(
         node_id="task_executor", config=create_node_config("task_executor")
     )
 
     instruction = node.build_instruction()
 
-    assert "task_result_update" in instruction
+    assert "task_result_update" not in instruction
     assert "MUST" in instruction
 
 
-def test_result_reviewer_instruction_has_proactive_required_tool_line() -> None:
-    """Reviewer initial instruction names task_review_decision as required."""
+def test_result_reviewer_instruction_defers_commit_tool_to_commit_phase() -> None:
+    """Reviewer action instruction does not require an unavailable commit tool."""
     node = TinyCUAResultReviewerNode(
         node_id="result_reviewer", config=create_node_config("result_reviewer")
     )
 
     instruction = node.build_instruction()
 
-    assert "task_review_decision" in instruction
+    assert "task_review_decision" not in instruction
 
 
 def test_task_executor_instruction_has_scope_boundary() -> None:
@@ -194,20 +194,3 @@ def test_result_reviewer_instruction_has_scope_boundary() -> None:
     instruction = node.build_instruction()
 
     assert "do not" in instruction.lower()
-
-
-if __name__ == "__main__":
-    # ponytail: self-check
-    test_task_executor_tool_guidance_prefers_narrowest_tool()
-    test_result_reviewer_tool_guidance_requires_readonly_verification()
-    test_task_analyzer_tool_guidance_names_inspect_and_decompose()
-    test_task_assessor_tool_guidance_names_handoff()
-    test_tool_guidance_empty_when_no_tools_present()
-    test_query_analyst_instruction_has_proactive_required_tool_line()
-    test_task_executor_instruction_has_proactive_required_tool_line()
-    test_result_reviewer_instruction_has_proactive_required_tool_line()
-    test_task_executor_instruction_has_scope_boundary()
-    test_task_analyzer_instruction_has_scope_boundary()
-    test_task_assessor_instruction_has_scope_boundary()
-    test_result_reviewer_instruction_has_scope_boundary()
-    print("ok")
