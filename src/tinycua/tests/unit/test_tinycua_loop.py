@@ -11,8 +11,10 @@ from tinycua.config.node_config import NodeConfigBase, NodeToolPolicy, create_no
 from tinycua.config.types import LLMResult, Tool
 from tinycua.config.types import ValidationError
 from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
+from tinycua.loops.node_contract import LifecyclePhase
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
+from tinycua.loops.task_create import TinyCUATaskCreateNode
 from tinycua.loops.task_nodes import TinyCUATaskAssessorNode, TinyCUATaskExecutorNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.session import Session
@@ -730,6 +732,44 @@ async def test_stream_true_returns_async_iterator():
     events = [e async for e in result]
     assert len(events) > 0
     assert any(e["type"] == "response.output_text.delta" for e in events)
+
+
+async def test_streamed_termination_does_not_restart_completed_lifecycle_node() -> None:
+    """A successful terminate phase completes instead of being redispatched."""
+    node = TinyCUATaskCreateNode(
+        node_id="task_create",
+        config=create_node_config("task_create"),
+    )
+    loop = TinyCUALoop(queue=NodeQueue(items=[node]))
+    node.ensure_session(loop.root_session)
+    node.progress.mark_tool_called("task_init")
+    node.progress.advance_lifecycle(LifecyclePhase.TERMINATE)
+    calls = 0
+
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+    agent.tool_permissions = {}
+
+    async def mock_stream(*args, **kwargs):
+        nonlocal calls
+        del args, kwargs
+        calls += 1
+        assert calls == 1, "completed lifecycle node was redispatched"
+        yield {"type": "response.completed", "finish_reason": "completed"}
+
+    agent._call_llm = mock_stream
+
+    async for _event in loop._stream_node_events(
+        node,
+        agent,
+        [],
+        None,
+        loop.queue.input_for_current(),
+    ):
+        pass
+
+    assert node.node_id not in loop.root_session.node_progress
 
 
 async def test_run_sync_consumes_canonical_stream_runtime():

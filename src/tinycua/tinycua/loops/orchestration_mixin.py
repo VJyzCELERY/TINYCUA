@@ -945,13 +945,15 @@ class OrchestrationMixin:
             last_combined = combined
             last_validation = validation
             last_result = llm_result
+            progress = self.root_session.node_progress.get(node.node_id)
             if (
                 node.contract.requires_terminate
-                and node.progress.lifecycle_phase != phase_before
+                and progress is not None
+                and progress.lifecycle_phase != phase_before
             ):
                 retry_message = (
                     "Action summary: "
-                    f"{node.progress.action_summary}\n"
+                    f"{progress.action_summary}\n"
                     "Continue in the current lifecycle phase without repeating action work."
                 )
                 retry_feedback = self._tool_feedback_messages(llm_result)
