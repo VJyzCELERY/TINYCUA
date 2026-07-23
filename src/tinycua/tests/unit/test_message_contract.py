@@ -275,6 +275,25 @@ async def test_streamed_lifecycle_action_tool_call_enters_commit(
     assert node.progress.lifecycle_phase is LifecyclePhase.COMMIT
 
 
+def test_terminate_phase_hides_terminate_without_executor_commit() -> None:
+    """TaskExecutor cannot expose terminate until it has staged a result."""
+    loop = TinyCUALoop()
+    node = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    node.progress.satisfied_requirements.add("task_result_update")
+    node.progress.advance_lifecycle(LifecyclePhase.TERMINATE)
+
+    tools = loop._phase_tools(
+        node,
+        [Tool(name="task_result_update"), Tool(name="terminate")],
+        LifecyclePhase.TERMINATE,
+    )
+
+    assert [tool.name for tool in tools] == ["task_result_update"]
+
+
 def test_internal_output_context_uses_assistant_role_not_user() -> None:
     """Root session output context is not implicit downstream prompt input."""
     loop = TinyCUALoop()
