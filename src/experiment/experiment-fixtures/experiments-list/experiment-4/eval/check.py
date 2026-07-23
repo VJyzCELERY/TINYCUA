@@ -154,28 +154,65 @@ def main() -> int:
         )
 
     def modular_structure() -> str:
-        app = workspace / "app.py"
-        tree = ast.parse(app.read_text())
-        imports = [
-            name
-            for node in ast.walk(tree)
-            for name in (
-                [alias.name for alias in node.names]
-                if isinstance(node, ast.Import)
-                else [node.module] if isinstance(node, ast.ImportFrom) else []
-            )
-            if name
+        sources = [
+            path
+            for path in workspace.rglob("*.py")
+            if VIRTUAL_ENV not in path.parts
+            and "tests" not in path.parts
+            and not path.name.startswith("test_")
         ]
-        local_imports = [
-            name
-            for name in imports
-            if (workspace / name.replace(".", "/")).is_dir()
-            or (workspace / f"{name.replace('.', '/')}.py").is_file()
-        ]
-        return require(
-            bool(local_imports),
-            f"app.py imports local module {local_imports[0] if local_imports else ''}",
-        )
+
+        def module_names(path: Path) -> set[str]:
+            parts = list(path.relative_to(workspace).with_suffix("").parts)
+            if parts[0] == "src":
+                parts = parts[1:]
+            if parts[-1] == "__init__":
+                parts.pop()
+            return {".".join(parts)} if parts else set()
+
+        modules = {
+            module: source
+            for source in sources
+            for module in module_names(source)
+        }
+
+        def imports(path: Path) -> list[str]:
+            package = list(path.relative_to(workspace).with_suffix("").parts[:-1])
+            if package[:1] == ["src"]:
+                package = package[1:]
+            names: list[str] = []
+            for node in ast.walk(ast.parse(path.read_text())):
+                if isinstance(node, ast.Import):
+                    names.extend(alias.name for alias in node.names)
+                elif isinstance(node, ast.ImportFrom):
+                    if node.level:
+                        base = package[: len(package) - node.level + 1]
+                        if node.module:
+                            names.append(".".join(base + node.module.split(".")))
+                        else:
+                            names.extend(".".join(base + [alias.name]) for alias in node.names)
+                    elif node.module:
+                        names.append(node.module)
+            return names
+
+        for source in sources:
+            for imported in imports(source):
+                local = next(
+                    (
+                        module
+                        for module, owner in modules.items()
+                        if owner != source
+                        and (
+                            imported == module
+                            or imported.startswith(f"{module}.")
+                            or module.startswith(f"{imported}.")
+                        )
+                    ),
+                    None,
+                )
+                if local:
+                    return f"{source.relative_to(workspace)} imports local module {local}"
+        return require(False, "production modules import one another")
 
     def project_documentation() -> str:
         docs = workspace / "docs"
