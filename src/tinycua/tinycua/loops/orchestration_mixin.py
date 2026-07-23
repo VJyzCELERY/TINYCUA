@@ -453,9 +453,7 @@ class OrchestrationMixin:
                     LifecyclePhase.SUMMARY, combined.strip()
                 )
                 node.progress.advance_lifecycle(LifecyclePhase.COMMIT)
-            elif phase.value == "commit" and node.contract.is_satisfied(
-                node.progress.satisfied_requirements
-            ):
+            elif phase.value == "commit" and self._can_terminate(node):
                 node.progress.advance_lifecycle(LifecyclePhase.TERMINATE)
             elif phase.value == "terminate" and termination_failed:
                 node.progress.advance_lifecycle(LifecyclePhase.COMMIT)

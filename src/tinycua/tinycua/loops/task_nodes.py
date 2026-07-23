@@ -75,9 +75,7 @@ _TASK_ANALYZER_CONTINUATION = (
     "(web_search/fetch_url/read_file/run_shell) when the task involves a "
     "fast-moving domain (research, current state of tech, models, "
     "frameworks) so your decomposition targets what is current today. "
-    "Then summarize the needed structural change. When the assessor handoff identifies "
-    "duplicate work, use task_shrink to prune or merge it before adding tasks. "
-    "If previous tasks already write to "
+    "Then summarize the needed structural change. If previous tasks already write to "
     "the report file, do not create a final 'write report' task — "
     "decompose it as 'review and reorganize the existing deliverable file' instead."
 )
