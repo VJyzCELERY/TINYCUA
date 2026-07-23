@@ -504,10 +504,27 @@ class TinyCUALoop(
         phase: LifecyclePhase,
     ) -> list[Tool]:
         """Resolve existing node tools for one focused lifecycle phase."""
+        if phase == LifecyclePhase.TERMINATE and not self._can_terminate(node):
+            phase = LifecyclePhase.COMMIT
         names = phase_tool_names(
             node.node_id, {tool.name for tool in tools}, phase
         )
         return [tool for tool in tools if tool.name in names]
+
+    def _can_terminate(self, node: Node) -> bool:
+        """Return whether the node's real commit state permits termination."""
+        if not node.contract.is_satisfied(node.progress.satisfied_requirements):
+            return False
+        store = self.root_session.task_store
+        if node.node_id == "task_create":
+            return store.root_task_id is not None
+        if node.node_id == "task_executor":
+            return bool(store._staged_results)
+        if node.node_id == "result_reviewer":
+            return bool(store._staged_reviewer_decisions)
+        if node.node_id == "task_assessor":
+            return any(handoff.source_node == node.node_id for handoff in self._pending_handoffs)
+        return True
 
     def _attempt_tools(
         self,
