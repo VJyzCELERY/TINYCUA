@@ -128,6 +128,24 @@ def test_write_then_read_same_path_stubs_the_write() -> None:
     assert msgs[2]["content"] == "X" * 5_000
 
 
+def test_failed_mutation_keeps_prior_successful_observation() -> None:
+    """A failed write cannot supersede an observation because the file is unchanged."""
+    from tinycua.agent.tools.native.output_persist import evict_superseded_file_reads
+
+    msgs = [
+        _assistant_with_tool_calls(
+            ("r1", "read_file", {"path": "api.py"}),
+            ("w1", "write_file", {"path": "api.py"}),
+        ),
+        _tool_result("r1", "read_file", "observed contents"),
+        _tool_result("w1", "write_file", json.dumps({"success": False, "error": "denied"})),
+    ]
+
+    evict_superseded_file_reads(msgs)
+
+    assert msgs[1]["content"] == "observed contents"
+
+
 def test_non_file_tools_never_stubbed_by_staleness() -> None:
     """run_shell/task_inspect results are not file reads — left alone by staleness pass."""
     from tinycua.agent.tools.native.output_persist import evict_superseded_file_reads
