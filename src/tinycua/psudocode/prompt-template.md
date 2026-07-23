@@ -33,7 +33,7 @@ Read `src/tinycua/psudocode/TinyCUA_Architecture.png`. Identify the node(s) rele
 
 ### Step 2: Read the User's Write
 
-Analyze the user's prose. Extract the algorithmic steps (control flow, data transforms, decisions, function calls) and the design invariants (constraints, policies, rationale).
+Analyze the user's prose. This write describes an algorithm in natural language. Your job is to **reconstruct** it into formal pseudocode — transform the prose into algorithmic notation while preserving the same logic and steps.
 
 ### Step 3: Validate Against Design Docs
 
@@ -56,7 +56,16 @@ The companion prose explains what the pseudocode does NOT cover. It must be **sh
 
 ### Separation Rules
 
-**Pseudocode (algorithm block)** — extract these:
+**Reconstruction Rule:** The user's write is a prose description of an algorithm. Reconstruct it into pseudocode by:
+1. Identify each step described in the prose
+2. Map it to an algorithmic construct (assignment, if/else, while, function call)
+3. Name variables and functions based on what the prose describes
+4. Preserve the exact logic — do not add, skip, or reorder steps
+5. If the prose says "calls X to analyze Y", write `result ← X(Y)`
+6. If the prose says "retries until valid", write `while invalid: retry`
+7. If the prose says "if route is worker, spawn Z", write `if route = Worker: Spawn(Z)`
+
+**Pseudocode (algorithm block)** — reconstruct these from prose:
 - Boolean checks / guards
 - Data collection / function calls
 - Loop control flow (while, for)
