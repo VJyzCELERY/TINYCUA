@@ -1325,6 +1325,7 @@ class OrchestrationMixin:
         from tinycua.tools.task_tools import TerminateTool
 
         terminate_tool = TerminateTool()
+        self._bind_session_tools([terminate_tool], node)
         terminate_call: dict[str, Any] = {
             "id": "call_direct_terminate",
             "type": "function",
