@@ -2,35 +2,34 @@
 
 from __future__ import annotations
 
-from tinycua.config.node_config import create_node_config
-from tinycua.loops.task_nodes import TinyCUATaskAnalyzerNode
-from tinycua.loops.tinycua_loop import TinyCUALoop
+import pytest
+
 from tinycua.models.task import ReviewerDecision, TaskResult, TaskStateStore, TaskStatus
 
 
-class TestReviewerApprovalAutoResult:
-    """FR-079: APPROVED with no result auto-generates and transitions."""
+class TestReviewerApprovalEvidence:
+    """Approval requires executor evidence rather than generated fallback state."""
 
-    def test_leaf_task_auto_generates_result(self):
+    def test_leaf_task_without_result_is_rejected(self):
         store = TaskStateStore()
         root = store.create_task("Root")
         child = store.create_task("Child", parent_id=root.task_id)
-        store.record_reviewer_decision(child.task_id, ReviewerDecision.APPROVED)
-        assert child.result is not None
-        assert child.result.metadata.get("auto_generated") is True
-        assert child.status == TaskStatus.COMPLETED
+        with pytest.raises(ValueError, match="requires successful executor evidence"):
+            store.record_reviewer_decision(child.task_id, ReviewerDecision.APPROVED)
+        assert child.result is None
+        assert child.status == TaskStatus.IN_PROGRESS
 
-    def test_parent_task_with_completed_children_auto_generates(self):
+    def test_parent_task_without_its_own_result_is_rejected(self):
         store = TaskStateStore()
         root = store.create_task("Root")
         child = store.create_task("Child", parent_id=root.task_id)
         store.record_result(child.task_id, TaskResult(content="done", success=True))
         store.record_reviewer_decision(child.task_id, ReviewerDecision.APPROVED)
-        # Root has no result but all children done → auto-generate
-        store.record_reviewer_decision(root.task_id, ReviewerDecision.APPROVED)
-        assert root.result is not None
-        assert root.result.metadata.get("aggregated") is True
-        assert root.status == TaskStatus.COMPLETED
+        # Root has no independent executor result and cannot aggregate one.
+        with pytest.raises(ValueError, match="requires successful executor evidence"):
+            store.record_reviewer_decision(root.task_id, ReviewerDecision.APPROVED)
+        assert root.result is None
+        assert root.status == TaskStatus.IN_PROGRESS
 
 
 class TestSiblingReportingStrengthened:

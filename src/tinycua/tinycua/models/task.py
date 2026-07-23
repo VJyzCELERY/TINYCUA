@@ -484,6 +484,16 @@ class TaskStateStore:
         self._log_tree_snapshot("record_result")
         return task
 
+    @staticmethod
+    def _has_approval_evidence(result: TaskResult | None) -> bool:
+        """Return whether an executor result can support approval."""
+        return bool(
+            result
+            and result.success
+            and result.content.strip()
+            and not result.metadata.get("auto_generated")
+        )
+
     def record_reviewer_decision(
         self,
         task_id: str,
@@ -495,6 +505,14 @@ class TaskStateStore:
         """Append a reviewer decision to a task audit trail."""
         task = self.get_task(task_id)
         reviewer_decision = ReviewerDecision(decision)
+        if (
+            reviewer_decision == ReviewerDecision.APPROVED
+            and not self._has_approval_evidence(task.result)
+        ):
+            if task.status == TaskStatus.PENDING:
+                self.transition(task_id, TaskStatus.IN_PROGRESS)
+            msg = "Approval requires successful executor evidence with non-empty content."
+            raise ValueError(msg)
         task.reviewer_decisions.append(
             {
                 "decision": reviewer_decision.value,
@@ -512,45 +530,13 @@ class TaskStateStore:
             self.active_task_id = task.task_id
             self._bump_version()
         elif reviewer_decision == ReviewerDecision.APPROVED:
-            # FR-079: auto-generate a synthetic result when APPROVED and no
-            # result exists — for BOTH parent and leaf tasks. Previously only
-            # parent tasks with completed children got the fallback; leaf
-            # tasks with no result stayed pending, causing the reviewer to
-            # loop (approve → status doesn't flip → queue re-dispatches
-            # reviewer → approve again → same loop).
-            if task.result is None:
-                if task.children:
-                    all_children_done = all(
-                        self.tasks[cid].status == TaskStatus.COMPLETED
-                        for cid in task.children
-                        if cid in self.tasks
-                    )
-                    if all_children_done:
-                        task.result = TaskResult(
-                            content="All child tasks completed — parent goal achieved.",
-                            success=True,
-                            metadata={"aggregated": True},
-                        )
-                if task.result is None:
-                    task.result = TaskResult(
-                        content="Approved by reviewer (no executor result recorded).",
-                        success=True,
-                        metadata={"auto_generated": True},
-                    )
-            if task.result is not None:
-                target = TaskStatus.COMPLETED if task.result.success else TaskStatus.FAILED
-                if task.status != target:
-                    # Parent tasks may be IN_PROGRESS (from _complete_ready_parents)
-                    # or PENDING. IN_PROGRESS→COMPLETED is allowed; PENDING is not.
-                    if task.status == TaskStatus.PENDING:
-                        task.status = TaskStatus.IN_PROGRESS
-                        self._bump_version()
-                    if task.status != target:
-                        self.transition(task_id, target)  # transition bumps version
-                self._complete_ready_parents()
-                self._propagate_result_to_next_sibling(task)
-                self._refresh_active_task()
-                self._bump_version()
+            if task.status == TaskStatus.PENDING:
+                self.transition(task_id, TaskStatus.IN_PROGRESS)
+            self.transition(task_id, TaskStatus.COMPLETED)
+            self._complete_ready_parents()
+            self._propagate_result_to_next_sibling(task)
+            self._refresh_active_task()
+            self._bump_version()
         self._log_tree_snapshot("record_reviewer_decision")
         return task
 
@@ -684,15 +670,17 @@ class TaskStateStore:
         reviews it, and THEN the parent completes via record_reviewer_decision.
 
         This method only transitions PENDING parents to IN_PROGRESS so they
-        become the active task and get scheduled for execution. The synthetic
-        result + completion happens in record_reviewer_decision when the
-        reviewer approves the executor's verification report.
+        become the active task and get scheduled for execution.
         """
         for task in self.tasks.values():
             if not task.children or task.status == TaskStatus.COMPLETED:
                 continue
             children = [self.tasks[child_id] for child_id in task.children]
-            if all(child.status == TaskStatus.COMPLETED for child in children):
+            if all(
+                child.status == TaskStatus.COMPLETED
+                and self._has_approval_evidence(child.result)
+                for child in children
+            ):
                 if task.status == TaskStatus.PENDING:
                     task.status = TaskStatus.IN_PROGRESS
                     self._bump_version()
@@ -707,7 +695,7 @@ class TaskStateStore:
         """
         if task.parent_id is None or task.parent_id not in self.tasks:
             return
-        if task.result is None:
+        if not self._has_approval_evidence(task.result):
             return
         parent = self.tasks[task.parent_id]
         # Find the next pending sibling (in children order, after this task).
