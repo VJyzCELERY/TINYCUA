@@ -7,37 +7,33 @@
 \begin{document}
 
 \begin{algorithm}[t]
-\caption{TINYCUA Query Analyst}
+\caption{Query Analysis}
 \label{alg:query-analyst}
 \begin{algorithmic}[1]
 \Require $\mathit{root\_session}$, $\mathit{user\_query}$, $\mathit{queue}$
 \Ensure $\mathit{route} \in \{\textsc{Worker}, \textsc{Passthrough}\}$
 
-// Step 1: Deduplication guard
-\If{$\mathit{queue}$ contains active $\mathit{QueryAnalyst}$}
-    \State \Return mandatory\_passthrough($\mathit{QueryAnalyst}$)
+// Deduplication guard
+\If{$\mathit{queue}$ contains active $\mathit{QUERYANALYST}$}
+    \State \Return DROP\_QUERY // Skip if already exist
 \EndIf
 
-// Step 2: Deterministic precheck
-\If{$\exists$ valid mandatory\_passthrough}
-    \State forward continuation to target node/session
-    \State \Return
-\EndIf
-
-// Step 3: Assemble transient reasoning window
+// Assemble transient reasoning window
 \State $\mathit{window} \gets \mathit{root\_session}.\mathit{context} \;\Vert\; \mathit{queue}.\mathit{contexts} \;\Vert\; \mathit{user\_query}$
 
-// Step 4: Two-step classification (LLM + tool)
-\State $\mathit{route} \gets \textsc{null}$; $\mathit{valid} \gets \textsc{False}$
+// Step 3: Two-step classification (LLM + tool)
+\State $\mathit{route} \gets \textsc{NULL}$; $\mathit{valid} \gets \textsc{FALSE}$
 \While{$\neg\mathit{valid}$}
-    \State $\mathit{analysis} \gets \textsc{SLMAnalyze}(\mathit{window})$
-    \State $\mathit{route} \gets \textsc{Classify}(\mathit{analysis})$; $\mathit{valid} \gets \mathit{route} \in \{\textsc{Worker}, \textsc{Passthrough}\}$
+    \State $\mathit{analysis} \gets \textsc{SLMANALYZE}(\mathit{window})$
+    \State $\mathit{route} \gets \textsc{CLASSIFY}(\mathit{analysis})$; $\mathit{valid} \gets \mathit{route} \in \{\textsc{Worker}, \textsc{Passthrough}\}$
 \EndWhile
 
-// Step 5: Dispatch via route map
-\State \textsc{Dispatch}($\mathit{route}$)
+// Step 4: Dispatch via route map
+\State \textsc{DISPATCH}($\mathit{route}$)
 \If{$\mathit{route} = \textsc{Worker}$}
-    \State spawn \textsc{InformationDigester} before \textsc{WorkerNode}
+    \State spawn \textsc{INFORMATIONDIGESTER}
+\ElsIf{$\mathit{route} = \textsc{Passthrough}$}
+    \State Forward to ResponseNode
 \EndIf
 
 \end{algorithmic}
