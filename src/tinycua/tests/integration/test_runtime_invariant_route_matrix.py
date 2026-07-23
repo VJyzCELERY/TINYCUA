@@ -49,6 +49,7 @@ class _RouteMatrixScript:
         self.bad_once_nodes = set(bad_once_nodes)
         self.force_route = force_route
         self.calls_by_node: dict[str, int] = {}
+        self._bad_emitted: set[str] = set()
 
     def _detect_node(self, tool_names: set[str]) -> str:
         if "select_query_route" in tool_names:
@@ -61,6 +62,10 @@ class _RouteMatrixScript:
             return "task_create"
         if "task_decompose" in tool_names:
             return "task_analyzer"
+        if "write_file" in tool_names:
+            return "task_executor"
+        if "task_update" in tool_names:
+            return "result_reviewer"
         if "node_handoff" in tool_names:
             return "task_assessor"
         if "task_result_update" in tool_names:
@@ -73,7 +78,7 @@ class _RouteMatrixScript:
 
     def _is_bad(self, node: str) -> bool:
         if node in self.bad_once_nodes:
-            return self.calls_by_node.get(node, 0) == 0
+            return node not in self._bad_emitted
         return False
 
     def _task_id(self, messages: list[dict[str, Any]]) -> str:
@@ -109,8 +114,12 @@ class _RouteMatrixScript:
     ) -> dict[str, Any]:
         tool_names = {t.name for t in tools}
         node = self._detect_node(tool_names)
-        # Check bad BEFORE incrementing so count==0 triggers on the first call.
-        is_bad = self._is_bad(node)
+        is_bad = self._is_bad(node) and not (
+            (node == "task_executor" and "task_result_update" not in tool_names)
+            or (node == "result_reviewer" and "task_review_decision" not in tool_names)
+        )
+        if is_bad:
+            self._bad_emitted.add(node)
         self.calls_by_node[node] = self.calls_by_node.get(node, 0) + 1
 
         if is_bad:
@@ -229,6 +238,27 @@ class _RouteMatrixScript:
             }
         if node == "task_executor":
             task_id = self._task_id(messages) or "active"
+            if "write_file" in tool_names:
+                if any(
+                    m.get("role") == "tool"
+                    and "write_file" in str(m.get("content", ""))
+                    for m in messages
+                ):
+                    return {"content": "Action complete.", "tool_calls": []}
+                return {
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": "write_file",
+                                "arguments": (
+                                    f'{{"path":"{task_id}.txt",'
+                                    f'"content":"Completed {task_id}\\n"}}'
+                                ),
+                            }
+                        }
+                    ],
+                }
             if any(
                 m.get("role") == "tool"
                 and "task_result_update" in str(m.get("content", ""))
@@ -248,6 +278,19 @@ class _RouteMatrixScript:
             }
         if node == "result_reviewer":
             task_id = self._task_id(messages) or "active"
+            if "task_update" in tool_names:
+                if any(
+                    m.get("role") == "tool"
+                    and "task_inspect" in str(m.get("content", ""))
+                    for m in messages
+                ):
+                    return {"content": "Inspection complete.", "tool_calls": []}
+                return {
+                    "content": "",
+                    "tool_calls": [
+                        {"function": {"name": "task_inspect", "arguments": "{}"}}
+                    ],
+                }
             if any(
                 m.get("role") == "tool"
                 and "task_review_decision" in str(m.get("content", ""))

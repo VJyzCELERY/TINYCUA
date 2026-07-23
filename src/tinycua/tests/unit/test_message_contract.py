@@ -10,6 +10,7 @@ from tinycua.config.node_config import NodeMessagePolicy, create_node_config
 from tinycua.config.session_config import SessionConfig
 from tinycua.config.types import LLMResult, Tool
 from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
+from tinycua.loops.node_contract import LifecyclePhase
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.node import DecisionNode, DecisionResult
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
@@ -216,6 +217,27 @@ async def test_streamed_task_executor_trace_keeps_native_tools() -> None:
     )
 
     assert "write_file" in loop.get_execution_trace()[-1]["resolved_tool_names"]
+
+
+def test_action_tool_call_waits_for_tool_free_lifecycle_summary() -> None:
+    """Action work does not enter commit before its summary response."""
+    node = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+
+    assert not TinyCUALoop._advance_lifecycle_phase(
+        node,
+        LLMResult(
+            content="Action work",
+            tool_calls=[{"function": {"name": "write_file"}}],
+        ),
+    )
+    assert node.progress.lifecycle_phase is LifecyclePhase.ACTION
+
+    assert TinyCUALoop._advance_lifecycle_phase(node, LLMResult(content="Summary"))
+    assert node.progress.lifecycle_phase is LifecyclePhase.COMMIT
+    assert node.progress.action_summary == "Summary"
 
 
 def test_internal_output_context_uses_assistant_role_not_user() -> None:
