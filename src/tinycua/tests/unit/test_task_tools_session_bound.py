@@ -146,6 +146,22 @@ def test_task_update_cannot_complete_without_execution_result() -> None:
     assert store.get_task(root["task_id"]).status == "pending"
 
 
+def test_analyzer_update_cannot_replace_initial_decomposition() -> None:
+    """Analyzer must create actionable work before recording planning metadata."""
+    store = TaskStateStore()
+    init = TaskInitTool()
+    update = TaskUpdateTool()
+    for tool in (init, update):
+        tool.bind_task_store(store)
+    update.bind_source_node("task_analyzer")
+    root = init("Root")
+
+    result = update(task_id=root["task_id"], assessment="ready")
+
+    assert result["success"] is False
+    assert not store.get_task(root["task_id"]).children
+
+
 def test_task_decompose_preserves_all_analyzer_subtasks() -> None:
     """Decomposition preserves every analyzer-provided subtask (no cap).
 
@@ -392,6 +408,19 @@ def test_executor_result_stays_staged_until_executor_termination() -> None:
     assert store.get_task(task_id).result is None
     terminate()
     assert store.get_task(task_id).result is not None
+
+
+def test_executor_termination_rejects_missing_staged_result() -> None:
+    """Repeated executor termination cannot succeed after its result is committed."""
+    store = TaskStateStore()
+    terminate = TerminateTool()
+    terminate.bind_task_store(store)
+    terminate.bind_source_node("task_executor")
+
+    result = terminate()
+
+    assert result["success"] is False
+    assert "staged executor result" in result["error"].lower()
 
 
 def test_executor_work_order_renders_active_and_unmet_acceptance_clauses() -> None:
