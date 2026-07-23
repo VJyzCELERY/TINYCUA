@@ -195,7 +195,10 @@ class _RouteMatrixScript:
                     {
                         "function": {
                             "name": "task_init",
-                            "arguments": '{"title":"Build a note-taking app"}',
+                            "arguments": (
+                                '{"title":"Build a note-taking app",'
+                                '"acceptance_clauses":["Build a note-taking app"]}'
+                            ),
                         }
                     }
                 ],
@@ -214,7 +217,12 @@ class _RouteMatrixScript:
                     {
                         "function": {
                             "name": "task_decompose",
-                            "arguments": f'{{"task_id":"{root_id}","subtasks":["Create backend","Create frontend"]}}',
+                            "arguments": (
+                                f'{{"task_id":"{root_id}","subtasks":['
+                                '{"title":"Create backend",'
+                                '"clause_ids":["acceptance-1"]},'
+                                '"Create frontend"]}'
+                            ),
                         }
                     }
                 ],
@@ -271,7 +279,11 @@ class _RouteMatrixScript:
                     {
                         "function": {
                             "name": "task_result_update",
-                            "arguments": f'{{"content":"Completed {task_id}","success":true}}',
+                            "arguments": (
+                                f'{{"content":"Completed {task_id}","success":true,'
+                                '"metadata":{"clause_evidence":{'
+                                '"acceptance-1":[{"passed":true}]}}}'
+                            ),
                         }
                     }
                 ],
