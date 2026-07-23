@@ -7,38 +7,39 @@
 \begin{document}
 
 \begin{algorithm}[t]
-\caption{TINYCUA Query Analyst Node}
+\caption{TINYCUA Query Analyst}
 \label{alg:query-analyst}
 \begin{algorithmic}[1]
-\Require User query $q$, session context $C$
-\Ensure Enhanced query $q_{\text{enhanced}}$, route label $\mathit{route}$
+\Require $\mathit{root\_session}$, $\mathit{user\_query}$, $\mathit{queue}$
+\Ensure $\mathit{route} \in \{\textsc{Worker}, \textsc{Passthrough}, \textsc{Uncertain}\}$
 
-// Deduplication guard
-\If{\textsc{QueryAnalystAlreadyActive}($C$)}
-    \State \Return $\bot$
+// Step 1: Deduplication guard
+\If{$\mathit{queue}$ contains active $\mathit{QueryAnalyst}$}
+    \State \Return mandatory\_passthrough($\mathit{QueryAnalyst}$)
 \EndIf
 
-// Context collection (read-only)
-\State $\mathit{ctx} \gets \textsc{CollectContext}(q,\; C)$
+// Step 2: Deterministic precheck
+\If{$\exists$ valid mandatory\_passthrough}
+    \State forward continuation to target node/session
+    \State \Return
+\EndIf
 
-// Build reasoning window and classify
-\State $\mathit{rw} \gets \{q\} \cup \textsc{FilterRelevant}(\mathit{ctx},\; q)$
-\State $\mathit{route} \gets \textsc{ClassifyRoute}(\textsc{SLMAnalyze}(\mathit{rw}))$
+// Step 3: Assemble transient reasoning window
+\State $\mathit{window} \gets \mathit{root\_session}.\mathit{context} \;\Vert\; \mathit{queue}.\mathit{contexts} \;\Vert\; \mathit{user\_query}$
 
-// Validate route with retry
-\While{$\mathit{route}$ is invalid \textbf{or} not invoked}
-    \State $\mathit{route} \gets \textsc{ClassifyRoute}(\textsc{SLMAnalyze}(\mathit{rw}))$
-    \If{retries exceeded}
-        \State \Return $q,\; \textsc{DefaultRoute}()$
-    \EndIf
+// Step 4: Two-step classification (LLM + tool)
+\State $\mathit{route} \gets \bot$; $\mathit{valid} \gets \textsc{False}$
+\While{$\neg\mathit{valid}$}
+    \State $\mathit{analysis} \gets \textsc{SLMAnalyze}(\mathit{window})$
+    \State $\mathit{route} \gets \textsc{Classify}(\mathit{analysis})$; $\mathit{valid} \gets \mathit{route} \in \{\textsc{Worker}, \textsc{Passthrough}, \textsc{Uncertain}\}$
 \EndWhile
 
-// Dispatch
-\State $q_{\text{enhanced}} \gets \{q\} \cup \textsc{FilterRelevant}(\mathit{rw},\; q)$
+// Step 5: Dispatch via route map
+\State \textsc{Dispatch}($\mathit{route}$)
 \If{$\mathit{route} = \textsc{Worker}$}
-    \State $\textsc{SpawnInformationDigester}()$
+    \State spawn \textsc{InformationDigester} before \textsc{WorkerNode}
 \EndIf
-\State \Return $q_{\text{enhanced}},\; \mathit{route}$
+
 \end{algorithmic}
 \end{algorithm}
 
