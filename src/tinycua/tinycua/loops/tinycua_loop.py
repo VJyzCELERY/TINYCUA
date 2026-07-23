@@ -527,10 +527,7 @@ class TinyCUALoop(
         """Advance a lifecycle node after its action summary or successful commit."""
         if not node.contract.requires_terminate:
             return False
-        if (
-            node.progress.lifecycle_phase == LifecyclePhase.ACTION
-            and not result.tool_calls
-        ):
+        if node.progress.lifecycle_phase == LifecyclePhase.ACTION:
             node.progress.advance_lifecycle(LifecyclePhase.SUMMARY, result.content.strip())
             node.progress.advance_lifecycle(LifecyclePhase.COMMIT)
             return True
@@ -561,6 +558,18 @@ class TinyCUALoop(
         if not node.contract.requires_terminate:
             return resolved_tools
         return self._phase_tools(node, resolved_tools, node.progress.lifecycle_phase)
+
+    def _advance_lifecycle_tools(
+        self,
+        node: Node,
+        result: LLMResult,
+        resolved_tools: list[Tool],
+        current_tools: list[Tool],
+    ) -> list[Tool]:
+        """Switch to the next focused tool phase after a lifecycle transition."""
+        if self._advance_lifecycle_phase(node, result):
+            return self._tools_for_lifecycle_result(node, result, resolved_tools)
+        return current_tools
 
     def _can_stop_tool_batch(
         self, node: Node, result: LLMResult, validation: ValidationResult
@@ -1165,6 +1174,9 @@ class TinyCUALoop(
                 last_result.metadata["tool_results"] = list(all_tool_results)
                 self._prepend_retry_tool_results(last_result, retry_tool_results)
                 self._fill_content_from_recorded_task_result(last_result)
+                attempt_tools = self._advance_lifecycle_tools(
+                    node, last_result, resolved_tools, attempt_tools
+                )
                 last_validation = self._validate_node_result(node, last_result)
                 if self._can_stop_tool_batch(node, last_result, last_validation):
                     return last_result, attempt, last_validation
