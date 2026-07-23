@@ -212,14 +212,26 @@ def test_research_evaluator_uses_exact_snapshot_model_for_relevancy(
     assert 0 < model_only["metrics"]["bleu"] <= 100
 
 
-def test_experiment_four_wrapper_runs_app_with_uv_and_prints_pid(
+def test_experiment_four_wrapper_runs_filename_neutral_app_with_uv_and_prints_pid(
     tmp_path: Path,
 ) -> None:
     """The supplied wrapper exposes the live background app PID."""
     fixture = FIXTURES / "experiment-4"
-    shutil.copy(fixture / "workdir" / "run.sh", tmp_path / "run.sh")
+    run_script = tmp_path / "run.sh"
+    shutil.copy(fixture / "workdir" / "run.sh", run_script)
     shutil.copy(fixture / "workdir" / "pyproject.toml", tmp_path / "pyproject.toml")
-    (tmp_path / "app.py").write_text("import time\ntime.sleep(60)\n")
+    (tmp_path / "server.py").write_text("import time\ntime.sleep(60)\n")
+    run_script.write_text(
+        run_script.read_text().replace(
+            "  # AGENT_START_COMMAND_BEGIN\n"
+            "  printf '%s\\n' 'Replace this section with the app start command.' >&2\n"
+            "  return 1\n"
+            "  # AGENT_START_COMMAND_END",
+            "  # AGENT_START_COMMAND_BEGIN\n"
+            "  exec uv run python server.py --port \"$PORT\"\n"
+            "  # AGENT_START_COMMAND_END",
+        )
+    )
     uv = tmp_path / "uv"
     uv.write_text(
         '#!/bin/sh\nif [ "$1" = sync ]; then exit 0; fi\n'
