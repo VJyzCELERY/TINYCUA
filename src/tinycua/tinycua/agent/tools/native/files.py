@@ -22,70 +22,6 @@ from tinycua.agent.tools.native.context import (
 _FULL_FILE_TRUNCATION_BYTES = 100 * 1024
 
 
-def _normalize_newlines(text: str) -> str:
-    """Unescape literal backslash-n/t/r from JSON transport, preserving LaTeX.
-
-    Local models sometimes send ``\\n`` (backslash + n as two literal
-    characters) in JSON tool-call arguments instead of an actual newline.
-
-    FR-073: Use the original heuristic (unescape when no real control char
-    exists) but protect known LaTeX command prefixes that start with
-    ``\\n``, ``\\t``, or ``\\r`` (e.g. ``\\nabla``, ``\\top``, ``\\right``).
-
-    FR-080: Also decode ``\\uXXXX`` escape sequences that json.loads didn't
-    fully decode (double-escaped by local models). ``\\u2208`` → ``∈``, etc.
-    """
-    _LATEX_N = {"\\nabla", "\\neq", "\\nleq", "\\ngeq", "\\newcommand",
-                "\\nonumber", "\\nolimits", "\\nrightarrow", "\\nu"}
-    _LATEX_T = {"\\top", "\\tanh", "\\text", "\\theta", "\\times", "\\tilde",
-                "\\to", "\\tfrac", "\\tableofcontents", "\\tabular", "\\tau",
-                "\\tbinom", "\\textrm", "\\textbf", "\\textit"}
-    _LATEX_R = {"\\right", "\\ref", "\\rangle", "\\rule", "\\rho", "\\rm",
-                "\\raggedright", "\\raisebox"}
-
-    def _protect_unescape(text: str, seq: str, real_char: str, latex_cmds: set[str]) -> str:
-        if seq not in text or real_char in text:
-            return text
-        # Replace LaTeX commands with placeholders before unescaping.
-        placeholders: dict[str, str] = {}
-        for i, cmd in enumerate(latex_cmds):
-            if cmd in text:
-                ph = f"\x00LX{i}\x00"
-                placeholders[ph] = cmd
-                text = text.replace(cmd, ph)
-        text = text.replace(seq, real_char)
-        for ph, cmd in placeholders.items():
-            text = text.replace(ph, cmd)
-        return text
-
-    text = _protect_unescape(text, "\\n", "\n", _LATEX_N)
-    text = _protect_unescape(text, "\\t", "\t", _LATEX_T)
-    text = _protect_unescape(text, "\\r", "\r", _LATEX_R)
-    # FR-080: decode \uXXXX escape sequences that json.loads didn't fully
-    # decode (double-escaped by local models). \u2208 → ∈, \u03a3 → Σ, etc.
-    # This fixes literal \uXXXX corruption in math-heavy documents.
-    import re
-
-    text = re.sub(
-        r"\\u([0-9a-fA-F]{4})",
-        lambda m: chr(int(m.group(1), 16)),
-        text,
-    )
-    return text
-
-
-def _count_unicode_escapes(text: str) -> int:
-    """Count literal \\uXXXX/\\UXXXXXXXX escape sequences in text.
-
-    Used to warn the model when its content contained escape sequences that
-    were automatically stripped (FR-080). The warning is visible in the tool
-    result so the model learns to use actual unicode characters.
-    """
-    import re
-
-    return len(re.findall(r"\\u[0-9a-fA-F]{4}|\\U[0-9a-fA-F]{8}", text))
-
-
 def _resolve_path(path: str) -> Path:
     """Resolve a path to an absolute Path.
 
@@ -329,11 +265,7 @@ def write_file(path: str, content: str) -> dict[str, Any]:
         }
 
     try:
-        content = _normalize_newlines(content)
-        escape_count = _count_unicode_escapes(content)
         chars_written = resolved.write_text(content, encoding="utf-8")
-        # FR-080: warn the model when unicode escapes were stripped so it
-        # learns to use actual unicode characters next time.
         result: dict[str, Any] = {
             "success": True,
             "path": str(resolved),
@@ -343,11 +275,6 @@ def write_file(path: str, content: str) -> dict[str, Any]:
             "diff_preview": content[:500],
             "error": None,
         }
-        if escape_count:
-            result["warning"] = (
-                f"Stripped {escape_count} literal \\uXXXX escape sequences — "
-                "use actual unicode characters next time."
-            )
         return result
     except PermissionError:
         return {
@@ -690,12 +617,6 @@ def str_replace(
             "diff_preview": None,
             "error": "old_string and new_string are identical.",
         }
-    # Unescape literal \n, \t, \r that local models send as two-character
-    # sequences in JSON tool-call arguments. This prevents malformed files
-    # where the entire content is on one line with literal backslash-n.
-    escape_count = _count_unicode_escapes(new_string)
-    new_string = _normalize_newlines(new_string)
-    old_string = _normalize_newlines(old_string)
     try:
         resolved = _resolve_path(path)
     except ValueError as exc:
@@ -816,11 +737,6 @@ def str_replace(
         "diff_preview": diff_preview,
         "error": None,
     }
-    if escape_count:
-        result["warning"] = (
-            f"Stripped {escape_count} literal \\uXXXX escape sequences from "
-            "new_string — use actual unicode characters next time."
-        )
     return result
 
 
@@ -863,8 +779,6 @@ def append_file(path: str, content: str) -> dict[str, Any]:
             "error": f"Permission denied creating directory: {resolved.parent}",
         }
     try:
-        escape_count = _count_unicode_escapes(content)
-        content = _normalize_newlines(content)
         if resolved.exists():
             existing = resolved.read_text(encoding="utf-8")
             # Ensure newline separator between existing and appended content.
@@ -884,11 +798,6 @@ def append_file(path: str, content: str) -> dict[str, Any]:
             "diff_preview": f"--- appended ---\n{content[:500]}",
             "error": None,
         }
-        if escape_count:
-            result["warning"] = (
-                f"Stripped {escape_count} literal \\uXXXX escape sequences — "
-                "use actual unicode characters next time."
-            )
         return result
     except PermissionError:
         return {

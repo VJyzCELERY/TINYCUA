@@ -198,67 +198,6 @@ class TestFetchUrlEmptyBody:
         assert "Hello" in result["content"]
 
 
-class TestNormalizeNewlinesLaTeXSafe:
-    """FR-073: _normalize_newlines preserves LaTeX commands."""
-
-    def test_preserves_latex_top(self):
-        from tinycua.agent.tools.native.files import _normalize_newlines
-        # \top should NOT become <tab>op
-        result = _normalize_newlines(r"$x^\top$")
-        assert r"\top" in result
-        assert "\t" not in result  # no real tab
-
-    def test_preserves_latex_tanh(self):
-        from tinycua.agent.tools.native.files import _normalize_newlines
-        result = _normalize_newlines(r"\tanh(x)")
-        assert r"\tanh" in result
-        assert "\t" not in result
-
-    def test_preserves_latex_text(self):
-        from tinycua.agent.tools.native.files import _normalize_newlines
-        result = _normalize_newlines(r"\text{hello}")
-        assert r"\text" in result
-        assert "\t" not in result
-
-    def test_preserves_latex_nabla(self):
-        from tinycua.agent.tools.native.files import _normalize_newlines
-        result = _normalize_newlines(r"\nabla \psi")
-        assert r"\nabla" in result
-        assert "\n" not in result  # no real newline injected
-
-    def test_preserves_latex_right(self):
-        from tinycua.agent.tools.native.files import _normalize_newlines
-        result = _normalize_newlines(r"\right)")
-        assert r"\right" in result
-        assert "\r" not in result  # no real carriage return
-
-    def test_unescapes_json_transport_newline(self):
-        """hello\\nworld (literal backslash-n) → hello<newline>world."""
-        from tinycua.agent.tools.native.files import _normalize_newlines
-        text = "hello\\nworld"  # literal backslash + n
-        result = _normalize_newlines(text)
-        assert "hello\nworld" == result
-
-    def test_unescapes_json_transport_tab(self):
-        """col1\\tcol2 (literal backslash-t) → col1<tab>col2."""
-        from tinycua.agent.tools.native.files import _normalize_newlines
-        text = "col1\\tcol2"  # literal backslash + t
-        result = _normalize_newlines(text)
-        assert "col1\tcol2" == result
-
-    def test_empty_string(self):
-        from tinycua.agent.tools.native.files import _normalize_newlines
-        assert _normalize_newlines("") == ""
-
-    def test_mixed_latex_and_json_newlines(self):
-        """LaTeX \\top preserved while standalone \\n is unescaped."""
-        from tinycua.agent.tools.native.files import _normalize_newlines
-        text = r"$x^\top$\\nnewline here"
-        result = _normalize_newlines(text)
-        assert r"\top" in result
-        assert "\n" in result  # the standalone \n was unescaped
-
-
 class TestResponseNoDuplication:
     """FR-074: response output is not duplicated."""
 
