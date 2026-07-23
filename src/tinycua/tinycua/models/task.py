@@ -259,8 +259,9 @@ class TaskStateStore:
         self, action: str, task_id: str | None = None, **event: Any
     ) -> None:
         """Publish one validated mutation to readers, caches, and the audit trail."""
-        self.validate_tree()
         self._ordered_task_ids = None
+        self._normalize_in_progress_leaves()
+        self.validate_tree()
         self._render_cache = None
         self.transition_log.append({"action": action, "task_id": task_id, **event})
         self._bump_version()
@@ -654,6 +655,17 @@ class TaskStateStore:
         if self.active_task_id is None:
             return None
         return self.tasks[self.active_task_id]
+
+    def _normalize_in_progress_leaves(self) -> None:
+        """Keep only the first executing leaf when an LLM claims multiple tasks."""
+        active_ids = [
+            task_id
+            for task_id in self._ordered_ids()
+            if not self.tasks[task_id].children
+            and self.tasks[task_id].status == TaskStatus.IN_PROGRESS
+        ]
+        for task_id in active_ids[1:]:
+            self.tasks[task_id].status = TaskStatus.PENDING
 
     def _ordered_ids(self) -> list[str]:
         """Return the cached post-order task id list (root excluded), 1-based.
