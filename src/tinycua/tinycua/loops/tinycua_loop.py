@@ -545,6 +545,11 @@ class TinyCUALoop(
         if not node.contract.requires_terminate:
             return False
         if node.progress.lifecycle_phase == LifecyclePhase.ACTION:
+            if (
+                node.node_id == "task_executor"
+                and not node.contract.is_satisfied(node.progress.satisfied_requirements)
+            ):
+                return False
             node.progress.advance_lifecycle(LifecyclePhase.SUMMARY, result.content.strip())
             node.progress.advance_lifecycle(LifecyclePhase.COMMIT)
             return True

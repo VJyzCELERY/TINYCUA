@@ -384,7 +384,8 @@ def phase_tool_names(
     for group in contract.any_of_tools:
         commit_tools.update(group)
     if phase == LifecyclePhase.ACTION:
-        return tool_names - commit_tools - {"terminate"}
+        action_tools = tool_names - {"terminate"}
+        return action_tools if node_id == "task_executor" else action_tools - commit_tools
     if phase == LifecyclePhase.COMMIT:
         return tool_names & commit_tools
     if phase == LifecyclePhase.TERMINATE:
