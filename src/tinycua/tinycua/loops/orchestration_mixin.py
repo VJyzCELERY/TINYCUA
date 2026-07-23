@@ -448,7 +448,7 @@ class OrchestrationMixin:
         )
         if node.contract.requires_terminate:
             phase = node.progress.lifecycle_phase
-            if phase.value == "action":
+            if phase.value == "action" and not llm_result.tool_calls:
                 node.progress.advance_lifecycle(
                     LifecyclePhase.SUMMARY, combined.strip()
                 )
