@@ -155,3 +155,22 @@ class TestReplanLoopBounded:
         assert task.result is not None
         assert "replan budget exhausted" in task.result.content.lower()
         assert "cap=2" in task.result.content
+
+
+def test_impossible_leaf_is_disposed_once_and_never_dispatched_again() -> None:
+    """Experiment 2-shaped replan advances after impossible evidence."""
+    store = TaskStateStore()
+    root = store.create_task("Write report")
+    impossible = store.create_task("Fetch missing benchmark", parent_id=root.task_id)
+    remaining = store.create_task("Write report from available evidence", parent_id=root.task_id)
+    dispatched: list[str] = []
+
+    store.cancel_task(impossible.task_id, "selected source contains no benchmark data")
+    controller = WorkerRuntimeController(store)
+    queue = NodeQueue()
+    controller.schedule_next(queue)
+    dispatched.append(store.active_task_id or "")
+
+    assert impossible.status == TaskStatus.CANCELLED
+    assert remaining.task_id in dispatched
+    assert impossible.task_id not in dispatched
