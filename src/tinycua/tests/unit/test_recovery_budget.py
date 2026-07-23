@@ -3,18 +3,18 @@
 from __future__ import annotations
 
 import json
-from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from tinycua.config.node_config import create_node_config
 from tinycua.config.types import LLMResult, ValidationResult
+from tinycua.loops.node import NodeExecutionError
 from tinycua.loops.node_guidance import summarize_tool_result
 from tinycua.loops.task_create import TinyCUATaskCreateNode
 from tinycua.loops.task_nodes import TinyCUAResultReviewerNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
-from tinycua.models.task import ReviewerDecision, TaskResult, TaskStatus
+from tinycua.models.task import TaskResult, TaskStatus
 
 
 def _mock_agent(always_fails: bool = True) -> MagicMock:
@@ -29,27 +29,35 @@ def _mock_agent(always_fails: bool = True) -> MagicMock:
     return agent
 
 
-class TestRecoveryBudgetExhaustedSignalsReentry:
-    """After 30 cycles (15+10+3), the loop returns None (re-entry signal)."""
+class TestRecoveryBudgetExhaustion:
+    """Recovery exhausts honestly instead of re-entering unchanged work."""
 
     @pytest.mark.asyncio
-    async def test_budget_exhausted_returns_none(self):
+    async def test_budget_exhausted_raises_with_last_actionable_error(self):
         loop = TinyCUALoop()
         node = TinyCUATaskCreateNode(
             node_id="task_create",
             config=create_node_config("task_create"),
         )
         node.ensure_session(loop.root_session)
+        loop._structured_output_retry = AsyncMock(return_value=None)
+        loop._recovery_retry = AsyncMock(return_value=None)
+        loop._judge_retry = AsyncMock(return_value=None)
 
-        result = await loop._unbounded_recovery(
-            node,
-            _mock_agent(),
-            [],
-            LLMResult(content="fails"),
-            ValidationResult(is_valid=False, errors=["task_create must call task_init"]),
-        )
-        assert result is None
-        assert loop._recovery_reentry is True
+        with pytest.raises(NodeExecutionError, match="task_create must call task_init"):
+            await loop._unbounded_recovery(
+                node,
+                _mock_agent(),
+                [],
+                LLMResult(content="fails"),
+                ValidationResult(
+                    is_valid=False,
+                    errors=["task_create must call task_init"],
+                ),
+            )
+
+        assert node.progress.recovery_last_error == "task_create must call task_init"
+        assert loop._recovery_reentry is False
 
     @pytest.mark.asyncio
     async def test_budget_split_15_10_3(self, caplog):
@@ -62,20 +70,42 @@ class TestRecoveryBudgetExhaustedSignalsReentry:
             config=create_node_config("task_create"),
         )
         node.ensure_session(loop.root_session)
+        loop._structured_output_retry = AsyncMock(return_value=None)
+        loop._recovery_retry = AsyncMock(return_value=None)
+        loop._judge_retry = AsyncMock(return_value=None)
 
         with caplog.at_level(logging.INFO):
-            await loop._unbounded_recovery(
-                node,
-                _mock_agent(),
-                [],
-                LLMResult(content="fails"),
-                ValidationResult(is_valid=False, errors=["task_create must call task_init"]),
-            )
+            with pytest.raises(NodeExecutionError):
+                await loop._unbounded_recovery(
+                    node,
+                    _mock_agent(),
+                    [],
+                    LLMResult(content="fails"),
+                    ValidationResult(
+                        is_valid=False,
+                        errors=["task_create must call task_init"],
+                    ),
+                )
 
         # Count stage appearances in the stuck logs.
-        structured_count = sum(1 for r in caplog.records if "structured_output_retry" in r.message)
-        focused_count = sum(1 for r in caplog.records if "focused_retry" in r.message)
-        judge_count = sum(1 for r in caplog.records if "judge_retry" in r.message)
+        structured_count = sum(
+            1
+            for record in caplog.records
+            if (
+                record.levelno == logging.WARNING
+                and "structured_output_retry" in record.message
+            )
+        )
+        focused_count = sum(
+            1
+            for record in caplog.records
+            if record.levelno == logging.WARNING and "focused_retry" in record.message
+        )
+        judge_count = sum(
+            1
+            for record in caplog.records
+            if record.levelno == logging.WARNING and "judge_retry" in record.message
+        )
         # The stages cycle through: structured (15), focused (10), judge (3).
         assert structured_count <= 15
         assert focused_count <= 10
@@ -83,6 +113,60 @@ class TestRecoveryBudgetExhaustedSignalsReentry:
         # Total should be ~28 cycles (15+10+3).
         total_cycles = structured_count + focused_count + judge_count
         assert total_cycles <= 30
+
+    @pytest.mark.asyncio
+    async def test_reentry_preserves_strategy_budgets(self):
+        """A fresh node dispatch must not reset an exhausted recovery strategy."""
+        loop = TinyCUALoop()
+        node = TinyCUATaskCreateNode(
+            node_id="task_create",
+            config=create_node_config("task_create"),
+        )
+        node.ensure_session(loop.root_session)
+        node.progress.recovery_attempts = {"structured_output_retry": 15}
+        node.progress.recovery_fingerprint = "unchanged"
+        loop._recovery_reentry = True
+
+        result, _, validation = await loop._call_node_with_retry(
+            node,
+            _mock_agent(),
+            [],
+            [],
+        )
+
+        assert not validation.is_valid
+        assert result.content == "always fails"
+        assert node.progress.recovery_attempts == {"structured_output_retry": 15}
+        assert node.progress.recovery_fingerprint == "unchanged"
+
+    def test_progress_fingerprint_changes_for_evidence_and_task_mutation(self):
+        """Only retained evidence and task state, not prose, reset recovery."""
+        loop = TinyCUALoop()
+        node = TinyCUATaskCreateNode(
+            node_id="task_create",
+            config=create_node_config("task_create"),
+        )
+        node.ensure_session(loop.root_session)
+        validation = ValidationResult(
+            is_valid=False,
+            errors=["task_create must call task_init"],
+        )
+        evidence = {
+            "task_init": {"name": "task_init", "output": {"success": True}},
+        }
+
+        before = loop._recovery_fingerprint(node, validation, ["terminate"], evidence)
+        evidence["task_init"]["output"]["task_id"] = "task-1"
+        evidence_changed = loop._recovery_fingerprint(
+            node, validation, ["terminate"], evidence,
+        )
+        loop.root_session.task_store.create_task("Root")
+        task_changed = loop._recovery_fingerprint(
+            node, validation, ["terminate"], evidence,
+        )
+
+        assert before != evidence_changed
+        assert evidence_changed != task_changed
 
 
 class TestStructuredRetryIncludesFullContext:

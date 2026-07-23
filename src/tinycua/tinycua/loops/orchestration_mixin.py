@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
@@ -10,17 +12,22 @@ from tinycua.config.types import LLMResult, ValidationError, ValidationResult
 from tinycua.loops.context_rendering import sanitize_internal_reprs
 from tinycua.loops.node import NodeRunContext
 from tinycua.loops.node_contract import RECOVERY_CHAINS
-from tinycua.loops.propagation import PropagationRule, finalize_terminal_output, propagate_on_termination
+from tinycua.loops.propagation import (
+    PropagationRule,
+    finalize_terminal_output,
+    propagate_on_termination,
+)
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
+from tinycua.loops.session_context_query import find_latest_entry
 from tinycua.models.node_handoff import NodeHandoff
 from tinycua.models.session_context_entry import entry_content
-from tinycua.loops.session_context_query import find_latest_entry
 
 if TYPE_CHECKING:
-    from tinycua.loops.node import Node
-    from tinycua.models.node_input import NodeInputLike
     from tinycua_sdk.agent.agent import Agent
     from tinycua_sdk.tools.decorators import Tool
+
+    from tinycua.loops.node import Node
+    from tinycua.models.node_input import NodeInputLike
 
 logger = logging.getLogger(__name__)
 
@@ -414,6 +421,7 @@ class OrchestrationMixin:
         )
         if tool_results:
             llm_result.metadata["tool_results"] = tool_results
+            self._track_tool_calls_in_progress(node, tool_results)
             self._prepend_retry_tool_results(llm_result, retry_tool_results or [])
             self._enrich_task_results_from_tool_batch(
                 node,
@@ -527,7 +535,8 @@ class OrchestrationMixin:
                 # FR-060: check re-entry signal — if set, don't advance.
                 # Re-dispatch the same node (still at items[0]) with fresh context.
                 if self._recovery_reentry:
-                    self._recovery_reentry = False
+                    # _call_node_with_retry consumes this flag on the next
+                    # dispatch and preserves session-backed recovery state.
                     continue
 
                 # Stop at terminal nodes — do not advance past them
@@ -1031,7 +1040,7 @@ class OrchestrationMixin:
         llm_result: LLMResult,
         validation: ValidationResult,
     ) -> tuple[LLMResult, ValidationResult] | None:
-        """Recovery loop with per-method budgets + unlimited re-entry (FR-060).
+        """Recover through finite, progress-aware strategy budgets.
 
         Three retry stages with diminishing budgets:
         1. **Structured-output** (15): ``response_format: json_schema`` with
@@ -1039,11 +1048,9 @@ class OrchestrationMixin:
         2. **Focused retry** (10): full context, no schema, free-form tool calls.
         3. **Judge retry** (3): LLM judge injects the tool call with full context.
 
-        Total: 30 cycles per invocation. When all budgets are exhausted, returns
-        ``None`` to signal the caller to re-enter the node (re-dispatch with
-        fresh ``build_messages``, clearing accumulated context). Re-entry is
-        unlimited — no force-approve, only ``_direct_terminate`` when terminate
-        is the only missing tool.
+        Budgets are retained with node progress, so re-entry cannot restart an
+        unchanged strategy. A material fingerprint change resets only the active
+        strategy budget. Full exhaustion raises an honest node failure.
         """
         cycle = 0
         current_result = llm_result
@@ -1061,13 +1068,13 @@ class OrchestrationMixin:
                 accumulated_results[str(item.get("name"))] = item
         # FR-063: write back to node.progress so re-entries carry forward.
         node.progress.accumulated_tool_results = dict(accumulated_results)
-        # FR-060: per-method budgets (15/10/3 = 30 total).
-        structured_attempts = 0
-        recovery_attempts = 0
-        judge_attempts = 0
-        _STRUCTURED_BUDGET = 15
-        _RECOVERY_BUDGET = 10
-        _JUDGE_BUDGET = 3
+        strategy_budgets = {
+            "structured_output_retry": 15,
+            "focused_retry": 10,
+            "judge_retry": 3,
+        }
+        attempts = node.progress.recovery_attempts
+        made_progress = False
         # FR-078: track error strings across cycles for the same-error guard.
         _error_history: list[str] = []
         while not current_validation.is_valid:
@@ -1077,12 +1084,29 @@ class OrchestrationMixin:
             missing = self._missing_recovery_tools_from_set(
                 node, accumulated_successful
             )
+            fingerprint = self._recovery_fingerprint(
+                node, current_validation, missing, accumulated_results,
+            )
+            if fingerprint != node.progress.recovery_fingerprint:
+                made_progress = bool(node.progress.recovery_fingerprint)
+                active_strategy = next(
+                    (
+                        strategy
+                        for strategy, budget in strategy_budgets.items()
+                        if attempts.get(strategy, 0) < budget
+                    ),
+                    None,
+                )
+                node.progress.recovery_fingerprint = fingerprint
+                if active_strategy is not None:
+                    attempts[active_strategy] = 0
             # Deterministic track: terminate-only → direct call (FR-011).
             if missing == ["terminate"]:
                 terminated = await self._direct_terminate(node, agent)
                 if terminated is not None:
                     current_result, current_validation = terminated
                     self._accumulate_results(current_result, accumulated_results)
+                    node.progress.accumulated_tool_results = dict(accumulated_results)
                     current_validation = self._revalidate_with_accumulated(
                         node, current_result, accumulated_results
                     )
@@ -1090,17 +1114,18 @@ class OrchestrationMixin:
                         return current_result, current_validation
                 stage_results["direct_terminate"] = terminated is not None
             # Stage 1: structured-output retry (15 budget).
-            if structured_attempts < _STRUCTURED_BUDGET:
+            if attempts.get("structured_output_retry", 0) < strategy_budgets["structured_output_retry"]:
                 prev_successful = set(accumulated_results.keys())
                 recovery = await self._structured_output_retry(
                     node, agent, resolved_tools, current_result, current_validation,
                     missing_tools=missing,
                 )
-                structured_attempts += 1
+                attempts["structured_output_retry"] = attempts.get("structured_output_retry", 0) + 1
                 stage_results["structured_output_retry"] = recovery is not None
                 if recovery is not None:
                     current_result, current_validation = recovery
                     self._accumulate_results(current_result, accumulated_results)
+                    node.progress.accumulated_tool_results = dict(accumulated_results)
                     self._record_stage_outcome(
                         node, "structured_output_retry", recovery,
                         prev_successful, set(accumulated_results.keys()),
@@ -1114,19 +1139,24 @@ class OrchestrationMixin:
                     # added → the model re-called an existing tool. Skip
                     # remaining structured budget to advance to focused/judge.
                     if self._is_no_progress(prev_successful, accumulated_results, node):
-                        structured_attempts = _STRUCTURED_BUDGET
+                        attempts["structured_output_retry"] = strategy_budgets["structured_output_retry"]
+                self._record_recovery_escalation(
+                    node, "structured_output_retry", "focused_retry", attempts,
+                    strategy_budgets,
+                )
             # Stage 2: focused retry (10 budget).
-            elif recovery_attempts < _RECOVERY_BUDGET:
+            elif attempts.get("focused_retry", 0) < strategy_budgets["focused_retry"]:
                 prev_successful = set(accumulated_results.keys())
                 focused = await self._recovery_retry(
                     node, agent, resolved_tools, current_result, current_validation,
                     missing_tools=missing,
                 )
-                recovery_attempts += 1
+                attempts["focused_retry"] = attempts.get("focused_retry", 0) + 1
                 stage_results["focused_retry"] = focused is not None
                 if focused is not None:
                     current_result, current_validation = focused
                     self._accumulate_results(current_result, accumulated_results)
+                    node.progress.accumulated_tool_results = dict(accumulated_results)
                     self._record_stage_outcome(
                         node, "focused_retry", focused,
                         prev_successful, set(accumulated_results.keys()),
@@ -1137,19 +1167,23 @@ class OrchestrationMixin:
                     if current_validation.is_valid:
                         return current_result, current_validation
                     if self._is_no_progress(prev_successful, accumulated_results, node):
-                        recovery_attempts = _RECOVERY_BUDGET
+                        attempts["focused_retry"] = strategy_budgets["focused_retry"]
+                self._record_recovery_escalation(
+                    node, "focused_retry", "judge_retry", attempts, strategy_budgets,
+                )
             # Stage 3: judge retry (3 budget) — re-enabled (FR-012 updated).
-            elif judge_attempts < _JUDGE_BUDGET:
+            elif attempts.get("judge_retry", 0) < strategy_budgets["judge_retry"]:
                 prev_successful = set(accumulated_results.keys())
                 judged = await self._judge_retry(
                     node, agent, resolved_tools, current_result, current_validation,
                     missing_tools=missing,
                 )
-                judge_attempts += 1
+                attempts["judge_retry"] = attempts.get("judge_retry", 0) + 1
                 stage_results["judge_retry"] = judged is not None
                 if judged is not None:
                     current_result, current_validation = judged
                     self._accumulate_results(current_result, accumulated_results)
+                    node.progress.accumulated_tool_results = dict(accumulated_results)
                     self._record_stage_outcome(
                         node, "judge_retry", judged,
                         prev_successful, set(accumulated_results.keys()),
@@ -1160,16 +1194,25 @@ class OrchestrationMixin:
                     if current_validation.is_valid:
                         return current_result, current_validation
                     if self._is_no_progress(prev_successful, accumulated_results, node):
-                        judge_attempts = _JUDGE_BUDGET
+                        attempts["judge_retry"] = strategy_budgets["judge_retry"]
             else:
-                # All 30 cycles exhausted — signal re-entry (FR-060).
-                logger.info(
-                    "node=%s recovery_budget_exhausted — re-entering node with "
-                    "fresh context (structured=%d recovery=%d judge=%d)",
-                    node.node_id, structured_attempts, recovery_attempts, judge_attempts,
+                error = "; ".join(current_validation.errors) or "unknown recovery failure"
+                node.progress.recovery_last_error = error
+                if made_progress:
+                    logger.info(
+                        "node=%s recovery_progress_reentry attempts=%s fingerprint=%s",
+                        node.node_id, attempts, node.progress.recovery_fingerprint,
+                    )
+                    self._recovery_reentry = True
+                    return None
+                logger.error(
+                    "node=%s recovery_exhausted attempts=%s fingerprint=%s error=%s",
+                    node.node_id, attempts, node.progress.recovery_fingerprint, error,
                 )
-                self._recovery_reentry = True
-                return None
+                node._record_failure(current_validation, sum(attempts.values()))
+                from tinycua.loops.node import NodeExecutionError
+
+                raise NodeExecutionError(f"Recovery exhausted: {error}")
             # FR-078: same-error repetition guard — if the same validation
             # error appears 3× in a row AND stages executed tools, take a
             # different action instead of repeating the same retry.
@@ -1191,9 +1234,45 @@ class OrchestrationMixin:
                             return current_result, current_validation
                 elif stages_ran_tools and ("task_result_update" in error_lower or "task-state tool" in error_lower):
                     logger.info("node=%s same-error guard: '%s' ×3, skipping to judge", node.node_id, current_error[:80])
-                    structured_attempts = _STRUCTURED_BUDGET
-                    recovery_attempts = _RECOVERY_BUDGET
+                    attempts["structured_output_retry"] = strategy_budgets["structured_output_retry"]
+                    attempts["focused_retry"] = strategy_budgets["focused_retry"]
             self._log_recovery_cycle(node, current_validation, cycle, stage_results)
+
+    @staticmethod
+    def _recovery_fingerprint(
+        node: Node,
+        validation: ValidationResult,
+        missing: list[str],
+        accumulated_results: dict[str, dict[str, Any]],
+    ) -> str:
+        """Return a stable, content-safe recovery progress fingerprint."""
+        store = node.session.task_store if node.session is not None else None
+        payload = {
+            "errors": sorted(validation.errors),
+            "missing": missing,
+            "tools": accumulated_results,
+            "task_version": store.version if store is not None else 0,
+            "active_task": store.active_task_id if store is not None else None,
+        }
+        encoded = json.dumps(payload, sort_keys=True, default=str).encode()
+        return hashlib.sha256(encoded).hexdigest()[:16]
+
+    @staticmethod
+    def _record_recovery_escalation(
+        node: Node,
+        strategy: str,
+        next_strategy: str,
+        attempts: dict[str, int],
+        budgets: dict[str, int],
+    ) -> None:
+        """Record a one-time transition after an unchanged strategy exhausts."""
+        if attempts.get(strategy, 0) < budgets[strategy]:
+            return
+        if any(item["strategy"] == strategy for item in node.progress.recovery_escalations):
+            return
+        node.progress.recovery_escalations.append(
+            {"strategy": strategy, "next_strategy": next_strategy, "attempts": attempts[strategy]},
+        )
 
     async def _direct_terminate(
         self,
