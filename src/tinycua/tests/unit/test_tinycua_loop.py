@@ -788,6 +788,8 @@ async def test_stream_true_emits_nonterminal_token_deltas():
         and event.get("node_id") == "planner"
     ]
     assert [event["delta"] for event in planner_deltas] == ["plan", " tokens"]
+    assert stub.session is not None
+    assert [entry.content for entry in stub.session.session_context] == ["plan tokens"]
 
 
 async def test_stream_task_executor_receives_injected_active_task_context():
