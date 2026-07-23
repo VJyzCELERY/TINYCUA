@@ -34,6 +34,15 @@ from tinycua.models.task import AggregatedResult, ReviewerDecision, TaskResult, 
 from tinycua_sdk import Agent, LanguageModel
 
 
+_LIFECYCLE_NODE_TYPES = (
+    ("task_create", TinyCUATaskCreateNode),
+    ("task_analyzer", TinyCUATaskAnalyzerNode),
+    ("task_assessor", TinyCUATaskAssessorNode),
+    ("task_executor", TinyCUATaskExecutorNode),
+    ("result_reviewer", TinyCUAResultReviewerNode),
+)
+
+
 def test_build_node_messages_filters_blank_messages_and_preserves_roles() -> None:
     """LLM payloads contain no blank message content and keep assistant history."""
     loop = TinyCUALoop()
@@ -219,25 +228,51 @@ async def test_streamed_task_executor_trace_keeps_native_tools() -> None:
     assert "write_file" in loop.get_execution_trace()[-1]["resolved_tool_names"]
 
 
-def test_action_tool_call_waits_for_tool_free_lifecycle_summary() -> None:
-    """Action work does not enter commit before its summary response."""
-    node = TinyCUATaskExecutorNode(
-        node_id="task_executor",
-        config=create_node_config("task_executor"),
+@pytest.mark.parametrize(("node_id", "node_type"), _LIFECYCLE_NODE_TYPES)
+def test_lifecycle_action_tool_call_enters_commit(
+    node_id: str,
+    node_type,
+) -> None:
+    """Every lifecycle node advances after an action tool call."""
+    node = node_type(
+        node_id=node_id,
+        config=create_node_config(node_id),
     )
 
-    assert not TinyCUALoop._advance_lifecycle_phase(
+    assert TinyCUALoop._advance_lifecycle_phase(
         node,
         LLMResult(
-            content="Action work",
+            content="Action Summary: wrote the requested file.",
             tool_calls=[{"function": {"name": "write_file"}}],
         ),
     )
-    assert node.progress.lifecycle_phase is LifecyclePhase.ACTION
-
-    assert TinyCUALoop._advance_lifecycle_phase(node, LLMResult(content="Summary"))
     assert node.progress.lifecycle_phase is LifecyclePhase.COMMIT
-    assert node.progress.action_summary == "Summary"
+    assert node.progress.action_summary == "Action Summary: wrote the requested file."
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("node_id", "node_type"), _LIFECYCLE_NODE_TYPES)
+async def test_streamed_lifecycle_action_tool_call_enters_commit(
+    node_id: str,
+    node_type,
+) -> None:
+    """Streaming action calls advance every lifecycle node to commit."""
+    loop = TinyCUALoop()
+    node = node_type(
+        node_id=node_id,
+        config=create_node_config(node_id),
+    )
+    node.ensure_session(loop.root_session)
+
+    await loop._finalize_streamed_node(
+        node,
+        Agent(llm_model=LanguageModel()),
+        ["Action Summary: wrote the requested file."],
+        [{"function": {"name": "write_file", "arguments": "{}"}}],
+        [Tool(name="write_file")],
+    )
+
+    assert node.progress.lifecycle_phase is LifecyclePhase.COMMIT
 
 
 def test_internal_output_context_uses_assistant_role_not_user() -> None:
