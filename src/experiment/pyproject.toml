@@ -3,7 +3,7 @@ name = "tinycua-agent-harness-experiment"
 version = "0.1.0"
 description = "Minimal runner for comparing agent harnesses."
 requires-python = ">=3.12"
-dependencies = []
+dependencies = ["pyyaml>=6.0"]
 
 [dependency-groups]
 dev = [

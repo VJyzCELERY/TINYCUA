@@ -1,0 +1,9 @@
+prompt: |
+  Research the frozen 22 July 2026 frontier LLM snapshot and how good its models are.
+  Write your findings down on a report.md.
+
+  I need you to write the report in `report.md`. For the required report
+  details and acceptance criteria, read `TASK.md` in your workdir.
+outcome_group: research
+eval_image: tinycua-template-tinycua-base
+eval_command: ["sh", "/eval/run.sh", "/submission"]

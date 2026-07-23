@@ -45,7 +45,7 @@ Important `.env` values:
 | `EXPERIMENT_HERMES_PROCESS_POLL_TIMEOUT_SECONDS` | Hermes guard for stuck process polling. Default: `600`; `0` disables. |
 | `JUDGE_MODEL` / `JUDGE_VARIANT` | Judge model configuration for `judge.py`. |
 
-The setup script builds harness containers, starts from `.env.example` if `.env` is missing, pulls SearXNG, and pulls `busybox` for file-permission repair.
+The setup script builds harness containers, starts from `.env.example` if `.env` is missing, pulls SearXNG, and pulls the `python:3.12-alpine` evaluator image.
 
 ## Run one experiment
 
@@ -67,6 +67,25 @@ uv run python run_experiment.py \
 ```
 
 Available harness names: `opencode,hermes,openclaw,tinycua`.
+
+## Run a controlled fixture
+
+Controlled fixtures seed an isolated coding workspace and use repository-owned deterministic checks instead of the LLM judge:
+
+```bash
+uv run python run_template_experiment.py --fixtures smoke-test --agents tinycua
+```
+
+Clone `experiment-fixtures/template/` into `experiment-fixtures/experiments-list/<name>/` to create a task. A fixture contains `manifest.yaml`, `workdir/`, `eval/`, and optionally one `docker/Dockerfile`. The manifest requires non-empty `prompt` and `eval_image` strings plus an `eval_command` list of non-empty strings. The evaluator runs the declared command in `eval_image`, with read-only `/eval` and `/submission` mounts. Before that command, it installs only top-level `/submission/requirements.txt`, `/submission/pyproject.toml`, `/eval/requirements.txt`, and `/eval/pyproject.toml` in the ephemeral evaluator container. To install nested submission manifests, list each safe relative `requirements.txt` or `pyproject.toml` path in `submission_dependency_files`; undeclared nested manifests fail evaluator setup rather than being guessed. A manifest requires Python and pip in `eval_image`; otherwise the evaluator fails with a clear diagnostic. Manifest-free evaluators, including BusyBox, run their command directly. Set `submission_dockerfile` to a safe relative Dockerfile path to make the host runner run a bounded `docker build` using the copied submission as context before evaluation. Its stdout and stderr are retained as `submission-build.*.log`; a failed build skips evaluation and fails the pair. This works when agents run in Docker because the runner on the host, not the agent or evaluator container, owns Docker. An optional fixture `docker/Dockerfile` must begin with `ARG BASE_IMAGE` and `FROM ${BASE_IMAGE}`; it is built once per selected harness from the safe `docker/` context, which cannot include `eval/` or `workdir/`.
+
+The runner writes `template-results/<fixture>/<agent>/workdir/`, sanitized logs, and a portable `result.json`. The result records UTC `started_at` and `ended_at`, elapsed prompt-to-agent-completion `elapsed_prompt_to_finish_seconds`, relative agent stdout/stderr paths, the agent exit code, deterministic evaluator outcome, and a relative `container_environment.json` reference. Root `run_metadata.json` freezes fixture/evaluator revisions, local image IDs and registry digests, pinned harness versions, model settings, trial policy, timeout, overwrite policy, and the result-generation commit. Root `outcomes.json` reports coding, research, and conversation fixtures separately without a cross-task average or overall rank. An evaluator may optionally write `/result/score.json` to its dedicated writable `evaluator-result/` mount. Its JSON must contain `categories`, `total`, `pass_threshold`, and `critical_categories`; each category contains bounded `points`, `max_points`, and string `evidence`. Optional finite numeric `metrics`, such as ROUGE-L F1, are reporting-only. The runner validates the score and embeds it under `score` in `result.json`. A scored pair passes only when the evaluator exits `0`, total meets the threshold, and every critical category earns its full points with evidence. Controlled fixtures use one binary `0/1` category per observable check, partial thresholds, and critical gates for non-compensable requirements. Mandatory coding behavior is always critical, making coding outcomes Pass@1 functional-correctness results. Fixtures without a score retain exit-code-only pass/fail behavior. Rubric categories are fixture-specific deterministic evidence, not a general capability measure. That environment snapshot redacts secret-bearing values; configured secret values and secret-looking assignments are also redacted from agent and evaluator output, including timeout diagnostics. Agent containers receive only that copied workdir and their named `/state` volume. Agent Compose and evaluator Docker containers use deterministic pair-specific names. Docker commands have a one-hour deadline by default; set `--timeout-seconds` to a positive value to override it. On timeout, the runner force-removes the named container before continuing, returns exit code `124`, retains sanitized timeout diagnostics, and writes `result.json`. Existing output is protected unless `--overwrite` is passed.
+
+Inspect or reset a pair's persistent state explicitly:
+
+```bash
+docker volume inspect tinycua-template-6164642d6772656574696e67-74696e79637561
+docker volume rm tinycua-template-6164642d6772656574696e67-74696e79637561
+```
 
 ## Run the full five-task experiment
 
@@ -162,7 +181,8 @@ If `--cross-judge` is used, `cross_verdict/` is added under the first selected h
 
 ## Web search
 
-The compose file includes SearXNG. Harnesses that support search receive:
+The existing harness configuration supplies SearXNG aliases to all four agents
+(OpenCode, Hermes, OpenClaw, and TinyCUA):
 
 ```text
 EXPERIMENT_SEARXNG_BASE_URL=http://searxng:8080
@@ -170,6 +190,11 @@ TINYCUA_SEARXNG_URL=http://searxng:8080/search
 ```
 
 The host port defaults to `18080`; override `EXPERIMENT_SEARXNG_HOST_PORT` if needed.
+
+Controlled runs are noninteractive and full-access by existing configuration:
+OpenCode (`--dangerously-skip-permissions`), Hermes (`--yolo`), and OpenClaw
+(full profile with sandbox off). No legacy Dockerfile or Compose change is
+needed for that behavior.
 
 ## Verify the runner
 

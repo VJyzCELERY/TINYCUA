@@ -1,0 +1,9 @@
+prompt: |
+  Can you do a research on Neural Networks and Transformer for me and write me a
+  comprehensive studying docs using markdown for me to read and learn more about them?
+
+  I need you to write the study guide in `study-guide.md`. For the required
+  outline and acceptance criteria, read `TASK.md` in your workdir.
+outcome_group: research
+eval_image: tinycua-template-tinycua-base
+eval_command: ["sh", "/eval/run.sh", "/submission"]
