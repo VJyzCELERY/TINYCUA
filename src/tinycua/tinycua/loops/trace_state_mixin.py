@@ -13,16 +13,20 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 from tinycua.config.types import LLMResult
-from tinycua.loops.context_rendering import looks_like_planner_prose, sanitize_internal_reprs
+from tinycua.loops.context_rendering import (
+    looks_like_planner_prose,
+    sanitize_internal_reprs,
+)
 from tinycua.loops.node import DecisionNode, DecisionResult
 from tinycua.loops.route_classifier import RouteClassifier
 from tinycua.models.stream_event import enrich_stream_event, make_lifecycle_event
 
 if TYPE_CHECKING:
+    from tinycua_sdk.tools.decorators import Tool
+
     from tinycua.loops.node import Node
     from tinycua.models.node_input import NodeInputLike
     from tinycua.models.session import Session
-    from tinycua_sdk.tools.decorators import Tool
 
 logger = logging.getLogger(__name__)
 
@@ -325,6 +329,13 @@ class TraceStateMixin:
             trace_entry["node_satisfied_requirements"] = sorted(
                 progress.satisfied_requirements
             )
+            if progress.recovery_fingerprint:
+                trace_entry["recovery"] = {
+                    "attempts": dict(progress.recovery_attempts),
+                    "fingerprint": progress.recovery_fingerprint,
+                    "escalations": list(progress.recovery_escalations),
+                    "last_error": progress.recovery_last_error,
+                }
         if isinstance(on_complete_response, DecisionResult):
             trace_entry["route_label"] = on_complete_response.route_label
             trace_entry["route_source"] = (
@@ -443,13 +454,22 @@ class TraceStateMixin:
         Returns:
             The error lifecycle event dict.
         """
-        return make_lifecycle_event(
+        event = make_lifecycle_event(
             event_type="node.error",
             node_id=node_id,
             node_type=node_type,
             attempt=attempt,
             finish_reason="error",
         )
+        progress = self.root_session.node_progress.get(node_id)
+        if progress is not None and progress.recovery_fingerprint:
+            event["recovery"] = {
+                "attempts": dict(progress.recovery_attempts),
+                "fingerprint": progress.recovery_fingerprint,
+                "escalations": list(progress.recovery_escalations),
+                "last_error": progress.recovery_last_error,
+            }
+        return event
 
     def _enrich_and_yield(
         self,

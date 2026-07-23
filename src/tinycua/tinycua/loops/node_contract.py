@@ -51,6 +51,12 @@ class NodeProgress:
     # no-progress guard has evidence and recovery messages can show the
     # model what it already did.
     stage_tool_history: list[dict[str, Any]] = None  # type: ignore[assignment]
+    # Recovery state is session-backed so re-dispatch cannot restart an
+    # unchanged corrective strategy.
+    recovery_attempts: dict[str, int] = None  # type: ignore[assignment]
+    recovery_fingerprint: str = ""
+    recovery_escalations: list[dict[str, Any]] = None  # type: ignore[assignment]
+    recovery_last_error: str = ""
 
     def __post_init__(self) -> None:
         """Initialize mutable default fields (dataclass mutable-default safe)."""
@@ -64,6 +70,10 @@ class NodeProgress:
             self.accumulated_tool_results = {}
         if self.stage_tool_history is None:
             self.stage_tool_history = []
+        if self.recovery_attempts is None:
+            self.recovery_attempts = {}
+        if self.recovery_escalations is None:
+            self.recovery_escalations = []
 
     def transition(self, to: NodeState, reason: str = "") -> None:
         """Transition to a new phase, recording the transition in history.
@@ -102,6 +112,10 @@ class NodeProgress:
         self.history.clear()
         self.accumulated_tool_results.clear()
         self.stage_tool_history.clear()
+        self.recovery_attempts.clear()
+        self.recovery_fingerprint = ""
+        self.recovery_escalations.clear()
+        self.recovery_last_error = ""
 
 
 @dataclass(frozen=True)
