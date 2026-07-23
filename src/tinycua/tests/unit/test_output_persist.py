@@ -138,7 +138,17 @@ def test_failed_mutation_keeps_prior_successful_observation() -> None:
             ("w1", "write_file", {"path": "api.py"}),
         ),
         _tool_result("r1", "read_file", "observed contents"),
-        _tool_result("w1", "write_file", json.dumps({"success": False, "error": "denied"})),
+        _tool_result(
+            "w1",
+            "write_file",
+            json.dumps(
+                {
+                    "name": "write_file",
+                    "allowed": True,
+                    "output": {"success": False, "error": "denied"},
+                }
+            ),
+        ),
     ]
 
     evict_superseded_file_reads(msgs)
