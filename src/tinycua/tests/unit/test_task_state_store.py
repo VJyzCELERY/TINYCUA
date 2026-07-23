@@ -233,6 +233,27 @@ def test_acceptance_clauses_require_coverage_and_passing_evidence() -> None:
     assert root.status == TaskStatus.COMPLETED
 
 
+def test_root_decomposition_allows_incremental_acceptance_coverage() -> None:
+    """Root planning may cover acceptance clauses across multiple mutations."""
+    store = TaskStateStore()
+    root = store.create_task(
+        "Root",
+        acceptance_clauses=["CLI exits zero", "UI renders the result"],
+    )
+
+    first = store.decompose_task(
+        root.task_id,
+        [{"title": "Run CLI", "clause_ids": ["acceptance-1"]}],
+    )
+    second = store.decompose_task(
+        root.task_id,
+        [{"title": "Check UI", "clause_ids": ["acceptance-2"]}],
+    )
+
+    assert store.get_task(first[0]).metadata["acceptance_clause_ids"] == ["acceptance-1"]
+    assert store.get_task(second[-1]).metadata["acceptance_clause_ids"] == ["acceptance-2"]
+
+
 def test_reviewer_decision_is_replaceable_until_committed() -> None:
     """Only termination commits the final staged reviewer decision."""
     store = TaskStateStore()
