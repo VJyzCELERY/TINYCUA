@@ -705,9 +705,12 @@ class TaskStateStore:
             return True
         evidence = task.result.metadata.get("clause_evidence", {}) if task.result else {}
         return all(
-            any(item.get("passed") is True for item in evidence.get(clause_id, []))
+            isinstance(evidence.get(clause_id), list)
+            and any(
+                isinstance(item, dict) and item.get("passed") is True
+                for item in evidence[clause_id]
+            )
             for clause_id in clause_ids
-            if isinstance(evidence.get(clause_id, []), list)
         )
 
     def _root_has_current_clause_evidence(self) -> bool:
@@ -845,11 +848,13 @@ class TaskStateStore:
 
     def commit_staged_reviewer_decision(self, task_id: str) -> Task:
         """Commit exactly the latest provisional reviewer decision."""
-        staged = self._staged_reviewer_decisions.pop(task_id, None)
+        staged = self._staged_reviewer_decisions.get(task_id)
         if staged is None:
             msg = "No provisional reviewer decision is staged."
             raise ValueError(msg)
-        return self.record_reviewer_decision(task_id, **staged)
+        task = self.record_reviewer_decision(task_id, **staged)
+        del self._staged_reviewer_decisions[task_id]
+        return task
 
     def next_unfinished_leaf(self) -> Task | None:
         """Return the first leaf that still needs work.
