@@ -219,25 +219,43 @@ async def test_streamed_task_executor_trace_keeps_native_tools() -> None:
     assert "write_file" in loop.get_execution_trace()[-1]["resolved_tool_names"]
 
 
-def test_action_tool_call_waits_for_tool_free_lifecycle_summary() -> None:
-    """Action work does not enter commit before its summary response."""
+def test_action_tool_call_enters_commit_with_its_summary() -> None:
+    """An action batch advances to the focused commit continuation."""
     node = TinyCUATaskExecutorNode(
         node_id="task_executor",
         config=create_node_config("task_executor"),
     )
 
-    assert not TinyCUALoop._advance_lifecycle_phase(
+    assert TinyCUALoop._advance_lifecycle_phase(
         node,
         LLMResult(
-            content="Action work",
+            content="Action Summary: wrote the requested file.",
             tool_calls=[{"function": {"name": "write_file"}}],
         ),
     )
-    assert node.progress.lifecycle_phase is LifecyclePhase.ACTION
-
-    assert TinyCUALoop._advance_lifecycle_phase(node, LLMResult(content="Summary"))
     assert node.progress.lifecycle_phase is LifecyclePhase.COMMIT
-    assert node.progress.action_summary == "Summary"
+    assert node.progress.action_summary == "Action Summary: wrote the requested file."
+
+
+@pytest.mark.asyncio
+async def test_streamed_action_tool_call_enters_commit() -> None:
+    """Streaming action calls must expose the commit tools on the next turn."""
+    loop = TinyCUALoop()
+    node = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    node.ensure_session(loop.root_session)
+
+    await loop._finalize_streamed_node(
+        node,
+        Agent(llm_model=LanguageModel()),
+        ["Action Summary: wrote the requested file."],
+        [{"function": {"name": "write_file", "arguments": "{}"}}],
+        [Tool(name="write_file")],
+    )
+
+    assert node.progress.lifecycle_phase is LifecyclePhase.COMMIT
 
 
 def test_internal_output_context_uses_assistant_role_not_user() -> None:
