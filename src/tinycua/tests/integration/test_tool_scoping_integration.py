@@ -309,11 +309,11 @@ class TestResultAggregationReceivesAggregationTools:
         assert "task_execute" not in tool_names
 
 
-class TestTaskAnalyzerExcludesTaskInitInReanalysisMode:
-    """TaskAnalyzerNode in task_reanalysis mode does NOT receive TaskInit/TaskCreate."""
+class TestTaskAnalyzerReanalysisTools:
+    """TaskAnalyzer reanalysis can add local work but cannot recreate the root."""
 
-    def test_task_analyzer_excludes_task_init_in_reanalysis_mode(self) -> None:
-        """TaskAnalyzer in reanalysis mode excludes task_init and task_create."""
+    def test_task_analyzer_reanalysis_excludes_init_but_allows_create(self) -> None:
+        """Reanalysis adds missing work without rebuilding completed history."""
         # Arrange
         policy = task_analyzer_tool_scope(mode="task_reanalysis")
 
@@ -323,7 +323,7 @@ class TestTaskAnalyzerExcludesTaskInitInReanalysisMode:
         # Assert
         tool_names = [t.name for t in resolved]
         assert "task_init" not in tool_names
-        assert "task_create" not in tool_names
+        assert "task_create" in tool_names
         assert "task_inspect" in tool_names
         assert "task_update" in tool_names
         assert "task_decompose" in tool_names
