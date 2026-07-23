@@ -107,8 +107,10 @@ _TASK_ASSESSOR_UPFRONT_CONTINUATION = (
     "Based on the whole roadmap above, assess decomposition readiness across "
     "the roadmap. Explore (web_search/fetch_url/read_file/run_shell) to "
     "verify the roadmap targets current reality for research tasks. Summarize "
-    "selected task IDs, task IDs to prune, merge, cancel, or supersede, reasons, "
-    "constraints, or that no further upfront decomposition is useful."
+    "selected task IDs and a payload.recommendations list of {task_ids, action, "
+    "rationale} for any structural follow-up; action is decompose, shrink, update, "
+    "retain, or add. Include constraints, or state that no further upfront "
+    "decomposition is useful."
 )
 _TASK_ASSESSOR_LOCAL_REPLAN_INSTRUCTION = (
     "You are the TaskAssessor for a ResultReviewer-requested local replan. "
@@ -222,8 +224,10 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
             guidance = "Tool guidance: Commit the planned structural change with " + ", ".join(sorted(commit_tools)) + "."
             if "task_shrink" in commit_tools:
                 guidance += (
-                    " Resolve task IDs identified by the TaskAssessor as duplicate, "
-                    "overlapping, obsolete, or invalid with task_shrink before adding work."
+                    " Review every TaskAssessor recommendation and decide whether "
+                    "task_shrink, another available structural tool, or retaining the "
+                    "current plan addresses it. Do not change tasks merely because "
+                    "they are recommended."
                 )
             if (
                 "task_update" in commit_tools
@@ -677,7 +681,12 @@ class TinyCUATaskAssessorNode(ProcessNode):
         """Behavioral guidance keyed on present assessor tools (FR-005)."""
         names = {getattr(tool, "name", "") for tool in (resolved_tools or [])}
         if "node_handoff" in names:
-            return "Tool guidance: Commit the assessment with node_handoff."
+            return (
+                "Tool guidance: Commit the assessment with node_handoff targeted to "
+                "task_analyzer. Put structural findings in payload.recommendations as "
+                "a list of {task_ids, action, rationale}; recommendations are advisory "
+                "and do not mutate task state."
+            )
         if "terminate" in names:
             return "Tool guidance: Call terminate now."
         if not names.intersection({"task_inspect", "web_search", "fetch_url", "read_file", "run_shell"}):
