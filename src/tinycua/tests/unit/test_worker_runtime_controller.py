@@ -78,7 +78,7 @@ def test_worker_runtime_failed_task_retries_same_leaf() -> None:
     first = store.create_task("First", parent_id=root.task_id)
     second = store.create_task("Second", parent_id=root.task_id)
     store.record_result(first.task_id, TaskResult(content="failed", success=False))
-    store.record_reviewer_decision(first.task_id, ReviewerDecision.APPROVED)
+    store.transition(first.task_id, TaskStatus.FAILED)
     queue = NodeQueue()
 
     WorkerRuntimeController(store).schedule_after_review(queue)

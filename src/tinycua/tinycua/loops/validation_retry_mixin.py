@@ -790,6 +790,7 @@ class ValidationRetryMixin:
         if (
             store.root_task_id is not None
             and not store.all_done()
+            and not node.config.metadata.get("replan_budget_exhausted")
         ):
             validation.is_valid = False
             validation.errors.append(
@@ -1471,4 +1472,3 @@ class ValidationRetryMixin:
             f"artifacts ({', '.join(artifact_paths)}); consider verifying before "
             "final aggregation.",
         )
-

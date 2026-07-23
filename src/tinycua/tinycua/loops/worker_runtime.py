@@ -16,7 +16,7 @@ from tinycua.loops.task_nodes import (
     TinyCUATaskExecutorNode,
 )
 from tinycua.models.session import Session
-from tinycua.models.task import ReviewerDecision, TaskStateStore, TaskStatus
+from tinycua.models.task import ReviewerDecision, TaskResult, TaskStateStore, TaskStatus
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ class WorkerRuntimeController:
             retrying the executor. Defaults to 5.
         session: Optional session used to resolve ``max_replans`` from the
             worker effort profile when ``max_replans`` is not set explicitly.
-        max_replans: Maximum replans per task before force-approve (FR-050).
+        max_replans: Maximum replans per task before terminal failure (FR-050).
             When None, resolved from ``session.session_config.max_replans``
             (which is itself effort-derived: none=0, low=1, medium=3, high=6).
     """
@@ -119,8 +119,8 @@ class WorkerRuntimeController:
             if d.get("decision") == _REPLAN_BOUNDARY
         )
 
-    def _force_approve_at_cap(self, task: Any, queue: NodeQueue) -> None:
-        """Force-approve the task when the replan budget is exhausted (FR-050)."""
+    def _fail_at_cap(self, task: Any, queue: NodeQueue) -> None:
+        """Record terminal failure when the replan budget is exhausted."""
         effort = "medium"
         if self.session is not None and self.session.session_config is not None:
             effort = str(self.session.session_config.worker_effort)
@@ -128,18 +128,27 @@ class WorkerRuntimeController:
         rationale = (
             f"Replan budget exhausted (effort={effort}, cap={cap}). "
             "The task could not be completed within the replan budget; "
-            "accepting the current result to preserve zero-exit."
+            "the task is marked failed."
         )
         logger.info(
-            "replan_budget_exhausted task_id=%s replan_count=%d cap=%d — force-approving",
+            "replan_budget_exhausted task_id=%s replan_count=%d cap=%d — failing task",
             task.task_id,
             self._replan_count(task),
             cap,
         )
-        self.store.record_reviewer_decision(
-            task.task_id, ReviewerDecision.APPROVED, rationale=rationale
+        self.store.record_result(
+            task.task_id, TaskResult(content=rationale, success=False)
         )
-        self.schedule_next(queue)
+        self.store.transition(task.task_id, TaskStatus.FAILED)
+        from tinycua.loops.response_node import ResponseNode
+
+        queue.clear_after_current()
+        response_config = create_node_config("response")
+        response_config.metadata["replan_budget_exhausted"] = {
+            "task_id": task.task_id,
+            "rationale": rationale,
+        }
+        queue.items.append(ResponseNode(node_id="response", config=response_config))
 
     def schedule_after_review(self, queue: NodeQueue) -> None:
         """Schedule the next nodes after a reviewer decision.
@@ -152,8 +161,7 @@ class WorkerRuntimeController:
 
         FR-050: when the task has already been replanned ``max_replans``
         times (counted via ``replan_boundary`` entries), the next send-back
-        force-approves the task instead of queueing another replan —
-        bounding the loop without violating the zero-exit guarantee.
+        records terminal failure instead of queueing another replan.
         """
         active = self.store.get_active_task()
         latest = active.reviewer_decisions[-1] if active and active.reviewer_decisions else {}
@@ -162,11 +170,11 @@ class WorkerRuntimeController:
             # FR-057: needs_revision and rejected are unified (aliases) — both
             # send the task back for rework and increment consecutive_failures
             # identically. No terminal-failure path for rejected by design.
-            # FR-050: if the replan budget is exhausted, force-approve.
+            # FR-050: if the replan budget is exhausted, fail terminally.
             if active is not None and self._replan_count(active) >= (
                 self.max_replans if self.max_replans is not None else 3
             ):
-                self._force_approve_at_cap(active, queue)
+                self._fail_at_cap(active, queue)
                 return
             # Auto-replan gate: if consecutive failures reach the threshold,
             # route to TaskAnalyzer instead of retrying the executor.
@@ -202,7 +210,7 @@ class WorkerRuntimeController:
             if active is not None and self._replan_count(active) >= (
                 self.max_replans if self.max_replans is not None else 3
             ):
-                self._force_approve_at_cap(active, queue)
+                self._fail_at_cap(active, queue)
                 return
             reason = self._build_replan_reason(active) if active else ""
             self.schedule_replan(queue, replan_reason=reason)
@@ -300,15 +308,7 @@ class WorkerRuntimeController:
         # A failed result (success=False) also needs rework — the executor
         # must retry. next_unfinished_leaf treats FAILED as unfinished.
         failed_result = active.result is not None and not active.result.success
-        # FR-079 safety net: if the last decision was approved but the task
-        # is not COMPLETED (status didn't flip — e.g. result was missing and
-        # auto-generation failed), spawn executor to produce a result instead
-        # of looping the reviewer.
-        approved_not_completed = (
-            last_decision == ReviewerDecision.APPROVED.value
-            and active.status != TaskStatus.COMPLETED
-        )
-        if active.result is None or needs_rework or failed_result or approved_not_completed:
+        if active.result is None or needs_rework or failed_result:
             # No result OR sent back → executor must run.
             queue.items.extend(
                 [
