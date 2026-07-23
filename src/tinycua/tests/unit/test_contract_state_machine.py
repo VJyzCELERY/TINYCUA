@@ -138,7 +138,7 @@ class TestGoalInjectionInSystemMessage:
             config=create_node_config("task_analyzer"),
         )
         node.ensure_session(loop.root_session)
-        system_msg = node.build_system_message([])
+        system_msg = node.build_system_message()
         content = system_msg.get("content", "")
         assert "## Your Goal" in content
         assert "Break down the active task" in content
@@ -150,7 +150,7 @@ class TestGoalInjectionInSystemMessage:
             config=create_node_config("task_executor"),
         )
         node.ensure_session(loop.root_session)
-        system_msg = node.build_system_message([])
+        system_msg = node.build_system_message()
         content = system_msg.get("content", "")
         assert "## Success Criteria" in content
         assert "task_result_update" in content
@@ -162,7 +162,7 @@ class TestGoalInjectionInSystemMessage:
             config=create_node_config("task_analyzer"),
         )
         node.ensure_session(loop.root_session)
-        system_msg = node.build_system_message([])
+        system_msg = node.build_system_message()
         content = system_msg.get("content", "")
         assert "## Required Tools" in content
         assert "task_decompose" in content
@@ -276,7 +276,7 @@ class TestContractGoalFields:
     def test_analyzer_contract_has_goal(self):
         contract = get_node_contract("task_analyzer")
         assert "Break down" in contract.goal
-        assert "task_decompose" in contract.success_criteria
+        assert "supported task mutation" in contract.success_criteria
         assert "task_decompose" in contract.tool_rationale
         assert len(contract.tool_rationale["task_decompose"]) > 10
 
