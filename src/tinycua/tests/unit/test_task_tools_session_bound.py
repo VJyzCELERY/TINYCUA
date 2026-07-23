@@ -71,6 +71,34 @@ def test_task_tools_are_active_task_aware_and_error_safe() -> None:
     assert "missing" in missing["error"]
 
 
+def test_task_init_retains_explicit_acceptance_clauses() -> None:
+    """Root clauses are required, assigned during decomposition, and evidenced."""
+    store = TaskStateStore()
+    init = TaskInitTool()
+    decompose = TaskDecomposeTool()
+    for tool in (init, decompose):
+        tool.bind_task_store(store)
+
+    root = init("Deliver a CLI", acceptance_clauses=["CLI exits zero"])
+    child_id = decompose(
+        root["task_id"],
+        [{"title": "Implement CLI", "clause_ids": ["acceptance-1"]}],
+    )["child_task_ids"][0]
+
+    assert "acceptance_clauses" in init.parameters["required"]
+    assert store.get_task(root["task_id"]).metadata["acceptance_clauses"] == [
+        {"id": "acceptance-1", "text": "CLI exits zero"}
+    ]
+    assert store.get_task(child_id).metadata["acceptance_clause_ids"] == ["acceptance-1"]
+    store.record_result(child_id, TaskResult(content="CLI implemented", success=True))
+    try:
+        store.record_reviewer_decision(child_id, "approved")
+    except ValueError as exc:
+        assert "acceptance clause" in str(exc)
+    else:
+        raise AssertionError("approved task without clause evidence")
+
+
 def test_task_update_cannot_complete_without_execution_result() -> None:
     """TaskUpdate cannot mark work complete; execution result tool owns that."""
     store = TaskStateStore()

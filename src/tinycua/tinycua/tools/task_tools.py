@@ -111,6 +111,8 @@ class TaskInitTool(SessionTaskToolMixin, Tool):
             description=(
                 "Initialize the worker roadmap with exactly one root task. "
                 "Choose the title and description from the actual user request; "
+                "extract every explicit observable acceptance requirement into "
+                "acceptance_clauses (use an empty list when none are explicit); "
                 "do not create subtasks with this tool."
             ),
             parameters={
@@ -130,7 +132,7 @@ class TaskInitTool(SessionTaskToolMixin, Tool):
                         "description": "Explicit observable user acceptance clauses.",
                     },
                 },
-                "required": ["title"],
+                "required": ["title", "acceptance_clauses"],
                 "additionalProperties": False,
             },
         )
