@@ -89,6 +89,21 @@ def test_worker_runtime_failed_task_retries_same_leaf() -> None:
     assert [node.node_id for node in queue.items] == ["task_executor", "result_reviewer"]
 
 
+def test_worker_runtime_skips_cancelled_active_leaf() -> None:
+    """A disposed leaf is never retried; its sibling becomes executable."""
+    store = TaskStateStore()
+    root = store.create_task("Root")
+    impossible = store.create_task("Impossible", parent_id=root.task_id)
+    remaining = store.create_task("Remaining", parent_id=root.task_id)
+    store.cancel_task(impossible.task_id, "source lacks benchmark data")
+    queue = NodeQueue()
+
+    WorkerRuntimeController(store).schedule_next(queue)
+
+    assert store.active_task_id == remaining.task_id
+    assert [node.node_id for node in queue.items] == ["task_executor", "result_reviewer"]
+
+
 def test_worker_runtime_replan_uses_local_assessor_mode() -> None:
     """Reviewer replan scopes TaskAssessor to active/local task region."""
     store = TaskStateStore()

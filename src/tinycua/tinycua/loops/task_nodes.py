@@ -66,8 +66,9 @@ _TASK_ANALYZER_INSTRUCTION = (
     "current today instead of assuming from prior knowledge. You do not "
     "execute the task or produce the deliverable — that is the "
     "TaskExecutor's job. Inspect the roadmap. If the active task needs "
-    "subtasks, call task_decompose. If no useful decomposition remains, "
-    "call task_update. After task_decompose or task_update succeeds, call "
+    "subtasks, call task_decompose or task_create. If no useful decomposition "
+    "remains, call task_update. To repair impossible work, use task_shrink to "
+    "cancel, supersede, delete, or merge it. After a successful mutation, call "
     "terminate. Do not write a plan — call a tool, then terminate."
 )
 _TASK_ANALYZER_CONTINUATION = (
@@ -75,10 +76,9 @@ _TASK_ANALYZER_CONTINUATION = (
     "(web_search/fetch_url/read_file/run_shell) when the task involves a "
     "fast-moving domain (research, current state of tech, models, "
     "frameworks) so your decomposition targets what is current today. "
-    "Then call task_decompose for concrete sequential subtasks, or "
-    "task_update if the task should stay as-is. After task_decompose or "
-    "task_update succeeds, call terminate. Do not repeatedly decompose "
-    "a task that already has children. If previous tasks already write to "
+    "Then call task_decompose or task_create for missing sequential subtasks, "
+    "or task_update if the task should stay as-is. After a successful mutation, "
+    "call terminate. If previous tasks already write to "
     "the report file, do not create a final 'write report' task — "
     "decompose it as 'review and reorganize the existing deliverable file' instead."
 )
@@ -88,10 +88,9 @@ _TASK_ANALYZER_LOCAL_REPLAN_CONTINUATION = (
     "current task before refining. If the existing plan is correct and "
     "the task failed due to execution (not planning), call task_update "
     "with metadata {\"plan_unchanged\": true} so the runtime skips "
-    "re-execution. If the plan is wrong, call task_shrink to delete or "
-    "merge unfinished tasks (completed tasks are immutable and cannot be "
-    "shrunk), then task_decompose or task_update with the refined plan. "
-    "After task_decompose or task_update succeeds, call terminate. Do "
+    "re-execution. If the plan is wrong, call task_shrink to cancel, supersede, "
+    "delete, or merge local work, or task_create/task_decompose to add work. "
+    "After a successful mutation, call terminate. Do "
     "not decompose the root roadmap from a local replan."
 )
 
@@ -223,15 +222,15 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
     def build_tool_system_prompt(self, resolved_tools: list[Any] | None = None) -> str:
         """Behavioral guidance keyed on present analyzer tools (FR-005)."""
         names = {getattr(tool, "name", "") for tool in (resolved_tools or [])}
-        if not names.intersection({"task_inspect", "task_decompose", "task_update"}):
+        if not names.intersection({"task_inspect", "task_create", "task_decompose", "task_shrink", "task_update"}):
             return ""
         return (
             "Tool guidance: call task_inspect to read state. Explore first "
             "(web_search/fetch_url/read_file/list_files/search_files/"
             "run_shell) to ground your decomposition in current reality, "
-            "especially for research tasks. Then call task_decompose to add "
-            "subtasks or task_update to confirm the roadmap. After task_decompose "
-            "or task_update succeeds, call terminate. Do not execute "
+            "especially for research tasks. Then call task_create or task_decompose "
+            "to add work, task_update to edit it, or task_shrink to safely dispose "
+            "of impossible work. After a successful mutation, call terminate. Do not execute "
             "the task itself — decompose and hand off to the executor."
         )
 
@@ -1053,7 +1052,12 @@ class TinyCUAResultAggregationNode(ProcessNode):
         parts = []
         for task_id in reversed(store._ordered_ids()):
             task = store.tasks.get(task_id)
-            if task and task.result is not None and task.parent_id is not None:
+            if (
+                task
+                and task.status == TaskStatus.COMPLETED
+                and task.result is not None
+                and task.parent_id is not None
+            ):
                 parts.append(f"{task.title}: {task.result.content}")
         return "\n".join(parts) or "Completed worker roadmap."
 
@@ -1071,7 +1075,11 @@ class TinyCUAResultAggregationNode(ProcessNode):
             ordered_ids.append(store.root_task_id)
         for task_id in ordered_ids:
             task = store.tasks.get(task_id)
-            if task is None or task.result is None:
+            if (
+                task is None
+                or task.status != TaskStatus.COMPLETED
+                or task.result is None
+            ):
                 continue
             task_summaries.append(f"{task.title}: {task.result.summary}")
             accepted_results.append(task.result)
