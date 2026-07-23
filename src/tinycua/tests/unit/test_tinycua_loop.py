@@ -206,8 +206,8 @@ def test_executor_retry_keeps_all_tools_after_inspection() -> None:
     }
 
 
-def test_lifecycle_commit_tool_stays_denied_during_action_phase() -> None:
-    """Action calls cannot bypass the required tool-free summary."""
+def test_executor_result_update_is_available_during_action_phase() -> None:
+    """Executor can stage its result directly from the action phase."""
     loop = TinyCUALoop()
     executor = TinyCUATaskExecutorNode(
         node_id="task_executor",
@@ -224,7 +224,7 @@ def test_lifecycle_commit_tool_stays_denied_during_action_phase() -> None:
     )
 
     assert executor.progress.lifecycle_phase is LifecyclePhase.ACTION
-    assert [tool.name for tool in scoped] == ["read_file"]
+    assert [tool.name for tool in scoped] == ["read_file", "task_result_update"]
 
 
 def test_response_validation_rejects_internal_transcript_replay() -> None:
@@ -553,6 +553,34 @@ async def test_execute_tool_calls_preserves_real_arguments_parameter() -> None:
     assert results[0]["output"] == {"success": True}
 
 
+@pytest.mark.asyncio
+async def test_execute_tool_calls_discards_duplicate_terminate() -> None:
+    """One model response cannot execute termination more than once."""
+    loop = TinyCUALoop()
+    calls = []
+
+    class TerminateTool(Tool):
+        def __init__(self) -> None:
+            super().__init__(name="terminate", parameters={"type": "object"})
+
+        def __call__(self) -> dict[str, object]:
+            calls.append("terminate")
+            return {"success": True}
+
+    agent = Agent(llm_model=LanguageModel())
+    results = await loop._execute_tool_calls(
+        agent,
+        [
+            {"function": {"name": "terminate", "arguments": {}}},
+            {"function": {"name": "terminate", "arguments": {}}},
+        ],
+        [TerminateTool()],
+    )
+
+    assert calls == ["terminate"]
+    assert [result["name"] for result in results] == ["terminate"]
+
+
 def test_coerce_structured_tool_calls_accepts_allowed_tool_key_payload() -> None:
     """Local tool-call shims may emit {tool_name:{...}} instead of tool_calls."""
     loop = TinyCUALoop()
@@ -768,6 +796,7 @@ async def test_streamed_termination_does_not_restart_completed_lifecycle_node() 
     )
     loop = TinyCUALoop(queue=NodeQueue(items=[node]))
     node.ensure_session(loop.root_session)
+    loop.root_session.task_store.create_task("Initialized root")
     node.progress.mark_tool_called("task_init")
     node.progress.advance_lifecycle(LifecyclePhase.TERMINATE)
     calls = 0

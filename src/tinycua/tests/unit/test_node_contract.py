@@ -162,6 +162,7 @@ class TestNodeContract:
         assert phase_tool_names("task_executor", names, LifecyclePhase.ACTION) == {
             "read_file",
             "run_shell",
+            "task_result_update",
         }
         assert phase_tool_names("task_executor", names, LifecyclePhase.COMMIT) == {
             "task_result_update",
