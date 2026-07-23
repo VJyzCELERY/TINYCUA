@@ -22,6 +22,12 @@ _RESPONSE_CONTINUATION = (
     "details. If a report file was created, mention its path."
 )
 
+_FAILURE_RESPONSE_CONTINUATION = (
+    "The task could not be completed because its replan budget was exhausted. "
+    "Summarize the failure and its rationale honestly for the user. Do not "
+    "claim the work was completed or redo the work."
+)
+
 
 class ResponseNode(ProcessNode):
     """Terminal node that captures the final response content.
@@ -50,16 +56,22 @@ class ResponseNode(ProcessNode):
         """
         from tinycua.config.node_config import create_node_config
 
+        node_config = config or create_node_config("response")
+        continuation = (
+            _FAILURE_RESPONSE_CONTINUATION
+            if node_config.metadata.get("replan_budget_exhausted")
+            else _RESPONSE_CONTINUATION
+        )
         super().__init__(
             node_id=node_id,
-            config=config or create_node_config("response"),
+            config=node_config,
             instruction=(
                 "Generate the final user-facing response. Use the available "
                 "conversation and node outputs as context, and always return "
                 "a concise non-empty answer in natural language. Do not emit "
                 "JSON or tool-call protocol payloads."
             ),
-            continuation=_RESPONSE_CONTINUATION,
+            continuation=continuation,
             is_terminal=True,
         )
         self.captured_content: str = ""
