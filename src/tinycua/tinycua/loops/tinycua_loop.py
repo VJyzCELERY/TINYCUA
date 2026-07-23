@@ -527,7 +527,10 @@ class TinyCUALoop(
         """Advance a lifecycle node after its action summary or successful commit."""
         if not node.contract.requires_terminate:
             return False
-        if node.progress.lifecycle_phase == LifecyclePhase.ACTION:
+        if (
+            node.progress.lifecycle_phase == LifecyclePhase.ACTION
+            and not result.tool_calls
+        ):
             node.progress.advance_lifecycle(LifecyclePhase.SUMMARY, result.content.strip())
             node.progress.advance_lifecycle(LifecyclePhase.COMMIT)
             return True
