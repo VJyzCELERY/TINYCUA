@@ -440,6 +440,12 @@ class OrchestrationMixin:
         elif retry_tool_results:
             self._prepend_retry_tool_results(llm_result, retry_tool_results)
         combined = llm_result.content
+        termination_failed = any(
+            item.get("name") == "terminate"
+            and isinstance(item.get("output"), dict)
+            and item["output"].get("success") is False
+            for item in tool_results
+        )
         if node.contract.requires_terminate:
             phase = node.progress.lifecycle_phase
             if phase.value == "action":
@@ -451,7 +457,14 @@ class OrchestrationMixin:
                 node.progress.satisfied_requirements
             ):
                 node.progress.advance_lifecycle(LifecyclePhase.TERMINATE)
+            elif phase.value == "terminate" and termination_failed:
+                node.progress.advance_lifecycle(LifecyclePhase.COMMIT)
         validation = self._validate_node_result(node, llm_result)
+        if termination_failed:
+            validation = ValidationResult(
+                is_valid=False,
+                errors=["terminate failed; return to commit for correction."],
+            )
         if not validation.is_valid:
             on_complete_response = self._build_on_complete_response(node, llm_result)
             trace_entry = self._trace_entry(

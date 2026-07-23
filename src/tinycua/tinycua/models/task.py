@@ -468,11 +468,16 @@ class TaskStateStore:
             msg = f"Task {task_id} has no parent."
             raise ValueError(msg)
         self._require_mutable(parent)
+        clause_ids = list(task.metadata.get("acceptance_clause_ids", []))
         replacement = Task(
             title=replacement_title,
             parent_id=parent.task_id,
             description=description,
-            metadata={"supersedes": task_id, "supersession_rationale": rationale},
+            metadata={
+                "supersedes": task_id,
+                "supersession_rationale": rationale,
+                **({"acceptance_clause_ids": clause_ids} if clause_ids else {}),
+            },
         )
         task.status = TaskStatus.SUPERSEDED
         task.metadata["superseded_by"] = replacement.task_id
@@ -506,6 +511,22 @@ class TaskStateStore:
             msg = f"Task {task_id} has no parent."
             raise ValueError(msg)
         self._require_mutable(parent)
+        root = self.tasks[self.root_task_id] if self.root_task_id else None
+        required_ids = {
+            clause["id"]
+            for clause in (root.metadata.get("acceptance_clauses", []) if root else [])
+            if isinstance(clause, dict) and isinstance(clause.get("id"), str)
+        }
+        covered_ids = {
+            clause_id
+            for candidate_id, candidate in self.tasks.items()
+            if candidate_id != task_id
+            for clause_id in candidate.metadata.get("acceptance_clause_ids", [])
+            if isinstance(clause_id, str)
+        }
+        if not required_ids.issubset(covered_ids):
+            msg = "Cannot delete a task that would orphan an acceptance clause."
+            raise ValueError(msg)
         parent.children.remove(task_id)
         del self.tasks[task_id]
         self._finalize_mutation("delete_task", task_id, rationale=rationale)
@@ -562,6 +583,12 @@ class TaskStateStore:
                     f"{parent.result.summary}\n\nMerged from {child.title}: "
                     f"{child.result.summary}"
                 )
+        clause_ids = [
+            *parent.metadata.get("acceptance_clause_ids", []),
+            *child.metadata.get("acceptance_clause_ids", []),
+        ]
+        if clause_ids:
+            parent.metadata["acceptance_clause_ids"] = list(dict.fromkeys(clause_ids))
         child_index = parent.children.index(child_id)
         parent.children[child_index : child_index + 1] = child.children
         for grandchild_id in child.children:
