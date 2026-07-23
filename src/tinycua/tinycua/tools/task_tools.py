@@ -600,14 +600,19 @@ class TaskResultUpdateTool(SessionTaskToolMixin, Tool):
             return error
         try:
             result = TaskResult(content=content, success=success, metadata=metadata or {})
-            task = self._store.record_result(active_id, result)
+            if self._source_node == "task_executor":
+                task = self._store.stage_result(active_id, result)
+                staged = True
+            else:
+                task = self._store.record_result(active_id, result)
+                staged = False
         except ValueError as exc:
             return {"success": False, "error": str(exc)}
         return {
             "success": True,
             "task_id": active_id,
             "status": task.status.value,
-            "staged": False,
+            "staged": staged,
         }
 
 

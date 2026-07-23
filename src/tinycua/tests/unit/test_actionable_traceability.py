@@ -437,6 +437,16 @@ async def test_task_executor_validates_tool_owned_result_update(tmp_path: Path) 
     assert "run_shell" in captured_tool_names[0]
     assert "task_execute" not in captured_tool_names[0]
     assert captured_tool_names[2] == ["terminate"]
+    assert [item["name"] for item in result.metadata["tool_results"]] == [
+        "write_file",
+        "task_result_update",
+        "terminate",
+    ]
+    assert [outcome["tool_name"] for outcome in node.progress.correlated_outcomes] == [
+        "write_file",
+        "task_result_update",
+        "terminate",
+    ]
 
 
 async def test_task_executor_executes_continued_tool_calls(tmp_path: Path) -> None:
