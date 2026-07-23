@@ -247,3 +247,35 @@ def test_reviewer_decision_is_replaceable_until_committed() -> None:
     assert store.commit_staged_reviewer_decision(task.task_id).reviewer_decisions == [
         {"decision": "needs_revision", "rationale": "", "metadata": {}}
     ]
+
+
+def test_invalid_staged_approval_is_retained_for_correction() -> None:
+    """A failed approval commit leaves the provisional decision available."""
+    store = TaskStateStore()
+    task = store.create_task("Review me", acceptance_clauses=["verify behavior"])
+    store.record_result(task.task_id, TaskResult(content="evidence"))
+    store.stage_reviewer_decision(task.task_id, ReviewerDecision.APPROVED)
+
+    with pytest.raises(ValueError, match="passing evidence"):
+        store.commit_staged_reviewer_decision(task.task_id)
+
+    assert task.task_id in store._staged_reviewer_decisions
+
+
+def test_malformed_clause_evidence_does_not_approve_child() -> None:
+    """Acceptance evidence must be a list of passing mappings."""
+    store = TaskStateStore()
+    root = store.create_task("Root", acceptance_clauses=["verify behavior"])
+    child = store.create_task("Child", parent_id=root.task_id, clause_ids=["acceptance-1"])
+    store.record_result(
+        child.task_id,
+        TaskResult(
+            content="done",
+            metadata={"clause_evidence": {"acceptance-1": "malformed"}},
+        ),
+    )
+
+    with pytest.raises(ValueError, match="passing evidence"):
+        store.record_reviewer_decision(child.task_id, ReviewerDecision.APPROVED)
+
+    assert child.status is not TaskStatus.COMPLETED

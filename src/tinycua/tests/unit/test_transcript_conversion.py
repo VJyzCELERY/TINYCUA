@@ -153,6 +153,17 @@ def test_tool_outcome_is_bounded_correlated_and_actionable() -> None:
     assert outcome["hash"]
 
 
+def test_tool_outcome_uses_persisted_prompt_content() -> None:
+    """Outcomes describe the representation that reaches the model."""
+    outcome = normalize_tool_outcome(
+        {"id": "call-7", "function": {"name": "run_shell"}},
+        {"name": "run_shell", "allowed": True, "output": {"stdout": "raw"}},
+        content="<persisted-output>preview</persisted-output>",
+    )
+
+    assert outcome["content"] == "<persisted-output>preview</persisted-output>"
+
+
 # --- convert_working_messages_to_openclaw tests ---
 
 

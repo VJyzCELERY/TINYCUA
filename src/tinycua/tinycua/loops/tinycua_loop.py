@@ -515,7 +515,39 @@ class TinyCUALoop(
         ):
             node.progress.advance_lifecycle(LifecyclePhase.TERMINATE)
             return True
+        if node.progress.lifecycle_phase == LifecyclePhase.TERMINATE and any(
+            item.get("name") == "terminate"
+            and isinstance(item.get("output"), dict)
+            and item["output"].get("success") is False
+            for item in result.metadata.get("tool_results", [])
+            if isinstance(item, dict)
+        ):
+            node.progress.advance_lifecycle(LifecyclePhase.COMMIT)
+            return True
         return False
+
+    def _tools_for_lifecycle_result(
+        self,
+        node: Node,
+        result: LLMResult,
+        resolved_tools: list[Tool],
+    ) -> list[Tool]:
+        """Advance to the phase requested by an otherwise unavailable tool call."""
+        if not node.contract.requires_terminate:
+            return resolved_tools
+        called = {
+            (tool_call.get("function") or {}).get("name") or tool_call.get("name")
+            for tool_call in result.tool_calls
+        }
+        commit_tools = set(node.contract.required_tools)
+        for group in node.contract.any_of_tools:
+            commit_tools.update(group)
+        if node.progress.lifecycle_phase == LifecyclePhase.ACTION and called & commit_tools:
+            node.progress.advance_lifecycle(LifecyclePhase.SUMMARY, result.content.strip())
+            node.progress.advance_lifecycle(LifecyclePhase.COMMIT)
+        elif node.progress.lifecycle_phase == LifecyclePhase.COMMIT and "terminate" in called:
+            node.progress.advance_lifecycle(LifecyclePhase.TERMINATE)
+        return self._phase_tools(node, resolved_tools, node.progress.lifecycle_phase)
 
     def _can_stop_tool_batch(
         self, node: Node, result: LLMResult, validation: ValidationResult
@@ -564,7 +596,14 @@ class TinyCUALoop(
 
             def record(result: dict[str, Any]) -> None:
                 result["call_id"] = call_id
-                result["outcome"] = normalize_tool_outcome(tool_call, result)
+                prompt_content = persist_if_oversized(
+                    json.dumps(result, default=str), call_id or name, tool_name=name
+                )
+                result["prompt_content"] = prompt_content
+                result["outcome"] = normalize_tool_outcome(
+                    tool_call, result, content=prompt_content
+                )
+                self._record_tool_chat_result(result)
                 results.append(result)
 
             if name not in allowed_tools:
@@ -601,10 +640,7 @@ class TinyCUALoop(
             artifact_path = self._write_tool_audit_artifact(name, arguments, output)
             if artifact_path:
                 tool_result["artifact_path"] = artifact_path
-            self._record_tool_chat_result(tool_result)
-            tool_result["call_id"] = call_id
-            tool_result["outcome"] = normalize_tool_outcome(tool_call, tool_result)
-            results.append(tool_result)
+            record(tool_result)
         return results
 
     def _log_tool_call_args(self, name: str, arguments: dict[str, Any]) -> None:
@@ -699,13 +735,14 @@ class TinyCUALoop(
                 task = self.root_session.task_store.get_task(task_id)
             except ValueError:
                 continue
+            result = task.result or self.root_session.task_store._staged_results.get(task_id)
             partial_results = list(
                 task.metadata.get("executor_partial_tool_results", [])
             )
             merged_tool_results = [*partial_results, *tool_results]
             evidence = self._json_safe(merged_tool_results)
-            if task.result is not None:
-                task.result.metadata["tool_results"] = evidence
+            if result is not None:
+                result.metadata["tool_results"] = evidence
                 task.metadata.pop("executor_partial_tool_results", None)
 
     def _track_tool_calls_in_progress(
@@ -714,6 +751,23 @@ class TinyCUALoop(
         """Record visited + satisfied tools in node.progress (Milestone 2)."""
         for tr in tool_results:
             if isinstance(tr, dict) and tr.get("name"):
+                prompt_content = tr.get("prompt_content")
+                if not isinstance(prompt_content, str):
+                    prompt_content = persist_if_oversized(
+                        json.dumps(tr, default=str),
+                        str(tr.get("call_id") or tr["name"]),
+                        tool_name=str(tr["name"]),
+                    )
+                    tr["prompt_content"] = prompt_content
+                    tr["outcome"] = normalize_tool_outcome(
+                        {
+                            "id": tr.get("call_id"),
+                            "function": {"name": tr["name"]},
+                        },
+                        tr,
+                        content=prompt_content,
+                    )
+                    self._record_tool_chat_result(tr)
                 success = (
                     isinstance(tr.get("output"), dict)
                     and tr["output"].get("success") is not False
@@ -870,9 +924,11 @@ class TinyCUALoop(
                 tool_call.get("id") or tool_result.get("name", "")
             )
             tool_name = tool_result.get("name", "")
-            content = persist_if_oversized(
-                raw_content, tool_call_id, tool_name=tool_name
-            )
+            content = tool_result.get("prompt_content")
+            if not isinstance(content, str):
+                content = persist_if_oversized(
+                    raw_content, tool_call_id, tool_name=tool_name
+                )
             attempt_messages.append(
                 {
                     "role": "tool",
@@ -1071,6 +1127,9 @@ class TinyCUALoop(
             if not node.is_terminal and node.node_id != "result_aggregation":
                 self._coerce_structured_tool_calls(last_result, attempt_tools)
             self._coerce_terminate_only_response(attempt_tools, last_result)
+            attempt_tools = self._tools_for_lifecycle_result(
+                node, last_result, resolved_tools
+            )
             all_tool_results: list[dict[str, Any]] = []
             continuation_rounds = 0
             while continuation_rounds < _MAX_TOOL_CONTINUATIONS:
@@ -1096,7 +1155,15 @@ class TinyCUALoop(
                 last_validation = self._validate_node_result(node, last_result)
                 if self._can_stop_tool_batch(node, last_result, last_validation):
                     return last_result, attempt, last_validation
-                if self._validation_needs_terminate(last_validation):
+                if self._validation_needs_terminate(last_validation) or (
+                    node.progress.lifecycle_phase == LifecyclePhase.TERMINATE
+                    and any(
+                        item.get("name") == "terminate"
+                        and isinstance(item.get("output"), dict)
+                        and item["output"].get("success") is True
+                        for item in tool_results
+                    )
+                ):
                     break
                 assistant_msg: dict[str, Any] = {
                     "role": "assistant",
@@ -1147,10 +1214,14 @@ class TinyCUALoop(
                 if not node.is_terminal and node.node_id != "result_aggregation":
                     self._coerce_structured_tool_calls(last_result, attempt_tools)
                 self._coerce_terminate_only_response(attempt_tools, last_result)
+                attempt_tools = self._tools_for_lifecycle_result(
+                    node, last_result, resolved_tools
+                )
             self._record_attempt_tool_results(
                 last_result, all_tool_results, retry_tool_results
             )
             if self._advance_lifecycle_phase(node, last_result):
+                retry_tool_results = self._tool_results_from_llm_result(last_result)
                 retry_message = (
                     "Action summary: "
                     f"{node.progress.action_summary}\n"

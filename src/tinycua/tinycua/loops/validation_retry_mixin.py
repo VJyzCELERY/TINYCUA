@@ -1375,9 +1375,11 @@ class ValidationRetryMixin:
                 tool_call.get("id") or str(tool_result.get("name", ""))
             )
             tool_name = str(tool_result.get("name", ""))
-            content = persist_if_oversized(
-                raw_content, tool_call_id, tool_name=tool_name
-            )
+            content = tool_result.get("prompt_content")
+            if not isinstance(content, str):
+                content = persist_if_oversized(
+                    raw_content, tool_call_id, tool_name=tool_name
+                )
             messages.append(
                 {
                     "role": "tool",

@@ -249,6 +249,26 @@ def test_review_tool_stages_corrections_until_reviewer_termination() -> None:
     assert store.get_task(task_id).reviewer_decisions[-1]["decision"] == "needs_revision"
 
 
+def test_executor_result_stays_staged_until_executor_termination() -> None:
+    """Executor results commit only after the terminate phase succeeds."""
+    store = TaskStateStore()
+    init = TaskInitTool()
+    result_update = TaskResultUpdateTool()
+    terminate = TerminateTool()
+    for tool in (init, result_update, terminate):
+        tool.bind_task_store(store)
+    for tool in (result_update, terminate):
+        tool.bind_source_node("task_executor")
+
+    task_id = init("Root")["task_id"]
+    recorded = result_update(content="completed")
+
+    assert recorded["staged"] is True
+    assert store.get_task(task_id).result is None
+    terminate()
+    assert store.get_task(task_id).result is not None
+
+
 def test_executor_work_order_renders_active_and_unmet_acceptance_clauses() -> None:
     """Executor prompts retain the clauses that decomposition assigned to work."""
     session = Session()
