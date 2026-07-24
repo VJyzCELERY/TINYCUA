@@ -398,6 +398,8 @@ async def test_task_executor_validates_tool_owned_result_update(tmp_path: Path) 
                 ],
             }
         if len(captured_tool_choices) == 2:
+            return {"content": "Action complete", "tool_calls": []}
+        if len(captured_tool_choices) == 3:
             return {
                 "content": "",
                 "tool_calls": [
@@ -408,17 +410,6 @@ async def test_task_executor_validates_tool_owned_result_update(tmp_path: Path) 
                             "name": "task_result_update",
                             "arguments": '{"content":"Created app.py","success":true}',
                         },
-                    }
-                ],
-            }
-        if len(captured_tool_choices) == 3:
-            return {
-                "content": "",
-                "tool_calls": [
-                    {
-                        "id": "call_terminate",
-                        "type": "function",
-                        "function": {"name": "terminate", "arguments": "{}"},
                     }
                 ],
             }
@@ -436,31 +427,28 @@ async def test_task_executor_validates_tool_owned_result_update(tmp_path: Path) 
     assert validation.is_valid
     assert result.content == "Created app.py"
     assert (tmp_path / "app.py").read_text() == 'print("ok")'
-    assert captured_tool_choices[-1] == "required"
+    assert all(choice is None for choice in captured_tool_choices)
     assert "write_file" in captured_tool_names[0]
     assert "run_shell" in captured_tool_names[0]
     assert "task_execute" not in captured_tool_names[0]
     assert "task_result_update" not in captured_tool_names[0]
     assert "terminate" not in captured_tool_names[0]
-    assert "task_result_update" in captured_tool_names[1]
+    assert "task_result_update" not in captured_tool_names[1]
     assert "terminate" not in captured_tool_names[1]
     assert "task_result_update" in captured_tool_names[2]
-    assert "terminate" in captured_tool_names[2]
-    terminate_prompt = "\n".join(
+    assert "terminate" not in captured_tool_names[2]
+    commit_prompt = "\n".join(
         str(message.get("content", "")) for message in captured_message_batches[2]
     )
-    assert "COMMIT succeeded" in terminate_prompt
-    assert "Do not repeat work or start another roadmap task" in terminate_prompt
-    assert "Call terminate now" in terminate_prompt
+    assert "ACTION is complete" in commit_prompt
+    assert "Do not repeat action work or start another task" in commit_prompt
     assert [item["name"] for item in result.metadata["tool_results"]] == [
         "write_file",
         "task_result_update",
-        "terminate",
     ]
     assert [outcome["tool_name"] for outcome in node.progress.correlated_outcomes] == [
         "write_file",
         "task_result_update",
-        "terminate",
     ]
 
 
@@ -508,6 +496,10 @@ async def test_task_executor_executes_continued_tool_calls(tmp_path: Path) -> No
             ],
         },
         {
+            "content": "Action complete",
+            "tool_calls": [],
+        },
+        {
             "content": "",
             "tool_calls": [
                 {
@@ -517,16 +509,6 @@ async def test_task_executor_executes_continued_tool_calls(tmp_path: Path) -> No
                         "name": "task_result_update",
                         "arguments": '{"content":"Created backend.py","success":true}',
                     },
-                }
-            ],
-        },
-        {
-            "content": "",
-            "tool_calls": [
-                {
-                    "id": "call_terminate",
-                    "type": "function",
-                    "function": {"name": "terminate", "arguments": "{}"},
                 }
             ],
         },
@@ -551,7 +533,6 @@ async def test_task_executor_executes_continued_tool_calls(tmp_path: Path) -> No
         "list_files",
         "write_file",
         "task_result_update",
-        "terminate",
     ]
 
 
@@ -589,6 +570,10 @@ async def test_executor_env_check_success_is_left_for_reviewer(tmp_path: Path) -
             ],
         },
         {
+            "content": "Action complete",
+            "tool_calls": [],
+        },
+        {
             "content": "",
             "tool_calls": [
                 {
@@ -598,16 +583,6 @@ async def test_executor_env_check_success_is_left_for_reviewer(tmp_path: Path) -
                         "name": "task_result_update",
                         "arguments": '{"content":"Python works","success":true}',
                     },
-                }
-            ],
-        },
-        {
-            "content": "",
-            "tool_calls": [
-                {
-                    "id": "call_terminate",
-                    "type": "function",
-                    "function": {"name": "terminate", "arguments": "{}"},
                 }
             ],
         },

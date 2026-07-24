@@ -544,26 +544,14 @@ class TinyCUALoop(
 
     @staticmethod
     def _advance_lifecycle_phase(node: Node, result: LLMResult) -> bool:
-        """Advance a lifecycle node after its action summary or successful commit."""
+        """Advance a lifecycle node from action to commit."""
         if not node.contract.requires_terminate:
             return False
-        if node.progress.lifecycle_phase == LifecyclePhase.ACTION:
-            node.progress.advance_lifecycle(LifecyclePhase.SUMMARY, result.content.strip())
-            node.progress.advance_lifecycle(LifecyclePhase.COMMIT)
-            return True
         if (
-            node.progress.lifecycle_phase == LifecyclePhase.COMMIT
-            and node.contract.is_satisfied(node.progress.satisfied_requirements)
+            node.progress.lifecycle_phase == LifecyclePhase.ACTION
+            and not result.tool_calls
         ):
-            node.progress.advance_lifecycle(LifecyclePhase.TERMINATE)
-            return True
-        if node.progress.lifecycle_phase == LifecyclePhase.TERMINATE and any(
-            item.get("name") == "terminate"
-            and isinstance(item.get("output"), dict)
-            and item["output"].get("success") is False
-            for item in result.metadata.get("tool_results", [])
-            if isinstance(item, dict)
-        ):
+            node.progress.advance_lifecycle(LifecyclePhase.SUMMARY, result.content.strip())
             node.progress.advance_lifecycle(LifecyclePhase.COMMIT)
             return True
         return False
@@ -572,9 +560,12 @@ class TinyCUALoop(
     def _lifecycle_phase_directive(node: Node) -> str:
         """Return explicit guidance for the node's newly entered phase."""
         if node.progress.lifecycle_phase == LifecyclePhase.COMMIT:
+            summary = node.progress.action_summary.strip()
+            evidence = f" ACTION summary: {summary}" if summary else ""
             return (
                 "ACTION is complete. Prepare the required commit for this same "
                 "assignment. Do not repeat action work or start another task."
+                f"{evidence}"
             )
         if node.progress.lifecycle_phase == LifecyclePhase.TERMINATE:
             if node.node_id == "result_reviewer":
@@ -634,10 +625,14 @@ class TinyCUALoop(
     def _can_stop_tool_batch(
         self, node: Node, result: LLMResult, validation: ValidationResult
     ) -> bool:
-        """Return whether a non-lifecycle node can finish after a tool batch."""
-        return not node.contract.requires_terminate and self._can_stop_after_tool_batch(
-            node, result, validation
-        )
+        """Return whether a valid tool batch finishes the node."""
+        if node.contract.requires_terminate:
+            return (
+                node.progress.lifecycle_phase == LifecyclePhase.COMMIT
+                and node.contract.is_satisfied(node.progress.satisfied_requirements)
+                and validation.is_valid
+            )
+        return self._can_stop_after_tool_batch(node, result, validation)
 
     async def _await_tool_rate_limit(self, tool_name: str) -> None:
         """Async sleep to enforce per-tool minimum call intervals.
@@ -722,6 +717,14 @@ class TinyCUALoop(
             except Exception as exc:  # noqa: BLE001 - recorded for trace/debugging.
                 record({"name": name, "allowed": True, "error": str(exc)})
                 continue
+            if name in {"task_update", "task_result_update", "task_review_decision"}:
+                resolved_id = output.get("task_id") if isinstance(output, dict) else None
+                logger.info(
+                    "task_tool=%s requested_task_id=%r resolved_task_id=%r",
+                    name,
+                    arguments.get("task_id"),
+                    resolved_id,
+                )
             self._sync_root_task()
             tool_result = {"name": name, "allowed": True, "output": output}
             artifact_path = self._write_tool_audit_artifact(name, arguments, output)
