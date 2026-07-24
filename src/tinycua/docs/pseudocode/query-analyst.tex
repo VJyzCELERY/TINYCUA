@@ -13,22 +13,22 @@
 \Require $\mathit{root\_session}$, $\mathit{user\_query}$, $\mathit{queue}$
 \Ensure $\mathit{route} \in \{\textsc{Worker}, \textsc{Passthrough}\}$
 
-// Deduplication guard
+\Statex \textit{// Deduplication guard}
 \If{$\mathit{queue}$ contains active $\mathit{QUERYANALYST}$}
-    \State \Return DROP\_QUERY // Skip if already exist
+    \State \Return DROP\_QUERY
 \EndIf
 
-// Assemble transient reasoning window
+\Statex \textit{// Assemble transient reasoning window}
 \State $\mathit{window} \gets \mathit{root\_session}.\mathit{context} \;\Vert\; \mathit{queue}.\mathit{contexts} \;\Vert\; \mathit{user\_query}$
 
-// Step 3: Two-step classification (LLM + tool)
+\Statex \textit{// Two-step classification (LLM + tool)}
 \State $\mathit{route} \gets \textsc{NULL}$; $\mathit{valid} \gets \textsc{FALSE}$
 \While{$\neg\mathit{valid}$}
     \State $\mathit{analysis} \gets \textsc{SLMANALYZE}(\mathit{window})$
     \State $\mathit{route} \gets \textsc{CLASSIFY}(\mathit{analysis})$; $\mathit{valid} \gets \mathit{route} \in \{\textsc{Worker}, \textsc{Passthrough}\}$
 \EndWhile
 
-// Step 4: Dispatch via route map
+\Statex \textit{// Dispatch via route map}
 \State \textsc{DISPATCH}($\mathit{route}$)
 \If{$\mathit{route} = \textsc{Worker}$}
     \State spawn \textsc{INFORMATIONDIGESTER}

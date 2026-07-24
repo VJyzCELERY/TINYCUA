@@ -13,22 +13,22 @@
 \Require $\mathit{digestedContext}$, $\mathit{queue}$, $\mathit{existingWorker}$
 \Ensure $\mathit{route}$, $\mathit{queue}$
 
-// Step 1: Check if WorkerNode already exists (deduplication)
+\Statex \textit{// Deduplication guard}
 \If{$\mathit{existingWorker} \neq \textsc{null}$}
     \State $\mathit{existingWorker.input} \gets \mathit{digestedContext}$
     \State \Return
 \EndIf
 
-// Step 2: Check if task exists
+\Statex \textit{// Check if task exists}
 \State $\mathit{taskExists} \gets \mathit{queue.hasTask()}$
 
-// Step 3: Analysis call
+\Statex \textit{// Analysis call}
 \State $\mathit{analysisResult} \gets \textsc{SLMAnalyze}(\mathit{digestedContext}, \mathit{taskExists}, \mathit{queue})$
 
-// Step 4: Verdict / classification call
+\Statex \textit{// Verdict call}
 \State $\mathit{route} \gets \textsc{Classify}(\mathit{analysisResult}, \mathit{taskExists}, \mathit{queue.hasWorkerSpawnedNodes()})$
 
-// Step 5: Dispatch via RouteMap
+\Statex \textit{// Dispatch via route map}
 \If{$\mathit{route} = \text{task\_creation}$}
     \State $\mathit{queue} \gets [\textsc{TaskCreate}, \textsc{TaskAnalyzer}, \textsc{AnalysisEffort}, \textsc{TaskExecutor}, \textsc{ResultReviewer}, \textsc{Response}]$
 \ElsIf{$\mathit{route} = \text{task\_recreation}$}
