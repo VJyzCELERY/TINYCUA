@@ -217,6 +217,8 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
     def build_tool_system_prompt(self, resolved_tools: list[Any] | None = None) -> str:
         """Behavioral guidance keyed on present analyzer tools (FR-005)."""
         names = {getattr(tool, "name", "") for tool in (resolved_tools or [])}
+        if "terminate" in names:
+            return "Tool guidance: Call terminate now."
         commit_tools = names.intersection(
             {"task_create", "task_decompose", "task_shrink", "task_update"}
         )
@@ -680,15 +682,13 @@ class TinyCUATaskAssessorNode(ProcessNode):
     def build_tool_system_prompt(self, resolved_tools: list[Any] | None = None) -> str:
         """Behavioral guidance keyed on present assessor tools (FR-005)."""
         names = {getattr(tool, "name", "") for tool in (resolved_tools or [])}
-        if "node_handoff" in names:
-            return (
-                "Tool guidance: Commit the assessment with node_handoff targeted to "
-                "task_analyzer. Put structural findings in payload.recommendations as "
-                "a list of {task_ids, action, rationale}; recommendations are advisory "
-                "and do not mutate task state."
-            )
         if "terminate" in names:
             return "Tool guidance: Call terminate now."
+        if "node_handoff" in names:
+            return (
+                "Tool guidance: Commit node_handoff with payload decision='analyze' "
+                "and selected_task_ids, or decision='ready' and selected_task_ids=[]."
+            )
         if not names.intersection({"task_inspect", "web_search", "fetch_url", "read_file", "run_shell"}):
             return ""
         return (
@@ -793,6 +793,8 @@ class TinyCUATaskExecutorNode(ProcessNode):
     def build_tool_system_prompt(self, resolved_tools: list[Any] | None = None) -> str:
         """Behavioral guidance keyed on present executor tools (FR-005)."""
         names = {getattr(tool, "name", "") for tool in (resolved_tools or [])}
+        if "terminate" in names:
+            return "Tool guidance: Call terminate now."
         lines: list[str] = []
         if "str_replace" in names and "write_file" in names:
             lines.append(
@@ -803,8 +805,6 @@ class TinyCUATaskExecutorNode(ProcessNode):
             lines.append("Use search_files instead of run_shell grep for content search.")
         if "task_result_update" in names:
             lines.append("Your final action MUST call task_result_update with the outcome report.")
-        if "terminate" in names:
-            lines.append("Call terminate now.")
         if not lines:
             return ""
         return "Tool guidance: " + " ".join(lines)
