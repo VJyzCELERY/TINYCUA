@@ -940,9 +940,26 @@ class ValidationRetryMixin:
         node: Node,
         validation: ValidationResult,
     ) -> bool:
-        """Skip analyzer when assessor cannot select decomposition targets."""
+        """Preserve a valid assessor handoff; otherwise skip its analyzer."""
         if node.node_id != "task_assessor" or self.queue.current is not node:
             return False
+        handoff = next(
+            (
+                item
+                for item in self._pending_handoffs
+                if item.source_node == node.node_id
+                and item.target_node in (None, "task_analyzer")
+                and item.payload.get("decision") in {"analyze", "ready"}
+                and isinstance(item.payload.get("selected_task_ids"), list)
+            ),
+            None,
+        )
+        if handoff is not None:
+            self._record_node_content_transcript(
+                node,
+                "TaskAssessor handoff was recorded; preserving the paired analyzer.",
+            )
+            return True
         if len(self.queue.items) > 1 and self.queue.items[1].node_id == "task_analyzer":
             del self.queue.items[1]
         root_id = self.root_session.task_store.root_task_id

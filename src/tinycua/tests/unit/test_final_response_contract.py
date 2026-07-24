@@ -20,6 +20,7 @@ from tinycua.loops.task_nodes import TinyCUATaskAssessorNode
 from tinycua.loops.task_nodes import TinyCUATaskExecutorNode
 from tinycua.loops.task_create import TinyCUATaskCreateNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
+from tinycua.models.node_handoff import NodeHandoff
 from tinycua.models.task import ReviewerDecision, TaskResult, TaskStatus
 
 
@@ -1285,6 +1286,47 @@ def test_task_assessor_validation_failure_skips_analyzer_gate() -> None:
     ]
 
 
+def test_task_assessor_validation_failure_preserves_analyzer_after_handoff() -> None:
+    """An assessor handoff must reach its paired analyzer despite a later failure."""
+    assessor = TinyCUATaskAssessorNode(
+        node_id="task_assessor",
+        config=create_node_config("task_assessor"),
+    )
+    analyzer = TinyCUATaskAnalyzerNode(
+        node_id="task_analyzer",
+        config=create_node_config("task_analyzer"),
+    )
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    response = ResponseNode()
+    loop = TinyCUALoop(queue=NodeQueue(items=[assessor, analyzer, executor, response]))
+    root = loop.root_session.task_store.create_task("Root")
+    task = loop.root_session.task_store.create_task("Unfinished", parent_id=root.task_id)
+    loop._pending_handoffs.append(
+        NodeHandoff(
+            source_node="task_assessor",
+            target_node="task_analyzer",
+            instruction="Analyze the selected task.",
+            payload={"decision": "analyze", "selected_task_ids": [task.task_id]},
+        )
+    )
+
+    recovered = loop._recover_task_assessor_validation_failure(
+        assessor,
+        ValidationResult(is_valid=False, errors=["task_assessor must terminate after commit"]),
+    )
+
+    assert recovered is True
+    assert [node.node_id for node in loop.queue.items] == [
+        "task_assessor",
+        "task_analyzer",
+        "task_executor",
+        "response",
+    ]
+
+
 def test_optional_task_analyzer_validation_failure_skips_pass() -> None:
     """Analyzer prose-only failure after a task tree exists should not block execution."""
     analyzer = TinyCUATaskAnalyzerNode(
@@ -1315,7 +1357,7 @@ def test_optional_task_analyzer_validation_failure_skips_pass() -> None:
 
 
 def test_task_executor_scopes_result_update_to_commit_phase() -> None:
-    """Executor action work cannot be displaced by its commit prerequisite."""
+    """Executor commit phase retains action tools alongside its prerequisite."""
     executor = TinyCUATaskExecutorNode(
         node_id="task_executor",
         config=create_node_config("task_executor"),
@@ -1324,4 +1366,7 @@ def test_task_executor_scopes_result_update_to_commit_phase() -> None:
     tools = [Tool(name="write_file"), Tool(name="task_result_update"), Tool(name="terminate")]
 
     assert [tool.name for tool in loop._phase_tools(executor, tools, LifecyclePhase.ACTION)] == ["write_file"]
-    assert [tool.name for tool in loop._phase_tools(executor, tools, LifecyclePhase.COMMIT)] == ["task_result_update"]
+    assert [tool.name for tool in loop._phase_tools(executor, tools, LifecyclePhase.COMMIT)] == [
+        "write_file",
+        "task_result_update",
+    ]
