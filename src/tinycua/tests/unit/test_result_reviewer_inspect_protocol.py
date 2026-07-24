@@ -1,4 +1,4 @@
-"""Regression: ResultReviewer decide-then-inspect protocol.
+"""Regression: ResultReviewer decision protocol.
 
 The old must-inspect-BEFORE-decision rule rolled back approvals when the
 reviewer decided without first calling task_inspect. The rollback reverted
@@ -6,15 +6,15 @@ reviewer decided without first calling task_inspect. The rollback reverted
 ``schedule_after_review`` re-scheduled the executor for the same task forever
 (seen in experiment-1/logs/stdout.log).
 
-The new protocol: record the decision first (task_review_decision), then call
-task_inspect in the same response to review remaining work. A missing inspect
-triggers a retry but NEVER rolls back the decision.
+The current protocol records the decision without rolling it back or asking
+the reviewer to curate unrelated roadmap tasks.
 """
 
 from __future__ import annotations
 
 from tinycua.config.node_config import create_node_config
 from tinycua.config.types import LLMResult, ValidationError
+from tinycua.loops.node_contract import LifecyclePhase, get_node_contract
 from tinycua.loops.task_nodes import TinyCUAResultReviewerNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.task import ReviewerDecision, TaskResult, TaskStatus
@@ -70,6 +70,24 @@ def test_approval_without_inspect_is_accepted() -> None:
     assert first.status == TaskStatus.COMPLETED
     assert first.reviewer_decisions  # approval still on the audit trail
     assert store.active_task_id == second.task_id  # active advanced, not reset
+
+
+def test_reviewer_prompt_does_not_assign_unfinished_task_curation() -> None:
+    """Sibling tasks are context, never additional reviewer assignments."""
+    loop = TinyCUALoop()
+    store = loop.root_session.task_store
+    root = store.create_task("Root")
+    first = store.create_task("First", parent_id=root.task_id)
+    store.create_task("Second", parent_id=root.task_id)
+    store.record_result(first.task_id, TaskResult(content="done", success=True))
+    node = _reviewer_node(loop.root_session)
+
+    prompt = node._reviewer_context_blocks(first, loop.root_session)
+    contract = get_node_contract("result_reviewer")
+
+    assert "unfinished tasks" not in prompt.lower()
+    assert "curate" not in contract.success_criteria.lower()
+    assert "task_inspect" not in contract.success_criteria
 
 
 def test_approval_with_inspect_in_same_batch_is_valid() -> None:
@@ -142,7 +160,7 @@ def test_result_reviewer_can_terminate_after_decide_and_inspect() -> None:
 
 
 def test_result_reviewer_retry_exposes_terminate_without_hiding_update() -> None:
-    """Ready reviewer retry can curate unfinished tasks, then terminate."""
+    """Tool availability stays unchanged while the prompt directs termination."""
     loop = TinyCUALoop()
     node = _reviewer_node(loop.root_session)
     retry_tools = loop._tools_for_retry_attempt(
@@ -158,9 +176,10 @@ def test_result_reviewer_retry_exposes_terminate_without_hiding_update() -> None
 
 
 def test_result_reviewer_terminate_retry_explains_handoff() -> None:
-    """Terminate retry should explain handoff, not imply forced immediate stop."""
+    """Terminate retry should direct immediate return to the runtime."""
     loop = TinyCUALoop()
     node = _reviewer_node(loop.root_session)
+    node.progress.lifecycle_phase = LifecyclePhase.TERMINATE
     message = loop._retry_message_for_validation(
         ValidationError(
             "result_reviewer completed its required work; optionally curate "
@@ -171,9 +190,9 @@ def test_result_reviewer_terminate_retry_explains_handoff() -> None:
         LLMResult(),
     )
 
-    assert "call terminate" in message
-    assert "advance" in message
-    assert "optional" in message.lower()
+    assert "Call terminate now" in message
+    assert "curate" not in message.lower()
+    assert "optional" not in message.lower()
 
 
 def test_worker_lifecycle_node_cannot_terminate_before_required_tool() -> None:
@@ -259,7 +278,8 @@ def test_reviewer_no_failure_note_below_threshold() -> None:
 
 if __name__ == "__main__":
     # ponytail: self-check — run the contracts directly.
-    test_approval_without_inspect_is_not_rolled_back()
+    test_approval_without_inspect_is_accepted()
+    test_reviewer_prompt_does_not_assign_unfinished_task_curation()
     test_approval_with_inspect_in_same_batch_is_valid()
     test_result_reviewer_can_terminate_after_decide_and_inspect()
     test_result_reviewer_retry_exposes_terminate_without_hiding_update()
