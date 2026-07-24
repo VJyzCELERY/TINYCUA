@@ -422,11 +422,19 @@ class OrchestrationMixin:
         self._coerce_structured_tool_calls(llm_result, resolved_tools)
         self._coerce_terminate_only_response(resolved_tools, llm_result)
         collected_tool_calls = llm_result.tool_calls
-        tool_results = await self._execute_tool_calls(
-            agent,
-            collected_tool_calls,
-            resolved_tools,
-        )
+        if node.contract.requires_terminate:
+            for tool_call in collected_tool_calls:
+                function = tool_call.get("function") or {}
+                name = function.get("name") or tool_call.get("name")
+                if name:
+                    node.progress.mark_tool_called(str(name))
+        tool_results: list[dict[str, Any]] = []
+        if not node.contract.requires_terminate:
+            tool_results = await self._execute_tool_calls(
+                agent,
+                collected_tool_calls,
+                resolved_tools,
+            )
         if tool_results:
             llm_result.metadata["tool_results"] = tool_results
             self._track_tool_calls_in_progress(node, tool_results)
@@ -556,6 +564,19 @@ class OrchestrationMixin:
                 node = self.queue.current
                 if node is None:
                     break
+                store = self.root_session.task_store
+                if (
+                    node.node_id == "response"
+                    and store.root_task_id is not None
+                    and not store.all_done()
+                ):
+                    self.queue.items.pop(0)
+                    from tinycua.loops.worker_runtime import WorkerRuntimeController
+
+                    WorkerRuntimeController(store, session=self.root_session).schedule_next(
+                        self.queue
+                    )
+                    continue
                 async for event in node.stream(
                     node_context,
                     self.queue.input_for_current(),

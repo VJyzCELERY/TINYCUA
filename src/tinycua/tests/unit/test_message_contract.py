@@ -299,8 +299,8 @@ def test_terminate_phase_hides_terminate_without_executor_commit() -> None:
     assert [tool.name for tool in tools] == ["task_result_update"]
 
 
-def test_executor_action_phase_keeps_actions_until_result_update() -> None:
-    """Executor can continue work after an inspection without exposing terminate."""
+def test_executor_action_phase_hides_result_update() -> None:
+    """Executor action tools stay focused until the action phase completes."""
     loop = TinyCUALoop()
     node = TinyCUATaskExecutorNode(
         node_id="task_executor",
@@ -313,7 +313,7 @@ def test_executor_action_phase_keeps_actions_until_result_update() -> None:
         LifecyclePhase.ACTION,
     )
 
-    assert [tool.name for tool in tools] == ["read_file", "write_file", "task_result_update"]
+    assert [tool.name for tool in tools] == ["read_file", "write_file"]
     assert not TinyCUALoop._advance_lifecycle_phase(
         node,
         LLMResult(metadata={"tool_results": [{"name": "read_file", "output": {"success": True}}]}),

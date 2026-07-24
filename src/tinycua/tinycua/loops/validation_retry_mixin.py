@@ -583,6 +583,8 @@ class ValidationRetryMixin:
             return validation
         tool_results = self._tool_results_from_llm_result(llm_result)
         if node.progress.lifecycle_phase.value == "terminate":
+            if "terminate" in node.progress.satisfied_requirements:
+                return validation
             if any(
                 item.get("name") == "terminate"
                 and isinstance(item.get("output"), dict)
@@ -692,6 +694,13 @@ class ValidationRetryMixin:
         validation = ValidationResult(is_valid=True, errors=[])
         if node.node_id != "response":
             return validation
+        store = self.root_session.task_store
+        if store.root_task_id is not None and not store.all_done():
+            validation.is_valid = False
+            validation.errors.append(
+                "Final response cannot run until every task is completed."
+            )
+            return validation
         content = llm_result.content.strip()
         if not content:
             # ponytail: when the Response node called tools successfully but
@@ -747,7 +756,6 @@ class ValidationRetryMixin:
                 "Final response must summarize the outcome, not replay internal "
                 "node prompts, task review text, or aggregation JSON."
             )
-        store = self.root_session.task_store
         if store.root_task_id is not None and store.all_done():
             clarification_markers = (
                 "I need clarification",
@@ -761,17 +769,6 @@ class ValidationRetryMixin:
                     "Final response must summarize completed task outcome, not ask "
                     "for clarification after all tasks are complete."
                 )
-        if (
-            store.root_task_id is not None
-            and not store.all_done()
-            and not node.config.metadata.get("replan_budget_exhausted")
-        ):
-            validation.is_valid = False
-            validation.errors.append(
-                "Final response cannot synthesize success before every task in "
-                "the worker roadmap is actually completed. Failed tasks must "
-                "be retried or locally replanned before terminal response."
-            )
         return validation
 
     def _can_stop_after_tool_batch(
@@ -819,7 +816,7 @@ class ValidationRetryMixin:
         if node.node_id != "task_executor":
             return validation
         tool_results = self._tool_results_from_llm_result(llm_result)
-        if not tool_results:
+        if not tool_results and not node.progress.satisfied_requirements:
             validation.is_valid = False
             validation.errors.append(
                 "TaskExecutor must use tools to execute, inspect, verify, record a "
@@ -832,7 +829,10 @@ class ValidationRetryMixin:
             if item.get("name") == "task_result_update"
             and isinstance(item.get("output"), dict)
         ]
-        if not result_update_calls:
+        if (
+            not result_update_calls
+            and "task_result_update" not in node.progress.satisfied_requirements
+        ):
             validation.is_valid = False
             validation.errors.append(
                 "TaskExecutor must call task_result_update with an outcome report "
