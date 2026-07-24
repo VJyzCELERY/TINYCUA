@@ -206,8 +206,8 @@ def test_executor_retry_keeps_all_tools_after_inspection() -> None:
     }
 
 
-def test_executor_result_update_is_available_during_action_phase() -> None:
-    """Executor can stage its result directly from the action phase."""
+def test_executor_result_update_is_hidden_during_action_phase() -> None:
+    """Executor stages its result only after the action phase completes."""
     loop = TinyCUALoop()
     executor = TinyCUATaskExecutorNode(
         node_id="task_executor",
@@ -224,7 +224,7 @@ def test_executor_result_update_is_available_during_action_phase() -> None:
     )
 
     assert executor.progress.lifecycle_phase is LifecyclePhase.ACTION
-    assert [tool.name for tool in scoped] == ["read_file", "task_result_update"]
+    assert [tool.name for tool in scoped] == ["read_file"]
 
 
 def test_response_validation_rejects_internal_transcript_replay() -> None:
@@ -810,7 +810,15 @@ async def test_streamed_termination_does_not_restart_completed_lifecycle_node() 
         nonlocal calls
         del args, kwargs
         calls += 1
-        assert calls == 1, "completed lifecycle node was redispatched"
+        if calls == 1:
+            yield {
+                "type": "tool_call.ready",
+                "id": "terminate",
+                "name": "terminate",
+                "arguments": "{}",
+            }
+            return
+        assert calls == 2, "completed lifecycle node was redispatched"
         yield {"type": "response.completed", "finish_reason": "completed"}
 
     agent._call_llm = mock_stream
@@ -918,7 +926,7 @@ async def test_run_sync_consumes_canonical_stream_runtime():
     result = await loop._run_sync(MagicMock(), [], None)
 
     assert result == "final"
-    assert calls == 1
+    assert calls == 2
 
 
 async def test_stream_true_emits_nonterminal_token_deltas():

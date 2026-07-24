@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 import pytest
 
 from tinycua.config.node_config import create_node_config
 from tinycua.config.session_config import SessionConfig
-from tinycua.config.types import LLMResult, ValidationResult
+from tinycua.config.types import LLMResult, Tool, ValidationResult
 from tinycua.config.node_config import NodeConfigBase
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.node_contract import LifecyclePhase
@@ -87,10 +88,13 @@ class NonterminalFailureThenResponseAgent:
         self._task_create_calls = 0
 
     async def _call_llm(self, messages, tools, stream: bool = False):  # noqa: ANN001, ARG002
-        system_text = "\n".join(
-            str(message.get("content", ""))
-            for message in messages
-            if message.get("role") == "system"
+        system_text = next(
+            (
+                str(message.get("content", ""))
+                for message in reversed(messages)
+                if message.get("role") == "system"
+            ),
+            "",
         )
         if "Generate the final user-facing response" in system_text:
             return {
@@ -176,10 +180,34 @@ class ExecutorResultThenReviewerAgent:
     def __init__(self) -> None:
         self.executor_calls = 0
         self.reviewer_calls = 0
+        self.instructions = ""
+        self.skills = []
+        self.is_cancelled = False
+        self.policy = SimpleNamespace(max_tool_calls=100)
         self.tool_permissions = {}
         self.approval_workflow = None
 
     async def _call_llm(self, messages, tools, stream: bool = False):  # noqa: ANN001, ARG002
+        response = await self._response(messages, tools)
+        if not stream:
+            return response
+
+        async def events():
+            for call in response.get("tool_calls", []):
+                function = call["function"]
+                yield {
+                    "type": "tool_call.ready",
+                    "id": call.get("id", function["name"]),
+                    "name": function["name"],
+                    "arguments": function["arguments"],
+                }
+            if response.get("content"):
+                yield {"type": "response.output_text.delta", "delta": response["content"]}
+            yield {"type": "response.completed", "finish_reason": "completed"}
+
+        return events()
+
+    async def _response(self, messages, tools):  # noqa: ANN001, ARG002
         system_text = "\n".join(
             str(message.get("content", ""))
             for message in messages
@@ -561,8 +589,8 @@ def test_reviewer_approval_without_result_is_rejected() -> None:
     assert task.reviewer_decisions == []
 
 
-def test_exhausted_replan_response_allows_failure_summary() -> None:
-    """Only the explicit exhausted-budget route may answer before completion."""
+def test_exhausted_replan_response_is_rejected_before_completion() -> None:
+    """Replan exhaustion never permits an incomplete response."""
     loop = TinyCUALoop()
     loop.root_session.task_store.create_task("unfinished worker task")
     config = create_node_config("response")
@@ -573,7 +601,7 @@ def test_exhausted_replan_response_allows_failure_summary() -> None:
         LLMResult(content="The task failed after its replan budget was exhausted."),
     )
 
-    assert validation.is_valid is True
+    assert validation.is_valid is False
 
 
 def test_invalid_reviewer_approval_rolls_back_completed_parent() -> None:
@@ -1286,32 +1314,14 @@ def test_optional_task_analyzer_validation_failure_skips_pass() -> None:
     ]
 
 
-@pytest.mark.asyncio
-async def test_task_executor_stops_after_successful_result_update() -> None:
-    """Evidence-backed result update and termination advance to reviewer."""
+def test_task_executor_scopes_result_update_to_commit_phase() -> None:
+    """Executor action work cannot be displaced by its commit prerequisite."""
     executor = TinyCUATaskExecutorNode(
         node_id="task_executor",
         config=create_node_config("task_executor"),
     )
-    reviewer = TinyCUAResultReviewerNode(
-        node_id="result_reviewer",
-        config=create_node_config("result_reviewer"),
-    )
-    response = ResponseNode()
-    loop = TinyCUALoop(queue=NodeQueue(items=[executor, reviewer, response]))
-    loop.root_session.task_store.create_task("write dependency file")
-    agent = ExecutorResultThenReviewerAgent()
+    loop = TinyCUALoop()
+    tools = [Tool(name="write_file"), Tool(name="task_result_update"), Tool(name="terminate")]
 
-    result = await loop.run(
-        agent,
-        messages=[{"role": "user", "content": "create requirements"}],
-        tools=[],
-    )
-
-    assert agent.executor_calls == 3
-    assert agent.reviewer_calls == 3
-    assert result == "Final success summary."
-    transcript = loop.get_transcript_text(include_node_calls=True)
-    assert "[TaskExecutor] LLM input" in transcript
-    assert "[ResultReviewer] LLM input" in transcript
-    assert "[Response] LLM input" in transcript
+    assert [tool.name for tool in loop._phase_tools(executor, tools, LifecyclePhase.ACTION)] == ["write_file"]
+    assert [tool.name for tool in loop._phase_tools(executor, tools, LifecyclePhase.COMMIT)] == ["task_result_update"]

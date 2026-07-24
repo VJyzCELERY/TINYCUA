@@ -23,6 +23,7 @@ from tinycua.config.types import LLMResult, ValidationResult
 from tinycua.loops._loop_constants import (
     _MAX_PROVIDER_RETRIES,
     _MAX_TOOL_CONTINUATIONS,
+    _UNBOUNDED_RETRY_ATTEMPTS,
 )
 from tinycua.loops.context_rendering import render_llm_content, sanitize_internal_reprs
 from tinycua.loops.lazy_retry_mixin import LazyRetryMixin
@@ -49,6 +50,7 @@ if TYPE_CHECKING:
     from tinycua.loops.node import Node
 
 logger = logging.getLogger(__name__)
+
 
 # ponytail: per-tool rate-limit gate for shared backends. SearXNG's
 # general-web engines (brave, google, startpage, duckduckgo) suspend under
@@ -1505,13 +1507,18 @@ class TinyCUALoop(
         # ponytail: LM Studio can ignore forced single-tool calls while streaming;
         # terminate has no user-visible text, so use non-stream for that retry.
         stream = [tool.name for tool in resolved_tools] != ["terminate"]
-        stream_result = await self._call_agent_llm(
-            agent,
-            node,
-            messages,
-            resolved_tools,
-            stream=stream,
-        )
+        if node.contract.requires_terminate:
+            stream_result = await BaseLoop(max_iterations=_UNBOUNDED_RETRY_ATTEMPTS).run(
+                agent, messages, resolved_tools, stream=True
+            )
+        else:
+            stream_result = await self._call_agent_llm(
+                agent,
+                node,
+                messages,
+                resolved_tools,
+                stream=stream,
+            )
         _rep_check_interval = 20   # check every N deltas (avoid per-delta cost)
         _rep_min_block = 50        # min substring length to consider a repeat
         _rep_threshold = 3         # N occurrences of the same substring → cut
