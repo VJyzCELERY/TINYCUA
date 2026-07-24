@@ -262,3 +262,47 @@ def test_helper_scripts_wrap_setup_and_runner() -> None:
     assert "run_experiment.py" in run
     assert "--num" in run
     assert "--prompt" in run
+
+
+def test_semantic_judge_profile_exists_and_documents_qualitative_role() -> None:
+    """The semantic judge profile exists with the expected files and role."""
+    profile_dir = ROOT / "judge" / "profiles" / "semantic"
+    assert (profile_dir / "SOUL.md").is_file()
+    assert (profile_dir / "config.yaml").is_file()
+    assert (profile_dir / "profile.yaml").is_file()
+    soul = (profile_dir / "SOUL.md").read_text().lower()
+    # Illustrative category types guide the judge without fixing a menu.
+    for marker in ("qualitative", "category", "strength", "weakness"):
+        assert marker in soul
+
+
+def test_judge_py_exposes_semantic_mode_and_legacy_unchanged() -> None:
+    """judge.py defines semantic helpers and keeps legacy --num mode."""
+    import inspect
+
+    from judge import (
+        build_cross_judge_prompt,
+        build_judge_prompt,
+        build_semantic_judge_prompt,
+        discover_submissions,
+        semantic_judge_fixture,
+    )
+
+    # Legacy helpers keep their signatures.
+    assert "task_prompt" in inspect.signature(build_judge_prompt).parameters
+    assert "submissions" in inspect.signature(build_cross_judge_prompt).parameters
+    # New semantic helpers are callable with the documented parameters.
+    assert "submissions" in inspect.signature(build_semantic_judge_prompt).parameters
+    assert "fixture_name" in inspect.signature(discover_submissions).parameters
+    assert "output_root" in inspect.signature(discover_submissions).parameters
+    assert "fixture_name" in inspect.signature(semantic_judge_fixture).parameters
+
+    judge_src = (ROOT / "judge.py").read_text()
+    assert "--fixture" in judge_src
+    assert "--num" in judge_src
+    # Legacy prose rubric still in judge/profiles/judge/SOUL.md.
+    legacy_soul = (
+        ROOT / "judge" / "profiles" / "judge" / "SOUL.md"
+    ).read_text()
+    assert "Task Completion" in legacy_soul
+    assert "Correctness" in legacy_soul
