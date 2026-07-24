@@ -24,8 +24,8 @@ from tinycua.models.task import (
 from tinycua.tools.enhanced_context_retrieval import EnhancedContextRetrievalTool
 
 
-def test_enhanced_context_retrieval_creates_workspace_cache_file(tmp_path: Path) -> None:
-    """Context retrieval owns a scoped cache file under the bound workspace."""
+def test_enhanced_context_retrieval_hides_system_cache_file(tmp_path: Path) -> None:
+    """Context retrieval keeps its cache outside the workspace and tool output."""
     tool = EnhancedContextRetrievalTool()
     tool.bind_workspace(tmp_path)
 
@@ -38,11 +38,22 @@ def test_enhanced_context_retrieval_creates_workspace_cache_file(tmp_path: Path)
         page_size=1,
     )
 
-    cache_path = Path(result["cache_path"])
+    cache_path = Path(next(iter(tool._cache.values()))["cache_path"])
     assert cache_path.exists()
-    assert cache_path.is_relative_to(tmp_path)
+    assert not cache_path.is_relative_to(tmp_path)
+    assert "cache_path" not in result
     assert result["results"][0]["matched_terms"] == ["migration"]
     assert result["page"]["total_results"] >= 1
+
+    cache_path.write_text('[{"role":"user","content":"on-disk evidence"}]')
+    on_disk = tool(
+        session_context=[
+            {"role": "user", "content": "alpha migration plan"},
+            {"role": "assistant", "content": "beta execution notes"},
+        ],
+        query="evidence",
+    )
+    assert on_disk["results"][0]["snippet"] == "on-disk evidence"
 
 
 def test_response_node_can_suspend_for_information_digestion() -> None:
