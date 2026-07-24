@@ -2,21 +2,12 @@
 
 from __future__ import annotations
 
-import json
-import os
-import tempfile
-from typing import Any
-from unittest.mock import MagicMock
-
-import pytest
-
 from tinycua.config.node_config import create_node_config
-from tinycua.config.types import LLMResult, ValidationResult
+from tinycua.config.types import LLMResult
 from tinycua.loops.node_queue import NodeQueue
-from tinycua.loops.task_nodes import TinyCUAResultReviewerNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.loops.worker_runtime import WorkerRuntimeController
-from tinycua.models.task import ReviewerDecision, TaskResult, TaskStateStore, TaskStatus
+from tinycua.models.task import ReviewerDecision, TaskResult, TaskStateStore
 
 
 class TestStateDrivenQueue:
@@ -26,7 +17,7 @@ class TestStateDrivenQueue:
         """Task with no result → [executor, reviewer]."""
         store = TaskStateStore()
         root = store.create_task("Root")
-        child = store.create_task("Child", parent_id=root.task_id)
+        store.create_task("Child", parent_id=root.task_id)
         queue = NodeQueue()
         WorkerRuntimeController(store).schedule_next(queue)
         ids = [n.node_id for n in queue.items]
@@ -99,28 +90,28 @@ class TestStateDrivenQueue:
 class TestReviewerTestingGuidance:
     """FR-070: reviewer instruction tells the model to test the result."""
 
-    def test_instruction_says_test_the_result(self):
+    def test_instruction_uses_active_acceptance_criteria(self):
         from tinycua.loops.node_guidance import _RESULT_REVIEWER_INSTRUCTION
-        assert "test the result" in _RESULT_REVIEWER_INSTRUCTION.lower()
+        lowered = _RESULT_REVIEWER_INSTRUCTION.lower()
+        assert "active task" in lowered
+        assert "acceptance criteria" in lowered
 
     def test_instruction_allows_re_running_code(self):
         from tinycua.loops.node_guidance import _RESULT_REVIEWER_INSTRUCTION
         assert "verification" in _RESULT_REVIEWER_INSTRUCTION.lower()
         assert "re-execution" in _RESULT_REVIEWER_INSTRUCTION.lower()
 
-    def test_instruction_mentions_sibling_propagation(self):
+    def test_instruction_does_not_decide_sibling_tasks(self):
         from tinycua.loops.node_guidance import _RESULT_REVIEWER_INSTRUCTION
-        assert "sibling" in _RESULT_REVIEWER_INSTRUCTION.lower()
-        assert "satisfies sibling tasks" in _RESULT_REVIEWER_INSTRUCTION.lower()
+        assert "only the active task" in _RESULT_REVIEWER_INSTRUCTION.lower()
+        assert "satisfies sibling tasks" not in _RESULT_REVIEWER_INSTRUCTION.lower()
 
-    def test_continuation_mentions_python_import_check(self):
+    def test_continuation_chooses_checks_from_acceptance_criteria(self):
         from tinycua.loops.node_guidance import _RESULT_REVIEWER_CONTINUATION
-        assert "python -c" in _RESULT_REVIEWER_CONTINUATION.lower()
-
-    def test_continuation_mentions_tab_corruption_check(self):
-        from tinycua.loops.node_guidance import _RESULT_REVIEWER_CONTINUATION
-        assert "grep" in _RESULT_REVIEWER_CONTINUATION.lower()
-        assert "tab" in _RESULT_REVIEWER_CONTINUATION.lower()
+        lowered = _RESULT_REVIEWER_CONTINUATION.lower()
+        assert "acceptance criteria" in lowered
+        assert "appropriate" in lowered
+        assert "python -c" not in lowered
 
     def test_tool_guidance_says_testf_not_sufficient(self):
         from tinycua.loops.node_guidance import build_reviewer_tool_guidance
@@ -129,8 +120,8 @@ class TestReviewerTestingGuidance:
                 self.name = name
         tools = [_FakeTool("read_file"), _FakeTool("run_shell"), _FakeTool("task_review_decision")]
         guidance = build_reviewer_tool_guidance(tools)
-        assert "not sufficient" in guidance.lower()
-        assert "actually works" in guidance.lower() or "functional" in guidance.lower()
+        assert "existence alone" in guidance.lower()
+        assert "actually works" in guidance.lower()
 
 
 class TestTaskResultUpdateClarity:
@@ -143,7 +134,6 @@ class TestTaskResultUpdateClarity:
         assert "success=false" in tool.description.lower()
 
     def test_retry_message_mentions_success_true(self):
-        from tinycua.loops.validation_retry_mixin import ValidationRetryMixin
         from tinycua.loops.task_nodes import TinyCUATaskExecutorNode
         loop = TinyCUALoop()
         node = TinyCUATaskExecutorNode(
@@ -163,11 +153,6 @@ class TestFetchUrlEmptyBody:
 
     def test_empty_html_body_returns_failure(self):
         """Empty HTML body → success=false with diagnostic error."""
-        try:
-            import httpx
-            from pytest_httpx import HTTPXMock
-        except ImportError:
-            pytest.skip("httpx not available")
         # We test _process_response directly to avoid network calls.
         from tinycua.agent.tools.native.web import _process_response
 

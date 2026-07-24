@@ -35,8 +35,9 @@ class SimpleCompaction(CompactionStrategy):
 
     _COMPACTION_SYSTEM_PROMPT = (
         "You are a context compaction agent. Summarize the following content "
-        "concisely, preserving all key facts, findings, model names, benchmark "
-        "scores, and actionable conclusions. Do not add new information. "
+        "concisely, preserving task-relevant facts, constraints, identifiers, "
+        "decisions, evidence, unresolved issues, and actionable conclusions. "
+        "Do not add new information. "
         "Output only the summary — no preamble, no meta-commentary."
     )
 
