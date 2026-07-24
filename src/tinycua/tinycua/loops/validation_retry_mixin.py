@@ -55,7 +55,7 @@ class ValidationRetryMixin:
                 "success=true when complete or success=false when failed or blocked."
             )
         if "terminate" in str(error):
-            return self._lifecycle_phase_directive(node)
+            return self._lifecycle_phase_directive(node, resolved_tools)
         return self._natural_retry_message(error, node, resolved_tools)
 
     def _messages_with_retry_prompt(

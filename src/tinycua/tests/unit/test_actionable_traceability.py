@@ -441,7 +441,8 @@ async def test_task_executor_validates_tool_owned_result_update(tmp_path: Path) 
         str(message.get("content", "")) for message in captured_message_batches[2]
     )
     assert "ACTION is complete" in commit_prompt
-    assert "Do not repeat action work or start another task" in commit_prompt
+    assert "`task_result_update` exactly once" in commit_prompt
+    assert "Do not repeat ACTION work or begin another assignment" in commit_prompt
     assert [item["name"] for item in result.metadata["tool_results"]] == [
         "write_file",
         "task_result_update",

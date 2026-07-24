@@ -557,14 +557,38 @@ class TinyCUALoop(
         return False
 
     @staticmethod
-    def _lifecycle_phase_directive(node: Node) -> str:
+    def _lifecycle_phase_directive(
+        node: Node,
+        resolved_tools: list[Tool] | None = None,
+    ) -> str:
         """Return explicit guidance for the node's newly entered phase."""
         if node.progress.lifecycle_phase == LifecyclePhase.COMMIT:
+            if resolved_tools is None:
+                names = set(node.contract.required_tools)
+                for group in node.contract.any_of_tools:
+                    names.update(group)
+            else:
+                names = phase_tool_names(
+                    node.node_id,
+                    {tool.name for tool in resolved_tools},
+                    LifecyclePhase.COMMIT,
+                )
+            formatted = ", ".join(f"`{name}`" for name in sorted(names))
+            if len(names) == 1:
+                instruction = f"{formatted} exactly once"
+            elif names:
+                instruction = f"exactly one appropriate tool from: {formatted}"
+            else:
+                instruction = "the required commit tool exactly once"
             summary = node.progress.action_summary.strip()
             evidence = f" ACTION summary: {summary}" if summary else ""
             return (
-                "ACTION is complete. Prepare the required commit for this same "
-                "assignment. Do not repeat action work or start another task."
+                "COMMIT PHASE — ACTION is complete. "
+                f"Call {instruction} to commit the outcome for the current assignment. "
+                "Do not repeat ACTION work or begin another assignment. "
+                "A successful tool response means the commit was accepted, even if "
+                "downstream state has not yet advanced. After the required commit "
+                "succeeds, make no further tool calls and stop."
                 f"{evidence}"
             )
         if node.progress.lifecycle_phase == LifecyclePhase.TERMINATE:
@@ -588,6 +612,7 @@ class TinyCUALoop(
         messages: list[dict[str, Any]],
         node: Node,
         previous_phase: LifecyclePhase,
+        resolved_tools: list[Tool] | None = None,
     ) -> None:
         """Append phase guidance only when a lifecycle transition occurred."""
         if node.progress.lifecycle_phase == previous_phase:
@@ -595,7 +620,9 @@ class TinyCUALoop(
         messages.append(
             {
                 "role": "user",
-                "content": f"[System: {self._lifecycle_phase_directive(node)}]",
+                "content": (
+                    f"[System: {self._lifecycle_phase_directive(node, resolved_tools)}]"
+                ),
             }
         )
 
@@ -1273,7 +1300,7 @@ class TinyCUALoop(
                 attempt_messages.append(assistant_msg)
                 self._append_tool_result_messages(attempt_messages, tool_results, normalized_tool_calls)
                 self._append_lifecycle_phase_directive(
-                    attempt_messages, node, phase_before
+                    attempt_messages, node, phase_before, attempt_tools
                 )
                 # Evict superseded file reads: when the model re-reads a file
                 # it just edited, the older reads are stale (the file changed).
@@ -1319,7 +1346,7 @@ class TinyCUALoop(
             )
             if self._advance_lifecycle_phase(node, last_result):
                 retry_tool_results = self._tool_results_from_llm_result(last_result)
-                retry_message = self._lifecycle_phase_directive(node)
+                retry_message = self._lifecycle_phase_directive(node, resolved_tools)
                 retry_feedback = self._tool_feedback_messages(last_result)
                 continue
             last_validation = self._validate_node_result(node, last_result)
@@ -1547,7 +1574,12 @@ class TinyCUALoop(
         # terminate has no user-visible text, so use non-stream for that retry.
         stream = [tool.name for tool in resolved_tools] != ["terminate"]
         if node.contract.requires_terminate:
-            stream_result = await BaseLoop(max_iterations=_UNBOUNDED_RETRY_ATTEMPTS).run(
+            max_iterations = (
+                1
+                if node.progress.lifecycle_phase == LifecyclePhase.COMMIT
+                else _UNBOUNDED_RETRY_ATTEMPTS
+            )
+            stream_result = await BaseLoop(max_iterations=max_iterations).run(
                 agent, messages, resolved_tools, stream=True
             )
         else:

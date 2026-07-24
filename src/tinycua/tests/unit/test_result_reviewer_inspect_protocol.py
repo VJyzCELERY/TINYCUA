@@ -181,12 +181,22 @@ def test_result_reviewer_commit_retry_preserves_action_summary() -> None:
     node = _reviewer_node(loop.root_session)
     node.progress.advance_lifecycle(LifecyclePhase.SUMMARY, "Verified tests passed.")
     node.progress.advance_lifecycle(LifecyclePhase.COMMIT)
+    commit_tools = loop._phase_tools(
+        node,
+        node.config.tool_policy.resolve_tools([]),
+        LifecyclePhase.COMMIT,
+    )
 
-    message = loop._lifecycle_phase_directive(node)
+    message = loop._lifecycle_phase_directive(node, commit_tools)
 
-    assert "ACTION is complete" in message
+    assert "COMMIT PHASE" in message
+    assert "`task_review_decision` exactly once" in message
     assert "Verified tests passed" in message
-    assert "Do not repeat action work" in message
+    assert "Do not repeat ACTION work" in message
+    assert "downstream state has not yet advanced" in message
+    assert "make no further tool calls" in message
+    assert "report.md" not in message
+    assert "in_progress" not in message
     assert "terminate" not in message
 
 
