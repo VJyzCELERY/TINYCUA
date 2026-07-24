@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import collections.abc
 
 import pytest
@@ -16,11 +17,14 @@ from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.loops.task_create import TinyCUATaskCreateNode
 from tinycua.loops.task_nodes import (
+    TinyCUAAnalysisEffortNode,
     TinyCUAResultReviewerNode,
+    TinyCUATaskAnalyzerNode,
     TinyCUATaskAssessorNode,
     TinyCUATaskExecutorNode,
 )
-from tinycua.models.task import ReviewerDecision, TaskResult
+from tinycua.models.task import TaskResult
+from tinycua.models.node_handoff import NodeHandoff
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.session import Session
 from tinycua_sdk import Agent, LanguageModel
@@ -225,6 +229,37 @@ def test_executor_result_update_is_hidden_during_action_phase() -> None:
 
     assert executor.progress.lifecycle_phase is LifecyclePhase.ACTION
     assert [tool.name for tool in scoped] == ["read_file"]
+
+
+def test_ready_assessor_handoff_skips_paired_analyzer() -> None:
+    """A ready assessment routes to the next effort pass without analysis."""
+    loop = TinyCUALoop()
+    assessor = TinyCUATaskAssessorNode(
+        node_id="task_assessor",
+        config=create_node_config("task_assessor"),
+    )
+    analyzer = TinyCUATaskAnalyzerNode(
+        node_id="task_analyzer",
+        config=create_node_config("task_analyzer"),
+    )
+    next_effort = TinyCUAAnalysisEffortNode(
+        node_id="analysis_effort",
+        config=create_node_config("analysis_effort"),
+    )
+    loop.queue = NodeQueue([assessor, analyzer, next_effort])
+
+    handoff = NodeHandoff(
+        source_node="task_assessor",
+        target_node="task_analyzer",
+        instruction="Assessment recorded.",
+        payload={"decision": "ready", "selected_task_ids": []},
+    )
+
+    assert loop._skip_ready_assessor_analyzer(assessor, handoff)
+    assert [node.node_id for node in loop.queue.items] == [
+        "task_assessor",
+        "analysis_effort",
+    ]
 
 
 def test_response_validation_rejects_internal_transcript_replay() -> None:
@@ -805,6 +840,9 @@ async def test_streamed_termination_does_not_restart_completed_lifecycle_node() 
     agent.instructions = "test"
     agent.skills = []
     agent.tool_permissions = {}
+    agent.is_cancelled = False
+    agent.policy = MagicMock(max_tool_calls=100)
+    agent._cancel_event = asyncio.Event()
 
     async def mock_stream(*args, **kwargs):
         nonlocal calls
@@ -821,7 +859,10 @@ async def test_streamed_termination_does_not_restart_completed_lifecycle_node() 
         assert calls == 2, "completed lifecycle node was redispatched"
         yield {"type": "response.completed", "finish_reason": "completed"}
 
-    agent._call_llm = mock_stream
+    async def mock_call(*args, **kwargs):
+        return mock_stream(*args, **kwargs)
+
+    agent._call_llm = mock_call
 
     async for _event in loop._stream_node_events(
         node,
@@ -832,64 +873,71 @@ async def test_streamed_termination_does_not_restart_completed_lifecycle_node() 
     ):
         pass
 
+    assert calls == 1
     assert node.node_id not in loop.root_session.node_progress
 
 
-async def test_streamed_termination_failure_returns_to_commit() -> None:
-    """A failed reviewer approval is replaced before a later termination."""
+async def test_commit_retries_until_reviewer_decision_is_staged() -> None:
+    """An empty commit turn retries before terminate is exposed."""
     reviewer = TinyCUAResultReviewerNode(
         node_id="result_reviewer",
         config=create_node_config("result_reviewer"),
     )
     loop = TinyCUALoop(queue=NodeQueue(items=[reviewer]))
     store = loop.root_session.task_store
-    root = store.create_task("Root", acceptance_clauses=["Behavior works"])
-    task = store.create_task(
-        "Implement behavior",
-        parent_id=root.task_id,
-        clause_ids=["acceptance-1"],
-    )
+    root = store.create_task("Root")
+    task = store.create_task("Work", parent_id=root.task_id)
     store.record_result(task.task_id, TaskResult(content="done", success=True))
-    store.stage_reviewer_decision(
-        task.task_id,
-        ReviewerDecision.APPROVED,
-        rationale="[validated]: initial review",
-    )
     reviewer.ensure_session(loop.root_session)
-    reviewer.progress.mark_tool_called("task_review_decision")
-    reviewer.progress.advance_lifecycle(LifecyclePhase.TERMINATE)
-    tool_scopes: list[list[str]] = []
+    reviewer.progress.advance_lifecycle(LifecyclePhase.COMMIT)
+    tool_sets: list[set[str]] = []
+    commit_calls = 0
+    terminate_after_staging = False
 
     agent = MagicMock()
     agent.instructions = "test"
     agent.skills = []
     agent.tool_permissions = {}
+    agent.is_cancelled = False
+    agent.policy = MagicMock(max_tool_calls=100)
+    agent._cancel_event = asyncio.Event()
 
     async def mock_stream(_messages, tools, *, stream=False):
+        nonlocal commit_calls, terminate_after_staging
         del stream
-        names = [tool.name for tool in tools]
-        tool_scopes.append(names)
-        assert len(tool_scopes) <= 3, tool_scopes
-        if names == ["terminate"]:
+        names = {tool.name for tool in tools}
+        tool_sets.append(names)
+        if "terminate" in names:
+            terminate_after_staging = bool(store._staged_reviewer_decisions)
             yield {
                 "type": "tool_call.ready",
-                "id": f"terminate-{len(tool_scopes)}",
+                "id": "terminate",
                 "name": "terminate",
                 "arguments": "{}",
             }
-        else:
-            assert names == ["task_review_decision"]
+            return
+        commit_calls += 1
+        if commit_calls == 1:
+            yield {"type": "response.completed", "finish_reason": "completed"}
+            return
+        if commit_calls == 2:
             yield {
                 "type": "tool_call.ready",
-                "id": "correct-decision",
+                "id": "review",
                 "name": "task_review_decision",
                 "arguments": (
-                    '{"decision":"needs_revision",'
-                    '"rationale":"[finding]: evidence missing"}'
+                    '{"task_id":"' + task.task_id + '",'
+                    '"decision":"needs_revision",'
+                    '"rationale":"[finding]: retry [validate]: rerun"}'
                 ),
             }
+            return
+        yield {"type": "response.completed", "finish_reason": "completed"}
 
-    agent._call_llm = mock_stream
+    async def mock_call(*args, **kwargs):
+        return mock_stream(*args, **kwargs)
+
+    agent._call_llm = mock_call
 
     async for _event in loop._stream_node_events(
         reviewer,
@@ -900,10 +948,9 @@ async def test_streamed_termination_failure_returns_to_commit() -> None:
     ):
         pass
 
-    assert tool_scopes == [["terminate"], ["task_review_decision"], ["terminate"]]
-    assert [decision["decision"] for decision in task.reviewer_decisions] == [
-        "needs_revision"
-    ]
+    assert commit_calls >= 2
+    assert all("terminate" not in names for names in tool_sets[:commit_calls])
+    assert terminate_after_staging
 
 
 async def test_run_sync_consumes_canonical_stream_runtime():
@@ -926,7 +973,7 @@ async def test_run_sync_consumes_canonical_stream_runtime():
     result = await loop._run_sync(MagicMock(), [], None)
 
     assert result == "final"
-    assert calls == 2
+    assert calls == 1
 
 
 async def test_stream_true_emits_nonterminal_token_deltas():
