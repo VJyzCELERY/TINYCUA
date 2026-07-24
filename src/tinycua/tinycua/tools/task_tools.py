@@ -48,17 +48,16 @@ class TerminateTool(Tool):
         """Record an explicit node termination request."""
         result: dict[str, Any] = {"success": True, "terminated": True}
         if self._source_node == "result_reviewer":
-            if not self._store._staged_reviewer_decisions:
+            active_id = self._store.active_task_id
+            if active_id is None or active_id not in self._store._staged_reviewer_decisions:
                 result = {
                     "success": False,
-                    "error": "No provisional reviewer decision is staged.",
+                    "error": "No provisional reviewer decision is staged for the active task.",
                 }
                 self.last_result = result
                 return result
             try:
-                task = self._store.commit_staged_reviewer_decision(
-                    next(reversed(self._store._staged_reviewer_decisions))
-                )
+                task = self._store.commit_staged_reviewer_decision(active_id)
             except ValueError as exc:
                 result = {"success": False, "error": str(exc)}
                 self.last_result = result
@@ -649,6 +648,7 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
 
     def __init__(self) -> None:
         SessionTaskToolMixin.__init__(self)
+        self._source_node = ""
         Tool.__init__(
             self,
             name="task_review_decision",
@@ -661,7 +661,6 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
             parameters={
                 "type": "object",
                 "properties": {
-                    "task_id": {"type": "string"},
                     "decision": {
                         "type": "string",
                         "enum": [
@@ -687,16 +686,20 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
             },
         )
 
+    def bind_source_node(self, node_id: str) -> None:
+        """Bind the node so reviewer ownership can be enforced."""
+        self._source_node = node_id
+
     def __call__(
         self,
         task_id: str | None = None,
         decision: str = "",
         rationale: str = "",
     ) -> dict[str, Any]:
-        """Persist a reviewer decision for the active or specified task.
+        """Persist a reviewer decision for the active task.
 
         Args:
-            task_id: Optional task reference (UUID or roadmap number).
+            task_id: Optional active-task reference for non-reviewer callers.
             decision: Required — one of approved, needs_revision, rejected,
                 replan. Must not be omitted (no default approve).
             rationale: Optional reason for the decision.
@@ -704,7 +707,18 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
         if not decision:
             return {"success": False, "error": "decision is required — cannot default to approved."}
         active_id: str | None
-        if task_id:
+        if self._source_node == "result_reviewer":
+            active_id = self._store.active_task_id
+            if active_id is None:
+                return {"success": False, "error": "No active task"}
+            if task_id and task_id != "active":
+                resolved = self._store.resolve_task_id(task_id)
+                if resolved != active_id:
+                    return {
+                        "success": False,
+                        "error": "ResultReviewer may decide only the active task.",
+                    }
+        elif task_id:
             active_id = self._store.active_task_id if task_id == "active" else self._store.resolve_task_id(task_id)
             if active_id is None:
                 return {"success": False, "error": f"Task {task_id} not found."}

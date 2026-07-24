@@ -75,8 +75,7 @@ _RESULT_REVIEWER_INSTRUCTION = (
     "Do not write a long explanation — call the tools. Sanity-check for "
     "common LLM messes: duplicate content (grep -c, sort | uniq -d), "
     "hallucinated claims, structural inconsistency. Every decision must cite "
-    "validation evidence in rationale. After reviewing the active task, check "
-    "whether its result also satisfies sibling tasks (same parent)."
+    "validation evidence in rationale. Review and decide only the active task."
 )
 _RESULT_REVIEWER_CONTINUATION = (
     "Test the result: run_shell (test -f, grep, pytest, python -c 'import "
@@ -85,8 +84,7 @@ _RESULT_REVIEWER_CONTINUATION = (
     "markdown with math, check for tab corruption AND unicode escape "
     "corruption: grep -cP '\\t' <the_file> and grep -cP '\\\\u[0-9a-fA-F]{4}' "
     "<the_file> (note: use -P and double-backslash so grep matches a literal "
-    "backslash-u, not the letter u). Then summarize the review conclusion and "
-    "any sibling coverage."
+    "backslash-u, not the letter u). Then summarize the active-task review conclusion."
 )
 
 

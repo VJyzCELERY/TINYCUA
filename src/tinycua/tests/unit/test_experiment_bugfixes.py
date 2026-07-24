@@ -41,13 +41,11 @@ class TestExecutorTaskOwnership:
         assert "report only the active task's outcome" in _TASK_EXECUTOR_INSTRUCTION.lower()
         assert "sibling" not in _TASK_EXECUTOR_INSTRUCTION.lower()
 
-    def test_reviewer_says_after_reviewing(self):
+    def test_reviewer_decides_only_the_active_task(self):
         from tinycua.loops.node_guidance import _RESULT_REVIEWER_INSTRUCTION
-        assert "after reviewing" in _RESULT_REVIEWER_INSTRUCTION.lower()
 
-    def test_reviewer_says_sibling_coverage_is_checked(self):
-        from tinycua.loops.node_guidance import _RESULT_REVIEWER_INSTRUCTION
-        assert "sibling" in _RESULT_REVIEWER_INSTRUCTION.lower()
+        assert "only the active task" in _RESULT_REVIEWER_INSTRUCTION.lower()
+        assert "sibling" not in _RESULT_REVIEWER_INSTRUCTION.lower()
 
 
 class TestReviewerTestGuidanceGeneric:
