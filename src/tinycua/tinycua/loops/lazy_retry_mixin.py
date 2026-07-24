@@ -67,6 +67,7 @@ class LazyRetryMixin:
         if node.node_id not in LAZY_TEMPLATES:
             return False
         accumulated_successful = set(node.progress.accumulated_tool_results.keys())
+        accumulated_successful |= node.progress.satisfied_requirements
         missing = self._missing_recovery_tools_from_set(node, accumulated_successful)
         if not missing:
             return False

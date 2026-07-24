@@ -895,7 +895,7 @@ def test_task_executor_result_update_satisfies_lifecycle_contract() -> None:
 
 
 def test_task_executor_result_update_without_action_evidence_is_valid() -> None:
-    """A staged executor result, not performed work, satisfies orchestration."""
+    """A committed executor report, not performed work, satisfies orchestration."""
     loop = TinyCUALoop()
     executor = TinyCUATaskExecutorNode(
         node_id="task_executor",

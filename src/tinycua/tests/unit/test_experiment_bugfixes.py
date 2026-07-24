@@ -32,16 +32,14 @@ class TestReviewerApprovalEvidence:
         assert root.status == TaskStatus.IN_PROGRESS
 
 
-class TestSiblingReportingStrengthened:
-    """FR-077: sibling reporting guidance is explicit about timing + guards."""
+class TestExecutorTaskOwnership:
+    """TaskExecutor reports its active task and never sibling completion."""
 
-    def test_executor_says_after_completing(self):
+    def test_executor_reports_only_the_active_task(self):
         from tinycua.loops.task_nodes import _TASK_EXECUTOR_INSTRUCTION
-        assert "after completing the active task" in _TASK_EXECUTOR_INSTRUCTION.lower()
 
-    def test_executor_says_only_report_completed(self):
-        from tinycua.loops.task_nodes import _TASK_EXECUTOR_INSTRUCTION
-        assert "summarize only siblings you actually completed" in _TASK_EXECUTOR_INSTRUCTION.lower()
+        assert "report only the active task's outcome" in _TASK_EXECUTOR_INSTRUCTION.lower()
+        assert "sibling" not in _TASK_EXECUTOR_INSTRUCTION.lower()
 
     def test_reviewer_says_after_reviewing(self):
         from tinycua.loops.node_guidance import _RESULT_REVIEWER_INSTRUCTION

@@ -273,6 +273,12 @@ class PromptProtocolMixin:
         entry is functionally identical, we use it universally.
         """
         required = self._required_single_tool_choice_name(node)
+        if (
+            node.contract.requires_terminate
+            and node.progress.lifecycle_phase.value == "terminate"
+            and any(tool.name == "terminate" for tool in resolved_tools)
+        ):
+            return "required"
         if required is None and [tool.name for tool in resolved_tools] == ["terminate"]:
             required = "terminate"
         if required is None:

@@ -199,7 +199,7 @@ class RuntimeContractScript:
                 return {"content": "Recorded.", "tool_calls": []}
             return {
                 "content": "",
-                "tool_calls": [{"function": {"name": "task_result_update", "arguments": f'{{"content":"Completed {task_id}","success":true,"task_id":"{task_id}"}}'}}],
+                "tool_calls": [{"function": {"name": "task_result_update", "arguments": f'{{"content":"Completed {task_id}","success":true}}'}}],
             }
         if node == "result_reviewer":
             task_id = self._task_id(messages)

@@ -394,8 +394,6 @@ async def test_task_executor_validates_tool_owned_result_update(tmp_path: Path) 
                 ],
             }
         if len(captured_tool_choices) == 2:
-            return {"content": "Created app.py", "tool_calls": []}
-        if len(captured_tool_choices) == 3:
             return {
                 "content": "",
                 "tool_calls": [
@@ -409,7 +407,7 @@ async def test_task_executor_validates_tool_owned_result_update(tmp_path: Path) 
                     }
                 ],
             }
-        if len(captured_tool_choices) == 4:
+        if len(captured_tool_choices) == 3:
             return {
                 "content": "",
                 "tool_calls": [
@@ -420,7 +418,7 @@ async def test_task_executor_validates_tool_owned_result_update(tmp_path: Path) 
                     }
                 ],
             }
-        return {"content": "Created app.py", "tool_calls": []}
+        return {"content": "", "tool_calls": []}
 
     agent._call_llm = call_llm  # type: ignore[method-assign]
 
@@ -438,8 +436,12 @@ async def test_task_executor_validates_tool_owned_result_update(tmp_path: Path) 
     assert "write_file" in captured_tool_names[0]
     assert "run_shell" in captured_tool_names[0]
     assert "task_execute" not in captured_tool_names[0]
-    assert captured_tool_names[2] == ["task_result_update"]
-    assert captured_tool_names[3] == ["terminate"]
+    assert "task_result_update" not in captured_tool_names[0]
+    assert "terminate" not in captured_tool_names[0]
+    assert "task_result_update" in captured_tool_names[1]
+    assert "terminate" not in captured_tool_names[1]
+    assert "task_result_update" in captured_tool_names[2]
+    assert "terminate" in captured_tool_names[2]
     assert [item["name"] for item in result.metadata["tool_results"]] == [
         "write_file",
         "task_result_update",
