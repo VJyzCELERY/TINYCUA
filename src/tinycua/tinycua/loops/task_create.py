@@ -23,8 +23,8 @@ _TASK_CREATE_INSTRUCTION = (
 )
 
 _TASK_CREATE_CONTINUATION = (
-    "Initialize one root task with task_init. If initialization succeeds, call "
-    "terminate; TaskAnalyzer owns all subtask decomposition."
+    "Define one root task from the available context and summarize its title and "
+    "description. TaskAnalyzer owns all subtask decomposition."
 )
 
 

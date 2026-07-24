@@ -638,6 +638,8 @@ class TaskResultUpdateTool(SessionTaskToolMixin, Tool):
             "success": True,
             "task_id": active_id,
             "status": task.status.value,
+            "recorded_for_review": True,
+            "message": "Outcome recorded and awaiting downstream review.",
         }
 
 

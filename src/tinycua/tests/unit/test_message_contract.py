@@ -640,6 +640,20 @@ def test_lifecycle_action_prompts_do_not_require_commit_tools(
     assert not any(tool_name in rendered for tool_name in unavailable_tools)
 
 
+def test_task_create_prompt_does_not_request_legacy_terminate() -> None:
+    """Task creation ends after its commit tool without a terminate instruction."""
+    node = TinyCUATaskCreateNode(
+        node_id="task_create",
+        config=create_node_config("task_create"),
+    )
+
+    continuation = node.build_continuation()
+
+    assert "root task" in continuation
+    assert "task_init" not in continuation
+    assert "terminate" not in continuation.lower()
+
+
 def test_result_reviewer_prompt_excludes_stale_session_review_context() -> None:
     """Reviewer sees the active result under review, not old review blobs."""
     loop = TinyCUALoop()
