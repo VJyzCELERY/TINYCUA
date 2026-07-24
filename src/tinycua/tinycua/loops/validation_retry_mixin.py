@@ -530,7 +530,7 @@ class ValidationRetryMixin:
         node: Node,
         llm_result: LLMResult,
     ) -> ValidationResult:
-        """Keep accepted decisions; post-decision roadmap inspection is optional."""
+        """Keep accepted decisions while allowing post-decision context curation."""
         del node, llm_result
         return ValidationResult(is_valid=True, errors=[])
 
@@ -590,9 +590,15 @@ class ValidationRetryMixin:
         if has_terminate:
             return validation
         validation.is_valid = False
-        validation.errors.append(
-            f"{node.node_id} completed its required work; call terminate."
-        )
+        if node.node_id == "result_reviewer":
+            validation.errors.append(
+                "result_reviewer completed its active-task decision; curate only "
+                "relevant unfinished-task context without executing work, then terminate."
+            )
+        else:
+            validation.errors.append(
+                f"{node.node_id} completed its required work; call terminate."
+            )
         return validation
 
     @staticmethod
