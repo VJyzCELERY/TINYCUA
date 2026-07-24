@@ -378,17 +378,23 @@ def phase_tool_names(
     tool_names: set[str],
     phase: LifecyclePhase,
 ) -> set[str]:
-    """Return the contract-derived existing tools exposed in one lifecycle phase."""
+    """Return cumulative tools exposed in one lifecycle phase.
+
+    Lifecycle phases are deliberately cumulative: action tools remain useful
+    while committing, and both remain available while terminating.  The
+    termination tool is the only tool withheld until the TERMINATE phase.
+    """
     contract = get_node_contract(node_id)
     commit_tools = set(contract.required_tools)
     for group in contract.any_of_tools:
         commit_tools.update(group)
+    action_tools = tool_names - commit_tools - {"terminate"}
     if phase == LifecyclePhase.ACTION:
-        return tool_names - commit_tools - {"terminate"}
+        return action_tools
     if phase == LifecyclePhase.COMMIT:
-        return tool_names & commit_tools
+        return tool_names - {"terminate"}
     if phase == LifecyclePhase.TERMINATE:
-        return tool_names & {"terminate"}
+        return tool_names
     return set()
 
 

@@ -422,13 +422,9 @@ class OrchestrationMixin:
         self._coerce_structured_tool_calls(llm_result, resolved_tools)
         self._coerce_terminate_only_response(resolved_tools, llm_result)
         collected_tool_calls = llm_result.tool_calls
-        if node.contract.requires_terminate:
-            for tool_call in collected_tool_calls:
-                function = tool_call.get("function") or {}
-                name = function.get("name") or tool_call.get("name")
-                if name:
-                    node.progress.mark_tool_called(str(name))
-        tool_results: list[dict[str, Any]] = []
+        tool_results = self._lifecycle_tool_results(
+            node, collected_tool_calls, resolved_tools
+        )
         if not node.contract.requires_terminate:
             tool_results = await self._execute_tool_calls(
                 agent,
@@ -520,6 +516,26 @@ class OrchestrationMixin:
 
         return combined, validation, llm_result
 
+    @staticmethod
+    def _lifecycle_tool_results(
+        node: Node,
+        tool_calls: list[dict[str, Any]],
+        tools: list[Tool],
+    ) -> list[dict[str, Any]]:
+        """Record lifecycle calls and return the terminate result, if any."""
+        if not node.contract.requires_terminate:
+            return []
+        for tool_call in tool_calls:
+            function = tool_call.get("function") or {}
+            name = function.get("name") or tool_call.get("name")
+            if name and name != "terminate":
+                node.progress.mark_tool_called(str(name))
+        for tool in tools:
+            result = getattr(tool, "last_result", None)
+            if tool.name == "terminate" and isinstance(result, dict):
+                return [{"name": "terminate", "output": result}]
+        return []
+
     async def _run_stream(
         self,
         agent: Agent,
@@ -600,7 +616,10 @@ class OrchestrationMixin:
                 if node.is_terminal:
                     continue
 
-                self.queue.advance(self._pop_handoff_for_next(node))
+                handoff = self._pop_handoff_for_next(node)
+                if self._skip_ready_assessor_analyzer(node, handoff):
+                    handoff = None
+                self.queue.advance(handoff)
         finally:
             self._working_messages = all_messages
 
@@ -616,6 +635,22 @@ class OrchestrationMixin:
                 continue
             return self._pending_handoffs.pop(index)
         return self._implicit_structured_handoff(node, next_node.node_id)
+
+    def _skip_ready_assessor_analyzer(
+        self,
+        node: Node,
+        handoff: NodeHandoff | None,
+    ) -> bool:
+        """Remove the paired analyzer when assessment says the roadmap is ready."""
+        if (
+            node.node_id != "task_assessor"
+            or handoff is None
+            or handoff.payload.get("decision") != "ready"
+        ):
+            return False
+        if len(self.queue.items) > 1 and self.queue.items[1].node_id == "task_analyzer":
+            self.queue.items.pop(1)
+        return True
 
     def _implicit_structured_handoff(
         self,

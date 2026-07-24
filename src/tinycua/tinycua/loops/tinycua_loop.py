@@ -1580,6 +1580,20 @@ class TinyCUALoop(
                 yield enriched
                 if transcript is not None:
                     yield transcript
+        self._mark_successful_termination(node, resolved_tools)
+
+    @staticmethod
+    def _mark_successful_termination(node: Node, tools: list[Tool]) -> None:
+        """Record a successful terminate call executed inside the SDK loop."""
+        for tool in tools:
+            result = getattr(tool, "last_result", None)
+            if (
+                tool.name == "terminate"
+                and isinstance(result, dict)
+                and result.get("success") is True
+            ):
+                node.progress.mark_tool_called("terminate")
+                return
 
     async def _iter_stream_result_events(
         self,

@@ -24,6 +24,7 @@ class TerminateTool(Tool):
     def __init__(self) -> None:
         self._store = _DEFAULT_STORE
         self._source_node = ""
+        self.last_result: dict[str, Any] | None = None
         Tool.__init__(
             self,
             name="terminate",
@@ -48,25 +49,40 @@ class TerminateTool(Tool):
         result: dict[str, Any] = {"success": True, "terminated": True}
         if self._source_node == "result_reviewer":
             if not self._store._staged_reviewer_decisions:
-                return {"success": False, "error": "No provisional reviewer decision is staged."}
+                result = {
+                    "success": False,
+                    "error": "No provisional reviewer decision is staged.",
+                }
+                self.last_result = result
+                return result
             try:
                 task = self._store.commit_staged_reviewer_decision(
                     next(reversed(self._store._staged_reviewer_decisions))
                 )
             except ValueError as exc:
-                return {"success": False, "error": str(exc)}
+                result = {"success": False, "error": str(exc)}
+                self.last_result = result
+                return result
             result["task_id"] = task.task_id
             result["decision"] = task.reviewer_decisions[-1]["decision"]
         if self._source_node == "task_executor":
             if not self._store._staged_results:
-                return {"success": False, "error": "No staged executor result to commit."}
+                result = {
+                    "success": False,
+                    "error": "No staged executor result to commit.",
+                }
+                self.last_result = result
+                return result
             try:
                 task = self._store.commit_staged_result(
                     next(reversed(self._store._staged_results))
                 )
             except ValueError as exc:
-                return {"success": False, "error": str(exc)}
+                result = {"success": False, "error": str(exc)}
+                self.last_result = result
+                return result
             result["task_id"] = task.task_id
+        self.last_result = result
         return result
 
 

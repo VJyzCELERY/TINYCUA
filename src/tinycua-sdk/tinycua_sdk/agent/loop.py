@@ -199,6 +199,8 @@ class BaseLoop:
                     response.get("content") or "",
                     response.get("reasoning_content") or "",
                 )
+                if _has_terminate_call(response["tool_calls"]):
+                    return self.last_assistant_content(working) or ""
                 if max_reached:
                     return self.last_assistant_content(working) or "[max tool calls reached]"
             else:
@@ -339,6 +341,8 @@ class BaseLoop:
                 agent, tools, tool_calls_list, working, tool_call_count, combined,
                 reasoning_text,
             )
+            if _has_terminate_call(tool_calls_list):
+                return True, finish_reason, tool_call_count, skip_complete
             if max_reached:
                 return True, "max_tool_calls", tool_call_count, False
             # Tool calls processed but max not reached → continue iteration
@@ -1086,6 +1090,15 @@ def _accumulate_usage(
         usage.get("output_tokens", usage.get("completion_tokens")),
     )
     cumulative["total_tokens"] += _usage_int(usage.get("total_tokens"))
+
+
+def _has_terminate_call(tool_calls: list[dict[str, Any]]) -> bool:
+    """Return whether a lifecycle termination tool was invoked in this batch."""
+    return any(
+        call.get("name") == "terminate"
+        or (call.get("function") or {}).get("name") == "terminate"
+        for call in tool_calls
+    )
 
 
 __all__ = ["BaseLoop"]

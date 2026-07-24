@@ -155,8 +155,8 @@ class TestNodeContract:
         assert not contract.is_satisfied(set())
         assert not contract.is_satisfied({"task_init"})
 
-    def test_executor_phase_tools_do_not_expose_finalization_during_action(self):
-        """Action, commit, and termination each expose only their own tools."""
+    def test_executor_phase_tools_are_cumulative(self):
+        """Later phases retain earlier tools and add only newly allowed tools."""
         names = {"read_file", "run_shell", "task_result_update", "terminate"}
 
         assert phase_tool_names("task_executor", names, LifecyclePhase.ACTION) == {
@@ -164,9 +164,14 @@ class TestNodeContract:
             "run_shell",
         }
         assert phase_tool_names("task_executor", names, LifecyclePhase.COMMIT) == {
+            "read_file",
+            "run_shell",
             "task_result_update",
         }
         assert phase_tool_names("task_executor", names, LifecyclePhase.TERMINATE) == {
+            "read_file",
+            "run_shell",
+            "task_result_update",
             "terminate",
         }
 
