@@ -63,89 +63,58 @@ def summarize_tool_result(content: str) -> str:
 
 
 _RESULT_REVIEWER_INSTRUCTION = (
-    "You are the ResultReviewer. You do not edit files. You SHOULD test the "
-    "result — run the code, check syntax, verify claims. Testing is "
-    "verification, not re-execution. Verify with run_shell (test -f, grep, "
-    "pytest, git diff) and check exit_code, not eyeballed source. For "
-    "research, use web_search/fetch_url to verify claims are real — do not "
-    "accept fabricated or stale claims. Determine approved, needs_revision, "
+    "You are the ResultReviewer. You do not edit files. Verify the result "
+    "against the active task's requirements and acceptance criteria using "
+    "checks appropriate to the claimed outcome and available tools. Testing is "
+    "verification, not re-execution. Exercise material behavior, inspect outputs, "
+    "and verify consequential claims with concrete evidence. Do not accept "
+    "fabricated or unsupported claims. Determine approved, needs_revision, "
     "rejected, or replan. Use replan immediately "
     "when evidence makes the task itself impossible; reserve needs_revision "
     "for fixable execution defects. If bad, record feedback. "
-    "Do not write a long explanation — call the tools. Sanity-check for "
-    "common LLM messes: duplicate content (grep -c, sort | uniq -d), "
-    "hallucinated claims, structural inconsistency. Every decision must cite "
+    "Do not write a long explanation — call the tools. When relevant, check for "
+    "duplicate content, hallucinated claims, and structural inconsistency. "
+    "Every decision must cite "
     "validation evidence in rationale. Review and decide only the active task."
 )
 _RESULT_REVIEWER_CONTINUATION = (
-    "Test the result: run_shell (test -f, grep, pytest, python -c 'import "
-    "...') for code; web_search/fetch_url for research claims. Verify the "
-    "artifact actually works, not just that it exists or imports. For "
-    "markdown with math, check for tab corruption AND unicode escape "
-    "corruption: grep -cP '\\t' <the_file> and grep -cP '\\\\u[0-9a-fA-F]{4}' "
-    "<the_file> (note: use -P and double-backslash so grep matches a literal "
-    "backslash-u, not the letter u). Then summarize the active-task review conclusion."
+    "Verify the result against the active task's acceptance criteria. Choose "
+    "checks appropriate to the artifact or claim, exercise required behavior "
+    "where possible, and cite concrete evidence. Then summarize the active-task "
+    "review conclusion."
 )
 
 
 def build_reviewer_tool_guidance(resolved_tools: list[Any] | None) -> str:
     """Build tool-keyed guidance for the ResultReviewer.
 
-    FR-005/FR-008: behavioral guidance keyed on present tools. FR-056:
-    includes generic dedup detection guidance when run_shell is available.
+    FR-005/FR-008: acceptance-driven guidance keyed on present tools.
     """
     names = {getattr(tool, "name", "") for tool in (resolved_tools or [])}
     lines: list[str] = []
     readonly = names.intersection({"read_file", "run_shell", "list_files"})
     if readonly:
         lines.append(
-            "Before approving a task with file artifacts, run at least one "
-            "verification tool (read_file, run_shell, list_files) against "
-            "the claimed artifact, OR state in the rationale why "
-            "verification was skipped (e.g. pure-research task). Prefer "
-            "run_shell with exit_code checks (test -f, grep, pytest, git "
-            "diff) over eyeballing source. Do not accept generic 'all "
-            "requirements met' — cite specific evidence (file excerpt, "
-            "command output, exit_code)."
+            "Before approving, use available verification tools to gather "
+            "evidence tied to the acceptance criteria, or state why direct "
+            "verification is unavailable. Do not accept generic 'all requirements "
+            "met' claims; cite the specific evidence observed."
         )
         lines.append(
-            "File existence and import checks are NOT sufficient. Verify "
-            "the artifact actually WORKS — run it, test it, probe its "
-            "behavior. For code, run a functional test that exercises the "
-            "main path, not just import. For documents, check content "
-            "integrity (tabs, escape sequences, duplicate sections)."
-        )
-    if "run_shell" in names:
-        lines.append(
-            "For markdown with math, check for BOTH tab corruption "
-            "(grep -cP '\\t' <the_file>) AND unicode escape corruption "
-            "(grep -cP '\\\\u[0-9a-fA-F]{4}' <the_file> — use -P and "
-            "double-backslash so grep matches a literal backslash-u, not the "
-            "letter u). Literal \\uXXXX sequences mean unicode escapes were "
-            "not decoded — send back for revision."
+            "When the task requires behavior, verify that it actually works "
+            "rather than checking existence alone. Choose the smallest relevant "
+            "check for the claimed outcome and available environment."
         )
     research_verify = names.intersection({"web_search", "fetch_url"})
     if research_verify:
         lines.append(
-            "For research tasks, verify the executor's claimed entities "
-            "(model names, versions, benchmarks) with web_search/fetch_url "
-            "before approving — do not accept fabricated or stale claims, "
-            "and do not re-research the whole task."
+            "Verify material external claims with appropriate authoritative "
+            "sources before approving, without re-researching the whole task."
         )
     if "task_review_decision" in names:
         lines.append("Commit the review with task_review_decision.")
     if "terminate" in names:
         lines.append("Call terminate now.")
-    # FR-056: when run_shell is available, suggest generic dedup detection.
-    if "run_shell" in names:
-        lines.append(
-            "To check for duplicate or repeated content in an artifact, "
-            "use run_shell: e.g. `grep -c '^## ' <the_file>` to count "
-            "top-level sections, `sort <file> | uniq -d` to find duplicate "
-            "lines, `wc -l <file>` to verify claimed line counts. These "
-            "are generic checks — apply whichever is relevant to the "
-            "artifact type."
-        )
     if not lines:
         return ""
     return "Tool guidance: " + " ".join(lines)

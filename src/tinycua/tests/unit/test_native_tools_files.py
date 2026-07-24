@@ -455,6 +455,8 @@ def test_read_file_warns_about_literal_backslash_n_on_long_lines():
         result = read_file(filepath)
         assert "Warning" in result
         assert "literal" in result.lower()
+        assert "inspect the expected file format" in result.lower()
+        assert "str_replace" not in result
 
 
 def test_read_file_no_warning_for_short_literal_backslash_n():

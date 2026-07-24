@@ -16,10 +16,10 @@ if TYPE_CHECKING:
 _RESPONSE_CONTINUATION = (
     "The work is already done — the completed task evidence above shows what "
     "was accomplished. Summarize it as the final user-facing answer. Be "
-    "concise, mention concrete artifacts (file paths) and key findings. Do "
+    "concise, mention relevant artifacts or outputs and key findings. Do "
     "NOT redo the work (no web searches, no file writes, no new research). "
     "Do not emit JSON, tool-call protocol payloads, or internal routing "
-    "details. If a report file was created, mention its path."
+    "details."
 )
 
 _FAILURE_RESPONSE_CONTINUATION = (

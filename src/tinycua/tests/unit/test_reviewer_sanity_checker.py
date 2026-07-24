@@ -5,7 +5,6 @@ from __future__ import annotations
 from tinycua.config.node_config import create_node_config
 from tinycua.loops.task_nodes import (
     TinyCUAResultReviewerNode,
-    _RESULT_REVIEWER_CONTINUATION,
     _RESULT_REVIEWER_INSTRUCTION,
 )
 from tinycua.models.session import Session
@@ -35,9 +34,9 @@ class TestReviewerSanityCheckerInstruction:
 
 
 class TestReviewerSanityCheckerToolPrompt:
-    """FR-056: build_tool_system_prompt adds dedup guidance when run_shell is available."""
+    """FR-056: tool guidance stays task-driven when run_shell is available."""
 
-    def test_dedup_guidance_when_run_shell_available(self):
+    def test_acceptance_driven_guidance_when_run_shell_available(self):
         session = Session()
         node = TinyCUAResultReviewerNode(
             node_id="result_reviewer",
@@ -53,9 +52,9 @@ class TestReviewerSanityCheckerToolPrompt:
         tools = [_FakeTool("run_shell"), _FakeTool("read_file"), _FakeTool("task_review_decision")]
         prompt = node.build_tool_system_prompt(tools)
         lowered = prompt.lower()
-        # FR-056: when run_shell is available, the prompt should suggest
-        # using grep/wc/sort|uniq to detect duplicate content.
-        assert "grep" in lowered or "uniq" in lowered or "wc" in lowered
+        assert "acceptance criteria" in lowered
+        assert "sort | uniq" not in lowered
+        assert "grep -c" not in lowered
 
     def test_no_dedup_guidance_when_run_shell_absent(self):
         session = Session()
