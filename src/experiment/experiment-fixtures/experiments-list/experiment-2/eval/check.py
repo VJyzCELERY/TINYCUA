@@ -57,17 +57,27 @@ def rouge_l_f1(candidate: str, reference: str) -> float:
 
 
 def check_latest_relevancy(text: str, models: tuple[str, ...]) -> str:
-    """Require one exact model name from the frozen snapshot."""
-    mentioned = [
-        model
-        for model in models
-        if re.search(
-            rf"(?<![\w.-]){re.escape(model)}(?![\w.-])", text, re.IGNORECASE
-        )
-    ]
-    if not mentioned:
-        raise ValueError("report does not name a model from the frozen snapshot")
-    return f"report names frozen snapshot model {mentioned[0]}"
+    """Require one model name from the frozen snapshot, tolerating formatting.
+
+    Accepts space/hyphen interchange, an optional leading ``Claude``/``Anthropic``
+    provider prefix, and trailing sentence punctuation so agents who write
+    ``GPT 5.6 Sol``, ``Opus 4.8``, or ``Claude Fable 5.`` all pass.
+    """
+    for model in models:
+        tokens = re.split(r"[\s.\-]+", model.strip())
+        # ponytail: make the leading provider token optional for Claude-family
+        # models so "Fable 5" and "Opus 4.8" match without the "Claude" prefix.
+        if tokens[0].lower() in {"claude", "anthropic"}:
+            prefix = r"(?:(?:claude|anthropic)[\s.\-]+)?"
+            body_tokens = tokens[1:]
+        else:
+            prefix = r""
+            body_tokens = tokens
+        body = r"[\s.\-]+".join(re.escape(t) for t in body_tokens)
+        pattern = rf"(?<!\w){prefix}{body}[.,;:]?(?!\w)"
+        if re.search(pattern, text, re.IGNORECASE):
+            return f"report names frozen snapshot model {model}"
+    raise ValueError("report does not name a model from the frozen snapshot")
 
 
 def evaluate(

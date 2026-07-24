@@ -100,6 +100,40 @@ def test_harnesses_receive_searxng_config() -> None:
     assert "- json" in searxng_settings
 
 
+def test_searxng_enables_broad_engine_coverage() -> None:
+    """SearXNG runs enough engines that a few dead upstreams still return results."""
+    import json
+
+    settings = (ROOT / "docker" / "searxng" / "settings.yml").read_text()
+    for engine in (
+        "google", "bing", "brave", "duckduckgo", "startpage",
+        "mojeek", "qwant", "wikipedia", "arxiv", "stackoverflow",
+        "github", "bing news", "google news",
+    ):
+        assert f"name: {engine}" in settings, f"engine '{engine}' not enabled"
+    assert "name: wikidata" in settings
+    assert "enabled: false" in settings.split("name: wikidata", 1)[1].split(
+        "name:", 1
+    )[0], "wikidata must be disabled (403s on init)"
+    _ = json  # keep import alive for the assertion surface
+
+
+def test_research_fixture_task_hides_frozen_model_names() -> None:
+    """Experiment 2's task never leaks the answer-key model names."""
+    import json
+
+    fixtures = ROOT / "experiment-fixtures" / "experiments-list"
+    evidence = json.loads(
+        (fixtures / "experiment-2" / "eval" / "evidence.json").read_text()
+    )
+    task = (fixtures / "experiment-2" / "workdir" / "TASK.md").read_text()
+    for model in evidence["models"]:
+        assert model not in task, f"TASK.md leaks frozen model name: {model}"
+        assert model.lower() not in task.lower(), (
+            f"TASK.md leaks frozen model name (case-insensitive): {model}"
+        )
+
+
 def test_browser_fixtures_share_one_evaluator_image_and_toolset() -> None:
     """Clock and web-app candidates share browser evaluation and agent tools."""
     fixtures = ROOT / "experiment-fixtures" / "experiments-list"

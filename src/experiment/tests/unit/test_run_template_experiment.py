@@ -19,6 +19,7 @@ from run_template_experiment import (
     evaluator_base_agents,
     parse_score,
     parse_args,
+    _restart_searxng,
     state_volume_name,
     workspace_volume_name,
     write_result,
@@ -400,6 +401,26 @@ def test_reset_state_volumes_skips_opencode(monkeypatch: pytest.MonkeyPatch) -> 
         ],
         ["docker", "volume", "rm", "--force", state_volume_name("greeting", "tinycua")],
     ]
+
+
+def test_restart_searxng_restarts_once_and_survives_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The restart hook fires once per invocation and never blocks a run."""
+    commands: list[list[str]] = []
+
+    def fake_run(
+        command: list[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 1, "", "simulated failure")
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+
+    _restart_searxng(timeout_seconds=10)
+
+    assert commands == [["docker", "compose", "restart", "searxng"]]
+    assert commands[0] == ["docker", "compose", "restart", "searxng"]
 
 
 def test_write_result_is_portable_and_sanitizes_environment(tmp_path: Path) -> None:
