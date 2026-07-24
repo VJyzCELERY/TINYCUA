@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -27,13 +28,13 @@ class EnhancedContextRetrievalTool(Tool):
     def __init__(self) -> None:
         super().__init__(name="enhanced_context_retrieval")
         self._cache: dict[str, Any] = {}
-        self._workspace_dir: Path | None = None
+        self._cache_dir: Path | None = None
         self._session_id = ""
         self._session_context: list[dict[str, Any]] | None = None
 
     def bind_workspace(self, workspace_dir: str | Path | None) -> None:
-        """Bind cache-file storage to a session workspace."""
-        self._workspace_dir = Path(workspace_dir).resolve() if workspace_dir else None
+        """Retain compatibility; context caches never use the workspace."""
+        del workspace_dir
 
     def bind_session_context(
         self, session_id: str, session_context: list[dict[str, Any]]
@@ -75,9 +76,8 @@ class EnhancedContextRetrievalTool(Tool):
                 del self._cache[oldest_key]
             cache_path = self._write_cache_file(cache_key, session_context)
             self._cache[cache_key] = {
-                "context": session_context,
                 "results": {},
-                "cache_path": str(cache_path) if cache_path else None,
+                "cache_path": str(cache_path),
             }
         return self._cache[cache_key]
 
@@ -85,17 +85,19 @@ class EnhancedContextRetrievalTool(Tool):
         self,
         cache_key: str,
         session_context: list[dict[str, Any]],
-    ) -> Path | None:
-        """Persist selected context to a scoped cache file when possible."""
-        if self._workspace_dir is None:
-            return None
-        cache_dir = self._workspace_dir / ".tinycua_context_cache" / (self._session_id or "unbound")
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        cache_path = cache_dir / f"{cache_key}.json"
+    ) -> Path:
+        """Persist selected context in an app-private system temporary directory."""
+        if self._cache_dir is None:
+            prefix = f"tinycua-context-{self._session_id or 'unbound'}-"
+            self._cache_dir = Path(
+                tempfile.mkdtemp(prefix=prefix)
+            )
+        cache_path = self._cache_dir / f"{cache_key}.json"
         cache_path.write_text(
             json.dumps(session_context, indent=2, sort_keys=True, default=str),
             encoding="utf-8",
         )
+        cache_path.chmod(0o600)
         return cache_path
 
     def __call__(
@@ -130,8 +132,8 @@ class EnhancedContextRetrievalTool(Tool):
             results = cache["results"][query]
             return self._format_results("cache", results, cache, page, page_size)
 
-        # Perform deterministic context search and cache the result for this scope.
-        results = self._react_search(session_context, query)
+        # Search the scoped cache file; its path is never returned to the model.
+        results = self._react_search(cache["cache_path"], query)
         cache["results"][query] = results
 
         return self._format_results("fresh", results, cache, page, page_size)
@@ -151,7 +153,6 @@ class EnhancedContextRetrievalTool(Tool):
         end = start + safe_page_size
         return {
             "source": source,
-            "cache_path": cache.get("cache_path"),
             "source_session_id": self._session_id or None,
             "results": results[start:end],
             "page": {
@@ -163,18 +164,26 @@ class EnhancedContextRetrievalTool(Tool):
 
     def _react_search(
         self,
-        session_context: list[dict[str, Any]],
+        cache_path: str | None,
         query: str,
     ) -> list[dict[str, Any]]:
-        """Perform lexical search within the session context.
+        """Perform lexical search within the scoped context cache file.
 
         Args:
-            session_context: The session context messages.
+            cache_path: Private cache file containing the session context.
             query: The search query string.
 
         Returns:
             List of search result dicts.
         """
+        if not cache_path:
+            return []
+        try:
+            session_context = json.loads(Path(cache_path).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return []
+        if not isinstance(session_context, list):
+            return []
         query_terms = {
             term.lower()
             for term in query.replace("_", " ").split()
