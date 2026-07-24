@@ -835,7 +835,7 @@ def main(argv: list[str] | None = None) -> int:
         else (Path("template-results") if is_semantic else Path("results"))
     )
     if not output_root.is_absolute():
-        output_root = Path.cwd() / output_root
+        output_root = EXPERIMENT_DIR / output_root
 
     # Fail fast if the hermes-judge container isn't running.
     if not _judge_container_running():
@@ -854,7 +854,7 @@ def main(argv: list[str] | None = None) -> int:
         overall = 0
         for fixture_name in fixtures:
             # ponytail: per-fixture tmp_base so batched semantic runs do not collide.
-            tmp_base = Path.cwd() / "tmp" / f"judge-{fixture_name}"
+            tmp_base = EXPERIMENT_DIR / "tmp" / f"judge-{fixture_name}"
             tmp_base.mkdir(parents=True, exist_ok=True)
             code = semantic_judge_fixture(
                 fixture_name, output_root, tmp_base=tmp_base,
@@ -877,7 +877,7 @@ def main(argv: list[str] | None = None) -> int:
     result_root = output_root
 
     # ponytail: tmp_base under ./tmp which is gitignored; cleaned up after judging
-    tmp_base = Path.cwd() / "tmp" / f"judge-{args.num}"
+    tmp_base = EXPERIMENT_DIR / "tmp" / f"judge-{args.num}"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
     print("Judge: hermes-judge container (active model from setup_judge.sh)", flush=True)
