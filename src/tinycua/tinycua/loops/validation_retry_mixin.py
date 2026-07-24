@@ -530,17 +530,7 @@ class ValidationRetryMixin:
         node: Node,
         llm_result: LLMResult,
     ) -> ValidationResult:
-        """Require task_inspect alongside a review decision (decide-then-inspect).
-
-        The reviewer records its decision first via task_review_decision, then
-        MUST call task_inspect in the same response to review the remaining
-        roadmap before the node can terminate — this is the cue to curate
-        context for upcoming tasks. The decision itself is never rolled back
-        for a missing inspect: the approval/decision sticks and the retry only
-        needs to add the inspect call. Replacing the old must-inspect-BEFORE-
-        decision rule, which rolled back approvals and trapped the executor in
-        an infinite re-run of the same task.
-        """
+        """Keep accepted decisions; post-decision roadmap inspection is optional."""
         del node, llm_result
         return ValidationResult(is_valid=True, errors=[])
 
@@ -600,15 +590,9 @@ class ValidationRetryMixin:
         if has_terminate:
             return validation
         validation.is_valid = False
-        if node.node_id == "result_reviewer":
-            validation.errors.append(
-                "result_reviewer completed its required work; optionally curate "
-                "unfinished tasks with task_update, then call terminate."
-            )
-        else:
-            validation.errors.append(
-                f"{node.node_id} completed its required work; call terminate."
-            )
+        validation.errors.append(
+            f"{node.node_id} completed its required work; call terminate."
+        )
         return validation
 
     @staticmethod
