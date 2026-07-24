@@ -500,6 +500,8 @@ def test_executor_result_is_immediately_visible_to_reviewer() -> None:
     recorded = result_update(content="completed")
 
     assert "staged" not in recorded
+    assert recorded["recorded_for_review"] is True
+    assert "awaiting downstream review" in recorded["message"]
     assert store.get_task(task_id).result is not None
     assert store.get_task(task_id).status.value == "in_progress"
     assert terminate()["success"] is True
