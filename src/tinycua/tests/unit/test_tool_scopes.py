@@ -456,7 +456,7 @@ class TestEnhancedContextRetrievalCache:
 
         assert result["source_session_id"] == "root-session"
         assert result["results"][0]["snippet"] == "authoritative evidence"
-        assert "root-session" in result["cache_path"]
+        assert "cache_path" not in result
 
     def test_bound_context_includes_reusable_session_outcomes(self) -> None:
         """Bound retrieval searches root-session outputs, not only user input."""

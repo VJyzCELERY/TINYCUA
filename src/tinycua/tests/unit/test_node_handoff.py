@@ -4,6 +4,12 @@ from __future__ import annotations
 
 from tinycua.models.node_handoff import NodeHandoff
 from tinycua.models.node_input import convert_node_input_to_messages
+from tinycua.tools.handoff_tools import NodeHandoffTool
+
+
+def test_node_handoff_describes_cross_agent_communication() -> None:
+    """The tool explains that its recipient is a different agent."""
+    assert "different agent" in NodeHandoffTool().description.lower()
 
 
 def test_node_handoff_renders_as_one_assistant_message() -> None:

@@ -15,8 +15,9 @@ class NodeHandoffTool(Tool):
         super().__init__(
             name="node_handoff",
             description=(
-                "Emit a generic final handoff instruction and payload for the "
-                "next node. Use this instead of mutating unrelated state."
+                "Send scoped instructions and payload to a different agent. The "
+                "recipient receives this handoff, not your conversation or reasoning; "
+                "include the task IDs, decision, evidence, and constraints it needs."
             ),
             parameters={
                 "type": "object",
