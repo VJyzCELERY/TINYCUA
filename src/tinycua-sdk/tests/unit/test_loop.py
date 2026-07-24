@@ -131,6 +131,41 @@ class TestBaseLoopRun:
         assert call_count == 2
 
     @pytest.mark.asyncio
+    async def test_run_stops_identical_consecutive_tool_calls(self):
+        executions = 0
+
+        @tool
+        def fetch_page(url: str) -> str:
+            nonlocal executions
+            executions += 1
+            return url
+
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+        calls = 0
+
+        async def repeat_call(messages, tools):
+            nonlocal calls
+            calls += 1
+            return {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": f"call_{calls}",
+                        "name": "fetch_page",
+                        "arguments": '{"url":"https://example.com"}',
+                    }
+                ],
+            }
+
+        agent._call_llm = repeat_call
+
+        await loop.run(agent, messages=[], tools=[fetch_page])
+
+        assert calls == 2
+        assert executions == 1
+
+    @pytest.mark.asyncio
     async def test_run_unknown_tool(self):
         loop = BaseLoop(max_iterations=5)
         agent = Agent(llm_model=LanguageModel())
@@ -614,6 +649,41 @@ class TestBaseLoopRunStream:
             e for e in events if e.get("type") == "response.output_text.delta"
         ]
         assert any("The time is 12:00." in e.get("delta", "") for e in delta_events)
+
+    @pytest.mark.asyncio
+    async def test_run_stream_stops_identical_consecutive_tool_calls(self):
+        executions = 0
+
+        @tool
+        def get_time() -> str:
+            nonlocal executions
+            executions += 1
+            return "12:00"
+
+        loop = BaseLoop(max_iterations=5)
+        agent = Agent(llm_model=LanguageModel())
+        calls = 0
+
+        async def fake_stream(messages, tools, stream=False):
+            async def _gen():
+                nonlocal calls
+                calls += 1
+                yield {
+                    "type": "tool_call.ready",
+                    "id": f"call_{calls}",
+                    "name": "get_time",
+                    "arguments": "{}",
+                }
+
+            return _gen()
+
+        agent._call_llm = fake_stream
+
+        events = [event async for event in loop._run_stream(agent, [], [get_time])]
+
+        assert calls == 2
+        assert executions == 1
+        assert events[-1]["finish_reason"] == "no_progress"
 
     @pytest.mark.asyncio
     async def test_run_stream_cancellation(self):

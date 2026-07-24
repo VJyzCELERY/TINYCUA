@@ -186,9 +186,8 @@ def task_executor_tool_scope() -> NodeToolPolicy:
 def result_reviewer_tool_scope() -> NodeToolPolicy:
     """Review/decision, inspection, and context-curation tools.
 
-    ResultReviewerNode first verifies executor outcomes and decides the active
-    task, then may update relevant context for unfinished tasks without
-    executing them.
+    ResultReviewerNode verifies executor outcomes and atomically records the
+    active decision plus any relevant future-task context handoffs.
 
     Includes run_shell (gated in-tool: hardline commands blocked, recoverable
     destructive commands warn but execute) for running tests and verification
@@ -199,7 +198,7 @@ def result_reviewer_tool_scope() -> NodeToolPolicy:
         NodeToolPolicy for ResultReviewerNode.
     """
     return NodeToolPolicy(
-        node_tools=[TaskReviewDecisionTool(), TaskInspectTool(), TaskUpdateTool()],
+        node_tools=[TaskReviewDecisionTool(), TaskInspectTool()],
         include_agent_tools="selected",
         allowed_agent_tool_names=EXPLORATORY_AGENT_TOOLS,
     )

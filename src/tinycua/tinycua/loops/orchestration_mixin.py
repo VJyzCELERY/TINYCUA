@@ -124,12 +124,6 @@ class OrchestrationMixin:
         if callable(route_refresher):
             route_refresher()
         resolved_tools = node.config.tool_policy.resolve_tools(tools)
-        if node.contract.requires_terminate and not any(
-            tool.name == "terminate" for tool in resolved_tools
-        ):
-            from tinycua.tools.task_tools import TerminateTool
-
-            resolved_tools.append(TerminateTool())
         self._bind_session_tools(resolved_tools, node)
         self._resolved_tools_for_prompt = self._phase_tools(
             node, resolved_tools, node.progress.lifecycle_phase
@@ -444,29 +438,15 @@ class OrchestrationMixin:
         elif retry_tool_results:
             self._prepend_retry_tool_results(llm_result, retry_tool_results)
         combined = llm_result.content
-        termination_failed = any(
-            item.get("name") == "terminate"
-            and isinstance(item.get("output"), dict)
-            and item["output"].get("success") is False
-            for item in tool_results
-        )
         if node.contract.requires_terminate:
-            phase = node.progress.lifecycle_phase
-            if phase.value == "action":
+            if node.progress.lifecycle_phase == LifecyclePhase.ACTION:
                 node.progress.advance_lifecycle(
                     LifecyclePhase.SUMMARY, combined.strip()
                 )
                 node.progress.advance_lifecycle(LifecyclePhase.COMMIT)
-            elif phase.value == "commit" and self._can_terminate(node):
-                node.progress.advance_lifecycle(LifecyclePhase.TERMINATE)
-            elif phase.value == "terminate" and termination_failed:
-                node.progress.advance_lifecycle(LifecyclePhase.COMMIT)
+            else:
+                self._advance_lifecycle_phase(node, llm_result)
         validation = self._validate_node_result(node, llm_result)
-        if termination_failed:
-            validation = ValidationResult(
-                is_valid=False,
-                errors=["terminate failed; return to commit for correction."],
-            )
         if not validation.is_valid:
             on_complete_response = self._build_on_complete_response(node, llm_result)
             trace_entry = self._trace_entry(

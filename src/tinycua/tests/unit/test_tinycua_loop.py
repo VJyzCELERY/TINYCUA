@@ -211,7 +211,7 @@ def test_executor_retry_keeps_all_tools_after_inspection() -> None:
 
 
 def test_executor_result_update_is_hidden_during_action_phase() -> None:
-    """Executor stages its result only after the action phase completes."""
+    """A commit-only call remains unavailable until action finishes."""
     loop = TinyCUALoop()
     executor = TinyCUATaskExecutorNode(
         node_id="task_executor",
@@ -877,8 +877,8 @@ async def test_streamed_termination_does_not_restart_completed_lifecycle_node() 
     assert node.node_id not in loop.root_session.node_progress
 
 
-async def test_commit_retries_until_reviewer_decision_is_staged() -> None:
-    """An empty commit turn retries before terminate is exposed."""
+async def test_commit_retries_until_reviewer_decision_then_auto_completes() -> None:
+    """A valid commit completes without a separate terminate turn."""
     reviewer = TinyCUAResultReviewerNode(
         node_id="result_reviewer",
         config=create_node_config("result_reviewer"),
@@ -892,7 +892,6 @@ async def test_commit_retries_until_reviewer_decision_is_staged() -> None:
     reviewer.progress.advance_lifecycle(LifecyclePhase.COMMIT)
     tool_sets: list[set[str]] = []
     commit_calls = 0
-    terminate_after_staging = False
 
     agent = MagicMock()
     agent.instructions = "test"
@@ -903,19 +902,10 @@ async def test_commit_retries_until_reviewer_decision_is_staged() -> None:
     agent._cancel_event = asyncio.Event()
 
     async def mock_stream(_messages, tools, *, stream=False):
-        nonlocal commit_calls, terminate_after_staging
+        nonlocal commit_calls
         del stream
         names = {tool.name for tool in tools}
         tool_sets.append(names)
-        if "terminate" in names:
-            terminate_after_staging = bool(store._staged_reviewer_decisions)
-            yield {
-                "type": "tool_call.ready",
-                "id": "terminate",
-                "name": "terminate",
-                "arguments": "{}",
-            }
-            return
         commit_calls += 1
         if commit_calls == 1:
             yield {"type": "response.completed", "finish_reason": "completed"}
@@ -949,8 +939,9 @@ async def test_commit_retries_until_reviewer_decision_is_staged() -> None:
         pass
 
     assert commit_calls >= 2
-    assert all("terminate" not in names for names in tool_sets[:commit_calls])
-    assert terminate_after_staging
+    assert all(names == {"task_review_decision"} for names in tool_sets)
+    assert not store._staged_reviewer_decisions
+    assert task.reviewer_decisions[-1]["decision"] == "needs_revision"
 
 
 async def test_run_sync_consumes_canonical_stream_runtime():
