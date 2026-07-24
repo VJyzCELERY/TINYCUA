@@ -158,10 +158,8 @@ class TaskInitTool(SessionTaskToolMixin, Tool):
                 "success": False,
                 "error": "Acceptance clauses must be non-empty strings.",
             }
-        self._store.tasks.clear()
-        self._store.root_task_id = None
-        self._store.active_task_id = None
-        self._store.transition_log.clear()
+        if self._store.root_task_id is not None or self._store.tasks:
+            return {"success": False, "error": "Root task is already initialized."}
         task = self._store.create_task(
             title,
             description=description,
