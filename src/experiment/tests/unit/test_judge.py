@@ -1,6 +1,8 @@
 """Unit tests for judge script helpers (hermes-judge container mode)."""
 
+import json
 import subprocess
+from pathlib import Path
 
 from judge import (
     _copy_workdir,
@@ -8,7 +10,10 @@ from judge import (
     _judge_container_running,
     build_judge_prompt,
     build_cross_judge_prompt,
+    build_semantic_judge_prompt,
+    discover_submissions,
     extract_hermes_verdict,
+    main,
     parse_model_snapshot,
 )
 
@@ -143,8 +148,6 @@ def test_judge_container_running_subprocess_error_is_false(monkeypatch) -> None:
 
 def test_container_path_maps_under_experiment_dir() -> None:
     """Host paths under the experiment dir become /workspace/... paths."""
-    from pathlib import Path
-
     from judge import EXPERIMENT_DIR
 
     host = EXPERIMENT_DIR / "tmp" / "judge-2" / "submission"
@@ -153,8 +156,6 @@ def test_container_path_maps_under_experiment_dir() -> None:
 
 def test_container_path_outside_experiment_dir_falls_back_to_host() -> None:
     """Host paths outside the experiment dir fall back to the raw string."""
-    from pathlib import Path
-
     # /tmp is definitely outside the experiment dir.
     assert _container_path(Path("/tmp/something")) == "/tmp/something"
 
@@ -250,3 +251,182 @@ def test_copy_workdir_returns_false_when_only_harness_artifacts(tmp_path) -> Non
 
     assert not _copy_workdir(src, dst)
     assert not any(dst.iterdir())
+
+
+# --- discover_submissions (semantic mode) ---
+
+
+def test_discover_submissions_finds_dynamic_template_pairs(tmp_path: Path) -> None:
+    """On-disk discovery returns only pairs whose result.json exists."""
+    fixture = "experiment-4"
+    root = tmp_path / "template-results"
+    for agent, complete in (("opencode", True), ("hermes", False), ("tinycua", True)):
+        run_dir = root / fixture / agent
+        run_dir.mkdir(parents=True)
+        (run_dir / "workdir").mkdir()
+        (run_dir / "workdir" / "app.py").write_text("pass\n")
+        if complete:
+            (run_dir / "result.json").write_text(
+                json.dumps(
+                    {
+                        "fixture": fixture,
+                        "agent": agent,
+                        "passed": True,
+                        "score": {
+                            "categories": {"k": {"points": 1, "max_points": 1, "evidence": ["ok"]}},
+                            "total": 1,
+                            "pass_threshold": 1,
+                            "critical_categories": ["k"],
+                        },
+                    }
+                )
+            )
+
+    found = discover_submissions(fixture, root)
+
+    found_agents = {pair["agent"] for pair in found}
+    assert found_agents == {"opencode", "tinycua"}
+    assert all((root / fixture / pair["agent"] / "result.json").is_file() for pair in found)
+
+
+# --- build_semantic_judge_prompt ---
+
+
+def test_build_semantic_judge_prompt_includes_task_submissions_and_eval_outcomes() -> None:
+    """Semantic prompt embeds task, TASK.md, eval outcomes, and submissions."""
+    submissions = [
+        {
+            "label": "A",
+            "submission_dir_container": "/workspace/tmp/judge-4/submission-A",
+            "workdir_empty": False,
+            "passed": True,
+            "score": {
+                "categories": {
+                    "health_endpoint": {"points": 1, "max_points": 1, "evidence": ["ok"]},
+                },
+                "total": 1,
+                "pass_threshold": 1,
+                "critical_categories": ["health_endpoint"],
+            },
+        },
+        {
+            "label": "B",
+            "submission_dir_container": "/workspace/tmp/judge-4/submission-B",
+            "workdir_empty": True,
+            "passed": False,
+            "score": None,
+        },
+    ]
+    prompt = build_semantic_judge_prompt(
+        task_prompt="Build a notional blocks app",
+        task_md="## Notion Blocks\n\nCreate `clock.html`.",
+        submissions=submissions,
+    )
+    assert "Build a notional blocks app" in prompt
+    assert "Notion Blocks" in prompt
+    assert "Submission A" in prompt
+    assert "Submission B" in prompt
+    assert "/workspace/tmp/judge-4/submission-A" in prompt
+    assert "/workspace/tmp/judge-4/submission-B" in prompt
+    assert "passed" in prompt
+    assert "failed" in prompt
+    assert "Already-Verified" in prompt or "verified" in prompt.lower()
+
+
+def test_build_semantic_judge_prompt_does_not_inject_criteria() -> None:
+    """Rubric stays in SOUL.md — the prompt does not list judging criteria."""
+    prompt = build_semantic_judge_prompt(
+        task_prompt="task",
+        task_md="",
+        submissions=[
+            {
+                "label": "A",
+                "submission_dir_container": "/workspace/a",
+                "workdir_empty": False,
+                "passed": True,
+                "score": None,
+            }
+        ],
+    )
+    assert "## Judging Criteria" not in prompt
+
+
+# --- semantic_judge_fixture (orchestrator, mocked subprocess) ---
+
+
+def test_semantic_judge_fixture_writes_per_fixture_cross_verdict_with_mapping(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """Semantic judge writes verdict.md + mapping.json keyed by anonymous label."""
+    import judge
+
+    fixture = "experiment-4"
+    root = tmp_path / "template-results"
+    for agent in ("opencode",):
+        run_dir = root / fixture / agent
+        run_dir.mkdir(parents=True)
+        (run_dir / "workdir").mkdir()
+        (run_dir / "workdir" / "app.py").write_text("pass\n")
+        (run_dir / "workdir" / "TASK.md").write_text("Build the block app.\n")
+        (run_dir / "agent.stdout.log").write_text(f"{agent} output\n")
+        (run_dir / "container_environment.json").write_text(
+            json.dumps({"EXPERIMENT_PROMPT": "Build a block app."})
+        )
+        (run_dir / "result.json").write_text(
+            json.dumps(
+                {
+                    "fixture": fixture,
+                    "agent": agent,
+                    "passed": True,
+                    "score": {
+                        "categories": {"k": {"points": 1, "max_points": 1, "evidence": ["ok"]}},
+                        "total": 1,
+                        "pass_threshold": 1,
+                        "critical_categories": ["k"],
+                    },
+                }
+            )
+        )
+
+    captured: list[list[str]] = []
+
+    def fake_run(command, **_kwargs):
+        captured.append(command)
+        return subprocess.CompletedProcess(command, 0, "session_id: x\n## Categories\nverdict", "")
+
+    monkeypatch.setattr(judge.subprocess, "run", fake_run)
+    monkeypatch.setattr(judge, "_judge_container_running", lambda: True)
+    monkeypatch.setattr(judge, "snapshot_judge_model", lambda: ({"judge_model": "m"}, "raw"))
+
+    exit_code = judge.semantic_judge_fixture(fixture, root, tmp_base=tmp_path / "tmp", timeout_seconds=10)
+
+    assert exit_code == 0
+    assert captured
+    assert any(part == "semantic" for part in captured[0]), "must invoke -p semantic profile"
+    assert "Build a block app." in captured[0][-1]
+    assert "Build the block app." in captured[0][-1]
+    verdict_dir = root / fixture / "cross_verdict"
+    assert (verdict_dir / "verdict.md").read_text().startswith("## Categories")
+    mapping = json.loads((verdict_dir / "mapping.json").read_text())
+    assert mapping["mapping"] == {"A": "opencode"}
+    outcomes = mapping["evaluator_outcomes"]
+    assert outcomes["A"]["passed"] is True
+    assert mapping["fixture"] == fixture
+
+
+def test_main_batches_semantic_fixtures(monkeypatch, tmp_path: Path) -> None:
+    """Comma-separated --fixture values invoke semantic judging once each."""
+    import judge
+
+    calls: list[tuple[str, Path]] = []
+
+    monkeypatch.setattr(judge, "_judge_container_running", lambda: True)
+    monkeypatch.setattr(
+        judge,
+        "semantic_judge_fixture",
+        lambda fixture, output_root, **_kwargs: calls.append((fixture, output_root)) or 0,
+    )
+
+    assert main(["--fixture", "experiment-4,experiment-5", "--output-root", str(tmp_path)]) == 0
+    assert calls == [("experiment-4", tmp_path), ("experiment-5", tmp_path)]

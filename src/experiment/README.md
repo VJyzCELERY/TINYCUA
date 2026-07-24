@@ -131,7 +131,24 @@ uv run python run_batch_experiments.py --manifest tmp/experiment_command.txt --d
 
 ## Judge existing results
 
-If results already exist and you only want to judge them:
+For controlled template results, run the qualitative semantic judge. It
+discovers however many completed harness submissions exist for each fixture,
+anonymizes them, receives deterministic evaluator outcomes as context, and
+compares qualitative strengths and weaknesses:
+
+```bash
+uv run python judge.py --fixture experiment-4
+uv run python judge.py --fixture experiment-4,experiment-5
+```
+
+Semantic verdicts are written to:
+
+```text
+template-results/<fixture>/cross_verdict/verdict.md
+template-results/<fixture>/cross_verdict/mapping.json
+```
+
+Legacy results judging is optional and must be explicitly selected with `--num`:
 
 ```bash
 uv run python judge.py --num 4 --cross-judge
