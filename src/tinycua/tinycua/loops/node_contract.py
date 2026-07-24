@@ -303,7 +303,10 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
         requires_terminate=True,
         retry_max_attempts=25,
         goal="Verify the executor's outcome against the task requirements using concrete evidence, then decide approve/revise/replan.",
-        role_boundary="Only verify and decide the active task. You may read sibling context but must not decide another task.",
+        role_boundary=(
+            "Only verify and decide the active task. You may read sibling context "
+            "but must not decide another task, modify artifacts, or fix executor work."
+        ),
         success_criteria="task_review_decision called with rationale citing validation evidence, then task_inspect, then terminate.",
         tool_rationale={
             "task_review_decision": "Records your verdict (approved/needs_revision/rejected/replan) with evidence. This drives the task lifecycle — approved→completed, needs_revision→rework.",

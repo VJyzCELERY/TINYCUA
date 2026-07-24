@@ -613,7 +613,11 @@ def _render_mission_block(session: Session) -> str:
     constraints = [str(c).strip() for c in constraints if str(c).strip()]
     if not (mission or mission_context or key_points or constraints):
         return ""
-    lines = ["## Mission"]
+    lines = [
+        "## Current Mission — Context Only",
+        "This is the overall workflow objective, not your assigned task. Use it "
+        "only to understand the context for your delegated role.",
+    ]
     if mission_context:
         lines.append(mission_context)
     if key_points:

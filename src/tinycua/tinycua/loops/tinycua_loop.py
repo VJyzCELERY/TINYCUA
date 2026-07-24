@@ -568,6 +568,38 @@ class TinyCUALoop(
             return True
         return False
 
+    @staticmethod
+    def _lifecycle_phase_directive(node: Node) -> str:
+        """Return explicit guidance for the node's newly entered phase."""
+        if node.progress.lifecycle_phase == LifecyclePhase.COMMIT:
+            return (
+                "ACTION is complete. Prepare the required commit for this same "
+                "assignment. Do not repeat action work or start another task."
+            )
+        if node.progress.lifecycle_phase == LifecyclePhase.TERMINATE:
+            return (
+                "COMMIT succeeded. This node still owns only its current assignment. "
+                "Do not repeat work or start another roadmap task. Call terminate now "
+                "to return control to the runtime."
+            )
+        return "Continue only the current assigned lifecycle phase."
+
+    def _append_lifecycle_phase_directive(
+        self,
+        messages: list[dict[str, Any]],
+        node: Node,
+        previous_phase: LifecyclePhase,
+    ) -> None:
+        """Append phase guidance only when a lifecycle transition occurred."""
+        if node.progress.lifecycle_phase == previous_phase:
+            return
+        messages.append(
+            {
+                "role": "user",
+                "content": f"[System: {self._lifecycle_phase_directive(node)}]",
+            }
+        )
+
     def _tools_for_lifecycle_result(
         self,
         node: Node,
@@ -1199,6 +1231,7 @@ class TinyCUALoop(
                 last_result.metadata["tool_results"] = list(all_tool_results)
                 self._prepend_retry_tool_results(last_result, retry_tool_results)
                 self._fill_content_from_recorded_task_result(last_result)
+                phase_before = node.progress.lifecycle_phase
                 attempt_tools = self._advance_lifecycle_tools(
                     node, last_result, resolved_tools, attempt_tools
                 )
@@ -1228,6 +1261,9 @@ class TinyCUALoop(
                     assistant_msg["reasoning_content"] = last_result.reasoning
                 attempt_messages.append(assistant_msg)
                 self._append_tool_result_messages(attempt_messages, tool_results, normalized_tool_calls)
+                self._append_lifecycle_phase_directive(
+                    attempt_messages, node, phase_before
+                )
                 # Evict superseded file reads: when the model re-reads a file
                 # it just edited, the older reads are stale (the file changed).
                 # Stub them so the prompt stops growing from redundant re-reads
@@ -1272,11 +1308,7 @@ class TinyCUALoop(
             )
             if self._advance_lifecycle_phase(node, last_result):
                 retry_tool_results = self._tool_results_from_llm_result(last_result)
-                retry_message = (
-                    "Action summary: "
-                    f"{node.progress.action_summary}\n"
-                    "Continue in the current lifecycle phase without repeating action work."
-                )
+                retry_message = self._lifecycle_phase_directive(node)
                 retry_feedback = self._tool_feedback_messages(last_result)
                 continue
             last_validation = self._validate_node_result(node, last_result)

@@ -375,10 +375,12 @@ async def test_task_executor_validates_tool_owned_result_update(tmp_path: Path) 
     messages, tools = agent.loop._prepare_node(node, agent.tools, None)
     captured_tool_choices = []
     captured_tool_names = []
+    captured_message_batches = []
 
     async def call_llm(messages, tools, stream: bool = False):  # noqa: ANN001, ARG001
         captured_tool_choices.append(agent.config.llm_model.tool_choice)
         captured_tool_names.append([tool.name for tool in tools])
+        captured_message_batches.append(messages)
         if len(captured_tool_choices) == 1:
             return {
                 "content": "",
@@ -442,6 +444,12 @@ async def test_task_executor_validates_tool_owned_result_update(tmp_path: Path) 
     assert "terminate" not in captured_tool_names[1]
     assert "task_result_update" in captured_tool_names[2]
     assert "terminate" in captured_tool_names[2]
+    terminate_prompt = "\n".join(
+        str(message.get("content", "")) for message in captured_message_batches[2]
+    )
+    assert "COMMIT succeeded" in terminate_prompt
+    assert "Do not repeat work or start another roadmap task" in terminate_prompt
+    assert "Call terminate now" in terminate_prompt
     assert [item["name"] for item in result.metadata["tool_results"]] == [
         "write_file",
         "task_result_update",
