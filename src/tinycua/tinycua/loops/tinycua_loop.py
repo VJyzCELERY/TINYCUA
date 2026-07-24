@@ -577,6 +577,14 @@ class TinyCUALoop(
                 "assignment. Do not repeat action work or start another task."
             )
         if node.progress.lifecycle_phase == LifecyclePhase.TERMINATE:
+            if node.node_id == "result_reviewer":
+                return (
+                    "Active-task decision is complete. Only now inspect unfinished "
+                    "tasks and amend relevant descriptions or context with task_update. "
+                    "This is context only. Do not review or execute those tasks, and do "
+                    "not modify their artifacts. Then call terminate to return control "
+                    "to the runtime."
+                )
             return (
                 "COMMIT succeeded. This node still owns only its current assignment. "
                 "Do not repeat work or start another roadmap task. Call terminate now "
