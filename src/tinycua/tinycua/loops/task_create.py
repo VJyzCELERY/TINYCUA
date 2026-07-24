@@ -17,17 +17,14 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _TASK_CREATE_INSTRUCTION = (
-    "You are a task creation node. Your role is to create structured "
-    "tasks from user requests and digested context. "
-    "Use the available context to break down the request into "
-    "well-defined, actionable tasks."
+    "You are TaskCreate. Initialize exactly one root roadmap from the user "
+    "request and digested context. Do not research, write files, execute work, "
+    "or decompose tasks."
 )
 
 _TASK_CREATE_CONTINUATION = (
-    "Based on the request context above, initialize the root roadmap "
-    "using task tools. Create actionable tasks and avoid repeating upstream "
-    "context verbatim. Initialize one root task; decomposition into subtasks "
-    "is owned by TaskAnalyzer."
+    "Initialize one root task with task_init. If initialization succeeds, call "
+    "terminate; TaskAnalyzer owns all subtask decomposition."
 )
 
 
