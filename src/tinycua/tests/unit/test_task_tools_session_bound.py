@@ -368,17 +368,18 @@ def test_review_tool_stages_corrections_until_reviewer_termination() -> None:
 
 
 def test_reviewer_termination_commits_the_selected_staged_task() -> None:
-    """Termination commits the task selected by the staged review decision."""
+    """Termination commits the active task's staged review decision."""
     store = TaskStateStore()
     root = store.create_task("Root")
     store.create_task("First", parent_id=root.task_id)
     second = store.create_task("Second", parent_id=root.task_id)
     store.record_result(second.task_id, TaskResult(content="evidence"))
+    store.active_task_id = second.task_id
     review = TaskReviewDecisionTool()
     terminate = TerminateTool()
     for tool in (review, terminate):
         tool.bind_task_store(store)
-    terminate.bind_source_node("result_reviewer")
+        tool.bind_source_node("result_reviewer")
 
     assert review(
         task_id=second.task_id,
@@ -388,6 +389,30 @@ def test_reviewer_termination_commits_the_selected_staged_task() -> None:
     assert terminate()["success"]
 
     assert store.get_task(second.task_id).reviewer_decisions[-1]["decision"] == "approved"
+
+
+def test_reviewer_cannot_decide_a_sibling_task() -> None:
+    """Reviewer task-state mutations are confined to the active task."""
+    store = TaskStateStore()
+    root = store.create_task("Root")
+    active = store.create_task("Active", parent_id=root.task_id)
+    sibling = store.create_task("Sibling", parent_id=root.task_id)
+    store.record_result(active.task_id, TaskResult(content="active evidence"))
+    store.record_result(sibling.task_id, TaskResult(content="sibling evidence"))
+    store.active_task_id = active.task_id
+    review = TaskReviewDecisionTool()
+    review.bind_task_store(store)
+    review.bind_source_node("result_reviewer")
+
+    result = review(
+        task_id=sibling.task_id,
+        decision="approved",
+        rationale="[validated]: command passed",
+    )
+
+    assert result["success"] is False
+    assert "active task" in result["error"].lower()
+    assert sibling.task_id not in store._staged_reviewer_decisions
 
 
 def test_executor_result_is_immediately_visible_to_reviewer() -> None:
