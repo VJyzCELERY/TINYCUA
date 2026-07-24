@@ -320,11 +320,13 @@ def test_planning_nodes_encourage_exploration_before_role_duty() -> None:
     executor_prompt = executor.build_instruction() + " " + executor.build_continuation()
     reviewer_prompt = reviewer.build_instruction() + " " + reviewer.build_continuation()
 
-    # Each planning/review node mentions an exploration tool.
-    for prompt in (analyzer_prompt, assessor_prompt, reviewer_prompt):
+    # Planning nodes mention available exploration tools.
+    for prompt in (analyzer_prompt, assessor_prompt):
         assert any(t in prompt for t in ("web_search", "fetch_url", "read_file", "run_shell")), (
-            "planning/review nodes must encourage exploration tools"
+            "planning nodes must encourage exploration tools"
         )
+    # Reviewer guidance is acceptance-driven; resolved tools are injected separately.
+    assert "acceptance criteria" in reviewer_prompt.lower()
     # Executor explores the workspace/state before making changes.
     assert any(t in executor_prompt for t in ("read_file", "list_files", "search_files")), (
         "executor must explore workspace/state before making changes"

@@ -7,6 +7,8 @@ fuzzy matching, and error handling.
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -35,7 +37,7 @@ def _resolve_path(path: str) -> Path:
 
 
 def _detect_literal_newline_warning(content: str) -> str:
-    """Detect literal backslash-n on long lines and return a warning string.
+    r"""Detect literal backslash-n on long lines and return a warning string.
 
     Local models sometimes write ``\\n`` (two literal characters) instead of
     real newlines, producing one giant line. This detects that pattern and
@@ -50,8 +52,8 @@ def _detect_literal_newline_warning(content: str) -> str:
             return (
                 "\n[Warning: this line contains literal \\n characters "
                 "(backslash-n), not actual newlines. The file may be "
-                "malformed — use str_replace to fix the literal \\n to "
-                "real newlines.]"
+                "formatted intentionally or may be malformed; inspect the "
+                "expected file format before changing it.]"
             )
     return ""
 
@@ -299,10 +301,6 @@ def write_file(path: str, content: str) -> dict[str, Any]:
 
 
 # --- str_replace (content-based edit with fuzzy matching) ---
-
-
-import re
-import unicodedata
 
 
 def _find_all(haystack: str, needle: str) -> list[tuple[int, int]]:

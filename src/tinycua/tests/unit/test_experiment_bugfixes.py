@@ -50,7 +50,7 @@ class TestExecutorTaskOwnership:
 
 
 class TestReviewerTestGuidanceGeneric:
-    """FR-081: reviewer guidance is generic + includes unicode escape check."""
+    """FR-081: reviewer guidance stays acceptance-driven and generic."""
 
     def test_guidance_says_actually_works(self):
         from tinycua.loops.node_guidance import build_reviewer_tool_guidance
@@ -61,15 +61,20 @@ class TestReviewerTestGuidanceGeneric:
         guidance = build_reviewer_tool_guidance(tools)
         assert "actually works" in guidance.lower() or "functional" in guidance.lower()
 
-    def test_guidance_includes_unicode_escape_check(self):
+    def test_guidance_avoids_historical_corruption_checks(self):
         from tinycua.loops.node_guidance import build_reviewer_tool_guidance
         class _FakeTool:
             def __init__(self, name):
                 self.name = name
         tools = [_FakeTool("read_file"), _FakeTool("run_shell"), _FakeTool("task_review_decision")]
         guidance = build_reviewer_tool_guidance(tools)
-        assert "u[0-9a-f]" in guidance.lower() or "unicode escape" in guidance.lower()
+        assert "acceptance criteria" in guidance.lower()
+        assert "unicode escape" not in guidance.lower()
+        assert "markdown with math" not in guidance.lower()
 
-    def test_continuation_includes_unicode_escape_check(self):
+    def test_continuation_avoids_fixed_command_recipes(self):
         from tinycua.loops.node_guidance import _RESULT_REVIEWER_CONTINUATION
-        assert "u[0-9a-f]" in _RESULT_REVIEWER_CONTINUATION.lower() or "unicode escape" in _RESULT_REVIEWER_CONTINUATION.lower()
+        lowered = _RESULT_REVIEWER_CONTINUATION.lower()
+        assert "acceptance criteria" in lowered
+        assert "grep -c" not in lowered
+        assert "python -c" not in lowered
