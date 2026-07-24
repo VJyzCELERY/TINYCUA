@@ -125,13 +125,8 @@ def test_worker_runtime_replan_uses_local_assessor_mode() -> None:
     assert queue.items[1].config.metadata["task_analyzer_mode"] == "local_replan"
 
 
-def test_open_question_disabled_by_default_falls_through_to_schedule_next() -> None:
-    """OPEN_QUESTION decision with flag disabled (default) does not bail to ResponseNode.
-
-    The controller must treat OPEN_QUESTION as an unknown decision and fall
-    through to schedule_next — it must never route to ResponseNode while
-    tasks remain unfinished in one-shot worker mode.
-    """
+def test_open_question_replans_instead_of_bailing_to_response() -> None:
+    """OPEN_QUESTION keeps incomplete work inside the worker loop."""
     store = TaskStateStore()
     root = store.create_task("Root")
     active = store.create_task("Active", parent_id=root.task_id)
@@ -141,12 +136,16 @@ def test_open_question_disabled_by_default_falls_through_to_schedule_next() -> N
 
     WorkerRuntimeController(store).schedule_after_review(queue)
 
-    # Falls through to schedule_next → executor+reviewer (active task unfinished)
-    assert [node.node_id for node in queue.items] == ["task_executor", "result_reviewer"]
+    assert [node.node_id for node in queue.items] == [
+        "task_assessor",
+        "task_analyzer",
+        "task_executor",
+        "result_reviewer",
+    ]
 
 
-def test_open_question_enabled_routes_to_response_node() -> None:
-    """OPEN_QUESTION decision with flag enabled bails to ResponseNode."""
+def test_open_question_enabled_replans_instead_of_bailing_to_response() -> None:
+    """OPEN_QUESTION never bypasses incomplete work."""
     store = TaskStateStore()
     root = store.create_task("Root")
     active = store.create_task("Active", parent_id=root.task_id)
@@ -158,4 +157,9 @@ def test_open_question_enabled_routes_to_response_node() -> None:
         store, enable_open_question_review=True
     ).schedule_after_review(queue)
 
-    assert [node.node_id for node in queue.items] == ["response"]
+    assert [node.node_id for node in queue.items] == [
+        "task_assessor",
+        "task_analyzer",
+        "task_executor",
+        "result_reviewer",
+    ]
