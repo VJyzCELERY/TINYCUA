@@ -521,7 +521,8 @@ class TinyCUALoop(
         if node.node_id == "task_create":
             return store.root_task_id is not None
         if node.node_id == "task_executor":
-            return bool(store._staged_results)
+            active = store.get_active_task()
+            return active is not None and active.result is not None
         if node.node_id == "result_reviewer":
             return bool(store._staged_reviewer_decisions)
         if node.node_id == "task_assessor":
@@ -547,11 +548,6 @@ class TinyCUALoop(
         if not node.contract.requires_terminate:
             return False
         if node.progress.lifecycle_phase == LifecyclePhase.ACTION:
-            if (
-                node.node_id == "task_executor"
-                and not node.contract.is_satisfied(node.progress.satisfied_requirements)
-            ):
-                return False
             node.progress.advance_lifecycle(LifecyclePhase.SUMMARY, result.content.strip())
             node.progress.advance_lifecycle(LifecyclePhase.COMMIT)
             return True
@@ -786,7 +782,7 @@ class TinyCUALoop(
                 task = self.root_session.task_store.get_task(task_id)
             except ValueError:
                 continue
-            result = task.result or self.root_session.task_store._staged_results.get(task_id)
+            result = task.result
             partial_results = list(
                 task.metadata.get("executor_partial_tool_results", [])
             )

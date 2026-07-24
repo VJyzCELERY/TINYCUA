@@ -136,19 +136,17 @@ _TASK_EXECUTOR_INSTRUCTION = (
     "fetch_url) before making changes — plan and analyze before you act. "
     "You MUST use tools for workspace changes, inspection, commands, "
     "Python, research, or verification. Preserve explicit user constraints "
-    "from the work order. Do not describe what you will do — use the tools and "
-    "return a concise action summary. "
-    "After completing the active task, check for sibling tasks (same "
-    "parent) your work also completed. For each, call task_inspect to "
-    "verify, then summarize only siblings you actually completed."
+    "from the work order. Do not write a plan. Do not describe what you will "
+    "do — "
+    "use the tools and "
+    "return a concise action summary. Report only the active task's outcome."
 )
 _TASK_EXECUTOR_CONTINUATION = (
     "Based on the active task above, explore the current state (read_file/"
     "list_files/search_files/web_search) before making changes. Then use "
     "tools to complete it. Summarize what changed, was found, or blocked; do "
-    "not keep repeating "
-    "read/list inspection. After completing the active task, check for "
-    "sibling tasks you also completed — inspect and summarize each."
+    "not keep repeating read/list inspection. Report only the active task's "
+    "outcome."
 )
 
 _RESULT_REVIEWER_INSTRUCTION = _RESULT_REVIEWER_INSTRUCTION  # re-exported from node_guidance

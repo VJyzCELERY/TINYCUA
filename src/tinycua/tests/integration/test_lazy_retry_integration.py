@@ -79,17 +79,15 @@ async def test_executor_terminates_with_lazy_retry():
     agent.tool_permissions = {}
     agent._call_llm = llm
 
-    # _execute_node runs the full lifecycle: in-loop retry → lazy →
-    # exhaustion → _unbounded_recovery → _direct_terminate when needed.
+    # _execute_node runs the full lifecycle: retry → lazy commit report → terminate.
     content, tool_calls = await loop._execute_node(node, agent, tools=[TaskResultUpdateTool()])
 
-    # Action, commit, and terminate each require a focused LLM call.
+    # ACTION, COMMIT, and TERMINATE each require a focused LLM call.
     assert llm.call_count == 3, f"Expected 3 LLM calls, got {llm.call_count}"
-    # Direct termination commits the synthesized staged result exactly once.
+    # The synthesized commit report is immediately visible to the reviewer.
     task = store.tasks[root.task_id]
-    assert task.result is not None, "task_result_update should commit at termination"
+    assert task.result is not None, "task_result_update should persist its report"
     assert task.result.success is True
-    assert root.task_id not in store._staged_results
     # The node produced output (content or tool calls).
     assert content or tool_calls
 
@@ -124,8 +122,9 @@ async def test_standard_mode_does_not_use_lazy_retry():
     agent.tool_permissions = {}
     agent._call_llm = always_fail
 
-    content, tool_calls = await loop._execute_node(node, agent, tools=[TaskResultUpdateTool()])
+    from tinycua.loops.node import NodeExecutionError
 
-    # In standard mode the node does NOT terminate cleanly via lazy; it
-    # exhausts retries and records failure. The task stays unfinished.
+    with pytest.raises(NodeExecutionError):
+        await loop._execute_node(node, agent, tools=[TaskResultUpdateTool()])
+
     assert store.tasks[root.task_id].status != TaskStatus.COMPLETED
