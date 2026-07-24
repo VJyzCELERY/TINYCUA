@@ -217,7 +217,7 @@ class OrchestrationMixin:
         if content:
             self._record_node_content_transcript(node, content)
         self._record_tool_result_transcripts(
-            node, llm_result.metadata.get("tool_results", []),
+            node, llm_result.metadata.get("tool_results", []), llm_result.tool_calls,
         )
         self._apply_loop_result_hook(node, llm_result, node_input)
         self._publish_structured_outputs_to_root(node)
@@ -439,7 +439,7 @@ class OrchestrationMixin:
                 node,
                 llm_result.metadata["tool_results"],
             )
-            self._record_tool_result_transcripts(node, tool_results)
+            self._record_tool_result_transcripts(node, tool_results, collected_tool_calls)
             self._fill_content_from_recorded_task_result(llm_result)
         elif retry_tool_results:
             self._prepend_retry_tool_results(llm_result, retry_tool_results)
@@ -1629,6 +1629,7 @@ class OrchestrationMixin:
         self._record_tool_result_transcripts(
             node,
             recovered_result.metadata.get("tool_results", []),
+            recovered_result.tool_calls,
         )
         self._apply_loop_result_hook(node, recovered_result, None)
         self._publish_structured_outputs_to_root(node)
