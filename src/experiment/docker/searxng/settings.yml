@@ -19,17 +19,65 @@ outgoing:
   request_timeout: 8.0
   max_request_timeout: 10.0
 
-# Enable extra general-web engines (disabled in SearXNG defaults) so the
-# agent has 5+ general engines instead of the default 4 (google, brave,
-# startpage, duckduckgo). When one or two get rate-limited/CAPTCHA'd
-# under rapid-fire query load, the rest still return results. Each entry
+# Enable a broad engine set so a few rate-limited/CAPTCHA'd upstreams
+# under rapid-fire query load still leave partial results. Each entry
 # merges over the default engine definition with the same `name`.
+# General (10), IT (4), Science/Wiki (6), News (5) = ~25 engines.
 engines:
+  # --- general ---
+  - name: google
+    enabled: true
   - name: bing
     enabled: true
-  - name: qwant
-    enabled: true
-  - name: mojeek
+  - name: brave
     enabled: true
   - name: duckduckgo
     enabled: true
+  - name: startpage
+    enabled: true
+  - name: mojeek
+    enabled: true
+  - name: qwant
+    enabled: true
+  - name: marginalia
+    enabled: true
+  - name: yahoo
+    enabled: true
+  - name: swisscows
+    enabled: true
+  # --- it ---
+  - name: stackoverflow
+    enabled: true
+  - name: github
+    enabled: true
+  - name: mdn
+    enabled: true
+  - name: superuser
+    enabled: true
+  # --- science / wiki ---
+  - name: wikipedia
+    enabled: true
+  - name: arxiv
+    enabled: true
+  - name: google scholar
+    enabled: true
+  - name: pubmed
+    enabled: true
+  - name: openalex
+    enabled: true
+  - name: springer nature
+    enabled: true
+  # --- news ---
+  - name: bing news
+    enabled: true
+  - name: google news
+    enabled: true
+  - name: duckduckgo news
+    enabled: true
+  - name: yahoo news
+    enabled: true
+  - name: reuters
+    enabled: true
+  # --- explicitly disabled (3rd-party blocks on shared public IP) ---
+  - name: wikidata
+    enabled: false

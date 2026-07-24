@@ -981,6 +981,28 @@ def _reset_state_volumes(
                 raise OSError(f"failed resetting state volume {volume}")
 
 
+def _restart_searxng(timeout_seconds: int = 30) -> None:
+    """Restart SearXNG once per runner invocation for a clean container state.
+
+    Best-effort: a failure logs a warning and continues so infra never blocks
+    a run. # ponytail: a shared public-IP block could still starve results after
+    the restart; add a query cache or external proxy if engine rate limits
+    persist across restarts.
+    """
+    try:
+        subprocess.run(
+            ["docker", "compose", "restart", "searxng"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired:
+        print("WARNING: searxng restart timed out; continuing", flush=True)
+        return
+    print("[searxng] restarted for this run", flush=True)
+
+
 def tree_revision(root: Path) -> str:
     """Return a deterministic SHA-256 revision for one file tree."""
     digest = hashlib.sha256()
@@ -1143,6 +1165,7 @@ def run_experiments(
     _prepare_output(output_root, fixtures, agents, overwrite)
     if overwrite:
         _reset_state_volumes(fixtures, agents, timeout_seconds)
+    _restart_searxng(timeout_seconds)
     raw_environment, configured_environment = _agent_compose_environments(
         Path(".env"), ""
     )

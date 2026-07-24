@@ -154,14 +154,20 @@ setInterval(draw, 1000);
     assert set(score["critical_categories"]) == set(score["categories"])
 
 
-def test_research_evaluator_uses_exact_snapshot_model_for_relevancy(
+def test_research_evaluator_accepts_frozen_model_name_variants(
     tmp_path: Path,
 ) -> None:
-    """Research freshness requires a model from the bundled snapshot."""
+    """Research freshness accepts natural model-name formatting variants."""
     fixture = FIXTURES / "experiment-2"
     cases = (
-        ("model-only", "", "GPT-5.6-Sol"),
+        ("exact-hyphen", "", "GPT-5.6-Sol"),
         ("missing-model", "2026-07-22", ""),
+        ("all-spaces", "", "GPT 5.6 Sol"),
+        ("mixed-sep", "", "GPT-5.6 Sol"),
+        ("no-claude-opus", "", "Opus 4.8"),
+        ("no-claude-fable", "", "Fable 5"),
+        ("trailing-period", "", "Claude Fable 5."),
+        ("all-spaces-terra", "", "GPT 5.6 Terra"),
         ("later", "2026-07-23", "GPT-5.6-Sol"),
     )
     for name, date_text, model in cases:
@@ -186,10 +192,22 @@ def test_research_evaluator_uses_exact_snapshot_model_for_relevancy(
             "sh",
             "-c",
             "python -m pip install -q -r /eval/requirements.txt && "
-            "python /eval/check.py /cases/model-only "
-            "/cases/model-only-result || true; "
+            "python /eval/check.py /cases/exact-hyphen "
+            "/cases/exact-hyphen-result || true; "
             "python /eval/check.py /cases/missing-model "
             "/cases/missing-model-result || true; "
+            "python /eval/check.py /cases/all-spaces "
+            "/cases/all-spaces-result || true; "
+            "python /eval/check.py /cases/mixed-sep "
+            "/cases/mixed-sep-result || true; "
+            "python /eval/check.py /cases/no-claude-opus "
+            "/cases/no-claude-opus-result || true; "
+            "python /eval/check.py /cases/no-claude-fable "
+            "/cases/no-claude-fable-result || true; "
+            "python /eval/check.py /cases/trailing-period "
+            "/cases/trailing-period-result || true; "
+            "python /eval/check.py /cases/all-spaces-terra "
+            "/cases/all-spaces-terra-result || true; "
             "python /eval/check.py /cases/later /cases/later-result || true",
         ],
         capture_output=True,
@@ -199,17 +217,29 @@ def test_research_evaluator_uses_exact_snapshot_model_for_relevancy(
     )
 
     assert completed.returncode == 0, completed.stderr
-    model_only = json.loads((tmp_path / "model-only-result" / "score.json").read_text())
-    missing_model = json.loads(
-        (tmp_path / "missing-model-result" / "score.json").read_text()
-    )
-    later = json.loads((tmp_path / "later-result" / "score.json").read_text())
-    assert "latest_relevancy" in model_only["critical_categories"]
-    assert model_only["categories"]["latest_relevancy"]["points"] == 1
-    assert missing_model["categories"]["latest_relevancy"]["points"] == 0
-    assert later["categories"]["latest_relevancy"]["points"] == 1
-    assert 0 < model_only["metrics"]["rouge_l_f1"] <= 100
-    assert 0 < model_only["metrics"]["bleu"] <= 100
+
+    def score(name: str) -> dict[str, object]:
+        return json.loads(
+            (tmp_path / f"{name}-result" / "score.json").read_text()
+        )
+
+    assert "latest_relevancy" in score("exact-hyphen")["critical_categories"]
+    assert score("exact-hyphen")["categories"]["latest_relevancy"]["points"] == 1
+    assert score("missing-model")["categories"]["latest_relevancy"]["points"] == 0
+    for variant in (
+        "all-spaces",
+        "mixed-sep",
+        "no-claude-opus",
+        "no-claude-fable",
+        "trailing-period",
+        "all-spaces-terra",
+        "later",
+    ):
+        assert score(variant)["categories"]["latest_relevancy"]["points"] == 1, (
+            f"variant '{variant}' should pass latest_relevancy"
+        )
+    assert 0 < score("exact-hyphen")["metrics"]["rouge_l_f1"] <= 100
+    assert 0 < score("exact-hyphen")["metrics"]["bleu"] <= 100
 
 
 def test_experiment_four_wrapper_runs_filename_neutral_app_with_uv_and_prints_pid(
@@ -358,6 +388,7 @@ def test_controlled_runner_records_agent_telemetry_before_delayed_evaluation(
         command
         for line in calls.read_text().splitlines()
         if (command := json.loads(line))[:2] != ["image", "inspect"]
+        and command[:2] != ["compose", "restart"]
     ]
     assert commands[0][:2] == ["build", "--tag"]
     assert commands[1][:3] == ["build", "--tag", "tinycua-template-tinycua-base"]
@@ -763,8 +794,10 @@ def test_controlled_runner_records_agent_and_evaluator_timeouts(
     assert secret not in (run_root / f"{log_name}.stdout.log").read_text()
     assert secret not in (run_root / f"{log_name}.stderr.log").read_text()
     commands = [
-        json.loads(line) for line in (tmp_path / "calls.jsonl").read_text().splitlines()
+        json.loads(line)
+        for line in (tmp_path / "calls.jsonl").read_text().splitlines()
     ]
+    commands = [c for c in commands if c[:2] != ["compose", "restart"]]
     timed_out_index = next(
         index
         for index, command in enumerate(commands)
@@ -839,6 +872,7 @@ def test_controlled_runner_stops_after_failed_or_hung_timeout_cleanup(
     run_root = output / "test-controlled-cleanup-failure" / "opencode"
     result_json = json.loads((run_root / "result.json").read_text())
     commands = [json.loads(line) for line in calls.read_text().splitlines()]
+    commands = [c for c in commands if c[:2] != ["compose", "restart"]]
     assert result.returncode == 1
     assert result_json["agent_exit_code"] == 124
     assert result_json["evaluator_exit_code"] == 125
