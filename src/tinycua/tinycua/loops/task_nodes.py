@@ -833,7 +833,22 @@ class TinyCUAResultReviewerNode(ProcessNode):
         )
 
     def _reviewer_context_blocks(self, task: Task, session: Session) -> str:
-        """Assemble active-task review context (child gate and failure note)."""
+        """Assemble active review and post-decision curation context."""
+        unfinished = [
+            f"  - [{other.status.value}] {other.title} (id={other.task_id})"
+            for other in session.task_store.tasks.values()
+            if other.status.value != "completed" and other.task_id != task.task_id
+        ]
+        curation_block = ""
+        if unfinished:
+            curation_block = (
+                "\n## Post-Decision Context Curation\n"
+                "Finish the active-task review and record its decision first. Only "
+                "then amend relevant descriptions or context for these unfinished "
+                "tasks. Do not review or execute them, and do not modify their artifacts.\n"
+                + "\n".join(unfinished)
+                + "\n"
+            )
         # FR-021: surface the failure count as SOFT context so the reviewer —
         # which still LLM-decides — can weigh replan over retry when a task has
         # bounced many times. Not a forced decision; just visible signal.
@@ -870,7 +885,7 @@ class TinyCUAResultReviewerNode(ProcessNode):
                 + "\n".join(child_lines)
                 + "\n"
             )
-        return f"{child_gate}{failure_note}"
+        return f"{child_gate}{failure_note}{curation_block}"
 
     def _failsafe_result_content(self, task: Task, session: Session) -> str:
         """Failsafe transcript when the executor left no result report."""

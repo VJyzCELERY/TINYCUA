@@ -302,15 +302,17 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
         required_tools=frozenset({"task_review_decision"}),
         requires_terminate=True,
         retry_max_attempts=25,
-        goal="Verify the executor's outcome against the task requirements using concrete evidence, then decide approve/revise/replan.",
+        goal="Verify the executor's outcome against the task requirements, decide approve/revise/replan, then curate relevant context for unfinished tasks.",
         role_boundary=(
-            "Only verify and decide the active task. You may read sibling context "
-            "but must not decide another task, modify artifacts, or fix executor work."
+            "First finish verification and decide the active task. Only afterward "
+            "may you amend context for unfinished tasks; never review or execute those "
+            "tasks, modify their artifacts, or fix executor work."
         ),
-        success_criteria="task_review_decision called with rationale citing validation evidence, then terminate.",
+        success_criteria="task_review_decision called with validation evidence first; then task_inspect and any relevant task_update calls for context only; then terminate.",
         tool_rationale={
             "task_review_decision": "Records your verdict (approved/needs_revision/rejected/replan) with evidence. This drives the task lifecycle — approved→completed, needs_revision→rework.",
-            "task_inspect": "Reads active-task state and evidence when needed before your decision.",
+            "task_inspect": "Reads task state for active-task verification and post-decision context curation.",
+            "task_update": "After the active decision, amends only relevant context on unfinished tasks; it does not review or execute them.",
             "terminate": "Ends this node so the runtime advances to the next task or response.",
         },
         additional_recovery_tools=("task_inspect",),
