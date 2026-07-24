@@ -72,8 +72,8 @@ def test_approval_without_inspect_is_accepted() -> None:
     assert store.active_task_id == second.task_id  # active advanced, not reset
 
 
-def test_reviewer_prompt_does_not_assign_unfinished_task_curation() -> None:
-    """Sibling tasks are context, never additional reviewer assignments."""
+def test_reviewer_prompt_orders_decision_before_context_only_curation() -> None:
+    """Curation follows the active decision and never becomes execution."""
     loop = TinyCUALoop()
     store = loop.root_session.task_store
     root = store.create_task("Root")
@@ -85,9 +85,13 @@ def test_reviewer_prompt_does_not_assign_unfinished_task_curation() -> None:
     prompt = node._reviewer_context_blocks(first, loop.root_session)
     contract = get_node_contract("result_reviewer")
 
-    assert "unfinished tasks" not in prompt.lower()
-    assert "curate" not in contract.success_criteria.lower()
-    assert "task_inspect" not in contract.success_criteria
+    assert "post-decision context curation" in prompt.lower()
+    assert prompt.lower().index("finish the active-task review") < prompt.lower().index("only then")
+    assert "do not review or execute" in prompt.lower()
+    assert contract.success_criteria.index(
+        "task_review_decision"
+    ) < contract.success_criteria.index("task_inspect")
+    assert "context only" in contract.success_criteria.lower()
 
 
 def test_approval_with_inspect_in_same_batch_is_valid() -> None:
@@ -176,7 +180,7 @@ def test_result_reviewer_retry_exposes_terminate_without_hiding_update() -> None
 
 
 def test_result_reviewer_terminate_retry_explains_handoff() -> None:
-    """Terminate retry should direct immediate return to the runtime."""
+    """Terminate retry orders context-only curation after the decision."""
     loop = TinyCUALoop()
     node = _reviewer_node(loop.root_session)
     node.progress.lifecycle_phase = LifecyclePhase.TERMINATE
@@ -190,9 +194,10 @@ def test_result_reviewer_terminate_retry_explains_handoff() -> None:
         LLMResult(),
     )
 
-    assert "Call terminate now" in message
-    assert "curate" not in message.lower()
-    assert "optional" not in message.lower()
+    assert "Active-task decision is complete" in message
+    assert "context only" in message.lower()
+    assert "Do not review or execute" in message
+    assert "terminate" in message
 
 
 def test_worker_lifecycle_node_cannot_terminate_before_required_tool() -> None:
@@ -279,7 +284,7 @@ def test_reviewer_no_failure_note_below_threshold() -> None:
 if __name__ == "__main__":
     # ponytail: self-check — run the contracts directly.
     test_approval_without_inspect_is_accepted()
-    test_reviewer_prompt_does_not_assign_unfinished_task_curation()
+    test_reviewer_prompt_orders_decision_before_context_only_curation()
     test_approval_with_inspect_in_same_batch_is_valid()
     test_result_reviewer_can_terminate_after_decide_and_inspect()
     test_result_reviewer_retry_exposes_terminate_without_hiding_update()
