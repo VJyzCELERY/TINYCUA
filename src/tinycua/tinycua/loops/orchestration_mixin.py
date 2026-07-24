@@ -1018,11 +1018,7 @@ class OrchestrationMixin:
                 and progress is not None
                 and progress.lifecycle_phase != phase_before
             ):
-                retry_message = (
-                    "Action summary: "
-                    f"{progress.action_summary}\n"
-                    "Continue in the current lifecycle phase without repeating action work."
-                )
+                retry_message = self._lifecycle_phase_directive(node)
                 retry_feedback = self._tool_feedback_messages(llm_result)
                 retry_tool_results = self._tool_results_from_llm_result(llm_result)
                 continue

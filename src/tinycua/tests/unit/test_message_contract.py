@@ -127,9 +127,36 @@ def test_downstream_nodes_do_not_replay_raw_user_input() -> None:
         # Continuations are now [System: ...] user messages (not assistant).
         assert any(
             message["role"] == "user" and "[System:" in str(message["content"])
-            and "Based on" in str(message["content"])
+            and (
+                "Based on" in str(message["content"])
+                or "Your Actual Assigned Task" in str(message["content"])
+            )
             for message in messages
         )
+
+
+def test_assessor_separates_context_only_mission_from_actual_assignment() -> None:
+    """Mission context cannot be mistaken for the assessor's delegated task."""
+    session = Session()
+    root = session.task_store.create_task("Research frontier LLMs")
+    root.metadata["mission"] = "Research models and write report.md."
+    assessor = TinyCUATaskAssessorNode(
+        node_id="task_assessor",
+        config=create_node_config("task_assessor"),
+    )
+    assessor.ensure_session(session)
+    history_before = list(session.chat_history)
+    context_before = list(session.session_context)
+
+    messages = assessor.build_messages(session, {})
+
+    rendered = "\n".join(str(message.get("content", "")) for message in messages)
+    assert "## Current Mission — Context Only" in rendered
+    assert "## Your Actual Assigned Task" in messages[-1]["content"]
+    assert "Assess decomposition readiness" in messages[-1]["content"]
+    assert "not your assigned task" in rendered
+    assert session.chat_history == history_before
+    assert session.session_context == context_before
 
 
 def test_query_analyst_worker_route_handoff_is_assistant_context() -> None:
@@ -243,10 +270,6 @@ def test_lifecycle_action_tool_call_enters_commit(
         content="Action Summary: wrote the requested file.",
         tool_calls=[{"function": {"name": "write_file"}}],
     )
-    if node_id == "task_executor":
-        assert not TinyCUALoop._advance_lifecycle_phase(node, result)
-        node.progress.satisfied_requirements.add("task_result_update")
-
     assert TinyCUALoop._advance_lifecycle_phase(
         node,
         result,
@@ -314,10 +337,11 @@ def test_executor_action_phase_hides_result_update() -> None:
     )
 
     assert [tool.name for tool in tools] == ["read_file", "write_file"]
-    assert not TinyCUALoop._advance_lifecycle_phase(
+    assert TinyCUALoop._advance_lifecycle_phase(
         node,
         LLMResult(metadata={"tool_results": [{"name": "read_file", "output": {"success": True}}]}),
     )
+    assert node.progress.lifecycle_phase is LifecyclePhase.COMMIT
 
 
 def test_internal_output_context_uses_assistant_role_not_user() -> None:
