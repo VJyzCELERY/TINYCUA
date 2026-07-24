@@ -99,10 +99,10 @@ class TestReplanBoundaryResetsConsecutiveFailures:
 # ---------------------------------------------------------------------------
 
 
-class TestMaxReplansCap:
-    """At max_replans, the next send-back fails instead of replanning."""
+class TestUnboundedReplans:
+    """Replanning continues regardless of the configured diagnostic value."""
 
-    def test_cap_exhaustion_records_failed_result(self):
+    def test_previous_cap_replans_instead_of_failing(self):
         store, child_id = _make_store_with_active_child()
         _reject(store, child_id, 5)
         # Insert 3 replan_boundary entries manually to simulate 3 prior replans.
@@ -117,15 +117,14 @@ class TestMaxReplansCap:
 
         WorkerRuntimeController(store, max_replans=3).schedule_after_review(queue)
 
-        # The task fails without fabricating an approval or success result.
         child = store.get_task(child_id)
-        assert child.status == TaskStatus.FAILED
-        assert child.result is not None
-        assert child.result.success is False
-        assert "replan budget exhausted" in child.result.content.lower()
-        assert all(d["decision"] != "approved" for d in child.reviewer_decisions)
+        assert child.status == TaskStatus.IN_PROGRESS
+        assert [node.node_id for node in queue.items] == [
+            "task_executor",
+            "result_reviewer",
+        ]
 
-    def test_cap_exhaustion_queues_only_failure_response(self):
+    def test_previous_cap_never_queues_response(self):
         store, child_id = _make_store_with_active_child()
         _reject(store, child_id, 5)
         child = store.get_task(child_id)
@@ -139,8 +138,7 @@ class TestMaxReplansCap:
         WorkerRuntimeController(store, max_replans=3).schedule_after_review(queue)
 
         ids = [n.node_id for n in queue.items]
-        assert ids == ["response"]
-        assert queue.items[0].config.metadata["replan_budget_exhausted"]["task_id"] == child_id
+        assert ids == ["task_executor", "result_reviewer"]
 
     def test_below_cap_still_replans(self):
         store, child_id = _make_store_with_active_child()
