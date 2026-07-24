@@ -24,6 +24,39 @@ class BaseLoop:
     def __init__(self, max_iterations: int = 5) -> None:
         self.max_iterations = max_iterations
 
+    @staticmethod
+    def _tool_call_signature(tool_calls: list[dict[str, Any]]) -> tuple[tuple[str, str], ...]:
+        """Return an ID-independent signature for no-progress detection."""
+        signature = []
+        for call in tool_calls:
+            arguments = str(call.get("arguments", ""))
+            try:
+                arguments = json.dumps(
+                    json.loads(arguments), sort_keys=True, separators=(",", ":")
+                )
+            except (json.JSONDecodeError, TypeError):
+                pass
+            signature.append((str(call.get("name", "")), arguments))
+        return tuple(signature)
+
+    @classmethod
+    def _guard_stream_tool_progress(
+        cls,
+        tool_calls_buffer: dict[str, dict[str, Any]],
+        previous: list[tuple[tuple[str, str], ...]],
+        should_abort: bool,
+        finish_reason: str,
+        skip_complete: bool,
+    ) -> tuple[bool, str, bool]:
+        """Stop a stream before re-executing an identical tool-call batch."""
+        ready = [call for call in tool_calls_buffer.values() if call.get("_ready", False)]
+        signature = cls._tool_call_signature(ready)
+        if signature and signature == previous[0]:
+            return True, "no_progress", False
+        if signature:
+            previous[0] = signature
+        return should_abort, finish_reason, skip_complete
+
     def build_system_message(
         self, agent: Agent, override_instructions: str | None = None,
     ) -> dict[str, str]:
@@ -182,6 +215,7 @@ class BaseLoop:
     ) -> str:
         working: list[dict] = [self.build_system_message(agent, override_instructions), *messages]
         tool_call_count = 0
+        previous_tool_calls: tuple[tuple[str, str], ...] = ()
         for _ in range(self.max_iterations):
             if agent.is_cancelled:
                 raise asyncio.CancelledError
@@ -194,6 +228,10 @@ class BaseLoop:
                     msg,
                 )
             if response.get("tool_calls"):
+                signature = self._tool_call_signature(response["tool_calls"])
+                if signature == previous_tool_calls:
+                    return self.last_assistant_content(working) or "[identical tool call stopped]"
+                previous_tool_calls = signature
                 tool_call_count, max_reached = await self.process_tool_calls(
                     agent, tools, response["tool_calls"], working, tool_call_count,  # type: ignore[arg-type]
                     response.get("content") or "",
@@ -224,6 +262,7 @@ class BaseLoop:
         working: list[dict] = [self.build_system_message(agent, override_instructions), *messages]
         tool_call_count, cumulative_usage = 0, {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
         usage_settled_ids: set[str] = set()
+        previous_tool_calls: list[tuple[tuple[str, str], ...]] = [()]
         finish_reason, skip_complete, created_emitted = "completed", False, False
         try:
             for _ in range(self.max_iterations):
@@ -259,6 +298,15 @@ class BaseLoop:
                     elif event["type"] in ("response.failed", "error", "response.cancelled"):
                         skip_complete = should_abort = True
                     yield event
+                should_abort, finish_reason, skip_complete = (
+                    self._guard_stream_tool_progress(
+                        tool_calls_buffer,
+                        previous_tool_calls,
+                        should_abort,
+                        finish_reason,
+                        skip_complete,
+                    )
+                )
                 should_break, finish_reason, tool_call_count, skip_complete = (
                     await self._finalize_stream_iteration(
                         content_parts, reasoning_parts, tool_calls_buffer, agent, tools, working,
@@ -547,6 +595,7 @@ class BaseLoop:
             usage_settled_ids: Set of response IDs whose usage has been counted.
             in_progress_emitted: Whether ``response.in_progress`` was already
                 emitted by the first-chunk handler.
+            reasoning_parts: Reasoning delta strings accumulated in place.
 
         Yields:
             SDK-normalized stream events from the stream body.

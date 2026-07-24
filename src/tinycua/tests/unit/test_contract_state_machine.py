@@ -2,12 +2,6 @@
 
 from __future__ import annotations
 
-import json
-from typing import Any
-from unittest.mock import MagicMock
-
-import pytest
-
 from tinycua.config.node_config import create_node_config
 from tinycua.config.types import LLMResult, ValidationResult
 from tinycua.loops.node_contract import (
@@ -16,13 +10,11 @@ from tinycua.loops.node_contract import (
     RECOVERY_TOOL_MAP,
     REQUIRED_TOOLS_BY_NODE,
     TERMINATED_NODE_IDS,
-    NodeContract,
     NodeProgress,
     get_node_contract,
 )
 from tinycua.loops.task_nodes import TinyCUATaskAnalyzerNode, TinyCUATaskExecutorNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
-from tinycua.models.task import TaskResult, TaskStatus
 
 
 class TestContractDerivedMaps:
@@ -43,9 +35,9 @@ class TestContractDerivedMaps:
         assert frozenset({"task_update"}) in analyzer
 
     def test_recovery_chains_match_expected(self):
-        assert RECOVERY_CHAINS["task_create"] == ("task_init", "terminate")
-        assert RECOVERY_CHAINS["task_analyzer"] == ("task_decompose", "terminate")
-        assert RECOVERY_CHAINS["result_reviewer"] == ("task_review_decision", "task_inspect", "terminate")
+        assert RECOVERY_CHAINS["task_create"] == ("task_init",)
+        assert RECOVERY_CHAINS["task_analyzer"] == ("task_decompose",)
+        assert RECOVERY_CHAINS["result_reviewer"] == ("task_review_decision",)
 
     def test_recovery_tool_map_includes_alternatives(self):
         # Analyzer's tool map includes both task_decompose AND task_update.

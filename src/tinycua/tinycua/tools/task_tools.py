@@ -651,10 +651,9 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
             self,
             name="task_review_decision",
             description=(
-                "Record the review decision for a task result: approved, "
-                "needs_revision, rejected, or replan. task_id may be a UUID or "
-                "roadmap number. needs_revision and rejected are aliases — "
-                "use needs_revision for clarity."
+                "Record the active task review: approved, needs_revision, rejected, "
+                "or replan; needs_revision and rejected are aliases. Optional "
+                "context_updates atomically attach future-task evidence handoffs."
             ),
             parameters={
                 "type": "object",
@@ -678,6 +677,22 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
                             "verify the fix>'."
                         ),
                     },
+                    "context_updates": {
+                        "type": "array",
+                        "description": (
+                            "Optional evidence handoffs for unfinished future tasks. "
+                            "Use when existing output may already satisfy that task."
+                        ),
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "task_id": {"type": "string"},
+                                "context": {"type": "string"},
+                            },
+                            "required": ["task_id", "context"],
+                            "additionalProperties": False,
+                        },
+                    },
                 },
                 "required": ["decision", "rationale"],
                 "additionalProperties": False,
@@ -693,6 +708,7 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
         task_id: str | None = None,
         decision: str = "",
         rationale: str = "",
+        context_updates: list[dict[str, str]] | None = None,
     ) -> dict[str, Any]:
         """Persist a reviewer decision for the active task.
 
@@ -701,6 +717,7 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
             decision: Required — one of approved, needs_revision, rejected,
                 replan. Must not be omitted (no default approve).
             rationale: Optional reason for the decision.
+            context_updates: Optional evidence handoffs for unfinished future tasks.
         """
         if not decision:
             return {"success": False, "error": "decision is required — cannot default to approved."}
@@ -734,6 +751,7 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
                 active_id,
                 ReviewerDecision(decision),
                 rationale=rationale,
+                metadata={"context_updates": context_updates or []},
             )
         except ValueError as exc:
             return {"success": False, "error": str(exc)}

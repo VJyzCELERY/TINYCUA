@@ -840,10 +840,13 @@ class TaskStateStore:
         rationale: str = "",
         metadata: dict[str, Any] | None = None,
     ) -> Task:
-        """Append a reviewer decision to a task audit trail."""
+        """Append a reviewer decision and its validated context updates."""
         task = self.get_task(task_id)
         self._require_mutable(task)
         reviewer_decision = ReviewerDecision(decision)
+        context_updates = self._validated_reviewer_context_updates(
+            task_id, (metadata or {}).get("context_updates", [])
+        )
         if (
             reviewer_decision == ReviewerDecision.APPROVED
             and not self._has_approval_evidence(task.result)
@@ -886,8 +889,36 @@ class TaskStateStore:
             self._propagate_result_to_next_sibling(task)
             self._refresh_active_task()
             self._bump_version()
+        for target, context in context_updates:
+            existing = str(target.metadata.get("context", "")).strip()
+            target.metadata["context"] = f"{existing}\n\n{context}".strip()
+            target.metadata["suggested_mode"] = "verify_only"
+            target.metadata["context_source_task_id"] = task_id
+            self._bump_version()
         self._finalize_mutation("record_reviewer_decision", task_id)
         return task
+
+    def _validated_reviewer_context_updates(
+        self, reviewed_task_id: str, updates: Any
+    ) -> list[tuple[Task, str]]:
+        """Validate future-task handoffs before mutating review state."""
+        if not isinstance(updates, list):
+            raise ValueError("context_updates must be a list.")
+        validated: list[tuple[Task, str]] = []
+        for update in updates:
+            if not isinstance(update, dict):
+                raise ValueError("Each context update must be an object.")
+            target_id = self.resolve_task_id(str(update.get("task_id", "")))
+            context = str(update.get("context", "")).strip()
+            if target_id is None or target_id == reviewed_task_id:
+                raise ValueError("Context updates must target an existing future task.")
+            target = self.get_task(target_id)
+            if target.status in self._TERMINAL_STATUSES:
+                raise ValueError("Context updates may target only unfinished tasks.")
+            if not context:
+                raise ValueError("Context updates require non-empty context.")
+            validated.append((target, context))
+        return validated
 
     def stage_reviewer_decision(
         self,
@@ -901,6 +932,9 @@ class TaskStateStore:
         task = self.get_task(task_id)
         self._require_mutable(task)
         reviewer_decision = ReviewerDecision(decision)
+        self._validated_reviewer_context_updates(
+            task_id, (metadata or {}).get("context_updates", [])
+        )
         if reviewer_decision == ReviewerDecision.APPROVED and not self._has_approval_evidence(task.result):
             msg = "Approval requires successful executor evidence with non-empty content."
             raise ValueError(msg)
