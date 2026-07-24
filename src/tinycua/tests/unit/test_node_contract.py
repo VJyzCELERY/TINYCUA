@@ -100,6 +100,25 @@ class TestNodeContract:
         assert contract.required_tools == frozenset({"task_init"})
         assert contract.requires_terminate is True
         assert contract.early_stop_tool == "task_init"
+        assert "only" in contract.role_boundary.lower()
+
+    def test_all_runtime_nodes_declare_a_role_boundary(self):
+        node_ids = {
+            "query_analyst",
+            "digester",
+            "worker",
+            "task_create",
+            "task_analyzer",
+            "task_assessor",
+            "task_executor",
+            "result_reviewer",
+            "result_aggregation",
+            "response",
+            "analysis_effort",
+            "information_digester",
+        }
+
+        assert all(get_node_contract(node_id).role_boundary for node_id in node_ids)
 
     def test_result_reviewer_contract(self):
         contract = get_node_contract("result_reviewer")

@@ -110,6 +110,26 @@ def test_task_init_retains_explicit_acceptance_clauses() -> None:
         raise AssertionError("approved task without clause evidence")
 
 
+def test_task_init_failure_preserves_existing_roadmap_and_can_retry_before_success() -> None:
+    """Failed initialization never replaces a valid root task or its children."""
+    store = TaskStateStore()
+    init = TaskInitTool()
+    decompose = TaskDecomposeTool()
+    for tool in (init, decompose):
+        tool.bind_task_store(store)
+
+    assert init(title="", acceptance_clauses=["Deliver report"])["success"] is False
+    root = init("Deliver report", acceptance_clauses=["Deliver report"])
+    decompose(root["task_id"], ["Write report"])
+    before = store.snapshot()
+
+    repeated = init("Replace roadmap", acceptance_clauses=["Replace roadmap"])
+
+    assert repeated["success"] is False
+    assert "already initialized" in repeated["error"].lower()
+    assert store.snapshot() == before
+
+
 def test_task_init_executor_derives_clause_from_title_when_omitted() -> None:
     """Title-only SDK calls retain an acceptance clause instead of empty metadata."""
     store = TaskStateStore()

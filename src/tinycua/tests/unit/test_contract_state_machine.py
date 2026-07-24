@@ -143,6 +143,19 @@ class TestGoalInjectionInSystemMessage:
         assert "## Your Goal" in content
         assert "Break down the active task" in content
 
+    def test_system_message_contains_role_boundary(self):
+        loop = TinyCUALoop()
+        node = TinyCUATaskAnalyzerNode(
+            node_id="task_analyzer",
+            config=create_node_config("task_analyzer"),
+        )
+        node.ensure_session(loop.root_session)
+
+        content = node.build_system_message().get("content", "")
+
+        assert "## Role Boundary" in content
+        assert "Do not execute" in content
+
     def test_system_message_contains_success_criteria(self):
         loop = TinyCUALoop()
         node = TinyCUATaskExecutorNode(

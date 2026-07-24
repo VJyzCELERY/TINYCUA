@@ -517,10 +517,12 @@ class Node(ABC):
         # (instruction + AGENTS.md + date/env) stays byte-stable. The model
         # now knows its fulfillment criteria and WHY each tool is required.
         contract = self.contract
-        if contract and (contract.goal or contract.success_criteria):
+        if contract and (contract.goal or contract.role_boundary or contract.success_criteria):
             contract_lines: list[str] = []
             if contract.goal:
                 contract_lines.append(f"## Your Goal\n{contract.goal}")
+            if contract.role_boundary:
+                contract_lines.append(f"## Role Boundary\n{contract.role_boundary}")
             commit_tools = set(contract.required_tools)
             for group in contract.any_of_tools:
                 commit_tools.update(group)

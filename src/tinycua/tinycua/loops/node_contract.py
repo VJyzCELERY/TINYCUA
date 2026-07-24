@@ -175,6 +175,7 @@ class NodeContract:
         structured_output_schema: The json_schema for response_format, or
             None for free-text nodes. (Milestone 3 — populated later.)
         retry_max_attempts: Max retry attempts, or None for unbounded.
+        role_boundary: The work this node may perform and its explicit limits.
     """
 
     node_id: str
@@ -189,6 +190,7 @@ class NodeContract:
     # message so the model knows its fulfillment criteria and WHY each
     # tool is required — not just "call X" but "call X because Y."
     goal: str = ""
+    role_boundary: str = ""
     success_criteria: str = ""
     tool_rationale: dict[str, str] = field(default_factory=dict)
     # Tools that are not strictly required but should be in the recovery chain
@@ -238,6 +240,7 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
         requires_terminate=True,
         early_stop_tool="task_init",
         goal="Initialize the root task from the user request and digested context.",
+        role_boundary="Only initialize one root roadmap. Do not research, write files, execute work, or decompose tasks.",
         success_criteria="task_init called with a concise title and description, then terminate.",
         tool_rationale={
             "task_init": "Creates the root task that the entire roadmap descends from. Without it, there's nothing to decompose or execute.",
@@ -257,6 +260,7 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
         requires_terminate=True,
         early_stop_tool="task_decompose",
         goal="Break down the active task into concrete, executable subtasks grounded in current reality.",
+        role_boundary="Only plan or repair task structure. Do not execute work, write deliverables, or decide task results.",
         success_criteria="A supported task mutation succeeds, then terminate. The roadmap is actionable or safely repaired.",
         tool_rationale={
             "task_decompose": "Creates child tasks the executor can pick up. Without this, the roadmap has no executable next steps.",
@@ -272,6 +276,7 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
         requires_terminate=True,
         early_stop_tool="node_handoff",
         goal="Assess decomposition readiness and instruct the analyzer which tasks to refine.",
+        role_boundary="Only assess readiness and hand off scoped findings. Do not mutate task state or execute work.",
         success_criteria="node_handoff called with the assessment (selected tasks, reasons, or 'no further decomposition useful'), then terminate.",
         tool_rationale={
             "node_handoff": "Passes your assessment to the analyzer. Without it, the analyzer doesn't know what to focus on.",
@@ -285,6 +290,7 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
         early_stop_tool="task_result_update",
         retry_max_attempts=25,
         goal="Execute the active task: explore, act, verify, then report the outcome.",
+        role_boundary="Only execute and report the active task. You may read sibling context but must not mutate or report another task.",
         success_criteria="task_result_update called with the outcome (success=true/false and evidence), then terminate.",
         tool_rationale={
             "task_result_update": "Records what was done and whether it succeeded. The reviewer judges this report — without it, the runtime cannot infer task state from prose.",
@@ -297,6 +303,7 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
         requires_terminate=True,
         retry_max_attempts=25,
         goal="Verify the executor's outcome against the task requirements using concrete evidence, then decide approve/revise/replan.",
+        role_boundary="Only verify and decide the active task. You may read sibling context but must not decide another task.",
         success_criteria="task_review_decision called with rationale citing validation evidence, then task_inspect, then terminate.",
         tool_rationale={
             "task_review_decision": "Records your verdict (approved/needs_revision/rejected/replan) with evidence. This drives the task lifecycle — approved→completed, needs_revision→rework.",
@@ -309,6 +316,7 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
         node_id="query_analyst",
         required_tools=frozenset({"select_query_route"}),
         goal="Classify the user request and route it to the correct handler.",
+        role_boundary="Only classify and route the request. Do not plan tasks, execute work, or write deliverables.",
         success_criteria="select_query_route called with exactly one route (worker, uncertain, passthrough).",
         tool_rationale={
             "select_query_route": "Expresses the routing decision. Text-only answers are not actionable — the runtime reads the function call.",
@@ -318,6 +326,7 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
         node_id="worker",
         required_tools=frozenset({"select_worker_route"}),
         goal="Determine the next orchestration step based on current task state.",
+        role_boundary="Only choose the next orchestration route. Do not initialize, plan, execute, or review tasks.",
         success_criteria="select_worker_route called with exactly one route (task_creation, task_recreation, task_reanalysis, passthrough, proceed_execution).",
         tool_rationale={
             "select_worker_route": "Expresses the orchestration decision. The runtime advances based on this, not on prose.",
@@ -327,6 +336,7 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
         node_id="digester",
         early_stop_tool="digest_information",
         goal="Gather comprehensive context to ground downstream task planning.",
+        role_boundary="Only gather and digest context. Do not create tasks, execute work, or write deliverables.",
         success_criteria="digest_information called with a concise summary of findings (context first, then original query).",
         tool_rationale={
             "digest_information": "Records the gathered context. Downstream nodes (analyzer, executor) rely on this — without it, planning is ungrounded.",
@@ -337,18 +347,22 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
     "response": NodeContract(
         node_id="response",
         goal="Synthesize the final user-facing answer from completed task evidence.",
+        role_boundary="Only provide the final user-facing answer. Do not execute work or mutate task state.",
         success_criteria="A concise, non-empty natural language response mentioning concrete artifacts and key findings.",
     ),
     "result_aggregation": NodeContract(
         node_id="result_aggregation",
         goal="Compact completed task results into concise response-ready context.",
+        role_boundary="Only summarize completed evidence. Do not execute work, review tasks, or mutate task state.",
         success_criteria="Aggregated summary of completed task results with artifacts and verification evidence.",
     ),
     "analysis_effort": NodeContract(
         node_id="analysis_effort",
+        role_boundary="Only schedule the next analysis effort. Do not execute work or mutate task state.",
     ),
     "information_digester": NodeContract(
         node_id="information_digester",
+        role_boundary="Only gather and digest context. Do not create tasks, execute work, or write deliverables.",
     ),
 }
 
