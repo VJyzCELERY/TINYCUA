@@ -405,13 +405,25 @@ class ValidationRetryMixin:
             self._validate_result_reviewer_result_exists(node, llm_result),
             self._validate_result_reviewer_inspects_after_decision(node, llm_result),
             self._validate_result_reviewer_rationale_evidence(node, llm_result),
-            self._validate_worker_lifecycle_terminate(node, llm_result),
             self._validate_decision_route_tool(node, llm_result),
             self._validate_final_response_content(node, llm_result),
         ):
             if not extra_validation.is_valid:
                 validation.is_valid = False
                 validation.errors.extend(extra_validation.errors)
+        if (
+            validation.is_valid
+            and node.node_id == "result_reviewer"
+            and node.progress.lifecycle_phase.value == "commit"
+        ):
+            active_id = self.root_session.task_store.active_task_id
+            staged = self.root_session.task_store._staged_reviewer_decisions
+            if active_id in staged:
+                try:
+                    self.root_session.task_store.commit_staged_reviewer_decision(active_id)
+                except ValueError as exc:
+                    validation.is_valid = False
+                    validation.errors.append(str(exc))
         return validation
 
     def _validate_decision_route_tool(
@@ -555,91 +567,6 @@ class ValidationRetryMixin:
             validation.is_valid = False
             validation.errors.extend(errors)
         return validation
-
-    def _validate_worker_lifecycle_terminate(
-        self,
-        node: Node,
-        llm_result: LLMResult,
-    ) -> ValidationResult:
-        """Require explicit terminate after worker lifecycle node requirements."""
-        validation = ValidationResult(is_valid=True, errors=[])
-        if node.node_id not in self._TERMINATED_NODE_IDS:
-            return validation
-        tool_results = self._tool_results_from_llm_result(llm_result)
-        if node.progress.lifecycle_phase.value == "terminate":
-            if "terminate" in node.progress.satisfied_requirements:
-                return validation
-            if any(
-                item.get("name") == "terminate"
-                and isinstance(item.get("output"), dict)
-                and item["output"].get("success") is True
-                for item in tool_results
-            ):
-                return validation
-            validation.is_valid = False
-            validation.errors.append(f"{node.node_id} must terminate after commit.")
-            return validation
-        if not self._worker_lifecycle_ready_to_terminate(node.node_id, tool_results):
-            return validation
-        has_terminate = any(
-            item.get("name") == "terminate"
-            and isinstance(item.get("output"), dict)
-            and item["output"].get("success") is True
-            for item in tool_results
-        )
-        if has_terminate:
-            return validation
-        validation.is_valid = False
-        if node.node_id == "result_reviewer":
-            validation.errors.append(
-                "result_reviewer completed its active-task decision; curate only "
-                "relevant unfinished-task context without executing work, then terminate."
-            )
-        else:
-            validation.errors.append(
-                f"{node.node_id} completed its required work; call terminate."
-            )
-        return validation
-
-    @staticmethod
-    def _worker_lifecycle_ready_to_terminate(
-        node_id: str,
-        tool_results: list[dict[str, Any]],
-    ) -> bool:
-        """Return whether node-specific required conditions are met (FR-062)."""
-        successful = {
-            str(item.get("name"))
-            for item in tool_results
-            if isinstance(item.get("output"), dict)
-            and item["output"].get("success") is True
-        }
-        if node_id == "task_create":
-            return "task_init" in successful
-        if node_id == "task_analyzer":
-            return bool(
-                successful.intersection(
-                    {"task_create", "task_decompose", "task_shrink", "task_update"}
-                )
-            )
-        if node_id == "task_assessor":
-            return "node_handoff" in successful
-        if node_id == "task_executor":
-            return any(
-                item.get("name") == "task_result_update"
-                and isinstance(item.get("output"), dict)
-                for item in tool_results
-            )
-        if node_id == "result_reviewer":
-            return any(
-                item.get("name") == "task_review_decision"
-                and isinstance(item.get("output"), dict)
-                for item in tool_results
-            ) and any(
-                item.get("name") == "task_inspect"
-                and isinstance(item.get("output"), dict)
-                for item in tool_results
-            )
-        return False
 
     def _rollback_invalid_reviewer_approval(self, task_id: str) -> None:
         """Undo reviewer approval side effects when runtime validation rejects it."""

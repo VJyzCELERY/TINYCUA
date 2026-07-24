@@ -167,8 +167,8 @@ class NodeContract:
         deterministic_tools: No-arg tools the runtime may synthesize without
             an LLM round-trip (e.g. terminate). Tools whose arguments carry
             LLM-provided content MUST NOT be in this set.
-        requires_terminate: Whether the node must call terminate after its
-            required work is done (i.e. it's in the terminated-lifecycle set).
+        requires_terminate: Legacy name for nodes using the focused ACTION →
+            COMMIT lifecycle. A successful commit ends the node automatically.
         early_stop_tool: A single tool whose successful result lets the
             inner tool-continuation loop exit early (e.g. task_result_update
             for task_executor).
@@ -241,10 +241,9 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
         early_stop_tool="task_init",
         goal="Initialize the root task from the user request and digested context.",
         role_boundary="Only initialize one root roadmap. Do not research, write files, execute work, or decompose tasks.",
-        success_criteria="task_init called with a concise title and description, then terminate.",
+        success_criteria="task_init called with a concise title and description.",
         tool_rationale={
             "task_init": "Creates the root task that the entire roadmap descends from. Without it, there's nothing to decompose or execute.",
-            "terminate": "Ends this node so the analyzer can decompose the root task. Without terminate, the loop is stuck here.",
         },
     ),
     "task_analyzer": NodeContract(
@@ -261,13 +260,12 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
         early_stop_tool="task_decompose",
         goal="Break down the active task into concrete, executable subtasks grounded in available evidence.",
         role_boundary="Only plan or repair task structure. Do not execute work, write deliverables, or decide task results.",
-        success_criteria="A supported task mutation succeeds, then terminate. The roadmap is actionable or safely repaired.",
+        success_criteria="A supported task mutation succeeds. The roadmap is actionable or safely repaired.",
         tool_rationale={
             "task_decompose": "Creates child tasks the executor can pick up. Without this, the roadmap has no executable next steps.",
             "task_update": "Confirms the existing roadmap is sufficient. Use when no useful decomposition remains.",
             "task_create": "Adds a missing child or sibling without recreating completed roadmap history.",
             "task_shrink": "Cancels, supersedes, deletes, or merges invalid local work safely.",
-            "terminate": "Ends this node so the runtime advances to the executor. Without terminate, the loop is stuck here.",
         },
     ),
     "task_assessor": NodeContract(
@@ -277,10 +275,9 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
         early_stop_tool="node_handoff",
         goal="Assess decomposition readiness and instruct the analyzer which tasks to refine.",
         role_boundary="Only assess readiness and hand off scoped findings. Do not mutate task state or execute work.",
-        success_criteria="node_handoff called with the assessment (selected tasks, reasons, or 'no further decomposition useful'), then terminate.",
+        success_criteria="node_handoff called with the assessment (selected tasks, reasons, or 'no further decomposition useful').",
         tool_rationale={
             "node_handoff": "Passes your assessment to the analyzer. Without it, the analyzer doesn't know what to focus on.",
-            "terminate": "Ends this node so the analyzer can act on your handoff.",
         },
     ),
     "task_executor": NodeContract(
@@ -291,10 +288,9 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
         retry_max_attempts=25,
         goal="Execute the active task: explore, act, verify, then report the outcome.",
         role_boundary="Only execute and report the active task. You may read sibling context but must not mutate or report another task.",
-        success_criteria="task_result_update called with the outcome (success=true/false and evidence), then terminate.",
+        success_criteria="task_result_update called with the outcome (success=true/false and evidence).",
         tool_rationale={
             "task_result_update": "Records what was done and whether it succeeded. The reviewer judges this report — without it, the runtime cannot infer task state from prose.",
-            "terminate": "Ends this node so the reviewer can evaluate the outcome.",
         },
     ),
     "result_reviewer": NodeContract(
@@ -302,18 +298,16 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
         required_tools=frozenset({"task_review_decision"}),
         requires_terminate=True,
         retry_max_attempts=25,
-        goal="Verify the executor's outcome against the task requirements, decide approve/revise/replan, then curate relevant context for unfinished tasks.",
+        goal="Verify the executor outcome, decide approve/revise/replan, and atomically curate relevant future-task context.",
         role_boundary=(
-            "First finish verification and decide the active task. Only afterward "
-            "may you amend context for unfinished tasks; never review or execute those "
-            "tasks, modify their artifacts, or fix executor work."
+            "Review only the active task. The decision may include context handoffs "
+            "for unfinished tasks; never review or execute those tasks, modify their "
+            "artifacts, or fix executor work."
         ),
-        success_criteria="task_review_decision called with validation evidence first; then task_inspect and any relevant task_update calls for context only; then terminate.",
+        success_criteria="task_review_decision called with validation evidence and any relevant future-task context_updates.",
         tool_rationale={
             "task_review_decision": "Records your verdict (approved/needs_revision/rejected/replan) with evidence. This drives the task lifecycle — approved→completed, needs_revision→rework.",
-            "task_inspect": "Reads task state for active-task verification and post-decision context curation.",
-            "task_update": "After the active decision, amends only relevant context on unfinished tasks; it does not review or execute them.",
-            "terminate": "Ends this node so the runtime advances to the next task or response.",
+            "task_inspect": "Reads task state for active-task verification and future-task context curation.",
         },
         additional_recovery_tools=("task_inspect",),
     ),
@@ -397,12 +391,7 @@ def phase_tool_names(
     tool_names: set[str],
     phase: LifecyclePhase,
 ) -> set[str]:
-    """Return cumulative tools exposed in one lifecycle phase.
-
-    Lifecycle phases are deliberately cumulative: action tools remain useful
-    while committing, and both remain available while terminating.  The
-    termination tool is the only tool withheld until the TERMINATE phase.
-    """
+    """Return tools exposed exclusively in one lifecycle phase."""
     contract = get_node_contract(node_id)
     commit_tools = set(contract.required_tools)
     for group in contract.any_of_tools:
@@ -411,7 +400,7 @@ def phase_tool_names(
     if phase == LifecyclePhase.ACTION:
         return action_tools
     if phase == LifecyclePhase.COMMIT:
-        return tool_names - {"terminate"}
+        return commit_tools & tool_names
     if phase == LifecyclePhase.TERMINATE:
         return tool_names
     return set()
@@ -450,9 +439,9 @@ ANY_OF_TOOLS_BY_NODE: dict[str, frozenset[frozenset[str]]] = {
 def _build_recovery_chains() -> dict[str, tuple[str, ...]]:
     """Derive recovery prerequisite chains from contracts (replaces _RECOVERY_CHAINS).
 
-    For each terminated node, the chain is: required_tools (sorted) + the
-    early_stop_tool (preferred representative of any-of) + additional_recovery_tools
-    + 'terminate'. We only include ONE tool per any-of group (the
+    For each lifecycle node, the chain is: required_tools (sorted) + the
+    early_stop_tool (preferred representative of any-of). We only include ONE
+    tool per any-of group (the
     ``early_stop_tool``) — the recovery loop should prompt for the preferred
     tool, not all alternatives. Order matters: the recovery loop injects
     ``missing[0]`` first.
@@ -470,12 +459,6 @@ def _build_recovery_chains() -> dict[str, tuple[str, ...]]:
         # accepts it (via _validate_tool_owned_task_state's intersection check).
         if nc.early_stop_tool and nc.early_stop_tool not in tools:
             tools.append(nc.early_stop_tool)
-        # Additional recovery tools (guidance, not gates — e.g. task_inspect).
-        for t in nc.additional_recovery_tools:
-            if t not in tools:
-                tools.append(t)
-        # Terminate always last.
-        tools.append("terminate")
         chains[nc.node_id] = tuple(tools)
     return chains
 
@@ -488,7 +471,7 @@ def _build_recovery_tool_map() -> dict[str, tuple[str, ...]]:
     """Derive the recovery tool candidate map from contracts.
 
     For each node, list all tools that could satisfy the contract (required +
-    any-of flattened + additional_recovery_tools + terminate). Used by
+    any-of flattened + additional_recovery_tools). Used by
     _required_tool_for_recovery to find which tool to inject during recovery.
     """
     tool_map: dict[str, tuple[str, ...]] = {}
@@ -502,8 +485,6 @@ def _build_recovery_tool_map() -> dict[str, tuple[str, ...]]:
         for t in nc.additional_recovery_tools:
             if t not in tools:
                 tools.append(t)
-        if nc.requires_terminate and "terminate" not in tools:
-            tools.append("terminate")
         if tools:
             tool_map[nc.node_id] = tuple(tools)
     return tool_map

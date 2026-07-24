@@ -527,6 +527,15 @@ def _render_active_task_work_order(session: Session) -> str:
     context = str(active.metadata.get("context", "")).strip()
     if context:
         lines.extend(["", "## Useful Prior Context", context])
+    if active.metadata.get("suggested_mode") == "verify_only":
+        lines.extend(
+            [
+                "",
+                "## Suggested execution mode",
+                "Validate existing work before making changes. If it already satisfies "
+                "the task, report validation evidence with task_result_update.",
+            ]
+        )
     request_contract = _render_request_contract(session)
     if request_contract:
         lines.extend(["", request_contract])
@@ -829,7 +838,7 @@ class TinyCUAResultReviewerNode(ProcessNode):
         )
 
     def _reviewer_context_blocks(self, task: Task, session: Session) -> str:
-        """Assemble active review and post-decision curation context."""
+        """Assemble active review and atomic future-task curation context."""
         unfinished = [
             f"  - [{other.status.value}] {other.title} (id={other.task_id})"
             for other in session.task_store.tasks.values()
@@ -838,10 +847,12 @@ class TinyCUAResultReviewerNode(ProcessNode):
         curation_block = ""
         if unfinished:
             curation_block = (
-                "\n## Post-Decision Context Curation\n"
-                "Finish the active-task review and record its decision first. Only "
-                "then amend relevant descriptions or context for these unfinished "
-                "tasks. Do not review or execute them, and do not modify their artifacts.\n"
+                "\n## Future-Task Context Curation\n"
+                "While reviewing the active task, identify existing output relevant "
+                "to these unfinished tasks. Include only useful handoffs in the "
+                "task_review_decision context_updates argument so the verdict and "
+                "curation commit atomically. Do not review or execute these tasks, "
+                "and do not modify their artifacts.\n"
                 + "\n".join(unfinished)
                 + "\n"
             )

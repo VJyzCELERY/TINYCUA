@@ -1357,7 +1357,7 @@ def test_optional_task_analyzer_validation_failure_skips_pass() -> None:
 
 
 def test_task_executor_scopes_result_update_to_commit_phase() -> None:
-    """Executor commit phase retains action tools alongside its prerequisite."""
+    """Executor commit phase exposes only its state prerequisite."""
     executor = TinyCUATaskExecutorNode(
         node_id="task_executor",
         config=create_node_config("task_executor"),
@@ -1367,6 +1367,5 @@ def test_task_executor_scopes_result_update_to_commit_phase() -> None:
 
     assert [tool.name for tool in loop._phase_tools(executor, tools, LifecyclePhase.ACTION)] == ["write_file"]
     assert [tool.name for tool in loop._phase_tools(executor, tools, LifecyclePhase.COMMIT)] == [
-        "write_file",
         "task_result_update",
     ]

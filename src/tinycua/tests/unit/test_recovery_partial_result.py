@@ -25,8 +25,8 @@ from tinycua.models.task import TaskResult
 from tinycua.tools.task_tools import TaskDecomposeTool, TaskInspectTool, TaskResultUpdateTool, TerminateTool
 
 
-def test_lifecycle_phase_scope_is_cumulative() -> None:
-    """Each lifecycle phase retains tools exposed by earlier phases."""
+def test_lifecycle_phase_scope_is_exclusive() -> None:
+    """Lifecycle phases expose only the tools needed for that phase."""
     loop = TinyCUALoop()
     node = TinyCUATaskExecutorNode(
         node_id="task_executor",
@@ -38,7 +38,6 @@ def test_lifecycle_phase_scope_is_cumulative() -> None:
         "task_inspect"
     ]
     assert [tool.name for tool in loop._phase_tools(node, tools, LifecyclePhase.COMMIT)] == [
-        "task_inspect",
         "task_result_update",
     ]
     task = loop.root_session.task_store.create_task("Active")
@@ -55,8 +54,8 @@ class TestRecoveryRetryReturnsPartialResult:
     """_recovery_retry returns (result, validation) even when validation fails."""
 
     @pytest.mark.asyncio
-    async def test_partial_result_when_tool_succeeds_but_validation_fails(self):
-        """task_decompose succeeds but terminate is still missing → return partial."""
+    async def test_commit_result_is_valid_without_terminate(self):
+        """A successful task mutation finishes recovery without terminate."""
         loop = TinyCUALoop()
         store = loop.root_session.task_store
 
@@ -119,7 +118,7 @@ class TestRecoveryRetryReturnsPartialResult:
             missing_tools=["task_decompose", "terminate"],
         )
 
-        # The stage should return a partial result, NOT None.
+        # The successful commit should return directly.
         assert result is not None
         recovery_result, recovery_validation = result
         # task_decompose was called successfully.
@@ -129,16 +128,15 @@ class TestRecoveryRetryReturnsPartialResult:
             if isinstance(tr.get("output"), dict) and tr["output"].get("success")
         }
         assert "task_decompose" in successful
-        # Validation should still fail (terminate is missing).
-        assert not recovery_validation.is_valid
+        assert recovery_validation.is_valid
 
 
 class TestUnboundedRecoveryAccumulatesPartialResult:
     """_unbounded_recovery accumulates partial results and advances missing."""
 
     @pytest.mark.asyncio
-    async def test_task_decompose_accumulated_then_direct_terminate_fires(self):
-        """After task_decompose is accumulated, missing=['terminate'] → direct_terminate."""
+    async def test_task_decompose_recovery_finishes_without_terminate(self):
+        """Recovery returns as soon as task_decompose succeeds."""
         loop = TinyCUALoop()
         store = loop.root_session.task_store
 
@@ -207,76 +205,36 @@ class TestUnboundedRecoveryAccumulatesPartialResult:
             node, agent, resolved_tools, original_result, validation,
         )
 
-        # Should return a valid result (direct_terminate fired).
+        # The successful commit is the final lifecycle operation.
         assert recovery is not None
         result, final_validation = recovery
         assert final_validation.is_valid
-        # The result should contain a terminate tool call.
         assert any(
+            tc.get("function", {}).get("name") == "task_decompose"
+            for tc in result.tool_calls
+        )
+        assert not any(
             tc.get("function", {}).get("name") == "terminate"
             for tc in result.tool_calls
         )
 
 
 class TestNoProgressGuard:
-    """The no-progress guard skips a stage when the model re-calls an existing tool."""
+    """Completed commits do not enter no-progress recovery."""
 
     @pytest.mark.asyncio
-    async def test_no_progress_guard_skips_structured_after_duplicate(self):
-        """If structured retry re-calls task_decompose (already accumulated),
-        the guard skips remaining structured budget."""
+    async def test_completed_commit_needs_no_recovery_turn(self):
+        """Accumulated commit evidence validates without terminate recovery."""
         loop = TinyCUALoop()
         store = loop.root_session.task_store
-
         root = store.create_task("Research frontier LLMs")
         store.active_task_id = root.task_id
-
         node = TinyCUATaskAnalyzerNode(
             node_id="task_analyzer",
             config=create_node_config("task_analyzer"),
         )
         node.ensure_session(loop.root_session)
-
-        # Pre-seed accumulated_results with task_decompose already done.
-        # This simulates: task_decompose was already called successfully,
-        # but the model keeps re-calling it instead of calling terminate.
         node.progress.satisfied_requirements.add("task_decompose")
-
-        agent = MagicMock()
-        agent.tool_permissions = {}
-
-        call_count = [0]
-
-        async def mock_llm(messages, tools, stream=False, **kwargs):
-            call_count[0] += 1
-            # Always return task_decompose (the duplicate tool).
-            return {
-                "role": "assistant",
-                "content": "Decomposing again",
-                "tool_calls": [
-                    {
-                        "id": f"call_dup_{call_count[0]}",
-                        "type": "function",
-                        "function": {
-                            "name": "task_decompose",
-                            "arguments": json.dumps({
-                                "task_id": root.task_id,
-                                "subtasks": [f"Duplicate {call_count[0]}"],
-                            }),
-                        },
-                    }
-                ],
-                "metadata": {},
-            }
-
-        agent._call_llm = mock_llm
-
-        decompose_tool = TaskDecomposeTool()
-        decompose_tool._store = store
-        terminate_tool = TerminateTool()
-        resolved_tools = [decompose_tool, terminate_tool]
-
-        # The original result already has task_decompose successful.
         original_result = LLMResult(
             content="Already decomposed",
             metadata={
@@ -293,27 +251,9 @@ class TestNoProgressGuard:
                 ]
             },
         )
-        # Validation fails because terminate is still missing.
-        validation = ValidationResult(
-            is_valid=False,
-            errors=["task_analyzer completed its required work; call terminate."],
-        )
+        validation = loop._validate_node_result(node, original_result)
 
-        # _unbounded_recovery: missing=["terminate"] from the start
-        # (task_decompose is in accumulated). So _direct_terminate fires
-        # immediately.
-        recovery = await loop._unbounded_recovery(
-            node, agent, resolved_tools, original_result, validation,
-        )
-
-        # direct_terminate should fire — terminate is the only missing tool.
-        assert recovery is not None
-        result, final_validation = recovery
-        assert final_validation.is_valid
-        assert any(
-            tc.get("function", {}).get("name") == "terminate"
-            for tc in result.tool_calls
-        )
+        assert validation.is_valid
 
 
 class TestStageToolHistory:

@@ -13,7 +13,7 @@ the reviewer to curate unrelated roadmap tasks.
 from __future__ import annotations
 
 from tinycua.config.node_config import create_node_config
-from tinycua.config.types import LLMResult, ValidationError
+from tinycua.config.types import LLMResult
 from tinycua.loops.node_contract import LifecyclePhase, get_node_contract
 from tinycua.loops.task_nodes import TinyCUAResultReviewerNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
@@ -73,7 +73,7 @@ def test_approval_without_inspect_is_accepted() -> None:
 
 
 def test_reviewer_prompt_orders_decision_before_context_only_curation() -> None:
-    """Curation follows the active decision and never becomes execution."""
+    """Curation is committed atomically and never becomes execution."""
     loop = TinyCUALoop()
     store = loop.root_session.task_store
     root = store.create_task("Root")
@@ -85,17 +85,15 @@ def test_reviewer_prompt_orders_decision_before_context_only_curation() -> None:
     prompt = node._reviewer_context_blocks(first, loop.root_session)
     contract = get_node_contract("result_reviewer")
 
-    assert "post-decision context curation" in prompt.lower()
-    assert prompt.lower().index("finish the active-task review") < prompt.lower().index("only then")
+    assert "future-task context curation" in prompt.lower()
+    assert "commit atomically" in prompt.lower()
     assert "do not review or execute" in prompt.lower()
-    assert contract.success_criteria.index(
-        "task_review_decision"
-    ) < contract.success_criteria.index("task_inspect")
-    assert "context only" in contract.success_criteria.lower()
+    assert "task_review_decision" in contract.success_criteria
+    assert "context_updates" in contract.success_criteria
 
 
 def test_approval_with_inspect_in_same_batch_is_valid() -> None:
-    """Decide + inspect makes reviewer ready, but terminate is still required."""
+    """A valid decision needs no terminate turn."""
     loop = TinyCUALoop()
     store = loop.root_session.task_store
     root = store.create_task("Root")
@@ -124,8 +122,7 @@ def test_approval_with_inspect_in_same_batch_is_valid() -> None:
 
     validation = loop._validate_node_result(node, llm_result)
 
-    assert not validation.is_valid
-    assert any("terminate" in error for error in validation.errors)
+    assert validation.is_valid
 
 
 def test_result_reviewer_can_terminate_after_decide_and_inspect() -> None:
@@ -163,41 +160,34 @@ def test_result_reviewer_can_terminate_after_decide_and_inspect() -> None:
     assert validation.errors == []
 
 
-def test_result_reviewer_retry_exposes_terminate_without_hiding_update() -> None:
-    """Tool availability stays unchanged while the prompt directs termination."""
+def test_result_reviewer_commit_exposes_only_decision_tool() -> None:
+    """Commit cannot replay inspection or mutate sibling tasks directly."""
     loop = TinyCUALoop()
     node = _reviewer_node(loop.root_session)
-    retry_tools = loop._tools_for_retry_attempt(
+    commit_tools = loop._phase_tools(
         node,
         node.config.tool_policy.resolve_tools([]),
-        "Required review work is complete; optionally call task_update, then terminate.",
+        LifecyclePhase.COMMIT,
     )
 
-    tool_names = {tool.name for tool in retry_tools}
+    tool_names = {tool.name for tool in commit_tools}
 
-    assert "terminate" in tool_names
-    assert "task_update" in tool_names
+    assert tool_names == {"task_review_decision"}
 
 
-def test_result_reviewer_terminate_retry_explains_handoff() -> None:
-    """Terminate retry orders context-only curation after the decision."""
+def test_result_reviewer_commit_retry_preserves_action_summary() -> None:
+    """A commit retry carries prior action evidence instead of replaying action."""
     loop = TinyCUALoop()
     node = _reviewer_node(loop.root_session)
-    node.progress.lifecycle_phase = LifecyclePhase.TERMINATE
-    message = loop._retry_message_for_validation(
-        ValidationError(
-            "result_reviewer completed its required work; optionally curate "
-            "unfinished tasks with task_update, then call terminate."
-        ),
-        node,
-        node.config.tool_policy.resolve_tools([]),
-        LLMResult(),
-    )
+    node.progress.advance_lifecycle(LifecyclePhase.SUMMARY, "Verified tests passed.")
+    node.progress.advance_lifecycle(LifecyclePhase.COMMIT)
 
-    assert "Active-task decision is complete" in message
-    assert "context only" in message.lower()
-    assert "Do not review or execute" in message
-    assert "terminate" in message
+    message = loop._lifecycle_phase_directive(node)
+
+    assert "ACTION is complete" in message
+    assert "Verified tests passed" in message
+    assert "Do not repeat action work" in message
+    assert "terminate" not in message
 
 
 def test_worker_lifecycle_node_cannot_terminate_before_required_tool() -> None:
@@ -287,8 +277,8 @@ if __name__ == "__main__":
     test_reviewer_prompt_orders_decision_before_context_only_curation()
     test_approval_with_inspect_in_same_batch_is_valid()
     test_result_reviewer_can_terminate_after_decide_and_inspect()
-    test_result_reviewer_retry_exposes_terminate_without_hiding_update()
-    test_result_reviewer_terminate_retry_explains_handoff()
+    test_result_reviewer_commit_exposes_only_decision_tool()
+    test_result_reviewer_commit_retry_preserves_action_summary()
     test_worker_lifecycle_node_cannot_terminate_before_required_tool()
     test_no_decision_skips_inspect_requirement()
     test_reviewer_surfaces_failure_count_as_soft_context()

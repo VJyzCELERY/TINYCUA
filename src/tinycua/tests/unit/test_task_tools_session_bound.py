@@ -435,6 +435,56 @@ def test_reviewer_cannot_decide_a_sibling_task() -> None:
     assert sibling.task_id not in store._staged_reviewer_decisions
 
 
+def test_reviewer_decision_atomically_curates_future_task_context() -> None:
+    """One review commit records its verdict and future-task handoff together."""
+    store = TaskStateStore()
+    root = store.create_task("Root")
+    active = store.create_task("Active", parent_id=root.task_id)
+    future = store.create_task("Future", parent_id=root.task_id)
+    store.record_result(active.task_id, TaskResult(content="evidence"))
+    store.active_task_id = active.task_id
+    review = TaskReviewDecisionTool()
+    review.bind_task_store(store)
+    review.bind_source_node("result_reviewer")
+
+    staged = review(
+        decision="approved",
+        rationale="[validated]: command passed",
+        context_updates=[
+            {
+                "task_id": future.task_id,
+                "context": "Existing output already satisfies this task; validate it.",
+            }
+        ],
+    )
+    store.commit_staged_reviewer_decision(active.task_id)
+
+    assert staged["success"]
+    assert active.reviewer_decisions[-1]["decision"] == "approved"
+    assert "Existing output already satisfies this task" in future.metadata["context"]
+    assert future.metadata["suggested_mode"] == "verify_only"
+
+
+def test_invalid_reviewer_context_update_commits_nothing() -> None:
+    """Invalid future-task curation cannot partially commit a verdict."""
+    store = TaskStateStore()
+    active = store.create_task("Active")
+    store.record_result(active.task_id, TaskResult(content="evidence"))
+    review = TaskReviewDecisionTool()
+    review.bind_task_store(store)
+    review.bind_source_node("result_reviewer")
+
+    staged = review(
+        decision="approved",
+        rationale="[validated]: command passed",
+        context_updates=[{"task_id": "missing", "context": "validate existing work"}],
+    )
+
+    assert staged["success"] is False
+    assert active.reviewer_decisions == []
+    assert active.task_id not in store._staged_reviewer_decisions
+
+
 def test_executor_result_is_immediately_visible_to_reviewer() -> None:
     """Executor commit immediately persists its active task report for review."""
     store = TaskStateStore()

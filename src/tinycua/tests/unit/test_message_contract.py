@@ -256,11 +256,11 @@ async def test_streamed_task_executor_trace_keeps_native_tools() -> None:
 
 
 @pytest.mark.parametrize(("node_id", "node_type"), _LIFECYCLE_NODE_TYPES)
-def test_lifecycle_action_tool_call_enters_commit(
+def test_lifecycle_action_summary_enters_commit(
     node_id: str,
     node_type,
 ) -> None:
-    """Every lifecycle node advances after an action tool call."""
+    """Every lifecycle node advances after its action summary turn."""
     node = node_type(
         node_id=node_id,
         config=create_node_config(node_id),
@@ -268,7 +268,7 @@ def test_lifecycle_action_tool_call_enters_commit(
 
     result = LLMResult(
         content="Action Summary: wrote the requested file.",
-        tool_calls=[{"function": {"name": "write_file"}}],
+        tool_calls=[],
     )
     assert TinyCUALoop._advance_lifecycle_phase(
         node,
@@ -280,11 +280,11 @@ def test_lifecycle_action_tool_call_enters_commit(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(("node_id", "node_type"), _LIFECYCLE_NODE_TYPES)
-async def test_streamed_lifecycle_action_tool_call_enters_commit(
+async def test_streamed_lifecycle_action_summary_enters_commit(
     node_id: str,
     node_type,
 ) -> None:
-    """Streaming action calls advance every lifecycle node to commit."""
+    """A completed streamed action batch advances every lifecycle node to commit."""
     loop = TinyCUALoop()
     node = node_type(
         node_id=node_id,
@@ -591,6 +591,24 @@ def test_task_executor_prompt_includes_workspace_path_discipline(tmp_path) -> No
     assert "relative paths" in rendered.lower()
     assert "do not rely on shell-specific brace expansion" in rendered
     assert "do not keep repeating read/list inspection" in rendered
+
+
+def test_task_executor_renders_reviewer_verify_only_context() -> None:
+    """Curated completed-work evidence directs the next executor to validate only."""
+    loop = TinyCUALoop()
+    task = loop.root_session.task_store.create_task("Validate generated module")
+    task.metadata["context"] = ["Module already exists at src/module.py."]
+    task.metadata["suggested_mode"] = "verify_only"
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+
+    messages, _ = loop._prepare_node(executor, [])
+    rendered = "\n".join(str(message.get("content", "")) for message in messages)
+
+    assert "Module already exists at src/module.py." in rendered
+    assert "validate existing work before making changes" in rendered.lower()
 
 
 @pytest.mark.parametrize(

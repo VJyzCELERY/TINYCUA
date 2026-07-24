@@ -18,13 +18,13 @@ import pytest
 from tinycua.config.node_config import create_node_config
 from tinycua.config.types import LLMResult, ValidationResult
 from tinycua.loops.node import NodeExecutionError
+from tinycua.loops.node_contract import LifecyclePhase
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.recovery_stages_mixin import RecoveryStagesMixin
 from tinycua.loops.task_create import TinyCUATaskCreateNode
 from tinycua.loops.task_nodes import TinyCUAResultReviewerNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.task import ReviewerDecision, TaskResult
-from tinycua.tools.task_tools import TerminateTool
 
 
 class TestParseJudgeToolCall:
@@ -176,12 +176,8 @@ class TestOnCompleteFiresAfterRecovery:
     """Tests that on_complete fires after recovery, enqueuing next nodes."""
 
     @pytest.mark.asyncio
-    async def test_direct_terminate_when_only_missing(self) -> None:
-        """When terminate is the only missing prerequisite, call it directly.
-
-        terminate has no meaningful parameters — there is nothing for the
-        model to decide. The recovery loop calls it without an LLM round-trip.
-        """
+    async def test_commit_evidence_needs_no_terminate(self) -> None:
+        """A complete commit returns without another recovery operation."""
         loop = TinyCUALoop()
         task = loop.root_session.task_store.create_task("test task")
         loop.root_session.task_store.record_result(
@@ -234,16 +230,15 @@ class TestOnCompleteFiresAfterRecovery:
             ),
         )
 
-        # The direct terminate shortcut should have fired — no LLM call needed.
         assert validation.is_valid
-        assert any(
+        assert not any(
             tc.get("function", {}).get("name") == "terminate"
             for tc in result.tool_calls
         )
 
     @pytest.mark.asyncio
-    async def test_reviewer_on_complete_enqueues_next_after_recovery(self) -> None:
-        """After recovery, the reviewer's on_complete enqueues executor+reviewer."""
+    async def test_reviewer_on_complete_enqueues_next_after_commit(self) -> None:
+        """After commit, the reviewer's on_complete enqueues the next node."""
         loop = TinyCUALoop()
         # Set up a task with a result that needs review.
         task = loop.root_session.task_store.create_task("test task")
@@ -258,77 +253,36 @@ class TestOnCompleteFiresAfterRecovery:
             config=create_node_config("result_reviewer"),
         )
         reviewer.ensure_session(loop.root_session)
+        reviewer.progress.advance_lifecycle(LifecyclePhase.COMMIT)
         loop.queue = NodeQueue(items=[reviewer])
 
         agent = MagicMock()
+        agent.instructions = "test"
+        agent.skills = []
         agent.tool_permissions = {}
-        call_count = 0
+        agent.policy = MagicMock(max_tool_calls=100)
 
-        async def mock_llm(messages, tools, stream=False):
-            nonlocal call_count
-            call_count += 1
-            if call_count <= 2:
-                # Fail: call task_review_decision but not task_inspect.
-                return {
-                    "role": "assistant",
-                    "content": "",
-                    "tool_calls": [
-                        {
-                            "type": "function",
-                            "function": {
-                                "name": "task_review_decision",
-                                "arguments": json.dumps(
-                                    {
-                                        "task_id": task.task_id,
-                                        "decision": "approved",
-                                        "rationale": "looks good",
-                                    }
-                                ),
-                            },
-                        }
-                    ],
-                }
-            # Recovery retry: call task_inspect then terminate.
-            return {
-                "role": "assistant",
-                "content": "",
-                "tool_calls": [
+        async def mock_stream(*args, **kwargs):
+            del args, kwargs
+            yield {
+                "type": "tool_call.ready",
+                "id": "review",
+                "name": "task_review_decision",
+                "arguments": json.dumps(
                     {
-                        "type": "function",
-                        "function": {
-                            "name": "task_inspect",
-                            "arguments": "{}",
-                        },
-                    },
-                    {
-                        "type": "function",
-                        "function": {
-                            "name": "terminate",
-                            "arguments": "{}",
-                        },
-                    },
-                ],
+                        "task_id": task.task_id,
+                        "decision": "approved",
+                        "rationale": "[validated]: tests passed",
+                    }
+                ),
             }
 
-        agent._call_llm = mock_llm
-
-        from tinycua.tools.task_tools import (
-            TaskInspectTool,
-            TaskReviewDecisionTool,
-            TaskUpdateTool,
-        )
-        review_tool = TaskReviewDecisionTool()
-        review_tool.bind_task_store(loop.root_session.task_store)
-        inspect_tool = TaskInspectTool()
-        inspect_tool.bind_task_store(loop.root_session.task_store)
-        update_tool = TaskUpdateTool()
-        update_tool.bind_task_store(loop.root_session.task_store)
-        terminate_tool = TerminateTool()
+        agent._call_llm = mock_stream
 
         async for _event in loop._stream_node_events(
             reviewer,
             agent,
-            [review_tool, inspect_tool, update_tool, terminate_tool],
+            [],
             None,
             loop.queue.input_for_current(),
         ):

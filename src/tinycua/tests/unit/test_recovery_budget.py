@@ -314,11 +314,11 @@ class TestJudgeRetryIncludesFullContext:
         assert "ResultReviewer" in messages[0].get("content", "")
 
 
-class TestDirectTerminateStillWorks:
-    """The deterministic terminate track is unchanged (FR-011)."""
+class TestCommitEndsRecovery:
+    """Successful commit evidence ends recovery directly."""
 
     @pytest.mark.asyncio
-    async def test_direct_terminate_fires_when_only_missing(self):
+    async def test_commit_evidence_needs_no_terminate(self):
         loop = TinyCUALoop()
         task = loop.root_session.task_store.create_task("test task")
         loop.root_session.task_store.record_result(
@@ -368,11 +368,10 @@ class TestDirectTerminateStillWorks:
             ),
         )
 
-        # direct_terminate should fire — return a valid result.
         assert recovery_result is not None
         result, validation = recovery_result
         assert validation.is_valid
-        assert any(
+        assert not any(
             tc.get("function", {}).get("name") == "terminate"
             for tc in result.tool_calls
         )
