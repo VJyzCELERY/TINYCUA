@@ -390,8 +390,8 @@ def test_reviewer_termination_commits_the_selected_staged_task() -> None:
     assert store.get_task(second.task_id).reviewer_decisions[-1]["decision"] == "approved"
 
 
-def test_executor_result_stays_staged_until_executor_termination() -> None:
-    """Executor results commit only after the terminate phase succeeds."""
+def test_executor_result_is_immediately_visible_to_reviewer() -> None:
+    """Executor commit immediately persists its active task report for review."""
     store = TaskStateStore()
     init = TaskInitTool()
     result_update = TaskResultUpdateTool()
@@ -404,14 +404,15 @@ def test_executor_result_stays_staged_until_executor_termination() -> None:
     task_id = init("Root")["task_id"]
     recorded = result_update(content="completed")
 
-    assert recorded["staged"] is True
-    assert store.get_task(task_id).result is None
-    terminate()
+    assert "staged" not in recorded
+    assert store.get_task(task_id).result is not None
+    assert store.get_task(task_id).status.value == "in_progress"
+    assert terminate()["success"] is True
     assert store.get_task(task_id).result is not None
 
 
-def test_executor_termination_rejects_missing_staged_result() -> None:
-    """Repeated executor termination cannot succeed after its result is committed."""
+def test_executor_termination_does_not_commit_a_task_result() -> None:
+    """Terminate ends the executor turn without selecting a task result."""
     store = TaskStateStore()
     terminate = TerminateTool()
     terminate.bind_task_store(store)
@@ -419,8 +420,26 @@ def test_executor_termination_rejects_missing_staged_result() -> None:
 
     result = terminate()
 
+    assert result["success"] is True
+    assert "task_id" not in result
+
+
+def test_executor_cannot_report_a_sibling_task_result() -> None:
+    """Executor task-state mutations are confined to the active task."""
+    store = TaskStateStore()
+    root = store.create_task("Root")
+    active = store.create_task("Active", parent_id=root.task_id)
+    sibling = store.create_task("Sibling", parent_id=root.task_id)
+    result_update = TaskResultUpdateTool()
+    result_update.bind_task_store(store)
+    result_update.bind_source_node("task_executor")
+
+    result = result_update(task_id=sibling.task_id, content="not mine")
+
     assert result["success"] is False
-    assert "staged executor result" in result["error"].lower()
+    assert "active task" in result["error"].lower()
+    assert store.get_task(active.task_id).result is None
+    assert store.get_task(sibling.task_id).result is None
 
 
 def test_executor_work_order_renders_active_and_unmet_acceptance_clauses() -> None:

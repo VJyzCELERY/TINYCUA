@@ -158,7 +158,6 @@ class TaskStateStore:
     _staged_reviewer_decisions: dict[str, dict[str, Any]] = field(
         default_factory=dict, repr=False
     )
-    _staged_results: dict[str, TaskResult] = field(default_factory=dict, repr=False)
     # FR-075: enable task tree snapshot logging via --trace CLI flag.
     _enable_trace: bool = field(default=False, repr=False)
     # Internal flag to suppress per-child logging during decompose_task.
@@ -753,22 +752,6 @@ class TaskStateStore:
         task.result = result
         self._finalize_mutation("record_result", task_id)
         return task
-
-    def stage_result(self, task_id: str, result: TaskResult) -> Task:
-        """Stage a task result until the executor terminates."""
-        task = self.get_task(task_id)
-        self._require_mutable(task)
-        self._staged_results.pop(task_id, None)
-        self._staged_results[task_id] = result
-        return task
-
-    def commit_staged_result(self, task_id: str) -> Task:
-        """Commit the executor's staged result exactly once at termination."""
-        result = self._staged_results.pop(task_id, None)
-        if result is None:
-            msg = "No provisional task result is staged."
-            raise ValueError(msg)
-        return self.record_result(task_id, result)
 
     @staticmethod
     def _has_approval_evidence(result: TaskResult | None) -> bool:

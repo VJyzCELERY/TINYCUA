@@ -65,23 +65,6 @@ class TerminateTool(Tool):
                 return result
             result["task_id"] = task.task_id
             result["decision"] = task.reviewer_decisions[-1]["decision"]
-        if self._source_node == "task_executor":
-            if not self._store._staged_results:
-                result = {
-                    "success": False,
-                    "error": "No staged executor result to commit.",
-                }
-                self.last_result = result
-                return result
-            try:
-                task = self._store.commit_staged_result(
-                    next(reversed(self._store._staged_results))
-                )
-            except ValueError as exc:
-                result = {"success": False, "error": str(exc)}
-                self.last_result = result
-                return result
-            result["task_id"] = task.task_id
         self.last_result = result
         return result
 
@@ -602,15 +585,13 @@ class TaskResultUpdateTool(SessionTaskToolMixin, Tool):
             self,
             name="task_result_update",
             description=(
-                "Report the outcome for the active or specified task. "
+                "Report the outcome for the active task. "
                 "Set success=true when done, success=false when failed or "
-                "blocked. Always call before finishing. task_id may be UUID "
-                "or roadmap number."
+                "blocked. Always call before finishing."
             ),
             parameters={
                 "type": "object",
                 "properties": {
-                    "task_id": {"type": "string"},
                     "content": {
                         "type": "string",
                         "description": (
@@ -632,7 +613,7 @@ class TaskResultUpdateTool(SessionTaskToolMixin, Tool):
         )
 
     def bind_source_node(self, node_id: str) -> None:
-        """Bind the node so executor results can be staged."""
+        """Bind the node so executor ownership can be enforced."""
         self._source_node = node_id
 
     def __call__(
@@ -646,21 +627,20 @@ class TaskResultUpdateTool(SessionTaskToolMixin, Tool):
         active_id, error = self._resolve_task_ref(task_id)
         if error is not None:
             return error
+        if (
+            self._source_node == "task_executor"
+            and active_id != self._store.active_task_id
+        ):
+            return {"success": False, "error": "TaskExecutor may update only the active task."}
         try:
             result = TaskResult(content=content, success=success, metadata=metadata or {})
-            if self._source_node == "task_executor":
-                task = self._store.stage_result(active_id, result)
-                staged = True
-            else:
-                task = self._store.record_result(active_id, result)
-                staged = False
+            task = self._store.record_result(active_id, result)
         except ValueError as exc:
             return {"success": False, "error": str(exc)}
         return {
             "success": True,
             "task_id": active_id,
             "status": task.status.value,
-            "staged": staged,
         }
 
 
