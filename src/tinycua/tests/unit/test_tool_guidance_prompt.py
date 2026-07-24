@@ -58,7 +58,7 @@ def test_task_executor_tool_guidance_prefers_narrowest_tool() -> None:
 
 
 def test_result_reviewer_tool_guidance_requires_verification() -> None:
-    """Reviewer guidance instructs verification (run_shell/read_file) before deciding."""
+    """Reviewer guidance ties available verification to acceptance criteria."""
     node = TinyCUAResultReviewerNode(
         node_id="result_reviewer", config=create_node_config("result_reviewer")
     )
@@ -72,7 +72,8 @@ def test_result_reviewer_tool_guidance_requires_verification() -> None:
 
     guidance = node.build_tool_system_prompt(tools)
 
-    assert "read_file" in guidance or "run_shell" in guidance
+    assert "verification tools" in guidance.lower()
+    assert "acceptance criteria" in guidance.lower()
     assert "task_review_decision" in guidance
 
 

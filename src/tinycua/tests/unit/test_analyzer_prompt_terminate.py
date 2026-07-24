@@ -4,12 +4,10 @@ from __future__ import annotations
 
 from tinycua.config.node_config import create_node_config
 from tinycua.loops.task_nodes import (
-    TinyCUATaskAnalyzerNode,
     _TASK_ANALYZER_CONTINUATION,
     _TASK_ANALYZER_INSTRUCTION,
     _TASK_ANALYZER_LOCAL_REPLAN_CONTINUATION,
 )
-from tinycua.models.session import Session
 
 
 class TestAnalyzerPromptTerminate:
@@ -39,6 +37,12 @@ class TestAnalyzerPromptTerminate:
         # The continuation should lead with exploration or context, not
         # "call task_inspect".
         assert not lowered.startswith("based on the roadmap and mission context above, call task_inspect.")
+
+    def test_continuation_avoids_report_specific_decomposition(self):
+        lowered = _TASK_ANALYZER_CONTINUATION.lower()
+        assert "write report" not in lowered
+        assert "report file" not in lowered
+        assert "redundant" in lowered
 
 
 class TestAnalyzerMaxAttempts:

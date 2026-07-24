@@ -3,11 +3,8 @@
 from __future__ import annotations
 
 import logging
-from io import StringIO
 
-import pytest
-
-from tinycua.models.task import ReviewerDecision, TaskResult, TaskStateStore, TaskStatus
+from tinycua.models.task import ReviewerDecision, TaskResult, TaskStateStore
 
 
 class TestLogTreeSnapshot:
@@ -94,12 +91,15 @@ class TestRecordReviewerDecisionLogs:
         assert "record_reviewer_decision" in labels
 
 
-class TestReportMdPrimingRemoved:
-    """FR-076: guidance strings do not mention report.md."""
+class TestReportPrimingRemoved:
+    """FR-076: guidance strings do not assume a report deliverable."""
 
     def test_analyzer_continuation_no_report_md(self):
         from tinycua.loops.task_nodes import _TASK_ANALYZER_CONTINUATION
-        assert "report.md" not in _TASK_ANALYZER_CONTINUATION
+        lowered = _TASK_ANALYZER_CONTINUATION.lower()
+        assert "report.md" not in lowered
+        assert "write report" not in lowered
+        assert "report file" not in lowered
 
     def test_executor_work_order_no_report_md(self):
         from tinycua.loops.task_nodes import TinyCUATaskExecutorNode

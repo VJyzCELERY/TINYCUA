@@ -259,7 +259,7 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
         ),
         requires_terminate=True,
         early_stop_tool="task_decompose",
-        goal="Break down the active task into concrete, executable subtasks grounded in current reality.",
+        goal="Break down the active task into concrete, executable subtasks grounded in available evidence.",
         role_boundary="Only plan or repair task structure. Do not execute work, write deliverables, or decide task results.",
         success_criteria="A supported task mutation succeeds, then terminate. The roadmap is actionable or safely repaired.",
         tool_rationale={
@@ -346,7 +346,7 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
         tool_rationale={
             "digest_information": "Records the gathered context. Downstream nodes (analyzer, executor) rely on this — without it, planning is ungrounded.",
             "enhanced_context_retrieval": "Inspects prior conversation history. Use this before external research to avoid redundant work.",
-            "web_search": "Finds current information for fast-moving domains. Use 2-4 searches to ground planning.",
+            "web_search": "Resolves material external uncertainty with sources appropriate to the requested timeframe.",
         },
     ),
     "response": NodeContract(

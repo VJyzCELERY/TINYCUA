@@ -32,6 +32,13 @@ class TestSimpleCompaction:
         strategy = SimpleCompaction()
         assert strategy.tools == []
 
+    def test_compaction_prompt_preserves_task_relevant_context(self):
+        prompt = SimpleCompaction._COMPACTION_SYSTEM_PROMPT.lower()
+        assert "constraints" in prompt
+        assert "evidence" in prompt
+        assert "model names" not in prompt
+        assert "benchmark scores" not in prompt
+
     def test_simple_compaction_uses_parent_config(self):
         """SimpleCompaction inherits model/provider from parent config."""
         parent_config = {"model": "gpt-4", "provider": "openai"}

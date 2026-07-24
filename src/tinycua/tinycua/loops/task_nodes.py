@@ -62,8 +62,8 @@ _TASK_ANALYZER_INSTRUCTION = (
     "You are the TaskAnalyzer. You decompose or refine the roadmap. Before "
     "decomposing, you may explore (web_search, fetch_url, read_file, "
     "list_files, search_files, run_shell) to ground your plan in current "
-    "reality — especially for research tasks, verify what entities are "
-    "current today instead of assuming from prior knowledge. You do not "
+    "evidence. Verify external facts only when they materially affect the "
+    "plan, and honor the timeframe in the request. You do not "
     "execute the task or produce the deliverable — that is the "
     "TaskExecutor's job. Inspect the roadmap. If the active task needs "
     "subtasks, identify the needed structural change. Return a concise action "
@@ -71,13 +71,11 @@ _TASK_ANALYZER_INSTRUCTION = (
     "mutation. Do not execute the task itself."
 )
 _TASK_ANALYZER_CONTINUATION = (
-    "Based on the roadmap and mission context above, explore first "
-    "(web_search/fetch_url/read_file/run_shell) when the task involves a "
-    "fast-moving domain (research, current state of tech, models, "
-    "frameworks) so your decomposition targets what is current today. "
-    "Then summarize the needed structural change. If previous tasks already write to "
-    "the report file, do not create a final 'write report' task — "
-    "decompose it as 'review and reorganize the existing deliverable file' instead."
+    "Based on the roadmap and mission context above, inspect available evidence "
+    "and retrieve external information only when it materially affects the plan. "
+    "Then summarize the needed structural change. Avoid redundant output tasks: "
+    "if earlier tasks already produce the requested artifact, add another task "
+    "only when integration, validation, or reorganization remains necessary."
 )
 _TASK_ANALYZER_LOCAL_REPLAN_CONTINUATION = (
     "Refine only the active local region. Explore the local region "
@@ -92,9 +90,8 @@ _TASK_ANALYZER_LOCAL_REPLAN_CONTINUATION = (
 _TASK_ASSESSOR_UPFRONT_INSTRUCTION = (
     "You are the TaskAssessor for the upfront analysis-effort decomposition loop. "
     "You assess decomposition readiness. You may explore (web_search, "
-    "fetch_url, read_file, run_shell) to verify whether the roadmap covers "
-    "current reality — especially for research tasks, check that the tasks "
-    "target current entities, not stale assumptions. You do not execute "
+    "fetch_url, read_file, run_shell) when evidence is needed to assess whether "
+    "the roadmap is correct for the requested scope and timeframe. You do not execute "
     "tasks or mutate task state. Inspect the whole roadmap and select "
     "unfinished tasks that are complex enough to warrant further "
     "decomposition. Identify duplicate, overlapping, obsolete, or invalid unfinished "
@@ -106,7 +103,7 @@ _TASK_ASSESSOR_UPFRONT_INSTRUCTION = (
 _TASK_ASSESSOR_UPFRONT_CONTINUATION = (
     "Based on the whole roadmap above, assess decomposition readiness across "
     "the roadmap. Explore (web_search/fetch_url/read_file/run_shell) to "
-    "verify the roadmap targets current reality for research tasks. Summarize "
+    "verify material assumptions against the requested scope and timeframe. Summarize "
     "selected task IDs and a payload.recommendations list of {task_ids, action, "
     "rationale} for any structural follow-up; action is decompose, shrink, update, "
     "retain, or add. Include constraints, or state that no further upfront "
@@ -242,8 +239,8 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
         return (
             "Tool guidance: use task_inspect to read state when available. Explore first "
             "(web_search/fetch_url/read_file/list_files/search_files/"
-            "run_shell) to ground your decomposition in current reality, especially "
-            "for research tasks. Do not execute the task itself."
+            "run_shell) only as needed to ground the decomposition in evidence. "
+            "Do not execute the task itself."
         )
 
     def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
@@ -539,11 +536,10 @@ def _render_active_task_work_order(session: Session) -> str:
             "## What Needs To Be Done",
             "Complete this active task only. Use workspace, shell, Python, or "
             "research tools when they provide evidence. Do not just plan.",
-            "If writing to a file that previous tasks already wrote to (e.g. "
-            "the deliverable file), use `read_file` first to check existing content, then "
-            "`append_file` or `str_replace` to add your section. Do NOT "
-            "overwrite the entire file unless this is the first task writing "
-            "to it.",
+            "Inspect existing outputs before changing them, preserve valid prior "
+            "work, and use the least destructive operation appropriate to the "
+            "requested result. Replace an existing artifact only when replacement "
+            "is actually required.",
             "",
             "## Success Criteria",
             "- At least one action/research/file/shell tool result supports success.",
@@ -695,8 +691,8 @@ class TinyCUATaskAssessorNode(ProcessNode):
             return ""
         return (
             "Tool guidance: use task_inspect for read-only assessment when available. "
-            "Explore (web_search/fetch_url/read_file/run_shell) to verify "
-            "the roadmap targets current reality for research tasks. Do not mutate task state."
+            "Explore (web_search/fetch_url/read_file/run_shell) only when needed "
+            "to verify material roadmap assumptions. Do not mutate task state."
         )
 
 class TinyCUATaskExecutorNode(ProcessNode):
