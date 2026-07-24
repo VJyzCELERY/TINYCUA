@@ -524,7 +524,7 @@ class TinyCUALoop(
             active = store.get_active_task()
             return active is not None and active.result is not None
         if node.node_id == "result_reviewer":
-            return bool(store._staged_reviewer_decisions)
+            return store.active_task_id in store._staged_reviewer_decisions
         if node.node_id == "task_assessor":
             return any(handoff.source_node == node.node_id for handoff in self._pending_handoffs)
         return True
