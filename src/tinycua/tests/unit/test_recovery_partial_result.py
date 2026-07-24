@@ -21,11 +21,12 @@ from tinycua.config.types import LLMResult, ValidationResult
 from tinycua.loops.node_contract import LifecyclePhase
 from tinycua.loops.task_nodes import TinyCUATaskAnalyzerNode, TinyCUATaskExecutorNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
+from tinycua.models.task import TaskResult
 from tinycua.tools.task_tools import TaskDecomposeTool, TaskInspectTool, TaskResultUpdateTool, TerminateTool
 
 
-def test_lifecycle_phase_scope_separates_action_commit_and_termination() -> None:
-    """The loop resolves existing tools into non-overlapping lifecycle phases."""
+def test_lifecycle_phase_scope_is_cumulative() -> None:
+    """Each lifecycle phase retains tools exposed by earlier phases."""
     loop = TinyCUALoop()
     node = TinyCUATaskExecutorNode(
         node_id="task_executor",
@@ -37,10 +38,16 @@ def test_lifecycle_phase_scope_separates_action_commit_and_termination() -> None
         "task_inspect"
     ]
     assert [tool.name for tool in loop._phase_tools(node, tools, LifecyclePhase.COMMIT)] == [
-        "task_result_update"
+        "task_inspect",
+        "task_result_update",
     ]
+    task = loop.root_session.task_store.create_task("Active")
+    loop.root_session.task_store.record_result(task.task_id, TaskResult(content="done"))
+    node.progress.satisfied_requirements.add("task_result_update")
     assert [tool.name for tool in loop._phase_tools(node, tools, LifecyclePhase.TERMINATE)] == [
-        "terminate"
+        "task_inspect",
+        "task_result_update",
+        "terminate",
     ]
 
 
