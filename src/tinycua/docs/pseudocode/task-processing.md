@@ -1,12 +1,12 @@
-# Algorithm 4: Task Processing
+# Algorithm 3: Task Processing
 
-> **Methodology section pairing:** The prose below accompanies Algorithm 4
+> **Methodology section pairing:** The prose below accompanies Algorithm 3
 > in the paper. It covers design invariants and constraints that are not
 > algorithmic and therefore remain outside the pseudocode block.
 
 ---
 
-## Pseudocode (Algorithm 4)
+## Pseudocode (Algorithm 3)
 
 **Input:** $\mathit{route}$, $\mathit{queue}$, $\mathit{effort}$
 **Output:** $\mathit{aggregatedResult}$
