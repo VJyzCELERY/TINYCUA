@@ -944,6 +944,60 @@ async def test_commit_retries_until_reviewer_decision_then_auto_completes() -> N
     assert task.reviewer_decisions[-1]["decision"] == "needs_revision"
 
 
+async def test_commit_stream_limits_sdk_to_one_iteration(monkeypatch) -> None:
+    """Commit returns control after one SDK model/tool iteration."""
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="result_reviewer",
+        config=create_node_config("result_reviewer"),
+    )
+    loop = TinyCUALoop()
+    reviewer.ensure_session(loop.root_session)
+    reviewer.progress.advance_lifecycle(LifecyclePhase.COMMIT)
+    iteration_limits: list[int] = []
+    base_run = BaseLoop.run
+
+    async def tracking_run(self, *args, **kwargs):
+        iteration_limits.append(self.max_iterations)
+        return await base_run(self, *args, **kwargs)
+
+    monkeypatch.setattr(BaseLoop, "run", tracking_run)
+
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+    agent.tool_permissions = {}
+    agent.is_cancelled = False
+    agent.policy = MagicMock(max_tool_calls=100)
+    agent._cancel_event = asyncio.Event()
+
+    async def mock_stream(*args, **kwargs):
+        del args, kwargs
+        yield {"type": "response.completed", "finish_reason": "completed"}
+
+    agent._call_llm = mock_stream
+    commit_tools = loop._phase_tools(
+        reviewer,
+        reviewer.config.tool_policy.resolve_tools([]),
+        LifecyclePhase.COMMIT,
+    )
+
+    async for _event in loop._collect_stream_events(
+        reviewer,
+        agent,
+        [],
+        commit_tools,
+        [],
+        [],
+        False,
+        False,
+        "result_reviewer",
+        1,
+    ):
+        pass
+
+    assert iteration_limits == [1]
+
+
 async def test_run_sync_consumes_canonical_stream_runtime():
     """Non-stream run drains _run_stream instead of executing a second loop."""
     loop = TinyCUALoop()
