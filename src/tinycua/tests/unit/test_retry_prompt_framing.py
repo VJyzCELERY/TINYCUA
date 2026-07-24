@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from tinycua.config.node_config import create_node_config
 from tinycua.config.types import LLMResult, ValidationError
+from tinycua.loops.node_contract import LifecyclePhase
 from tinycua.loops.task_nodes import (
     TinyCUAResultReviewerNode,
     TinyCUATaskAnalyzerNode,
@@ -86,6 +87,7 @@ def test_retry_message_for_terminate_is_directive() -> None:
     """Terminate retry guidance is a [System:]-ready imperative directive."""
     loop = TinyCUALoop()
     node = _node("result_reviewer")
+    node.progress.lifecycle_phase = LifecyclePhase.TERMINATE
 
     message = loop._retry_message_for_validation(
         ValidationError("result_reviewer completed its required work; call terminate."),

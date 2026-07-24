@@ -307,10 +307,10 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
             "Only verify and decide the active task. You may read sibling context "
             "but must not decide another task, modify artifacts, or fix executor work."
         ),
-        success_criteria="task_review_decision called with rationale citing validation evidence, then task_inspect, then terminate.",
+        success_criteria="task_review_decision called with rationale citing validation evidence, then terminate.",
         tool_rationale={
             "task_review_decision": "Records your verdict (approved/needs_revision/rejected/replan) with evidence. This drives the task lifecycle — approved→completed, needs_revision→rework.",
-            "task_inspect": "Reads the task list after your decision so you can curate unfinished tasks.",
+            "task_inspect": "Reads active-task state and evidence when needed before your decision.",
             "terminate": "Ends this node so the runtime advances to the next task or response.",
         },
         additional_recovery_tools=("task_inspect",),
