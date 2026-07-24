@@ -46,7 +46,8 @@ def test_task_analyzer_renders_mission_block() -> None:
 
     prompt = node.build_continuation(session)
 
-    assert "## Mission" in prompt
+    assert "## Current Mission — Context Only" in prompt
+    assert "not your assigned task" in prompt
     assert "Build a clock app in a single HTML file." in prompt
     assert "single file" in prompt
 
@@ -60,7 +61,7 @@ def test_task_assessor_renders_mission_block() -> None:
 
     prompt = node.build_continuation(session)
 
-    assert "## Mission" in prompt
+    assert "## Current Mission — Context Only" in prompt
     assert "Research transformers." in prompt
     assert "use markdown" in prompt
 
@@ -74,7 +75,7 @@ def test_task_executor_renders_mission_block() -> None:
 
     prompt = node.build_continuation(session)
 
-    assert "## Mission" in prompt
+    assert "## Current Mission — Context Only" in prompt
     assert "Make an analog clock." in prompt
     assert "single HTML file" in prompt
 
@@ -88,7 +89,7 @@ def test_result_reviewer_renders_mission_block() -> None:
 
     prompt = node.build_continuation(session)
 
-    assert "## Mission" in prompt
+    assert "## Current Mission — Context Only" in prompt
     assert "Build a Notion clone." in prompt
     assert "python backend" in prompt
 
@@ -102,7 +103,7 @@ def test_result_aggregation_renders_mission_block() -> None:
 
     prompt = node.build_continuation(session)
 
-    assert "## Mission" in prompt
+    assert "## Current Mission — Context Only" in prompt
     assert "Write a report." in prompt
 
 
@@ -117,7 +118,7 @@ def test_mission_block_empty_when_no_mission() -> None:
 
     prompt = node.build_continuation(session)
 
-    assert "## Mission" not in prompt
+    assert "## Current Mission — Context Only" not in prompt
 
 
 def test_mission_block_includes_digester_context_and_key_points() -> None:
@@ -134,7 +135,7 @@ def test_mission_block_includes_digester_context_and_key_points() -> None:
 
     prompt = node.build_continuation(session)
 
-    assert "## Mission" in prompt
+    assert "## Current Mission — Context Only" in prompt
     # Context (digester research) appears before the original request.
     assert "Frontier LLMs as of 2026" in prompt
     assert "Key findings:" in prompt
@@ -154,7 +155,7 @@ def test_mission_block_omits_empty_sections() -> None:
 
     prompt = node.build_continuation(session)
 
-    assert "## Mission" in prompt
+    assert "## Current Mission — Context Only" in prompt
     assert "Original request: Build a clock." in prompt
     assert "single file" in prompt
     # No context / no key points → those sections are omitted entirely.

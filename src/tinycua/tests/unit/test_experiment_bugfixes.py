@@ -46,6 +46,7 @@ class TestExecutorTaskOwnership:
 
         assert "only the active task" in _RESULT_REVIEWER_INSTRUCTION.lower()
         assert "sibling" not in _RESULT_REVIEWER_INSTRUCTION.lower()
+        assert "do not edit files" in _RESULT_REVIEWER_INSTRUCTION.lower()
 
 
 class TestReviewerTestGuidanceGeneric:
