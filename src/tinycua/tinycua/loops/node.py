@@ -464,6 +464,47 @@ class Node(ABC):
         del resolved_tools  # SDK exposes tools natively; no prose needed.
         return ""
 
+    def _build_contract_system_context(
+        self,
+        resolved_tools: list[Any] | None,
+    ) -> str:
+        """Render delegated identity, role limits, and visible tool rationale."""
+        contract = self.contract
+        if not (contract.goal or contract.role_boundary or contract.success_criteria):
+            return ""
+        sections = [
+            "## Delegated Workflow Identity\n"
+            "You are an internal workflow stage, not the user-facing agent. "
+            "The overall mission is context only and does not expand your role."
+        ]
+        if contract.goal:
+            sections.append(f"## Your Goal\n{contract.goal}")
+        if contract.role_boundary:
+            sections.append(f"## Role Boundary\n{contract.role_boundary}")
+        commit_tools = set(contract.required_tools)
+        for group in contract.any_of_tools:
+            commit_tools.update(group)
+        visible_names = {getattr(tool, "name", "") for tool in resolved_tools or []}
+        if contract.success_criteria and (
+            resolved_tools is None or bool(visible_names & commit_tools)
+        ):
+            sections.append(
+                f"## Success Criteria (what 'done' looks like)\n"
+                f"{contract.success_criteria}"
+            )
+        rationale = contract.tool_rationale
+        if resolved_tools is not None:
+            rationale = {
+                name: reason
+                for name, reason in rationale.items()
+                if name in visible_names
+            }
+        if rationale:
+            tool_lines = ["## Required Tools — Why Each Is Needed"]
+            tool_lines.extend(f"- {name}: {reason}" for name, reason in rationale.items())
+            sections.append("\n".join(tool_lines))
+        return "\n\n".join(sections)
+
     def build_system_message(
         self,
         resolved_tools: list[Any] | None = None,
@@ -512,41 +553,10 @@ class Node(ABC):
         tool_prompt = self.build_tool_system_prompt(resolved_tools)
         if tool_prompt:
             builder.add_dynamic_context(tool_prompt)
-        # FR-064: inject goal + success criteria + tool rationale from the
-        # NodeContract. Goes in the dynamic suffix so the cached prefix
-        # (instruction + AGENTS.md + date/env) stays byte-stable. The model
-        # now knows its fulfillment criteria and WHY each tool is required.
-        contract = self.contract
-        if contract and (contract.goal or contract.role_boundary or contract.success_criteria):
-            contract_lines: list[str] = []
-            if contract.goal:
-                contract_lines.append(f"## Your Goal\n{contract.goal}")
-            if contract.role_boundary:
-                contract_lines.append(f"## Role Boundary\n{contract.role_boundary}")
-            commit_tools = set(contract.required_tools)
-            for group in contract.any_of_tools:
-                commit_tools.update(group)
-            visible_names = {getattr(tool, "name", "") for tool in resolved_tools or []}
-            if contract.success_criteria and (
-                resolved_tools is None or bool(visible_names & commit_tools)
-            ):
-                contract_lines.append(
-                    f"## Success Criteria (what 'done' looks like)\n{contract.success_criteria}"
-                )
-            visible_rationale = contract.tool_rationale
-            if resolved_tools is not None:
-                visible_rationale = {
-                    name: rationale
-                    for name, rationale in contract.tool_rationale.items()
-                    if name in visible_names
-                }
-            if visible_rationale:
-                lines = ["## Required Tools — Why Each Is Needed"]
-                for tool_name, rationale in visible_rationale.items():
-                    lines.append(f"- {tool_name}: {rationale}")
-                contract_lines.append("\n".join(lines))
-            if contract_lines:
-                builder.add_dynamic_context("\n\n".join(contract_lines))
+        # Delegated identity is prompt-only and never persisted to node history.
+        contract_context = self._build_contract_system_context(resolved_tools)
+        if contract_context:
+            builder.add_dynamic_context(contract_context)
         message = builder.build()
         self._cached_system_message = message
         self._cached_system_key = cache_key
@@ -619,6 +629,19 @@ class Node(ABC):
                 messages.append({"role": "user", "content": f"[System: {node_continuation}]"})
             else:
                 messages.append({"role": cont_role, "content": node_continuation})
+
+        contract = self.contract
+        assignment = contract.goal or contract.role_boundary
+        if assignment:
+            reminder = (
+                "## Your Actual Assigned Task\n"
+                f"{assignment}\n\n"
+                "The current mission and roadmap above are context only, not your "
+                "assigned task. Perform only this delegated duty."
+            )
+            if contract.role_boundary:
+                reminder += f"\n\n## Scope Boundary\n{contract.role_boundary}"
+            messages.append({"role": "user", "content": f"[System: {reminder}]"})
 
         return messages
 

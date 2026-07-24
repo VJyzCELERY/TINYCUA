@@ -55,13 +55,7 @@ class ValidationRetryMixin:
                 "success=true when complete or success=false when failed or blocked."
             )
         if "terminate" in str(error):
-            if node.node_id != "result_reviewer":
-                return "Required node work is complete. Call terminate now."
-            return (
-                "Required node work is complete. Optionally do useful cleanup "
-                "or curation with the available tools, then call terminate to "
-                "advance the runtime to the next node."
-            )
+            return self._lifecycle_phase_directive(node)
         return self._natural_retry_message(error, node, resolved_tools)
 
     def _messages_with_retry_prompt(
