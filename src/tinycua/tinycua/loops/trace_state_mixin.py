@@ -31,6 +31,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_MAX_TOOL_TRANSCRIPT_CHARS = 4_000
+
 
 def normalize_tool_outcome(
     tool_call: dict[str, Any],
@@ -161,13 +163,32 @@ class TraceStateMixin:
         self,
         node: Node,
         tool_results: list[dict[str, Any]],
+        tool_calls: list[dict[str, Any]] | None = None,
     ) -> None:
-        """Record readable transcript events for executed tool results."""
-        for tool_result in tool_results:
+        """Record bounded transcript events for executed tool inputs and results."""
+        for index, tool_result in enumerate(tool_results):
+            tool_call = (tool_calls or [])[index] if tool_calls and index < len(tool_calls) else {}
+            function = tool_call.get("function", {}) if isinstance(tool_call, dict) else {}
+            arguments = function.get("arguments", tool_call.get("arguments", {}))
+            if isinstance(arguments, str):
+                try:
+                    arguments = json.loads(arguments)
+                except json.JSONDecodeError:
+                    pass
+            content = json.dumps(
+                {
+                    "input": arguments,
+                    "outcome": tool_result.get("outcome", tool_result),
+                },
+                default=str,
+            )
+            content = sanitize_internal_reprs(content)
+            if len(content) > _MAX_TOOL_TRANSCRIPT_CHARS:
+                content = f"{content[:_MAX_TOOL_TRANSCRIPT_CHARS]}…[truncated]"
             self._record_transcript_event(
                 "transcript.tool_result",
                 self._node_label(node),
-                json.dumps(tool_result.get("outcome", tool_result), default=str),
+                content,
                 node_id=node.node_id,
                 tool_name=str(tool_result.get("name", "tool")),
             )
