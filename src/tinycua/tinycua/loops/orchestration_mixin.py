@@ -670,6 +670,8 @@ class OrchestrationMixin:
         stream_messages: list[dict[str, Any]] | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
         """Stream one node through its lifecycle and runtime services."""
+        if self._recovery_reentry:
+            self._reset_progress_for_retry(node)
         if isinstance(node, TinyCUAQueryAnalystNode):
             node._queue = self.queue
         messages, resolved_tools = self._prepare_node(
@@ -1528,25 +1530,16 @@ class OrchestrationMixin:
                 )
             return
         if self._recover_task_executor_validation_failure(node, validation, llm_result):
-            completed = self._emit_lifecycle_event(
-                "node.completed",
-                node.node_id,
+            async for event in self._stream_node_reentry(
+                node,
                 node_type,
                 max_attempts,
                 emit_lifecycle,
                 final_only,
-                node.is_terminal,
-                content=combined,
-                finish_reason="completed",
-            )
-            if completed is not None:
-                yield self._enrich_and_yield(
-                    completed,
-                    include_meta,
-                    node.node_id,
-                    node_type,
-                    max_attempts,
-                )
+                include_meta,
+                combined,
+            ):
+                yield event
             return
         lazy_outcome = await self._maybe_lazy_pre_recovery(  # FR-087..093
             node, agent, resolved_tools, llm_result, validation)
@@ -1565,28 +1558,16 @@ class OrchestrationMixin:
         if recovery_result is None:
             # Re-entry: yield event, return from generator.
             # Do NOT call on_complete, do NOT advance.
-            reentry_event = self._emit_lifecycle_event(
-                "node.reentry",
-                node.node_id,
+            async for event in self._stream_node_reentry(
+                node,
                 node_type,
                 max_attempts,
                 emit_lifecycle,
                 final_only,
-                node.is_terminal,
-                content="Recovery budget exhausted — re-entering node with fresh context.",
-                finish_reason="reentry",
-            )
-            if reentry_event is not None:
-                yield self._enrich_and_yield(
-                    reentry_event,
-                    include_meta,
-                    node.node_id,
-                    node_type,
-                    max_attempts,
-                )
-            self._record_node_content_transcript(
-                node, "Recovery budget exhausted — re-entering node with fresh context.",
-            )
+                include_meta,
+                "Recovery budget exhausted — re-entering node with fresh context.",
+            ):
+                yield event
             return
         recovered_result, _ = recovery_result
         recovery_content = recovered_result.content or combined
@@ -1622,6 +1603,39 @@ class OrchestrationMixin:
         ):
             yield event
         return
+
+    async def _stream_node_reentry(
+        self,
+        node: Node,
+        node_type: str,
+        attempt: int,
+        emit_lifecycle: bool,
+        final_only: bool,
+        include_meta: bool,
+        content: str,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Emit retry re-entry without completing the current node."""
+        event = self._emit_lifecycle_event(
+            "node.reentry",
+            node.node_id,
+            node_type,
+            attempt,
+            emit_lifecycle,
+            final_only,
+            node.is_terminal,
+            content=content,
+            finish_reason="reentry",
+        )
+        if event is not None:
+            yield self._enrich_and_yield(
+                event,
+                include_meta,
+                node.node_id,
+                node_type,
+                attempt,
+            )
+        if content:
+            self._record_node_content_transcript(node, content)
 
     async def _stream_node_completed(
         self,
