@@ -204,7 +204,7 @@ TaskExecutor → ResultReviewer
   no result yet:
     → [TaskExecutor, ResultReviewer]
   has result, no negative review:
-    → [ResultReviewer] only
+    → [TaskExecutor, ResultReviewer]
   has result + needs_revision / rejected:
     → [TaskExecutor, ResultReviewer]
   failed result:
@@ -219,6 +219,9 @@ TaskExecutor → ResultReviewer
   approved-but-not-completed (FR-079 safety net):
     → re-open task, clear approval, requeue [TaskExecutor, ResultReviewer]
 ```
+
+A successful `node.completed(X)` event must advance to a different node ID. Re-running
+`X` is permitted only as an explicit retry or recovery re-entry before completion.
 
 ### ResultReviewer Replan Separation
 

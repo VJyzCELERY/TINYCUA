@@ -23,8 +23,8 @@ class TestStateDrivenQueue:
         ids = [n.node_id for n in queue.items]
         assert ids == ["task_executor", "result_reviewer"]
 
-    def test_result_no_review_spawns_reviewer_only(self):
-        """Task with result, no negative review → [reviewer] only (skip executor)."""
+    def test_result_no_review_spawns_executor_and_reviewer(self):
+        """A completed node never advances directly to another reviewer."""
         store = TaskStateStore()
         root = store.create_task("Root")
         child = store.create_task("Child", parent_id=root.task_id)
@@ -32,7 +32,7 @@ class TestStateDrivenQueue:
         queue = NodeQueue()
         WorkerRuntimeController(store).schedule_next(queue)
         ids = [n.node_id for n in queue.items]
-        assert ids == ["result_reviewer"]
+        assert ids == ["task_executor", "result_reviewer"]
 
     def test_result_with_needs_revision_spawns_executor_and_reviewer(self):
         """Task with result + needs_revision → [executor, reviewer] (rework)."""
@@ -52,7 +52,6 @@ class TestStateDrivenQueue:
         root = store.create_task("Root")
         child = store.create_task("Child", parent_id=root.task_id)
         store.record_result(child.task_id, TaskResult(content="failed", success=False))
-        store.record_reviewer_decision(child.task_id, ReviewerDecision.APPROVED)
         queue = NodeQueue()
         WorkerRuntimeController(store).schedule_next(queue)
         ids = [n.node_id for n in queue.items]
@@ -69,8 +68,8 @@ class TestStateDrivenQueue:
         ids = [n.node_id for n in queue.items]
         assert ids == ["result_aggregation"]
 
-    def test_executor_reports_sibling_result_skips_executor(self):
-        """When executor reports results for siblings, siblings skip executor."""
+    def test_executor_reports_sibling_result_still_routes_through_executor(self):
+        """Pre-existing sibling results still get an executor boundary."""
         store = TaskStateStore()
         root = store.create_task("Root")
         first = store.create_task("First", parent_id=root.task_id)
@@ -83,11 +82,11 @@ class TestStateDrivenQueue:
         )
         # Reviewer approves first → active moves to second.
         store.record_reviewer_decision(first.task_id, ReviewerDecision.APPROVED)
-        # Now second is active and has a result → schedule_next should spawn [reviewer] only.
+        # The executor verifies or refreshes the existing result before review.
         queue = NodeQueue()
         WorkerRuntimeController(store).schedule_next(queue)
         ids = [n.node_id for n in queue.items]
-        assert ids == ["result_reviewer"]  # no executor — work already done
+        assert ids == ["task_executor", "result_reviewer"]
 
 
 class TestReviewerTestingGuidance:

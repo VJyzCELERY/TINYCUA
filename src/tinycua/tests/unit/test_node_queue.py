@@ -80,6 +80,13 @@ class TestNodeQueueAdvance:
         with pytest.raises(ValueError, match="Cannot advance an empty queue"):
             queue.advance()
 
+    def test_advance_rejects_same_node_successor(self):
+        """Completed nodes must advance to a different node type."""
+        queue = NodeQueue(items=[_make_node("reviewer"), _make_node("reviewer")])
+
+        with pytest.raises(RuntimeError, match="same node"):
+            queue.advance()
+
     def test_advance_does_not_call_propagate(self):
         """advance() does not implicitly propagate context."""
         queue = NodeQueue()

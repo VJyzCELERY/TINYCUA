@@ -32,6 +32,8 @@ Operation side effects:
   segment propagates upward per `PropagationRule`, while the output segment is forwarded
   to the next node as `NodeInput`. After propagation, removes `items[0]` and returns
   the new `current` node or `None`.
+- `advance()` rejects a successor with the same `node_id`. Same-node retries use recovery
+  re-entry before `node.completed`; a successful completion always changes nodes or ends.
 - `spawn_after_current(nodes)` inserts nodes after `items[0]`. It does not change
   `current`; the loop re-reads `queue.current` after `on_complete()`.
 - `suspend_current_and_prepend(nodes)` keeps the current node queued, inserts the new

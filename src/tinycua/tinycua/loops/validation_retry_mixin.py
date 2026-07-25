@@ -241,33 +241,7 @@ class ValidationRetryMixin:
                 "record task_result_update; continuing the same active task with "
                 "partial evidence instead of replanning or marking failure.",
             )
-            terminal_nodes = [
-                queued for queued in self.queue.items[1:] if queued.is_terminal
-            ]
-            self.queue.clear_after_current()
-            from tinycua.config.node_config import create_node_config
-            from tinycua.loops.task_nodes import TinyCUAResultReviewerNode
-            from tinycua.loops.task_nodes import TinyCUATaskExecutorNode
-
-            self.queue.items.extend(
-                [
-                    TinyCUATaskExecutorNode(
-                        node_id="task_executor",
-                        config=create_node_config("task_executor"),
-                    ),
-                    TinyCUAResultReviewerNode(
-                        node_id="result_reviewer",
-                        config=create_node_config("result_reviewer"),
-                    ),
-                ]
-            )
-            existing_terminal_ids = {
-                queued.node_id for queued in self.queue.items if queued.is_terminal
-            }
-            for terminal in terminal_nodes:
-                if terminal.node_id not in existing_terminal_ids:
-                    self.queue.items.append(terminal)
-                    existing_terminal_ids.add(terminal.node_id)
+            self._recovery_reentry = True
             return True
         if not self._successful_executor_inspection_results(tool_results):
             # ponytail: no usable tool evidence means fail closed; don't respawn forever.
@@ -288,33 +262,7 @@ class ValidationRetryMixin:
             "TaskExecutor validation failed after retries; retrying the same "
             "active task instead of bypassing ResultReviewer into replan.",
         )
-        terminal_nodes = [
-            queued for queued in self.queue.items[1:] if queued.is_terminal
-        ]
-        self.queue.clear_after_current()
-        from tinycua.config.node_config import create_node_config
-        from tinycua.loops.task_nodes import TinyCUAResultReviewerNode
-        from tinycua.loops.task_nodes import TinyCUATaskExecutorNode
-
-        self.queue.items.extend(
-            [
-                TinyCUATaskExecutorNode(
-                    node_id="task_executor",
-                    config=create_node_config("task_executor"),
-                ),
-                TinyCUAResultReviewerNode(
-                    node_id="result_reviewer",
-                    config=create_node_config("result_reviewer"),
-                ),
-            ]
-        )
-        existing_terminal_ids = {
-            queued.node_id for queued in self.queue.items if queued.is_terminal
-        }
-        for terminal in terminal_nodes:
-            if terminal.node_id not in existing_terminal_ids:
-                self.queue.items.append(terminal)
-                existing_terminal_ids.add(terminal.node_id)
+        self._recovery_reentry = True
         return True
 
     def _effective_max_attempts(self, node: Node) -> int:

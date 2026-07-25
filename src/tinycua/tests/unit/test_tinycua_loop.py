@@ -944,6 +944,34 @@ async def test_commit_retries_until_reviewer_decision_then_auto_completes() -> N
     assert task.reviewer_decisions[-1]["decision"] == "needs_revision"
 
 
+async def test_streaming_reentry_is_consumed_before_node_restarts() -> None:
+    """A streaming retry cannot leak its re-entry flag past redispatch."""
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="result_reviewer",
+        config=create_node_config("result_reviewer"),
+    )
+    loop = TinyCUALoop(queue=NodeQueue(items=[reviewer]))
+    reviewer.ensure_session(loop.root_session)
+    reviewer.progress.advance_lifecycle(LifecyclePhase.COMMIT)
+    reviewer.progress.recovery_attempts["focused_retry"] = 1
+    loop._recovery_reentry = True
+
+    events = loop._stream_node_events(
+        reviewer,
+        MagicMock(),
+        [],
+        None,
+        loop.queue.input_for_current(),
+    )
+    event = await anext(events)
+    await events.aclose()
+
+    assert event["type"] == "node.started"
+    assert loop._recovery_reentry is False
+    assert reviewer.progress.lifecycle_phase == LifecyclePhase.ACTION
+    assert reviewer.progress.recovery_attempts == {"focused_retry": 1}
+
+
 async def test_commit_stream_limits_sdk_to_one_iteration(monkeypatch) -> None:
     """Commit returns control after one SDK model/tool iteration."""
     reviewer = TinyCUAResultReviewerNode(

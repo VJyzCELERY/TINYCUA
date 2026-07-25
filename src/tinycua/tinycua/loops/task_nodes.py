@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from typing import Any, TYPE_CHECKING
 
 from tinycua.config.node_config import create_node_config
@@ -21,8 +20,6 @@ from tinycua.models.task import (
     TaskResult,
     TaskStatus,
 )
-
-logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
@@ -261,41 +258,6 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
             "(web_search/fetch_url/read_file/list_files/search_files/"
             "run_shell) only as needed to ground the decomposition in evidence. "
             "Do not execute the task itself."
-        )
-
-    def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
-        """Skip re-execution when the analyzer confirmed the plan is unchanged.
-
-        FR-051: in a local replan, when the analyzer sets
-        ``metadata.plan_unchanged`` on the active task (via ``task_update``),
-        the queued executor is removed — the plan did not change, so
-        re-execution would only duplicate work. The reviewer is kept so it
-        can re-judge the existing result. Only fires in ``local_replan``
-        mode; the upfront analysis loop is unaffected.
-        """
-        super().on_complete(queue, response)
-        mode = str(self.config.metadata.get("task_analyzer_mode", "task_creation"))
-        if mode != "local_replan":
-            return
-        if self.session is None:
-            return
-        active = self.session.task_store.get_active_task()
-        if active is None or not active.metadata.get("plan_unchanged"):
-            return
-        # Remove the next queued task_executor (if any) — keep the reviewer.
-        # ponytail: linear scan is fine, the queue is short (≤4 after replan).
-        removed = False
-        new_items = []
-        for node in queue.items:
-            if not removed and node.node_id == "task_executor":
-                removed = True
-                continue
-            new_items.append(node)
-        queue.items = new_items
-        logger.info(
-            "plan_unchanged task_id=%s — skipping executor re-run, "
-            "reviewer will re-judge the existing result",
-            active.task_id,
         )
 
 

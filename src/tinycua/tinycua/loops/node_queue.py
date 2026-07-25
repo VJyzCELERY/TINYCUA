@@ -93,6 +93,12 @@ class NodeQueue:
             raise ValueError(msg)
 
         current_node = self.items[0]
+        if len(self.items) > 1 and self.items[1].node_id == current_node.node_id:
+            msg = (
+                f"Completed node {current_node.node_id!r} cannot advance to the "
+                "same node; use retry re-entry before completion instead."
+            )
+            raise RuntimeError(msg)
 
         # Remove current node and clean up input
         self.items.pop(0)
