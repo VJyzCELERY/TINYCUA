@@ -600,7 +600,7 @@ def test_fr085_compaction_logs_at_info(caplog):
 
 - **`schedule_replan`**: after queueing the replan nodes, insert a synthetic `{"decision": "replan_boundary", "rationale": "replan triggered", "metadata": {}}` entry into the active task's `reviewer_decisions`. This resets `consecutive_failures` (FR-049).
 - **`schedule_after_review`**: before the threshold check, count `replan_boundary` entries in `reviewer_decisions` → `replan_count`. If `replan_count >= max_replans` (from `SessionConfig`), force-approve the task: call `record_reviewer_decision(approved, rationale="replan budget exhausted (effort={effort}, cap={max_replans}).")` and schedule the next task (not another replan) (FR-050).
-- **Non-vacuous replan**: handled by the analyzer's `on_complete` in `task_nodes.py` (see below) — the analyzer checks `plan_unchanged` and removes the queued executor. `schedule_replan` itself is unchanged for this (FR-051).
+- **Non-vacuous replan**: `plan_unchanged` preserves the existing plan while retaining the executor boundary for verification before review (FR-051).
 
 #### MODIFY `src/tinycua/tinycua/agent/tools/native/files.py`
 
@@ -622,7 +622,7 @@ def test_fr085_compaction_logs_at_info(caplog):
 - **`_TASK_ANALYZER_INSTRUCTION` / `_TASK_ANALYZER_CONTINUATION`**: add "After `task_decompose` or `task_update` succeeds, call `terminate`." Remove the "call `task_inspect`" first instruction from the continuation (FR-054).
 - **`_RESULT_REVIEWER_INSTRUCTION`**: add the general sanity-checker responsibility — detect duplicate/repeated content (via `run_shell` grep/wc/sort|uniq), hallucinated claims, structural inconsistency. Generic across artifact types, prompt-only (FR-056).
 - **Reviewer `build_tool_system_prompt`**: when `run_shell` is available, add dedup guidance (e.g. `grep -c '^## ' report.md`, `sort | uniq -d`) (FR-056).
-- **Analyzer `on_complete`**: in `local_replan` mode, check `active.metadata.get("plan_unchanged")`. If true, remove the next queued `task_executor` — the plan did not change, re-execution would duplicate work. The reviewer is kept to re-judge the existing result (FR-051).
+- **Analyzer completion**: retain the queued executor even when `plan_unchanged` is true so completed nodes always transition to a different node and the result is verified before review (FR-051/FR-067).
 - **Analyzer `local_replan` mode prompt**: mention `task_shrink` as an option for restructuring (only unfinished tasks), and `task_update` with `plan_unchanged=true` when the plan is correct (FR-051).
 
 #### MODIFY `src/tinycua/tinycua/config/node_config.py`
@@ -681,7 +681,7 @@ Hotfix for the experiment-5 context-overflow failure. Four independent fixes (A+
 | `loops/orchestration_mixin.py` | Modify | 2-track retry; structured output; remove `print(stderr)` |
 | `loops/prompt_protocol_mixin.py` | Modify | Remove inline maps; consult `NodeContract`; **M8**: add `task_inspect` to heuristic candidates |
 | `loops/worker_runtime.py` | Modify | Remove `OPEN_QUESTION` branch; **M8**: reset failure baseline on replan, cap replans per task, force-approve at cap |
-| `loops/task_nodes.py` | Modify | **M8**: analyzer `terminate` instruction + `on_complete` skips executor when `plan_unchanged`, reviewer sanity-checker, `local_replan` prompt |
+| `loops/task_nodes.py` | Modify | **M8**: analyzer `terminate` instruction, reviewer sanity-checker, `local_replan` prompt |
 | `loops/tinycua_loop.py` | Modify | Structured-output payload; tool coercion |
 | `loops/trace_state_mixin.py` | Modify | `node_state_transition` + `task_tree_shrink` events |
 | `models/task.py` | Modify | Add `delete_task`, `merge_tasks`; **M8**: `consecutive_failures` breaks on `replan_boundary` |

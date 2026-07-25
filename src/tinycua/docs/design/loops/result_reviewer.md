@@ -81,7 +81,7 @@ ResultReviewer completes:
     → [TaskExecutor, ResultReviewer]              # execute then review again
 
   has result, no negative review:
-    → [ResultReviewer] only                        # re-confirm, then proceed
+    → [TaskExecutor, ResultReviewer]              # verify/refresh, then review
 
   has result + needs_revision / rejected:
     → [TaskExecutor, ResultReviewer]              # revise then re-review
@@ -113,9 +113,9 @@ ResultReviewer replan:
   → TaskExecutor
 ```
 
-> **plan_unchanged skip (FR-051):** if the replan pass produces no change to the active
-> task's plan, the reviewer skips re-execution and falls back to `needs_revision` with
-> updated instructions rather than looping.
+> **plan_unchanged (FR-051):** if the replan pass produces no structural change, the
+> existing executor boundary remains so it can verify or refresh the result before the
+> reviewer runs again.
 >
 > **replan_boundary + max_replans (FR-049 / FR-050):** replan is scoped by
 > `replan_boundary` (default: the active task and its local region) and capped by
