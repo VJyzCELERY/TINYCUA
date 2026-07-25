@@ -10,17 +10,17 @@ Reviewer decision models capture `TinyCUAResultReviewerNode` output.
 ```text
 ReviewerDecision
   · outcome: Literal["approved", "needs_revision", "rejected", "replan"]
-  · rationale: str | None
+  · rationale: str
   · target_task_id: str | None
   · metadata: dict
 ```
 
 ## ReviewerDecision Responsibilities
 
-- Review executor output
+- Record a concise free-form review report
 - Decide approved / needs_revision / rejected / replan
 - Update active `TaskResult`
-- Update active task context
+- Optionally hand useful claims to future task context
 - Trigger task-tree transition
 
 > **Vocabulary (FR-057):** `rejected` is aliased to `needs_revision` — both send the

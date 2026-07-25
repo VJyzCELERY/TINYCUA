@@ -72,6 +72,12 @@ class _RouteMatrixScript:
             return "task_executor"
         if "task_review_decision" in tool_names:
             return "result_reviewer"
+        if "task_inspect" in tool_names and tool_names & {
+            "read_file",
+            "run_shell",
+            "list_files",
+        }:
+            return "result_reviewer"
         if tool_names == {"task_inspect"}:
             return "result_aggregation"
         return "response"
@@ -99,18 +105,23 @@ class _RouteMatrixScript:
             return match.group(1)
         # Raw snapshot dict: 'root_task_id': '...'
         match = re.search(r"'root_task_id': '([^']+)'", text) or re.search(
-            r'"root_task_id": "([^"]+)"', text,
+            r'"root_task_id": "([^"]+)"',
+            text,
         )
         if match:
             return match.group(1)
         # Raw snapshot dict: 'active_task_id': '...'
         match = re.search(r"'active_task_id': '([^']+)'", text) or re.search(
-            r'"active_task_id": "([^"]+)"', text,
+            r'"active_task_id": "([^"]+)"',
+            text,
         )
         return match.group(1) if match else ""
 
     async def __call__(
-        self, messages: list[dict[str, Any]], tools: Any, stream: bool = False,  # noqa: ANN001, ARG002
+        self,
+        messages: list[dict[str, Any]],
+        tools: Any,
+        stream: bool = False,  # noqa: ANN001, ARG002
     ) -> dict[str, Any]:
         tool_names = {t.name for t in tools}
         node = self._detect_node(tool_names)
@@ -219,9 +230,7 @@ class _RouteMatrixScript:
                             "name": "task_decompose",
                             "arguments": (
                                 f'{{"task_id":"{root_id}","subtasks":['
-                                '{"title":"Create backend",'
-                                '"clause_ids":["acceptance-1"]},'
-                                '"Create frontend"]}'
+                                '"Create backend","Create frontend"]}'
                             ),
                         }
                     }
@@ -280,17 +289,14 @@ class _RouteMatrixScript:
                         "function": {
                             "name": "task_result_update",
                             "arguments": (
-                                f'{{"content":"Completed {task_id}","success":true,'
-                                '"metadata":{"clause_evidence":{'
-                                '"acceptance-1":[{"passed":true}]}}}'
+                                f'{{"content":"Completed {task_id}","success":true}}'
                             ),
                         }
                     }
                 ],
             }
         if node == "result_reviewer":
-            task_id = self._task_id(messages) or "active"
-            if "task_update" in tool_names:
+            if "task_review_decision" not in tool_names:
                 if any(
                     m.get("role") == "tool"
                     and "task_inspect" in str(m.get("content", ""))
@@ -309,8 +315,6 @@ class _RouteMatrixScript:
                 for m in messages
             ):
                 return {"content": "Review recorded.", "tool_calls": []}
-            # Decide-then-inspect: record the decision and inspect the roadmap in
-            # the same response so the node can terminate.
             return {
                 "content": "",
                 "tool_calls": [
@@ -318,15 +322,9 @@ class _RouteMatrixScript:
                         "function": {
                             "name": "task_review_decision",
                             "arguments": (
-                                f'{{"decision":"approved","task_id":"{task_id}",'
-                                '"rationale":"[validated]: scripted evidence"}'
+                                '{"decision":"approved",'
+                                '"rationale":"The scripted result is acceptable."}'
                             ),
-                        }
-                    },
-                    {
-                        "function": {
-                            "name": "task_inspect",
-                            "arguments": "{}",
                         }
                     },
                 ],
@@ -337,9 +335,7 @@ class _RouteMatrixScript:
         return {"content": "Final response to the user.", "tool_calls": []}
 
 
-def _make_agent(
-    tmp_path: Path, *, route: str = "passthrough", **kwargs: Any
-) -> Any:
+def _make_agent(tmp_path: Path, *, route: str = "passthrough", **kwargs: Any) -> Any:
     script = _RouteMatrixScript(route=route, **kwargs)
     agent = create_tinycua_agent(
         session_config=SessionConfig(workspace_dir=tmp_path),
@@ -422,9 +418,9 @@ async def test_worker_route_reaches_executor_then_reviewer_before_response(
     assert "worker" in node_ids
     assert "task_executor" in node_ids
     assert "result_reviewer" in node_ids
-    assert (
-        node_ids.index("task_executor") < node_ids.index("result_reviewer")
-    ), f"executor must precede reviewer: {node_ids}"
+    assert node_ids.index("task_executor") < node_ids.index("result_reviewer"), (
+        f"executor must precede reviewer: {node_ids}"
+    )
     assert node_ids[-1] == "response"
 
 
@@ -451,7 +447,8 @@ async def test_every_run_terminates_at_response_or_terminal_node(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "force_node", ["task_analyzer", "task_create", "task_executor"],
+    "force_node",
+    ["task_analyzer", "task_create", "task_executor"],
 )
 async def test_impossible_task_route_to_response_is_rejected(
     tmp_path: Path, force_node: str
@@ -463,9 +460,7 @@ async def test_impossible_task_route_to_response_is_rejected(
     A task node that tries to skip directly to ResponseNode must be rejected
     (via retry/correction or failure), never silently accepted.
     """
-    agent, _script = _make_agent(
-        tmp_path, route="worker", force_route=force_node
-    )
+    agent, _script = _make_agent(tmp_path, route="worker", force_route=force_node)
 
     # The run either retries the node to recovery (good) or fails closed.
     # What must NOT happen: the run "succeeds" with the forced skip.
@@ -482,6 +477,5 @@ async def test_impossible_task_route_to_response_is_rejected(
     # Either the loop retried the node to recovery (response appears only
     # after the legal intervening nodes) or it failed closed (no response).
     assert not _has_direct_transition(node_ids, force_node, "response"), (
-        f"loop accepted illegal {force_node} -> response direct skip: "
-        f"{node_ids}"
+        f"loop accepted illegal {force_node} -> response direct skip: {node_ids}"
     )

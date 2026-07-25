@@ -27,9 +27,9 @@ Its primary responsibilities are:
 
 The Result Reviewer should be hybrid:
 
-- deterministic checks for schema validity, missing fields, ordering consistency, and citations where applicable;
+- deterministic checks for schema validity and missing required fields;
 - **sanity-checker (FR-056)** — a deterministic pre-pass that flags obviously broken results (empty output, schema mismatch, missing required artifacts) before the LLM review runs, so semantic review effort is not wasted on structurally invalid results;
-- LLM-based semantic review for correctness, sufficiency, context propagation, and recovery decisions. Every semantic verdict MUST carry a mandatory evidence rationale (FR-059) — a traceable justification linking the verdict to the success criteria and observed result, so approvals/rejections are auditable.
+- LLM-based semantic review for correctness, sufficiency, context propagation, and recovery decisions. The reviewer records a concise free-form report with its decision; no evidence tags or clause-proof payload are required.
 
 ---
 
@@ -55,8 +55,8 @@ The Result Reviewer should not receive a broad accumulated context dump by defau
 ```mermaid
 flowchart TD
     INPUT{{"Task Result"}}
-    CHECK["Validate schema and evidence\n(sanity-checker, FR-056)"]
-    REVIEW["Semantic review against success criteria\n(mandatory evidence rationale, FR-059)"]
+    CHECK["Validate required result fields\n(sanity-checker, FR-056)"]
+    REVIEW["Review result against task and\nacceptance context"]
     APPROVED{"Approved?"}
     PROP["Consolidate unfinished/upcoming task contexts"]
     REVISE{"Needs revision?"}

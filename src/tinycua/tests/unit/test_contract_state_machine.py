@@ -21,13 +21,23 @@ class TestContractDerivedMaps:
     """FR-061: runtime maps are derived from _NODE_CONTRACTS."""
 
     def test_terminated_node_ids_matches_contract(self):
-        expected = {"task_create", "task_analyzer", "task_assessor", "task_executor", "result_reviewer"}
+        expected = {
+            "task_create",
+            "task_analyzer",
+            "task_assessor",
+            "task_executor",
+            "result_reviewer",
+        }
         assert TERMINATED_NODE_IDS == expected
 
     def test_required_tools_by_node_matches_contract(self):
         assert REQUIRED_TOOLS_BY_NODE["task_create"] == frozenset({"task_init"})
-        assert REQUIRED_TOOLS_BY_NODE["task_executor"] == frozenset({"task_result_update"})
-        assert REQUIRED_TOOLS_BY_NODE["result_reviewer"] == frozenset({"task_review_decision"})
+        assert REQUIRED_TOOLS_BY_NODE["task_executor"] == frozenset(
+            {"task_result_update"}
+        )
+        assert REQUIRED_TOOLS_BY_NODE["result_reviewer"] == frozenset(
+            {"task_review_decision"}
+        )
 
     def test_any_of_tools_by_node_matches_contract(self):
         analyzer = ANY_OF_TOOLS_BY_NODE["task_analyzer"]
@@ -60,7 +70,10 @@ class TestNodeProgressOnSession:
         node.progress.mark_tool_called("task_decompose", success=True)
         # Progress is stored on the session, not the node instance.
         assert "task_analyzer" in loop.root_session.node_progress
-        assert "task_decompose" in loop.root_session.node_progress["task_analyzer"].satisfied_requirements
+        assert (
+            "task_decompose"
+            in loop.root_session.node_progress["task_analyzer"].satisfied_requirements
+        )
 
     def test_progress_survives_node_reconstruction(self):
         loop = TinyCUALoop()
@@ -230,16 +243,25 @@ class TestRecoveryMessagesAreGoalOriented:
         node.ensure_session(loop.root_session)
 
         from tinycua.tools.task_tools import TaskDecomposeTool
+
         decompose_tool = TaskDecomposeTool()
         decompose_tool._store = store
 
-        llm_result = LLMResult(content="I need to decompose", metadata={"tool_results": []})
+        llm_result = LLMResult(
+            content="I need to decompose", metadata={"tool_results": []}
+        )
         validation = ValidationResult(
             is_valid=False,
-            errors=["task_analyzer must call at least one successful task-state tool from ['task_decompose', 'task_update']; task state cannot be inferred from prose."],
+            errors=[
+                "task_analyzer must call at least one successful task-state tool from ['task_decompose', 'task_update']; task state cannot be inferred from prose."
+            ],
         )
         messages = loop._build_recovery_messages(
-            node, [decompose_tool], llm_result, validation, ["task_decompose", "terminate"],
+            node,
+            [decompose_tool],
+            llm_result,
+            validation,
+            ["task_decompose", "terminate"],
         )
         # The last message is the directive — should contain the goal.
         directive = messages[-1].get("content", "")
@@ -259,16 +281,23 @@ class TestRecoveryMessagesAreGoalOriented:
         node.ensure_session(loop.root_session)
 
         from tinycua.tools.task_tools import TaskDecomposeTool
+
         decompose_tool = TaskDecomposeTool()
         decompose_tool._store = store
 
-        llm_result = LLMResult(content="I need to decompose", metadata={"tool_results": []})
+        llm_result = LLMResult(
+            content="I need to decompose", metadata={"tool_results": []}
+        )
         validation = ValidationResult(
             is_valid=False,
             errors=["task_analyzer must call at least one successful task-state tool"],
         )
         messages = loop._build_recovery_messages(
-            node, [decompose_tool], llm_result, validation, ["task_decompose", "terminate"],
+            node,
+            [decompose_tool],
+            llm_result,
+            validation,
+            ["task_decompose", "terminate"],
         )
         directive = messages[-1].get("content", "")
         assert "## Why task_decompose Is Required" in directive
@@ -292,6 +321,6 @@ class TestContractGoalFields:
 
     def test_reviewer_contract_has_goal(self):
         contract = get_node_contract("result_reviewer")
-        assert "Verify" in contract.goal
+        assert "Review" in contract.goal
         assert "task_review_decision" in contract.tool_rationale
         assert "task_inspect" in contract.tool_rationale

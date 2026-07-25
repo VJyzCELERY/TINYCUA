@@ -16,15 +16,22 @@ class TestNodeGuidanceModule:
         assert _RESULT_REVIEWER_INSTRUCTION
         assert "ResultReviewer" in _RESULT_REVIEWER_INSTRUCTION
 
-    def test_instruction_mentions_validation_evidence(self):
-        assert "validation evidence" in _RESULT_REVIEWER_INSTRUCTION.lower()
+    def test_instruction_requests_a_free_form_report(self):
+        instruction = _RESULT_REVIEWER_INSTRUCTION.lower()
+
+        assert "report" in instruction
+        assert "validation evidence" not in instruction
+        assert "[validated]" not in instruction
 
     def test_instruction_under_950_chars(self):
         assert len(_RESULT_REVIEWER_INSTRUCTION) < 950
 
     def test_continuation_importable(self):
         assert _RESULT_REVIEWER_CONTINUATION
-        assert "summarize the active-task review conclusion" in _RESULT_REVIEWER_CONTINUATION
+        assert (
+            "summarize the active-task review conclusion"
+            in _RESULT_REVIEWER_CONTINUATION
+        )
 
 
 class TestBuildReviewerToolGuidance:

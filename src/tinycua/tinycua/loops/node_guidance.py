@@ -4,11 +4,6 @@ Extracted from ``task_nodes.py`` so node-specific prompt enhancements evolve
 independently of the node plumbing. Currently holds the ResultReviewer
 guidance; other nodes' guidance can move here in the future.
 
-FR-059: the reviewer instruction enforces validation evidence in every
-``task_review_decision`` rationale — a validator in ``validation_retry_mixin``
-backs it up at runtime. The validation logic lives here (not in the mixin) to
-keep the mixin under the LOC gate and centralize reviewer rules.
-
 FR-060: ``summarize_tool_result`` lives here so the recovery loop can
 import it without depending on the CLI layer. The CLI re-exports it.
 """
@@ -63,25 +58,19 @@ def summarize_tool_result(content: str) -> str:
 
 
 _RESULT_REVIEWER_INSTRUCTION = (
-    "You are the ResultReviewer. You do not edit files. Verify the result "
-    "against the active task's requirements and acceptance criteria using "
-    "checks appropriate to the claimed outcome and available tools. Testing is "
-    "verification, not re-execution. Exercise material behavior, inspect outputs, "
-    "and verify consequential claims with concrete evidence. Do not accept "
-    "fabricated or unsupported claims. Determine approved, needs_revision, "
-    "rejected, or replan. Use replan immediately "
+    "You are the ResultReviewer. You do not edit files. Review the executor's "
+    "outcome against the active task and acceptance criteria context. Inspect "
+    "claims with available tools when useful, then write a concise review report "
+    "and determine approved, needs_revision, rejected, or replan. Use replan immediately "
     "when evidence makes the task itself impossible; reserve needs_revision "
     "for fixable execution defects. If bad, record feedback. "
-    "Do not write a long explanation — call the tools. When relevant, check for "
+    "Do not write a long explanation. When relevant, check for "
     "duplicate content, hallucinated claims, and structural inconsistency. "
-    "Every decision must cite "
-    "validation evidence in rationale. Review and decide only the active task."
+    "Review and decide only the active task."
 )
 _RESULT_REVIEWER_CONTINUATION = (
-    "Verify the result against the active task's acceptance criteria. Choose "
-    "checks appropriate to the artifact or claim, exercise required behavior "
-    "where possible, and cite concrete evidence. Then summarize the active-task "
-    "review conclusion."
+    "Review the result against the active task and acceptance criteria context. "
+    "Then summarize the active-task review conclusion."
 )
 
 
@@ -95,21 +84,13 @@ def build_reviewer_tool_guidance(resolved_tools: list[Any] | None) -> str:
     readonly = names.intersection({"read_file", "run_shell", "list_files"})
     if readonly:
         lines.append(
-            "Before approving, use available verification tools to gather "
-            "evidence tied to the acceptance criteria, or state why direct "
-            "verification is unavailable. Do not accept generic 'all requirements "
-            "met' claims; cite the specific evidence observed."
-        )
-        lines.append(
-            "When the task requires behavior, verify that it actually works "
-            "rather than checking existence alone. Choose the smallest relevant "
-            "check for the claimed outcome and available environment."
+            "Use available read-only tools when they help assess whether claimed "
+            "behavior actually works against the acceptance criteria context."
         )
     research_verify = names.intersection({"web_search", "fetch_url"})
     if research_verify:
         lines.append(
-            "Verify material external claims with appropriate authoritative "
-            "sources before approving, without re-researching the whole task."
+            "Use authoritative sources when they help assess material external claims."
         )
     if "task_review_decision" in names:
         lines.append("Commit the review with task_review_decision.")
@@ -120,19 +101,8 @@ def build_reviewer_tool_guidance(resolved_tools: list[Any] | None) -> str:
     return "Tool guidance: " + " ".join(lines)
 
 
-def validate_reviewer_rationale(tool_calls: list[dict[str, Any]]) -> list[str]:
-    """Check that task_review_decision rationale has validation evidence (FR-059).
-
-    Returns a list of error strings (empty if valid). The rationale MUST
-    include validation evidence so the executor can verify findings
-    deterministically:
-    - approved: ``[validated]: <command+result confirming the outcome>``
-    - needs_revision/rejected/replan: ``[finding]: <issue> [validate]:
-      <runnable command the executor can use to verify the fix>``
-
-    Generic across artifact types — code (pytest, grep), research
-    (web_search URL), data (wc, run_python).
-    """
+def validate_reviewer_report(tool_calls: list[dict[str, Any]]) -> list[str]:
+    """Require a free-form report with each reviewer decision."""
     for tool_call in tool_calls:
         function = tool_call.get("function") or {}
         name = function.get("name") or tool_call.get("name")
@@ -144,27 +114,8 @@ def validate_reviewer_rationale(tool_calls: list[dict[str, Any]]) -> list[str]:
                 arguments = json.loads(arguments)
             except json.JSONDecodeError:
                 arguments = {}
-        decision = arguments.get("decision", "")
-        rationale = (arguments.get("rationale") or "").strip()
-        if not rationale:
+        if not str(arguments.get("rationale", "")).strip():
             return [
-                "task_review_decision rationale is required — include "
-                "validation evidence. For approved: '[validated]: "
-                "<command+result>'. For needs_revision/rejected/replan: "
-                "'[finding]: <issue> [validate]: <command>'."
+                "task_review_decision rationale is required as a concise review report."
             ]
-        lowered = rationale.lower()
-        if decision == "approved" and "[validated]" not in lowered:
-            return [
-                "Approved decisions must include '[validated]: "
-                "<command+result>' in the rationale — cite the "
-                "evidence that confirms the outcome."
-            ]
-        if decision in ("needs_revision", "rejected", "replan") and "[validate]" not in lowered:
-            return [
-                "Non-approved decisions must include '[validate]: "
-                "<command>' in the rationale — provide a runnable "
-                "command the executor can use to verify the fix."
-            ]
-        return []
     return []

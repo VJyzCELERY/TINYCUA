@@ -37,9 +37,9 @@ if TYPE_CHECKING:
 # merge/delete — this just triggers the shrink-prompt.
 _SHRINK_THRESHOLDS: dict[str, int] = {
     "none": 99,  # never trigger at none effort
-    "low": 15,   # rarely trigger
+    "low": 15,  # rarely trigger
     "medium": 12,
-    "high": 8,   # proactively trigger
+    "high": 8,  # proactively trigger
 }
 
 
@@ -146,8 +146,12 @@ _TASK_EXECUTOR_CONTINUATION = (
     "outcome."
 )
 
-_RESULT_REVIEWER_INSTRUCTION = _RESULT_REVIEWER_INSTRUCTION  # re-exported from node_guidance
-_RESULT_REVIEWER_CONTINUATION = _RESULT_REVIEWER_CONTINUATION  # re-exported from node_guidance
+_RESULT_REVIEWER_INSTRUCTION = (
+    _RESULT_REVIEWER_INSTRUCTION  # re-exported from node_guidance
+)
+_RESULT_REVIEWER_CONTINUATION = (
+    _RESULT_REVIEWER_CONTINUATION  # re-exported from node_guidance
+)
 
 _RESULT_AGGREGATION_INSTRUCTION = (
     "You are the ResultAggregation node. You act as a compaction layer: "
@@ -218,7 +222,11 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
             {"task_create", "task_decompose", "task_shrink", "task_update"}
         )
         if commit_tools:
-            guidance = "Tool guidance: Commit the planned structural change with " + ", ".join(sorted(commit_tools)) + "."
+            guidance = (
+                "Tool guidance: Commit the planned structural change with "
+                + ", ".join(sorted(commit_tools))
+                + "."
+            )
             if "task_shrink" in commit_tools:
                 guidance += (
                     " Review every TaskAssessor recommendation and decide whether "
@@ -230,11 +238,23 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
                 "task_update" in commit_tools
                 and self.config.metadata.get("task_analyzer_mode") == "local_replan"
             ):
-                guidance += " Use metadata plan_unchanged=true when the plan needs no change."
+                guidance += (
+                    " Use metadata plan_unchanged=true when the plan needs no change."
+                )
             return guidance
         if "terminate" in names:
             return "Tool guidance: Call terminate now."
-        if not names.intersection({"task_inspect", "web_search", "fetch_url", "read_file", "list_files", "search_files", "run_shell"}):
+        if not names.intersection(
+            {
+                "task_inspect",
+                "web_search",
+                "fetch_url",
+                "read_file",
+                "list_files",
+                "search_files",
+                "run_shell",
+            }
+        ):
             return ""
         return (
             "Tool guidance: use task_inspect to read state when available. Explore first "
@@ -417,7 +437,9 @@ def _render_local_region_markdown(region: dict) -> str:
     lines: list[str] = []
     active = region.get("active_task")
     if active:
-        lines.append(f"Active: {active.get('title', 'unknown')} [{active.get('status', '?')}]")
+        lines.append(
+            f"Active: {active.get('title', 'unknown')} [{active.get('status', '?')}]"
+        )
         active_result = active.get("result")
         if active_result:
             lines.append(f"  Result: {active_result}")
@@ -501,17 +523,10 @@ def _render_active_task_work_order(session: Session) -> str:
                 active.result.summary.strip() or active.result.content.strip(),
             ]
         )
-    clauses = store.unmet_acceptance_clauses(active)
-    unmet = store.unmet_acceptance_clauses()
-    if clauses or unmet:
-        lines.extend(["", "## Acceptance Clauses"])
-        if clauses:
-            lines.append("Active task coverage:")
-            lines.extend(f"- {clause['text']}" for clause in clauses)
-        other_unmet = [clause for clause in unmet if clause not in clauses]
-        if other_unmet:
-            lines.append("Unmet root clauses:")
-            lines.extend(f"- {clause['text']}" for clause in other_unmet)
+    clauses = store.acceptance_clauses()
+    if clauses:
+        lines.extend(["", "## Acceptance Criteria (context)"])
+        lines.extend(f"- {clause['text']}" for clause in clauses)
     if active.reviewer_decisions:
         lines.append("")
         lines.append("## Past Review Feedback")
@@ -533,7 +548,7 @@ def _render_active_task_work_order(session: Session) -> str:
                 "",
                 "## Suggested execution mode",
                 "Validate existing work before making changes. If it already satisfies "
-                "the task, report validation evidence with task_result_update.",
+                "the task, report the outcome with task_result_update.",
             ]
         )
     request_contract = _render_request_contract(session)
@@ -552,7 +567,7 @@ def _render_active_task_work_order(session: Session) -> str:
             "",
             "## Success Criteria",
             "- At least one action/research/file/shell tool result supports success.",
-            "- Summarize the evidence and any specific blocker for the commit phase.",
+            "- Summarize what was done and any specific blocker for the commit phase.",
         ]
     )
     return "\n".join(lines)
@@ -673,7 +688,9 @@ class TinyCUATaskAssessorNode(ProcessNode):
         base = super().build_continuation(session)
         if session is None:
             return base
-        mode = str(self.config.metadata.get("task_assessor_mode", "upfront_decomposition"))
+        mode = str(
+            self.config.metadata.get("task_assessor_mode", "upfront_decomposition")
+        )
         mission = _render_mission_block(session)
         prefix = f"{mission}\n\n" if mission else ""
         if mode == "local_replan":
@@ -681,10 +698,7 @@ class TinyCUATaskAssessorNode(ProcessNode):
                 f"{prefix}Local roadmap region for reviewer-requested replan:\n"
                 f"{_render_local_region_markdown(_local_task_region(session))}\n\n{base}"
             )
-        return (
-            f"{prefix}Roadmap:\n{session.task_store.render_markdown()}\n\n"
-            f"{base}"
-        )
+        return f"{prefix}Roadmap:\n{session.task_store.render_markdown()}\n\n{base}"
 
     def build_tool_system_prompt(self, resolved_tools: list[Any] | None = None) -> str:
         """Behavioral guidance keyed on present assessor tools (FR-005)."""
@@ -696,13 +710,16 @@ class TinyCUATaskAssessorNode(ProcessNode):
                 "Tool guidance: Commit node_handoff with payload decision='analyze' "
                 "and selected_task_ids, or decision='ready' and selected_task_ids=[]."
             )
-        if not names.intersection({"task_inspect", "web_search", "fetch_url", "read_file", "run_shell"}):
+        if not names.intersection(
+            {"task_inspect", "web_search", "fetch_url", "read_file", "run_shell"}
+        ):
             return ""
         return (
             "Tool guidance: use task_inspect for read-only assessment when available. "
             "Explore (web_search/fetch_url/read_file/run_shell) only when needed "
             "to verify material roadmap assumptions. Do not mutate task state."
         )
+
 
 class TinyCUATaskExecutorNode(ProcessNode):
     """Execute or dispatch task work."""
@@ -759,9 +776,7 @@ class TinyCUATaskExecutorNode(ProcessNode):
                 "integration — run tests, check the app starts, confirm "
                 "endpoints are wired. Fix issues if needed. Do NOT re-execute "
                 "the children.\n\n"
-                "Child tasks (direct children only):\n"
-                + "\n".join(child_lines)
-                + "\n"
+                "Child tasks (direct children only):\n" + "\n".join(child_lines) + "\n"
             )
         path_note = (
             f"Workspace root: {workspace_dir or 'not configured'}\n"
@@ -785,7 +800,11 @@ class TinyCUATaskExecutorNode(ProcessNode):
         artifacts = []
         for item in tool_results:
             output = item.get("output") if isinstance(item, dict) else None
-            if item.get("name") not in {"write_file", "str_replace", "append_file"} or not isinstance(output, dict):
+            if item.get("name") not in {
+                "write_file",
+                "str_replace",
+                "append_file",
+            } or not isinstance(output, dict):
                 continue
             if output.get("success") and output.get("path"):
                 artifacts.append(
@@ -809,9 +828,13 @@ class TinyCUATaskExecutorNode(ProcessNode):
                 "Use write_file only for new files or full rewrites."
             )
         if "search_files" in names:
-            lines.append("Use search_files instead of run_shell grep for content search.")
+            lines.append(
+                "Use search_files instead of run_shell grep for content search."
+            )
         if "task_result_update" in names:
-            lines.append("Your final action MUST call task_result_update with the outcome report.")
+            lines.append(
+                "Your final action MUST call task_result_update with the outcome report."
+            )
         if not lines:
             return ""
         return "Tool guidance: " + " ".join(lines)
@@ -848,13 +871,11 @@ class TinyCUAResultReviewerNode(ProcessNode):
         if unfinished:
             curation_block = (
                 "\n## Future-Task Context Curation\n"
-                "While reviewing the active task, identify existing output relevant "
+                "While reviewing the active task, identify useful claims relevant "
                 "to these unfinished tasks. Include only useful handoffs in the "
                 "task_review_decision context_updates argument so the verdict and "
                 "curation commit atomically. Do not review or execute these tasks, "
-                "and do not modify their artifacts.\n"
-                + "\n".join(unfinished)
-                + "\n"
+                "and do not modify their artifacts.\n" + "\n".join(unfinished) + "\n"
             )
         # FR-021: surface the failure count as SOFT context so the reviewer —
         # which still LLM-decides — can weigh replan over retry when a task has
@@ -888,9 +909,7 @@ class TinyCUAResultReviewerNode(ProcessNode):
                 "child tasks below must remain completed and their results "
                 "must still be valid. Verify integration — do not re-execute "
                 "the children.\n\n"
-                "Child tasks (direct children only):\n"
-                + "\n".join(child_lines)
-                + "\n"
+                "Child tasks (direct children only):\n" + "\n".join(child_lines) + "\n"
             )
         return f"{child_gate}{failure_note}{curation_block}"
 
@@ -899,10 +918,16 @@ class TinyCUAResultReviewerNode(ProcessNode):
         transcript_lines = []
         for entry in session.session_context:
             content = entry_content(entry)
-            role = entry.get("role", "") if isinstance(entry, dict) else getattr(entry, "role", "")
+            role = (
+                entry.get("role", "")
+                if isinstance(entry, dict)
+                else getattr(entry, "role", "")
+            )
             if role and content:
                 transcript_lines.append(f"[{role}] {content}")
-        return "(No result report from executor)\n\nExecutor transcript:\n" + "\n".join(transcript_lines[-10:])
+        return "(No result report from executor)\n\nExecutor transcript:\n" + "\n".join(
+            transcript_lines[-10:]
+        )
 
     def build_continuation(self, session: Session | None = None) -> str:
         """Build reviewer continuation with latest result and unified context."""
@@ -919,10 +944,10 @@ class TinyCUAResultReviewerNode(ProcessNode):
         mission = _render_mission_block(session)
         mission_prefix = f"{mission}\n\n" if mission else ""
         context_blocks = self._reviewer_context_blocks(task, session)
-        clauses = session.task_store.unmet_acceptance_clauses(task)
+        clauses = session.task_store.acceptance_clauses()
         clause_block = ""
         if clauses:
-            clause_block = "Acceptance clauses under review:\n" + "\n".join(
+            clause_block = "Acceptance criteria (context):\n" + "\n".join(
                 f"- {clause['text']}" for clause in clauses
             )
         return (
@@ -1093,7 +1118,9 @@ class TinyCUAResultAggregationNode(ProcessNode):
         from tinycua.models.session_context_entry import append_output_entry
 
         append_output_entry(
-            self.session, aggregated, self.node_id,
+            self.session,
+            aggregated,
+            self.node_id,
             idempotent_by_identity=True,
         )
 
@@ -1190,7 +1217,10 @@ class TinyCUAAnalysisEffortNode(ProcessNode):
     def run_deterministic(self, queue: NodeQueue) -> LLMResult:
         """Schedule documented effort passes without an LLM call."""
         pass_limit = self._configured_pass_limit()
-        if self.session is not None and self.session.task_store.root_task_id is not None:
+        if (
+            self.session is not None
+            and self.session.task_store.root_task_id is not None
+        ):
             root = self.session.task_store.tasks[self.session.task_store.root_task_id]
             root.metadata["analysis_effort_pass_limit"] = pass_limit
             root.metadata["analysis_effort_pass_count"] = self.pass_count
@@ -1220,8 +1250,7 @@ class TinyCUAAnalysisEffortNode(ProcessNode):
                 ]
             )
             content = (
-                "Scheduled analysis effort pass "
-                f"{self.pass_count + 1} of {pass_limit}."
+                f"Scheduled analysis effort pass {self.pass_count + 1} of {pass_limit}."
             )
         else:
             content = f"Analysis effort complete after {pass_limit} pass(es)."

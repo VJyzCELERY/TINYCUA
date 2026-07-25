@@ -57,10 +57,16 @@ async def test_raw_llm_decomposition_calls_are_incremental_and_atomic() -> None:
 
     first = await loop._execute_tool_calls(
         agent,
-        [{"function": {"name": "task_decompose", "arguments": (
-            f'{{"task_id":"{root.task_id}","subtasks":['
-            '{"title":"First work","clause_ids":["acceptance-1"]}]}'
-        )}}],
+        [
+            {
+                "function": {
+                    "name": "task_decompose",
+                    "arguments": (
+                        f'{{"task_id":"{root.task_id}","subtasks":["First work"]}}'
+                    ),
+                }
+            }
+        ],
         [tool],
     )
     invalid = await loop._execute_tool_calls(
@@ -68,26 +74,38 @@ async def test_raw_llm_decomposition_calls_are_incremental_and_atomic() -> None:
         [{"function": {"name": "task_decompose", "arguments": "{"}}],
         [tool],
     )
-    unknown_clause = await loop._execute_tool_calls(
+    duplicate = await loop._execute_tool_calls(
         agent,
-        [{"function": {"name": "task_decompose", "arguments": (
-            f'{{"task_id":"{root.task_id}","subtasks":['
-            '{"title":"Invalid work","clause_ids":["acceptance-3"]}]}'
-        )}}],
+        [
+            {
+                "function": {
+                    "name": "task_decompose",
+                    "arguments": (
+                        f'{{"task_id":"{root.task_id}","subtasks":["First work"]}}'
+                    ),
+                }
+            }
+        ],
         [tool],
     )
     second = await loop._execute_tool_calls(
         agent,
-        [{"function": {"name": "task_decompose", "arguments": (
-            f'{{"task_id":"{root.task_id}","subtasks":['
-            '{"title":"Second work","clause_ids":["acceptance-2"]}]}'
-        )}}],
+        [
+            {
+                "function": {
+                    "name": "task_decompose",
+                    "arguments": (
+                        f'{{"task_id":"{root.task_id}","subtasks":["Second work"]}}'
+                    ),
+                }
+            }
+        ],
         [tool],
     )
 
     assert first[0]["output"]["success"] is True
     assert "error" in invalid[0]
-    assert unknown_clause[0]["output"]["success"] is False
+    assert duplicate[0]["output"]["success"] is False
     assert second[0]["output"]["success"] is True
     assert [store.get_task(task_id).title for task_id in root.children] == [
         "First work",
