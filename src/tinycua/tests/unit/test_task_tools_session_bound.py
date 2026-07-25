@@ -83,7 +83,7 @@ def test_task_tools_are_active_task_aware_and_error_safe() -> None:
 
 
 def test_task_init_retains_explicit_acceptance_clauses() -> None:
-    """Root clauses are required, assigned during decomposition, and evidenced."""
+    """Root clauses remain required context without child ownership."""
     store = TaskStateStore()
     init = TaskInitTool()
     decompose = TaskDecomposeTool()
@@ -91,26 +91,22 @@ def test_task_init_retains_explicit_acceptance_clauses() -> None:
         tool.bind_task_store(store)
 
     root = init("Deliver a CLI", acceptance_clauses=["CLI exits zero"])
-    child_id = decompose(
-        root["task_id"],
-        [{"title": "Implement CLI", "clause_ids": ["acceptance-1"]}],
-    )["child_task_ids"][0]
+    child_id = decompose(root["task_id"], ["Implement CLI"])["child_task_ids"][0]
 
     assert "acceptance_clauses" in init.parameters["required"]
     assert store.get_task(root["task_id"]).metadata["acceptance_clauses"] == [
         {"id": "acceptance-1", "text": "CLI exits zero"}
     ]
-    assert store.get_task(child_id).metadata["acceptance_clause_ids"] == ["acceptance-1"]
+    assert store.get_task(child_id).metadata == {}
     store.record_result(child_id, TaskResult(content="CLI implemented", success=True))
-    try:
-        store.record_reviewer_decision(child_id, "approved")
-    except ValueError as exc:
-        assert "acceptance clause" in str(exc)
-    else:
-        raise AssertionError("approved task without clause evidence")
+    store.record_reviewer_decision(child_id, "approved")
+
+    assert store.get_task(child_id).status.value == "completed"
 
 
-def test_task_init_failure_preserves_existing_roadmap_and_can_retry_before_success() -> None:
+def test_task_init_failure_preserves_existing_roadmap_and_can_retry_before_success() -> (
+    None
+):
     """Failed initialization never replaces a valid root task or its children."""
     store = TaskStateStore()
     init = TaskInitTool()
@@ -266,7 +262,8 @@ def test_task_update_can_correct_title() -> None:
     )
     assert result_desc["success"] is True
     assert (
-        store.get_task(root["task_id"]).description == "extra context from completed work"
+        store.get_task(root["task_id"]).description
+        == "extra context from completed work"
     )
 
 
@@ -335,7 +332,10 @@ def test_task_shrink_cancels_and_supersedes_with_a_rationale() -> None:
     missing_rationale = shrink("cancel", children[0], "")
     cancelled = shrink("cancel", children[0], "source lacks required data")
     superseded = shrink(
-        "supersede", children[1], "use an available source", replacement_title="Replacement"
+        "supersede",
+        children[1],
+        "use an available source",
+        replacement_title="Replacement",
     )
 
     assert missing_rationale["success"] is False
@@ -343,26 +343,19 @@ def test_task_shrink_cancels_and_supersedes_with_a_rationale() -> None:
     assert superseded["replacement_task_id"] in store.tasks
 
 
-def test_clause_owner_cannot_be_cancelled_or_reassigned_through_metadata() -> None:
-    """Root acceptance clauses retain an executable owner after every mutation."""
+def test_root_acceptance_context_cannot_be_reassigned_through_metadata() -> None:
+    """The original acceptance context remains immutable."""
     store = TaskStateStore()
     root = store.create_task("Root", acceptance_clauses=["behavior"])
-    child = store.create_task(
-        "Child", parent_id=root.task_id, clause_ids=["acceptance-1"]
-    )
     update = TaskUpdateTool()
     update.bind_task_store(store)
 
-    result = update(task_id=child.task_id, acceptance_clause_ids="")
+    result = update(task_id=root.task_id, acceptance_clauses="replacement")
 
     assert result["success"] is False
-    assert child.metadata["acceptance_clause_ids"] == ["acceptance-1"]
-    try:
-        store.cancel_task(child.task_id, "obsolete")
-    except ValueError:
-        pass
-    else:
-        raise AssertionError("cancelled sole acceptance-clause owner")
+    assert root.metadata["acceptance_clauses"] == [
+        {"id": "acceptance-1", "text": "behavior"}
+    ]
 
 
 def test_review_tool_stages_corrections_until_reviewer_termination() -> None:
@@ -377,14 +370,22 @@ def test_review_tool_stages_corrections_until_reviewer_termination() -> None:
 
     task_id = init("Root")["task_id"]
     store.record_result(task_id, TaskResult(content="evidence"))
-    assert review(decision="approved", rationale="[validated]: command passed")["staged"] is True
-    assert review(decision="needs_revision", rationale="[finding]: gap [validate]: test")["staged"] is True
+    assert (
+        review(decision="approved", rationale="The result is acceptable.")["staged"]
+        is True
+    )
+    assert (
+        review(decision="needs_revision", rationale="The report has a gap.")["staged"]
+        is True
+    )
     assert store.get_task(task_id).reviewer_decisions == []
 
     terminated = terminate()
 
     assert terminated["decision"] == "needs_revision"
-    assert store.get_task(task_id).reviewer_decisions[-1]["decision"] == "needs_revision"
+    assert (
+        store.get_task(task_id).reviewer_decisions[-1]["decision"] == "needs_revision"
+    )
 
 
 def test_reviewer_termination_commits_the_selected_staged_task() -> None:
@@ -404,11 +405,13 @@ def test_reviewer_termination_commits_the_selected_staged_task() -> None:
     assert review(
         task_id=second.task_id,
         decision="approved",
-        rationale="[validated]: command passed",
+        rationale="The result is acceptable.",
     )["success"]
     assert terminate()["success"]
 
-    assert store.get_task(second.task_id).reviewer_decisions[-1]["decision"] == "approved"
+    assert (
+        store.get_task(second.task_id).reviewer_decisions[-1]["decision"] == "approved"
+    )
 
 
 def test_reviewer_cannot_decide_a_sibling_task() -> None:
@@ -427,7 +430,7 @@ def test_reviewer_cannot_decide_a_sibling_task() -> None:
     result = review(
         task_id=sibling.task_id,
         decision="approved",
-        rationale="[validated]: command passed",
+        rationale="The result is acceptable.",
     )
 
     assert result["success"] is False
@@ -449,7 +452,7 @@ def test_reviewer_decision_atomically_curates_future_task_context() -> None:
 
     staged = review(
         decision="approved",
-        rationale="[validated]: command passed",
+        rationale="The result is acceptable.",
         context_updates=[
             {
                 "task_id": future.task_id,
@@ -476,7 +479,7 @@ def test_invalid_reviewer_context_update_commits_nothing() -> None:
 
     staged = review(
         decision="approved",
-        rationale="[validated]: command passed",
+        rationale="The result is acceptable.",
         context_updates=[{"task_id": "missing", "context": "validate existing work"}],
     )
 
@@ -539,8 +542,8 @@ def test_executor_cannot_report_a_sibling_task_result() -> None:
     assert store.get_task(sibling.task_id).result is None
 
 
-def test_executor_work_order_renders_active_and_unmet_acceptance_clauses() -> None:
-    """Executor prompts retain the clauses that decomposition assigned to work."""
+def test_executor_work_order_renders_acceptance_context() -> None:
+    """Executor prompts retain root acceptance criteria as context."""
     session = Session()
     root = session.task_store.create_task(
         "Root", acceptance_clauses=["CLI exits zero", "UI renders"]

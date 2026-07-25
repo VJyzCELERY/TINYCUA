@@ -203,7 +203,10 @@ class ExecutorResultThenReviewerAgent:
                     "arguments": function["arguments"],
                 }
             if response.get("content"):
-                yield {"type": "response.output_text.delta", "delta": response["content"]}
+                yield {
+                    "type": "response.output_text.delta",
+                    "delta": response["content"],
+                }
             yield {"type": "response.completed", "finish_reason": "completed"}
 
         return events()
@@ -302,7 +305,7 @@ class ExecutorResultThenReviewerAgent:
                             "name": "task_review_decision",
                             "arguments": '{"decision":"approved","rationale":"evidence accepted"}',
                         },
-                    }
+                    },
                 ],
             }
         if "You are the ResultAggregation" in system_text:
@@ -336,7 +339,9 @@ async def test_empty_worker_response_falls_back_to_completed_task_summary() -> N
     """Completed worker evidence gets a deterministic final fallback."""
     loop = TinyCUALoop()
     task = loop.root_session.task_store.create_task("Build app")
-    loop.root_session.task_store.record_result(task.task_id, TaskResult(content="Built app"))
+    loop.root_session.task_store.record_result(
+        task.task_id, TaskResult(content="Built app")
+    )
     loop.root_session.task_store.record_reviewer_decision(
         task.task_id,
         ReviewerDecision.APPROVED,
@@ -347,9 +352,11 @@ async def test_empty_worker_response_falls_back_to_completed_task_summary() -> N
         async for event in loop._stream_exhausted_node_events(
             ResponseNode(),
             None,  # agent (not used by fallback path)
-            [],    # resolved_tools
+            [],  # resolved_tools
             "",
-            ValidationResult(is_valid=False, errors=["Final response must be non-empty."]),
+            ValidationResult(
+                is_valid=False, errors=["Final response must be non-empty."]
+            ),
             LLMResult(),
             False,
             False,
@@ -364,7 +371,9 @@ async def test_empty_worker_response_falls_back_to_completed_task_summary() -> N
 
 
 @pytest.mark.asyncio
-async def test_final_response_events_capture_only_terminal_user_visible_stream() -> None:
+async def test_final_response_events_capture_only_terminal_user_visible_stream() -> (
+    None
+):
     """Final response events expose terminal text deltas without debug events."""
     loop = TinyCUALoop(queue=NodeQueue(items=[ResponseNode()]))
 
@@ -571,14 +580,16 @@ def test_reviewer_approval_with_nonempty_result_is_valid() -> None:
 
 
 def test_reviewer_approval_without_result_is_rejected() -> None:
-    """Approval cannot create synthetic executor evidence."""
+    """Approval cannot create a synthetic executor report."""
     reviewer = TinyCUAResultReviewerNode(
         node_id="result_reviewer",
         config=create_node_config("result_reviewer"),
     )
     loop = TinyCUALoop(queue=NodeQueue(items=[reviewer, ResponseNode()]))
     task = loop.root_session.task_store.create_task("Build app")
-    with pytest.raises(ValueError, match="requires successful executor evidence"):
+    with pytest.raises(
+        ValueError, match="requires a successful non-empty executor report"
+    ):
         loop.root_session.task_store.record_reviewer_decision(
             task.task_id,
             ReviewerDecision.APPROVED,
@@ -651,7 +662,9 @@ def test_completed_worker_final_response_must_not_ask_clarification() -> None:
     """Completed task trees need an outcome summary, not more questions."""
     loop = TinyCUALoop()
     task = loop.root_session.task_store.create_task("Build app")
-    loop.root_session.task_store.record_result(task.task_id, TaskResult(content="Built app"))
+    loop.root_session.task_store.record_result(
+        task.task_id, TaskResult(content="Built app")
+    )
     loop.root_session.task_store.record_reviewer_decision(
         task.task_id,
         ReviewerDecision.APPROVED,
@@ -659,11 +672,15 @@ def test_completed_worker_final_response_must_not_ask_clarification() -> None:
 
     validation = loop._validate_node_result(
         ResponseNode(),
-        LLMResult(content="I need clarification on the current state before answering."),
+        LLMResult(
+            content="I need clarification on the current state before answering."
+        ),
     )
 
     assert validation.is_valid is False
-    assert any("summarize completed task outcome" in error for error in validation.errors)
+    assert any(
+        "summarize completed task outcome" in error for error in validation.errors
+    )
 
 
 def test_reviewer_replan_keeps_task_tree_unfinished() -> None:
@@ -777,7 +794,13 @@ def test_shell_action_records_tool_audit_artifact(tmp_path) -> None:
     tool_result = {
         "name": "run_shell",
         "allowed": True,
-        "output": {"stdout": "hello\n", "stderr": "", "exit_code": 0, "timed_out": False, "error": None},
+        "output": {
+            "stdout": "hello\n",
+            "stderr": "",
+            "exit_code": 0,
+            "timed_out": False,
+            "error": None,
+        },
     }
     audit_path = loop._write_tool_audit_artifact(
         "run_shell",
@@ -851,7 +874,9 @@ def test_task_executor_read_only_evidence_retries_executor_not_replan() -> None:
     assert "executor_partial_tool_results" not in task.metadata
     assert task.metadata["runtime_validation_failure"]["recovery"] == "executor_retry"
     assert task.metadata["runtime_validation_failure"]["tool_results"]
-    assert "task_result_update" in task.metadata["runtime_validation_failure"]["guidance"]
+    assert (
+        "task_result_update" in task.metadata["runtime_validation_failure"]["guidance"]
+    )
     assert [node.node_id for node in loop.queue.items] == [
         "task_executor",
         "task_executor",
@@ -1100,7 +1125,7 @@ def test_task_executor_success_result_accepts_concrete_action_evidence() -> None
 
 
 def test_reviewer_approval_requires_rationale() -> None:
-    """Reviewer approval needs validation rationale."""
+    """Reviewer approval needs a free-form report."""
     loop = TinyCUALoop()
     task = loop.root_session.task_store.create_task("create models")
     loop.root_session.task_store.record_result(
@@ -1250,7 +1275,9 @@ def test_result_reviewer_cannot_approve_failed_task_result() -> None:
     )
 
     assert validation.is_valid is False
-    assert any("cannot approve a failed task result" in error for error in validation.errors)
+    assert any(
+        "cannot approve a failed task result" in error for error in validation.errors
+    )
 
 
 def test_task_assessor_validation_failure_skips_analyzer_gate() -> None:
@@ -1303,7 +1330,9 @@ def test_task_assessor_validation_failure_preserves_analyzer_after_handoff() -> 
     response = ResponseNode()
     loop = TinyCUALoop(queue=NodeQueue(items=[assessor, analyzer, executor, response]))
     root = loop.root_session.task_store.create_task("Root")
-    task = loop.root_session.task_store.create_task("Unfinished", parent_id=root.task_id)
+    task = loop.root_session.task_store.create_task(
+        "Unfinished", parent_id=root.task_id
+    )
     loop._pending_handoffs.append(
         NodeHandoff(
             source_node="task_assessor",
@@ -1315,7 +1344,9 @@ def test_task_assessor_validation_failure_preserves_analyzer_after_handoff() -> 
 
     recovered = loop._recover_task_assessor_validation_failure(
         assessor,
-        ValidationResult(is_valid=False, errors=["task_assessor must terminate after commit"]),
+        ValidationResult(
+            is_valid=False, errors=["task_assessor must terminate after commit"]
+        ),
     )
 
     assert recovered is True
@@ -1363,9 +1394,17 @@ def test_task_executor_scopes_result_update_to_commit_phase() -> None:
         config=create_node_config("task_executor"),
     )
     loop = TinyCUALoop()
-    tools = [Tool(name="write_file"), Tool(name="task_result_update"), Tool(name="terminate")]
+    tools = [
+        Tool(name="write_file"),
+        Tool(name="task_result_update"),
+        Tool(name="terminate"),
+    ]
 
-    assert [tool.name for tool in loop._phase_tools(executor, tools, LifecyclePhase.ACTION)] == ["write_file"]
-    assert [tool.name for tool in loop._phase_tools(executor, tools, LifecyclePhase.COMMIT)] == [
+    assert [
+        tool.name for tool in loop._phase_tools(executor, tools, LifecyclePhase.ACTION)
+    ] == ["write_file"]
+    assert [
+        tool.name for tool in loop._phase_tools(executor, tools, LifecyclePhase.COMMIT)
+    ] == [
         "task_result_update",
     ]

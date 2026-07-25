@@ -8,13 +8,15 @@ from tinycua.models.task import ReviewerDecision, TaskResult, TaskStateStore, Ta
 
 
 class TestReviewerApprovalEvidence:
-    """Approval requires executor evidence rather than generated fallback state."""
+    """Approval requires an executor report rather than generated fallback state."""
 
     def test_leaf_task_without_result_is_rejected(self):
         store = TaskStateStore()
         root = store.create_task("Root")
         child = store.create_task("Child", parent_id=root.task_id)
-        with pytest.raises(ValueError, match="requires successful executor evidence"):
+        with pytest.raises(
+            ValueError, match="requires a successful non-empty executor report"
+        ):
             store.record_reviewer_decision(child.task_id, ReviewerDecision.APPROVED)
         assert child.result is None
         assert child.status == TaskStatus.IN_PROGRESS
@@ -26,7 +28,9 @@ class TestReviewerApprovalEvidence:
         store.record_result(child.task_id, TaskResult(content="done", success=True))
         store.record_reviewer_decision(child.task_id, ReviewerDecision.APPROVED)
         # Root has no independent executor result and cannot aggregate one.
-        with pytest.raises(ValueError, match="requires successful executor evidence"):
+        with pytest.raises(
+            ValueError, match="requires a successful non-empty executor report"
+        ):
             store.record_reviewer_decision(root.task_id, ReviewerDecision.APPROVED)
         assert root.result is None
         assert root.status == TaskStatus.IN_PROGRESS
@@ -38,7 +42,10 @@ class TestExecutorTaskOwnership:
     def test_executor_reports_only_the_active_task(self):
         from tinycua.loops.task_nodes import _TASK_EXECUTOR_INSTRUCTION
 
-        assert "report only the active task's outcome" in _TASK_EXECUTOR_INSTRUCTION.lower()
+        assert (
+            "report only the active task's outcome"
+            in _TASK_EXECUTOR_INSTRUCTION.lower()
+        )
         assert "sibling" not in _TASK_EXECUTOR_INSTRUCTION.lower()
 
     def test_reviewer_decides_only_the_active_task(self):
@@ -54,19 +61,31 @@ class TestReviewerTestGuidanceGeneric:
 
     def test_guidance_says_actually_works(self):
         from tinycua.loops.node_guidance import build_reviewer_tool_guidance
+
         class _FakeTool:
             def __init__(self, name):
                 self.name = name
-        tools = [_FakeTool("read_file"), _FakeTool("run_shell"), _FakeTool("task_review_decision")]
+
+        tools = [
+            _FakeTool("read_file"),
+            _FakeTool("run_shell"),
+            _FakeTool("task_review_decision"),
+        ]
         guidance = build_reviewer_tool_guidance(tools)
         assert "actually works" in guidance.lower() or "functional" in guidance.lower()
 
     def test_guidance_avoids_historical_corruption_checks(self):
         from tinycua.loops.node_guidance import build_reviewer_tool_guidance
+
         class _FakeTool:
             def __init__(self, name):
                 self.name = name
-        tools = [_FakeTool("read_file"), _FakeTool("run_shell"), _FakeTool("task_review_decision")]
+
+        tools = [
+            _FakeTool("read_file"),
+            _FakeTool("run_shell"),
+            _FakeTool("task_review_decision"),
+        ]
         guidance = build_reviewer_tool_guidance(tools)
         assert "acceptance criteria" in guidance.lower()
         assert "unicode escape" not in guidance.lower()
@@ -74,6 +93,7 @@ class TestReviewerTestGuidanceGeneric:
 
     def test_continuation_avoids_fixed_command_recipes(self):
         from tinycua.loops.node_guidance import _RESULT_REVIEWER_CONTINUATION
+
         lowered = _RESULT_REVIEWER_CONTINUATION.lower()
         assert "acceptance criteria" in lowered
         assert "grep -c" not in lowered

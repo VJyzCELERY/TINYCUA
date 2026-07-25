@@ -37,6 +37,12 @@ task unless TinyCUA assigns or scopes it.
 Task replacement propagation follows session/task sharing rules and MUST NOT cross
 configured boundaries.
 
+## Acceptance Context
+
+The root task retains the request's acceptance criteria as immutable prompt context so
+later nodes do not lose the original goal. Child tasks do not own individual criteria,
+and task completion does not require structured clause coverage or evidence metadata.
+
 ## Active Task Selection
 
 Active task selection uses DFS pre-order traversal of the root Task tree:
@@ -105,7 +111,7 @@ on_result_reviewer_accept(active_task):
      - If current task has no children, execute current task.
      - If all children complete, re-evaluate current task completion.
        - If complete, mark complete and continue upward.
-       - If incomplete, update task instruction/context with remaining criteria and execute current task.
+       - If incomplete, update task instruction/context and execute current task.
 ```
 
 ## Related

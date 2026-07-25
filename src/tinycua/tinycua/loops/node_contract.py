@@ -97,7 +97,9 @@ class NodeProgress:
         if summary:
             self.action_summary = summary[:8_000]
         self.lifecycle_phase = phase
-        self.lifecycle_history.append({"phase": phase.value, "summary": summary[:8_000]})
+        self.lifecycle_history.append(
+            {"phase": phase.value, "summary": summary[:8_000]}
+        )
 
     def transition(self, to: NodeState, reason: str = "") -> None:
         """Transition to a new phase, recording the transition in history.
@@ -211,9 +213,7 @@ class NodeContract:
         if not self.required_tools.issubset(successful_tools):
             return False
         if self.any_of_tools:
-            if not any(
-                group.issubset(successful_tools) for group in self.any_of_tools
-            ):
+            if not any(group.issubset(successful_tools) for group in self.any_of_tools):
                 return False
         return True
 
@@ -288,7 +288,7 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
         retry_max_attempts=25,
         goal="Execute the active task: explore, act, verify, then report the outcome.",
         role_boundary="Only execute and report the active task. You may read sibling context but must not mutate or report another task.",
-        success_criteria="task_result_update called with the outcome (success=true/false and evidence).",
+        success_criteria="task_result_update called with a concise outcome report and success=true/false.",
         tool_rationale={
             "task_result_update": "Records what was done and whether it succeeded. The reviewer judges this report — without it, the runtime cannot infer task state from prose.",
         },
@@ -298,16 +298,16 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
         required_tools=frozenset({"task_review_decision"}),
         requires_terminate=True,
         retry_max_attempts=25,
-        goal="Verify the executor outcome, decide approve/revise/replan, and atomically curate relevant future-task context.",
+        goal="Review the executor outcome, report a decision, and atomically curate relevant future-task context.",
         role_boundary=(
             "Review only the active task. The decision may include context handoffs "
             "for unfinished tasks; never review or execute those tasks, modify their "
             "artifacts, or fix executor work."
         ),
-        success_criteria="task_review_decision called with validation evidence and any relevant future-task context_updates.",
+        success_criteria="task_review_decision called with a concise report and any relevant future-task context_updates.",
         tool_rationale={
-            "task_review_decision": "Records your verdict (approved/needs_revision/rejected/replan) with evidence. This drives the task lifecycle — approved→completed, needs_revision→rework.",
-            "task_inspect": "Reads task state for active-task verification and future-task context curation.",
+            "task_review_decision": "Records your report and verdict (approved/needs_revision/rejected/replan). This drives the task lifecycle — approved→completed, needs_revision→rework.",
+            "task_inspect": "Reads task state for active-task review and future-task context curation.",
         },
         additional_recovery_tools=("task_inspect",),
     ),
@@ -426,13 +426,13 @@ TERMINATED_NODE_IDS: frozenset[str] = terminated_node_ids()
 #: Required tools per node (replaces required_by_node dict).
 REQUIRED_TOOLS_BY_NODE: dict[str, frozenset[str]] = {
     nc.node_id: nc.required_tools
-    for nc in _NODE_CONTRACTS.values() if nc.required_tools
+    for nc in _NODE_CONTRACTS.values()
+    if nc.required_tools
 }
 
 #: Any-of tool groups per node (replaces any_of_by_node dict).
 ANY_OF_TOOLS_BY_NODE: dict[str, frozenset[frozenset[str]]] = {
-    nc.node_id: nc.any_of_tools
-    for nc in _NODE_CONTRACTS.values() if nc.any_of_tools
+    nc.node_id: nc.any_of_tools for nc in _NODE_CONTRACTS.values() if nc.any_of_tools
 }
 
 

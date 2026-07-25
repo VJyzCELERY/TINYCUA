@@ -303,10 +303,9 @@ def create_node_config(
             "task_result_update with a concise outcome report."
         ),
         "result_reviewer": (
-            "Verify the executor's outcome report against tool evidence, "
-            "then call task_review_decision with approved, needs_revision, "
-            "rejected, or replan. On approval, use task_update to curate "
-            "unfinished task descriptions with relevant discoveries. "
+            "Review the executor's outcome report, then call task_review_decision "
+            "with a concise report and approved, needs_revision, rejected, or "
+            "replan. Include optional context_updates for useful future-task claims. "
             "Use replan when evidence makes the task itself impossible; use "
             "needs_revision for fixable execution defects."
         ),
@@ -319,8 +318,7 @@ def create_node_config(
     message_policy = replace(
         config.message_policy,
         include_chat_history=False,
-        include_session_context=normalized
-        not in {"task_executor", "result_reviewer"},
+        include_session_context=normalized not in {"task_executor", "result_reviewer"},
         include_input_context=normalized == "query_analyst",
     )
     return replace(

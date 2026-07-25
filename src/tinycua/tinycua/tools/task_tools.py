@@ -49,7 +49,10 @@ class TerminateTool(Tool):
         result: dict[str, Any] = {"success": True, "terminated": True}
         if self._source_node == "result_reviewer":
             active_id = self._store.active_task_id
-            if active_id is None or active_id not in self._store._staged_reviewer_decisions:
+            if (
+                active_id is None
+                or active_id not in self._store._staged_reviewer_decisions
+            ):
                 result = {
                     "success": False,
                     "error": "No provisional reviewer decision is staged for the active task.",
@@ -147,7 +150,10 @@ class TaskInitTool(SessionTaskToolMixin, Tool):
         if not isinstance(title, str) or not title.strip():
             return {"success": False, "error": "Root task title is required."}
         if not isinstance(description, str):
-            return {"success": False, "error": "Root task description must be a string."}
+            return {
+                "success": False,
+                "error": "Root task description must be a string.",
+            }
         if acceptance_clauses is None or acceptance_clauses == []:
             acceptance_clauses = [description.strip() or title.strip()]
         elif not isinstance(acceptance_clauses, list) or any(
@@ -256,7 +262,11 @@ class TaskInspectTool(SessionTaskToolMixin, Tool):
             if resolved is None or resolved not in self._store.tasks:
                 return {"error": f"Task {task_id} not found."}
             detail = self._store.compact_task_detail(resolved)
-            return detail if detail is not None else {"error": f"Task {task_id} not found."}
+            return (
+                detail
+                if detail is not None
+                else {"error": f"Task {task_id} not found."}
+            )
         return self._store.snapshot_compact()
 
 
@@ -382,23 +392,7 @@ class TaskDecomposeTool(SessionTaskToolMixin, Tool):
                     "task_id": {"type": "string"},
                     "subtasks": {
                         "type": "array",
-                        "items": {
-                            "oneOf": [
-                                {"type": "string"},
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "title": {"type": "string"},
-                                        "clause_ids": {
-                                            "type": "array",
-                                            "items": {"type": "string"},
-                                        },
-                                    },
-                                    "required": ["title"],
-                                    "additionalProperties": False,
-                                },
-                            ]
-                        },
+                        "items": {"type": "string"},
                     },
                 },
                 "required": ["task_id", "subtasks"],
@@ -504,25 +498,56 @@ class TaskShrinkTool(SessionTaskToolMixin, Tool):
         try:
             if action == "delete":
                 self._store.delete_task(resolved, rationale=rationale)
-                logger.info("task_tree_shrink action=delete task_id=%s rationale=%s new_tree_size=%d",
-                            resolved, rationale[:100], len(self._store.tasks))
-                return {"success": True, "action": "delete", "task_id": resolved, "rationale": rationale}
+                logger.info(
+                    "task_tree_shrink action=delete task_id=%s rationale=%s new_tree_size=%d",
+                    resolved,
+                    rationale[:100],
+                    len(self._store.tasks),
+                )
+                return {
+                    "success": True,
+                    "action": "delete",
+                    "task_id": resolved,
+                    "rationale": rationale,
+                }
             if action == "merge":
                 if parent_id is None:
-                    return {"success": False, "error": "parent_id is required for merge."}
+                    return {
+                        "success": False,
+                        "error": "parent_id is required for merge.",
+                    }
                 resolved_parent = self._store.resolve_task_id(parent_id)
                 if resolved_parent is None:
                     return {"success": False, "error": f"Parent {parent_id} not found."}
                 self._store.merge_tasks(resolved, resolved_parent, rationale=rationale)
-                logger.info("task_tree_shrink action=merge task_id=%s parent_id=%s rationale=%s new_tree_size=%d",
-                            resolved, resolved_parent, rationale[:100], len(self._store.tasks))
-                return {"success": True, "action": "merge", "task_id": resolved, "parent_id": resolved_parent, "rationale": rationale}
+                logger.info(
+                    "task_tree_shrink action=merge task_id=%s parent_id=%s rationale=%s new_tree_size=%d",
+                    resolved,
+                    resolved_parent,
+                    rationale[:100],
+                    len(self._store.tasks),
+                )
+                return {
+                    "success": True,
+                    "action": "merge",
+                    "task_id": resolved,
+                    "parent_id": resolved_parent,
+                    "rationale": rationale,
+                }
             if action == "cancel":
                 task = self._store.cancel_task(resolved, rationale)
-                return {"success": True, "action": "cancel", "task_id": resolved, "status": task.status.value}
+                return {
+                    "success": True,
+                    "action": "cancel",
+                    "task_id": resolved,
+                    "status": task.status.value,
+                }
             if action == "supersede":
                 replacement = self._store.supersede_task(
-                    resolved, replacement_title or "", rationale, replacement_description
+                    resolved,
+                    replacement_title or "",
+                    rationale,
+                    replacement_description,
                 )
                 return {
                     "success": True,
@@ -570,8 +595,8 @@ class TaskResultUpdateTool(SessionTaskToolMixin, Tool):
 
     The result content is a semantic report — a concise summary of what was
     done, what was found, and why the task succeeded or failed.  This report
-    is the primary review target for the ResultReviewer; the reviewer verifies
-    claims made in the report against tool-call evidence.  Every executor
+    is the primary review target for the ResultReviewer, which assesses the
+    claims made in that report. Every executor
     invocation MUST call this tool before finishing.
     """
 
@@ -601,7 +626,7 @@ class TaskResultUpdateTool(SessionTaskToolMixin, Tool):
                     "success": {"type": "boolean"},
                     "metadata": {
                         "type": "object",
-                        "description": "Clause evidence, call identities, outcomes, and artifacts.",
+                        "description": "Optional execution details and artifacts.",
                     },
                 },
                 "required": ["content", "success"],
@@ -628,9 +653,14 @@ class TaskResultUpdateTool(SessionTaskToolMixin, Tool):
             self._source_node == "task_executor"
             and active_id != self._store.active_task_id
         ):
-            return {"success": False, "error": "TaskExecutor may update only the active task."}
+            return {
+                "success": False,
+                "error": "TaskExecutor may update only the active task.",
+            }
         try:
-            result = TaskResult(content=content, success=success, metadata=metadata or {})
+            result = TaskResult(
+                content=content, success=success, metadata=metadata or {}
+            )
             task = self._store.record_result(active_id, result)
         except ValueError as exc:
             return {"success": False, "error": str(exc)}
@@ -655,7 +685,7 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
             description=(
                 "Record the active task review: approved, needs_revision, rejected, "
                 "or replan; needs_revision and rejected are aliases. Optional "
-                "context_updates atomically attach future-task evidence handoffs."
+                "context_updates atomically attach useful claims for future tasks."
             ),
             parameters={
                 "type": "object",
@@ -671,19 +701,13 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
                     },
                     "rationale": {
                         "type": "string",
-                        "description": (
-                            "Required validation evidence. For approved: "
-                            "'[validated]: <command+result confirming the "
-                            "outcome>'. For needs_revision/rejected/replan: "
-                            "'[finding]: <issue> [validate]: <command to "
-                            "verify the fix>'."
-                        ),
+                        "description": "Concise free-form review report supporting the decision.",
                     },
                     "context_updates": {
                         "type": "array",
                         "description": (
-                            "Optional evidence handoffs for unfinished future tasks. "
-                            "Use when existing output may already satisfy that task."
+                            "Optional claim handoffs for unfinished future tasks. "
+                            "Use when the review found context useful to later work."
                         ),
                         "items": {
                             "type": "object",
@@ -718,11 +742,14 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
             task_id: Optional active-task reference for non-reviewer callers.
             decision: Required — one of approved, needs_revision, rejected,
                 replan. Must not be omitted (no default approve).
-            rationale: Optional reason for the decision.
-            context_updates: Optional evidence handoffs for unfinished future tasks.
+            rationale: Required free-form review report supporting the decision.
+            context_updates: Optional claim handoffs for unfinished future tasks.
         """
         if not decision:
-            return {"success": False, "error": "decision is required — cannot default to approved."}
+            return {
+                "success": False,
+                "error": "decision is required — cannot default to approved.",
+            }
         active_id: str | None
         if self._source_node == "result_reviewer":
             active_id = self._store.active_task_id
@@ -736,7 +763,11 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
                         "error": "ResultReviewer may decide only the active task.",
                     }
         elif task_id:
-            active_id = self._store.active_task_id if task_id == "active" else self._store.resolve_task_id(task_id)
+            active_id = (
+                self._store.active_task_id
+                if task_id == "active"
+                else self._store.resolve_task_id(task_id)
+            )
             if active_id is None:
                 return {"success": False, "error": f"Task {task_id} not found."}
         else:

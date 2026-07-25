@@ -57,8 +57,8 @@ def test_task_executor_tool_guidance_prefers_narrowest_tool() -> None:
     assert "task_result_update" in guidance
 
 
-def test_result_reviewer_tool_guidance_requires_verification() -> None:
-    """Reviewer guidance ties available verification to acceptance criteria."""
+def test_result_reviewer_tool_guidance_offers_optional_inspection() -> None:
+    """Reviewer guidance offers read-only checks without making them a gate."""
     node = TinyCUAResultReviewerNode(
         node_id="result_reviewer", config=create_node_config("result_reviewer")
     )
@@ -72,7 +72,8 @@ def test_result_reviewer_tool_guidance_requires_verification() -> None:
 
     guidance = node.build_tool_system_prompt(tools)
 
-    assert "verification tools" in guidance.lower()
+    assert "read-only tools" in guidance.lower()
+    assert "when they help" in guidance.lower()
     assert "acceptance criteria" in guidance.lower()
     assert "task_review_decision" in guidance
 
