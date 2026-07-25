@@ -1,10 +1,4 @@
-"""Unit tests for non-vacuous replan (Milestone 8, FR-051).
-
-Covers: when the analyzer confirms ``plan_unchanged`` via ``task_update``
-metadata, the replan skips re-queueing the executor — the plan did not
-change, so re-execution would duplicate work. Only the reviewer is
-re-queued against the existing result.
-"""
+"""Unit tests for non-vacuous replan (Milestone 8, FR-051)."""
 
 from __future__ import annotations
 
@@ -14,13 +8,13 @@ from tinycua.loops.task_nodes import (
     TinyCUATaskAnalyzerNode,
     TinyCUATaskExecutorNode,
 )
-from tinycua.models.task import ReviewerDecision, TaskResult, TaskStateStore, TaskStatus
+from tinycua.models.task import TaskResult, TaskStateStore, TaskStatus
 
 
-class TestPlanUnchangedSkipsExecutor:
-    """Analyzer on_complete removes the queued executor when plan_unchanged is set."""
+class TestPlanUnchangedKeepsExecutor:
+    """An unchanged plan still keeps an executor boundary before review."""
 
-    def test_plan_unchanged_removes_executor_from_queue(self):
+    def test_plan_unchanged_keeps_executor_in_queue(self):
         store = TaskStateStore()
         root = store.create_task("Root")
         child = store.create_task("Child", parent_id=root.task_id)
@@ -54,13 +48,10 @@ class TestPlanUnchangedSkipsExecutor:
             ]
         )
 
-        # Fire on_complete — the analyzer should remove the executor.
         analyzer.on_complete(queue, _StubResponse())
 
         ids = [n.node_id for n in queue.items]
-        # Executor should be removed; reviewer should remain.
-        assert "task_executor" not in ids
-        assert "result_reviewer" in ids
+        assert ids == ["task_analyzer", "task_executor", "result_reviewer"]
 
     def test_plan_unchanged_false_keeps_executor(self):
         store = TaskStateStore()
@@ -133,47 +124,6 @@ class TestPlanUnchangedSkipsExecutor:
 
         ids = [n.node_id for n in queue.items]
         assert "task_executor" in ids
-
-
-class TestPlanUnchangedLogsSkip:
-    """The skip is observable via logging."""
-
-    def test_skip_logged(self, caplog):
-        import logging
-
-        store = TaskStateStore()
-        root = store.create_task("Root")
-        child = store.create_task("Child", parent_id=root.task_id)
-        store.transition(child.task_id, TaskStatus.IN_PROGRESS)
-        store.record_result(child.task_id, TaskResult(content="attempt"))
-        child.metadata["plan_unchanged"] = True
-
-        from tinycua.config.node_config import create_node_config
-
-        analyzer = TinyCUATaskAnalyzerNode(
-            node_id="task_analyzer",
-            config=create_node_config("task_analyzer", mode="local_replan"),
-        )
-        analyzer.session = _StubSession(store)  # noqa: SLF001
-        queue = NodeQueue()
-        queue.items.extend(
-            [
-                analyzer,
-                TinyCUATaskExecutorNode(
-                    node_id="task_executor",
-                    config=create_node_config("task_executor"),
-                ),
-                TinyCUAResultReviewerNode(
-                    node_id="result_reviewer",
-                    config=create_node_config("result_reviewer"),
-                ),
-            ]
-        )
-
-        with caplog.at_level(logging.INFO):
-            analyzer.on_complete(queue, _StubResponse())
-
-        assert any("plan_unchanged" in rec.message for rec in caplog.records)
 
 
 # ---------------------------------------------------------------------------

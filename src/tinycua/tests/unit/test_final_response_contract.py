@@ -533,6 +533,11 @@ def test_task_executor_partial_action_evidence_continues_same_task() -> None:
 
     assert recovered is True
     assert task.result is None
+    assert loop._recovery_reentry is True
+    assert [node.node_id for node in loop.queue.items] == [
+        "task_executor",
+        "response",
+    ]
 
 
 def test_reviewer_approval_with_nonempty_result_is_valid() -> None:
@@ -877,10 +882,9 @@ def test_task_executor_read_only_evidence_retries_executor_not_replan() -> None:
     assert (
         "task_result_update" in task.metadata["runtime_validation_failure"]["guidance"]
     )
+    assert loop._recovery_reentry is True
     assert [node.node_id for node in loop.queue.items] == [
         "task_executor",
-        "task_executor",
-        "result_reviewer",
         "response",
     ]
 
