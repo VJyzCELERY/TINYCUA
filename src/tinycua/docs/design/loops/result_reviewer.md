@@ -5,9 +5,9 @@
 
 ## Role
 
-`TinyCUAResultReviewerNode` is a concrete `ProcessNode` that evaluates TaskExecutor
-output and decides whether to approve, send back for revision, or replan. It is the
-quality gate between execution and response.
+`TinyCUAResultReviewerNode` is a concrete `ProcessNode` that reviews TaskExecutor
+output and records a free-form report plus a decision to approve, send back for
+revision, or replan.
 
 ## Non-Responsibilities
 
@@ -26,14 +26,18 @@ See the full handoff protocol in
 
 ## Outputs / State Produced
 
-- `ReviewerDecision` with one of: `approved`, `needs_revision`, `rejected`, `replan`.
+- `ReviewerDecision` with one of: `approved`, `needs_revision`, `rejected`, `replan`,
+  plus a concise free-form report.
 - Updated active `TaskResult` and task context.
+
+Acceptance criteria remain visible as immutable root-task context. They guide the
+review but are not machine-enforced coverage or evidence gates.
 
 ## Tools
 
 | Tool Scope | Description |
 |------------|-------------|
-| Review decision tools | Evaluate executor output and produce reviewer decision. |
+| Review decision tools | Record the reviewer report and decision. |
 | Task result / context update tools | Update active task result and context based on decision. |
 
 ## Reviewer Decisions

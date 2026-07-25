@@ -78,19 +78,15 @@ class TestDeleteTask:
         store.delete_task(child2.task_id, rationale="planning duplicate")
         assert store.version > v
 
-    def test_delete_rejects_sole_acceptance_clause_owner(self):
+    def test_delete_does_not_gate_on_acceptance_context(self):
         store = TaskStateStore()
         root = store.create_task("Root", acceptance_clauses=["Behavior works"])
-        child = store.create_task(
-            "Implement behavior",
-            parent_id=root.task_id,
-            clause_ids=["acceptance-1"],
-        )
+        child = store.create_task("Implement behavior", parent_id=root.task_id)
 
-        with pytest.raises(ValueError, match="acceptance clause"):
-            store.delete_task(child.task_id, rationale="planning duplicate")
+        store.delete_task(child.task_id, rationale="planning duplicate")
 
-        assert child.task_id in store.tasks
+        assert child.task_id not in store.tasks
+        assert root.metadata["acceptance_clauses"][0]["text"] == "Behavior works"
 
 
 class TestSupersedeTask:
@@ -109,18 +105,15 @@ class TestSupersedeTask:
 
         assert store.snapshot() == before
 
-    def test_supersede_preserves_acceptance_clause_owner(self):
+    def test_supersede_leaves_root_acceptance_context_unchanged(self):
         store = TaskStateStore()
         root = store.create_task("Root", acceptance_clauses=["Behavior works"])
-        child = store.create_task(
-            "Implement behavior",
-            parent_id=root.task_id,
-            clause_ids=["acceptance-1"],
-        )
+        child = store.create_task("Implement behavior", parent_id=root.task_id)
 
         replacement = store.supersede_task(child.task_id, "Replacement", "new plan")
 
-        assert replacement.metadata["acceptance_clause_ids"] == ["acceptance-1"]
+        assert "acceptance_clause_ids" not in replacement.metadata
+        assert root.metadata["acceptance_clauses"][0]["text"] == "Behavior works"
 
 
 class TestMergeTasks:
@@ -189,18 +182,14 @@ class TestMergeTasks:
         store.merge_tasks(child2.task_id, root.task_id, rationale="combine work")
         assert store.version > v
 
-    def test_merge_preserves_acceptance_clause_owner_on_parent(self):
+    def test_merge_leaves_root_acceptance_context_unchanged(self):
         store = TaskStateStore()
         root = store.create_task("Root", acceptance_clauses=["Behavior works"])
-        child = store.create_task(
-            "Implement behavior",
-            parent_id=root.task_id,
-            clause_ids=["acceptance-1"],
-        )
+        child = store.create_task("Implement behavior", parent_id=root.task_id)
 
         store.merge_tasks(child.task_id, root.task_id, rationale="combine work")
 
-        assert root.metadata["acceptance_clause_ids"] == ["acceptance-1"]
+        assert root.metadata["acceptance_clauses"][0]["text"] == "Behavior works"
 
     def test_merge_rejects_non_parent_without_mutating_tree(self):
         store = TaskStateStore()

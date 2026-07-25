@@ -123,7 +123,12 @@ def task_analyzer_tool_scope(
     Returns:
         NodeToolPolicy for TaskAnalyzerNode.
     """
-    base_tools = [TaskInspectTool(), TaskUpdateTool(), TaskDecomposeTool(), TaskShrinkTool()]
+    base_tools = [
+        TaskInspectTool(),
+        TaskUpdateTool(),
+        TaskDecomposeTool(),
+        TaskShrinkTool(),
+    ]
     if mode == "task_recreation":
         base_tools.extend([TaskInitTool(), TaskCreateTool()])
     elif mode in {"task_reanalysis", "local_replan"}:
@@ -186,13 +191,11 @@ def task_executor_tool_scope() -> NodeToolPolicy:
 def result_reviewer_tool_scope() -> NodeToolPolicy:
     """Review/decision, inspection, and context-curation tools.
 
-    ResultReviewerNode verifies executor outcomes and atomically records the
-    active decision plus any relevant future-task context handoffs.
+    ResultReviewerNode reviews executor outcomes and atomically records the
+    active report, decision, and any relevant future-task context handoffs.
 
     Includes run_shell (gated in-tool: hardline commands blocked, recoverable
-    destructive commands warn but execute) for running tests and verification
-    commands. The reviewer verifies by checking exit_code/exit_code_meaning,
-    not by LLM-judging source text.
+    destructive commands warn but execute) for optional inspection commands.
 
     Returns:
         NodeToolPolicy for ResultReviewerNode.
