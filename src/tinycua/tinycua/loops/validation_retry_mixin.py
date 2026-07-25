@@ -29,6 +29,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
 class ValidationRetryMixin:
     """Mixin extracted from TinyCUALoop for modularity."""
 
@@ -183,7 +184,8 @@ class ValidationRetryMixin:
     ) -> list[dict[str, Any]]:
         """Return successful/failed tool result records carried by an LLM result."""
         return [
-            item for item in llm_result.metadata.get("tool_results", [])
+            item
+            for item in llm_result.metadata.get("tool_results", [])
             if isinstance(item, dict)
         ]
 
@@ -239,7 +241,9 @@ class ValidationRetryMixin:
                 "record task_result_update; continuing the same active task with "
                 "partial evidence instead of replanning or marking failure.",
             )
-            terminal_nodes = [queued for queued in self.queue.items[1:] if queued.is_terminal]
+            terminal_nodes = [
+                queued for queued in self.queue.items[1:] if queued.is_terminal
+            ]
             self.queue.clear_after_current()
             from tinycua.config.node_config import create_node_config
             from tinycua.loops.task_nodes import TinyCUAResultReviewerNode
@@ -284,7 +288,9 @@ class ValidationRetryMixin:
             "TaskExecutor validation failed after retries; retrying the same "
             "active task instead of bypassing ResultReviewer into replan.",
         )
-        terminal_nodes = [queued for queued in self.queue.items[1:] if queued.is_terminal]
+        terminal_nodes = [
+            queued for queued in self.queue.items[1:] if queued.is_terminal
+        ]
         self.queue.clear_after_current()
         from tinycua.config.node_config import create_node_config
         from tinycua.loops.task_nodes import TinyCUAResultReviewerNode
@@ -329,7 +335,8 @@ class ValidationRetryMixin:
         """Build (retry_message, retry_feedback, retry_tool_results) for the next attempt."""
         error = ValidationError("; ".join(validation.errors))
         retry_message = self._retry_message_for_validation(
-            error, node, resolved_tools, last_result)
+            error, node, resolved_tools, last_result
+        )
         retry_feedback = self._tool_feedback_messages(last_result)
         retry_tool_results = self._tool_results_from_llm_result(last_result)
         self._record_retry_continuation(node, retry_message, attempt)
@@ -404,7 +411,7 @@ class ValidationRetryMixin:
             self._validate_result_reviewer_failed_approval(node, llm_result),
             self._validate_result_reviewer_result_exists(node, llm_result),
             self._validate_result_reviewer_inspects_after_decision(node, llm_result),
-            self._validate_result_reviewer_rationale_evidence(node, llm_result),
+            self._validate_result_reviewer_report(node, llm_result),
             self._validate_decision_route_tool(node, llm_result),
             self._validate_final_response_content(node, llm_result),
         ):
@@ -420,7 +427,9 @@ class ValidationRetryMixin:
             staged = self.root_session.task_store._staged_reviewer_decisions
             if active_id in staged:
                 try:
-                    self.root_session.task_store.commit_staged_reviewer_decision(active_id)
+                    self.root_session.task_store.commit_staged_reviewer_decision(
+                        active_id
+                    )
                 except ValueError as exc:
                     validation.is_valid = False
                     validation.errors.append(str(exc))
@@ -514,7 +523,10 @@ class ValidationRetryMixin:
         if not decision_result or decision_result.get("decision") != "approved":
             return validation
         task_id = decision_result.get("task_id")
-        if not isinstance(task_id, str) or task_id not in self.root_session.task_store.tasks:
+        if (
+            not isinstance(task_id, str)
+            or task_id not in self.root_session.task_store.tasks
+        ):
             return validation
         task = self.root_session.task_store.tasks[task_id]
         if task.result is not None and task.result.content.strip():
@@ -546,26 +558,19 @@ class ValidationRetryMixin:
         del node, llm_result
         return ValidationResult(is_valid=True, errors=[])
 
-    def _validate_result_reviewer_rationale_evidence(
+    def _validate_result_reviewer_report(
         self,
         node: Node,
         llm_result: LLMResult,
     ) -> ValidationResult:
-        """Require validation evidence in the reviewer's rationale (FR-059).
-
-        Thin wrapper around ``node_guidance.validate_reviewer_rationale``
-        to keep this mixin under the LOC gate. The validation logic lives
-        in ``node_guidance.py`` alongside other reviewer rules.
-        """
-        from tinycua.loops.node_guidance import validate_reviewer_rationale
-
+        """Require a report without prescribing evidence syntax."""
         validation = ValidationResult(is_valid=True, errors=[])
         if node.node_id != "result_reviewer":
             return validation
-        errors = validate_reviewer_rationale(llm_result.tool_calls)
-        if errors:
-            validation.is_valid = False
-            validation.errors.extend(errors)
+        from tinycua.loops.node_guidance import validate_reviewer_report
+
+        validation.errors.extend(validate_reviewer_report(llm_result.tool_calls))
+        validation.is_valid = not validation.errors
         return validation
 
     def _rollback_invalid_reviewer_approval(self, task_id: str) -> None:
@@ -575,7 +580,10 @@ class ValidationRetryMixin:
             return
         from tinycua.models.task import TaskStatus
 
-        if task.reviewer_decisions and task.reviewer_decisions[-1].get("decision") == "approved":
+        if (
+            task.reviewer_decisions
+            and task.reviewer_decisions[-1].get("decision") == "approved"
+        ):
             task.reviewer_decisions.pop()
         if task.status.value == "completed":
             task.status = TaskStatus.IN_PROGRESS
@@ -585,7 +593,8 @@ class ValidationRetryMixin:
             if parent is None:
                 break
             has_unfinished_child = any(
-                self.root_session.task_store.tasks[child_id].status != TaskStatus.COMPLETED
+                self.root_session.task_store.tasks[child_id].status
+                != TaskStatus.COMPLETED
                 for child_id in parent.children
                 if child_id in self.root_session.task_store.tasks
             )
@@ -736,7 +745,8 @@ class ValidationRetryMixin:
             return validation
         # Require that task_result_update was called
         result_update_calls = [
-            item for item in tool_results
+            item
+            for item in tool_results
             if item.get("name") == "task_result_update"
             and isinstance(item.get("output"), dict)
         ]
@@ -875,7 +885,9 @@ class ValidationRetryMixin:
             del self.queue.items[1]
         root_id = self.root_session.task_store.root_task_id
         if root_id and root_id in self.root_session.task_store.tasks:
-            self.root_session.task_store.tasks[root_id].metadata["assessor_recovery"] = {
+            self.root_session.task_store.tasks[root_id].metadata[
+                "assessor_recovery"
+            ] = {
                 "source_node_id": node.node_id,
                 "errors": list(validation.errors),
                 "recovery": "skip_analyzer",
@@ -947,6 +959,7 @@ class ValidationRetryMixin:
         # Skip for mock agents (tests) — only real LanguageModel supports
         # response_format. MagicMock auto-creates model_copy, so check type.
         from tinycua_sdk.agent.llm_model import LanguageModel
+
         model = getattr(getattr(agent, "config", None), "llm_model", None)
         if not isinstance(model, LanguageModel):
             return None
@@ -978,7 +991,11 @@ class ValidationRetryMixin:
         # roadmap + trimmed tool results). Previously sent a bare user message
         # with no context — the model had no idea what it was reviewing.
         retry_messages = self._build_recovery_messages(
-            node, [required_tool], last_result, validation, missing_tools,
+            node,
+            [required_tool],
+            last_result,
+            validation,
+            missing_tools,
         )
         try:
             raw_response = await self._call_agent_llm(
@@ -1087,12 +1104,20 @@ class ValidationRetryMixin:
                 return None
         else:
             recovery_tools = list(resolved_tools)
-        missing_str = ", ".join(missing_tools) if missing_tools else "the required tools"
+        missing_str = (
+            ", ".join(missing_tools) if missing_tools else "the required tools"
+        )
         recovery_messages = self._build_recovery_messages(
-            node, recovery_tools, last_result, validation, missing_tools,
+            node,
+            recovery_tools,
+            last_result,
+            validation,
+            missing_tools,
         )
         try:
-            raw_response = await self._call_agent_llm(agent, node, recovery_messages, recovery_tools)
+            raw_response = await self._call_agent_llm(
+                agent, node, recovery_messages, recovery_tools
+            )
         except Exception:
             logger.debug("node=%s recovery_retry failed", node.node_id, exc_info=True)
             return None
@@ -1108,7 +1133,9 @@ class ValidationRetryMixin:
         self._coerce_terminate_only_response(recovery_tools, recovery_result)
         all_tool_results: list[dict[str, Any]] = []
         if recovery_result.tool_calls:
-            tool_results = await self._execute_tool_calls(agent, recovery_result.tool_calls, recovery_tools)
+            tool_results = await self._execute_tool_calls(
+                agent, recovery_result.tool_calls, recovery_tools
+            )
             if tool_results:
                 all_tool_results.extend(tool_results)
         if all_tool_results:
@@ -1116,13 +1143,18 @@ class ValidationRetryMixin:
             recovery_result.metadata["tool_results"] = list(all_tool_results)
         recovery_validation = self._validate_node_result(node, recovery_result)
         if recovery_validation.is_valid:
-            self._record_node_content_transcript(node, f"Recovery retry succeeded — the model called the missing tool(s) ({missing_str}) with a focused context.")
+            self._record_node_content_transcript(
+                node,
+                f"Recovery retry succeeded — the model called the missing tool(s) ({missing_str}) with a focused context.",
+            )
             return recovery_result, recovery_validation
         # Return the partial result so the caller accumulates successful tool
         # calls and advances to the next missing prerequisite (FR-063).
         return recovery_result, recovery_validation
 
-    def _required_tool_for_recovery(self, node: Node, validation: ValidationResult) -> Tool | None:
+    def _required_tool_for_recovery(
+        self, node: Node, validation: ValidationResult
+    ) -> Tool | None:
         """Determine the single tool the model needs to call to satisfy validation.
 
         Returns the Tool object from resolved_tools that the model is missing,
@@ -1265,7 +1297,9 @@ class ValidationRetryMixin:
     ) -> str:
         """Build retry guidance for the canonical streaming path."""
         del agent, attempt
-        return self._retry_message_for_validation(error, node, resolved_tools, llm_result)
+        return self._retry_message_for_validation(
+            error, node, resolved_tools, llm_result
+        )
 
     def _tool_feedback_messages(self, llm_result: LLMResult) -> list[dict[str, Any]]:
         """Return latest tool-call feedback messages for a retry attempt."""
@@ -1291,9 +1325,7 @@ class ValidationRetryMixin:
                 else {}
             )
             raw_content = json.dumps(tool_result, default=str)
-            tool_call_id = (
-                tool_call.get("id") or str(tool_result.get("name", ""))
-            )
+            tool_call_id = tool_call.get("id") or str(tool_result.get("name", ""))
             tool_name = str(tool_result.get("name", ""))
             content = tool_result.get("prompt_content")
             if not isinstance(content, str):
@@ -1315,12 +1347,17 @@ class ValidationRetryMixin:
         store = self.root_session.task_store
         if store.root_task_id is not None and store.root_task_id in store.tasks:
             completed = [
-                task for task in store.tasks.values()
+                task
+                for task in store.tasks.values()
                 if task.result is not None and task.status.value == "completed"
             ]
             if completed:
                 task = completed[-1]
-                artifacts = [artifact.get("path") for artifact in task.artifacts if artifact.get("path")]
+                artifacts = [
+                    artifact.get("path")
+                    for artifact in task.artifacts
+                    if artifact.get("path")
+                ]
                 suffix = f" Artifact: {artifacts[-1]}" if artifacts else ""
                 return f"Done: {task.result.summary}{suffix}"
             return "I couldn't complete the request cleanly."
@@ -1328,55 +1365,3 @@ class ValidationRetryMixin:
         if user_text.lower() in {"hi", "hello", "hey"}:
             return f"{user_text.capitalize()}!"
         return user_text or "Hello!"
-
-    # FR-009: soft verification nudge — NEVER a validation crash.
-    _READONLY_VERIFICATION_TOOLS = frozenset(
-        {"read_file", "run_shell", "list_files", "search_files"}
-    )
-
-    def _maybe_warn_reviewer_no_verification(
-        self,
-        node: Node,
-        llm_result: LLMResult,
-    ) -> None:
-        """Record a soft transcript note when a reviewer approves without verifying.
-
-        Condition: ``result_reviewer`` node, latest ``task_review_decision`` is
-        ``approved``, the reviewed task has file-artifact paths, AND no read-only
-        verification tool was called in the batch. Action: a transcript note
-        (informational only). This NEVER sets ``validation.is_valid=False`` —
-        see FR-009 (no crashing failures).
-        """
-        if node.node_id != "result_reviewer":
-            return
-        tool_results = self._tool_results_from_llm_result(llm_result)
-        # Find the latest approval.
-        approved_task_id: str | None = None
-        for item in reversed(tool_results):
-            if item.get("name") != "task_review_decision":
-                continue
-            output = item.get("output")
-            if isinstance(output, dict) and output.get("decision") == "approved":
-                approved_task_id = output.get("task_id")
-                break
-        if not isinstance(approved_task_id, str):
-            return
-        task = self.root_session.task_store.tasks.get(approved_task_id)
-        if task is None:
-            return
-        artifact_paths = [
-            artifact.get("path")
-            for artifact in task.artifacts
-            if isinstance(artifact, dict) and artifact.get("path")
-        ]
-        if not artifact_paths:
-            return  # no file artifacts → no nudge.
-        called_tools = {str(item.get("name")) for item in tool_results}
-        if called_tools & self._READONLY_VERIFICATION_TOOLS:
-            return  # verification happened → no nudge.
-        self._record_node_content_transcript(
-            node,
-            "Note: approval recorded without read-only verification of "
-            f"artifacts ({', '.join(artifact_paths)}); consider verifying before "
-            "final aggregation.",
-        )

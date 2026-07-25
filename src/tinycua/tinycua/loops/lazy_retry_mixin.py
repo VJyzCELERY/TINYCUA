@@ -20,7 +20,11 @@ from typing import TYPE_CHECKING, Any, AsyncIterator
 from tinycua.config.types import LLMResult, ValidationResult
 from tinycua.loops._loop_constants import _LAZY_BUDGET
 from tinycua.loops.context_rendering import sanitize_internal_reprs
-from tinycua.loops.lazy_templates import LAZY_STATE_TOOLS, LAZY_TEMPLATES, parse_lazy_markdown
+from tinycua.loops.lazy_templates import (
+    LAZY_STATE_TOOLS,
+    LAZY_TEMPLATES,
+    parse_lazy_markdown,
+)
 
 if TYPE_CHECKING:
     from tinycua.loops.node import Node
@@ -56,13 +60,16 @@ class LazyRetryMixin:
              e.g. terminate/task_inspect, are handled by standard recovery
              after lazy synthesizes the state tool)
 
-        Generic tool-exec failures, empty-response, rationale-evidence,
+        Generic tool-exec failures, empty-response, reviewer-report,
         route-arg, and "cannot approve failed task" errors skip lazy retry
         (those don't surface as missing-state-tool chains).
         """
         del last_result, validation  # gate is structural, not content-based
         cfg = getattr(self, "session_config", None)
-        if cfg is None or getattr(cfg, "recovery_strategy", "standard") != "markdown_synthesis":
+        if (
+            cfg is None
+            or getattr(cfg, "recovery_strategy", "standard") != "markdown_synthesis"
+        ):
             return False
         if node.node_id not in LAZY_TEMPLATES:
             return False
@@ -101,14 +108,19 @@ class LazyRetryMixin:
         # Build full-context messages, then swap the last user message with the
         # markdown synthesis instruction (FR-089).
         lazy_messages = self._build_recovery_messages(
-            node, [], last_result, validation, missing,
+            node,
+            [],
+            last_result,
+            validation,
+            missing,
         )
         # Fill the {labels} placeholder for route templates.
         instruction_template = template
         if "{labels}" in instruction_template:
             labels = list(getattr(node, "classification_labels", []))
             instruction_template = instruction_template.replace(
-                "{labels}", " | ".join(labels) if labels else "<route>",
+                "{labels}",
+                " | ".join(labels) if labels else "<route>",
             )
         instruction = (
             "Summarize what you have done in this session, then write it using "
@@ -122,29 +134,46 @@ class LazyRetryMixin:
         # One non-streaming LLM continuation with no tools exposed.
         try:
             raw_response = await self._call_agent_llm(
-                agent, node, lazy_messages, [], stream=False, force_required_tool=False,
+                agent,
+                node,
+                lazy_messages,
+                [],
+                stream=False,
+                force_required_tool=False,
             )
         except Exception:
-            logger.debug("node=%s lazy_retry llm_call failed", node.node_id, exc_info=True)
+            logger.debug(
+                "node=%s lazy_retry llm_call failed", node.node_id, exc_info=True
+            )
             return None
         content = sanitize_internal_reprs(raw_response.get("content") or "")
         if not content.strip():
             return None
         # Parse the markdown response (FR-090).
         allowed_labels = set(getattr(node, "classification_labels", [])) or None
-        parsed = parse_lazy_markdown(node.node_id, content, allowed_labels=allowed_labels)
+        parsed = parse_lazy_markdown(
+            node.node_id, content, allowed_labels=allowed_labels
+        )
         if not parsed:
             logger.debug("node=%s lazy_retry could not parse markdown", node.node_id)
             return None
         # Resolve task_id for task-state tools (UUID → roadmap number → active).
         if "task_id" in parsed:
-            resolved_id = self._resolve_lazy_task_id(parsed["task_id"], node, last_result)
+            resolved_id = self._resolve_lazy_task_id(
+                parsed["task_id"], node, last_result
+            )
             if resolved_id is None:
-                logger.debug("node=%s lazy_retry unresolvable task_id=%s", node.node_id, parsed["task_id"])
+                logger.debug(
+                    "node=%s lazy_retry unresolvable task_id=%s",
+                    node.node_id,
+                    parsed["task_id"],
+                )
                 return None
             parsed["task_id"] = resolved_id
         # Resolve the target Tool object and bind its session state.
-        required_tool = self._resolve_recovery_tool(node, target_tool_name, resolved_tools)
+        required_tool = self._resolve_recovery_tool(
+            node, target_tool_name, resolved_tools
+        )
         if required_tool is None:
             return None
         # Session-bound task tools need their store wired before execution —
@@ -163,10 +192,14 @@ class LazyRetryMixin:
         # Execute the synthesized tool call.
         try:
             tool_results = await self._execute_tool_calls(
-                agent, [synthesized], [required_tool],
+                agent,
+                [synthesized],
+                [required_tool],
             )
         except Exception:
-            logger.debug("node=%s lazy_retry tool exec failed", node.node_id, exc_info=True)
+            logger.debug(
+                "node=%s lazy_retry tool exec failed", node.node_id, exc_info=True
+            )
             return None
         result = LLMResult(
             content=f"[Lazy-synthesized {target_tool_name} call]",
@@ -202,7 +235,8 @@ class LazyRetryMixin:
         standard retry). The caller owns the standard retry path.
         """
         outcome = await self._maybe_lazy_in_stream_loop(
-            node, agent, resolved_tools, last_result, last_validation, lazy_attempts)
+            node, agent, resolved_tools, last_result, last_validation, lazy_attempts
+        )
         if outcome is None:
             return None
         lazy_result, revalidated, new_attempts = outcome
@@ -230,16 +264,23 @@ class LazyRetryMixin:
         if not self._lazy_gate_passes(node, llm_result, validation):
             return None
         lazy = await self._maybe_lazy_recovery(
-            node, agent, resolved_tools, llm_result, validation,
+            node,
+            agent,
+            resolved_tools,
+            llm_result,
+            validation,
         )
         if lazy is None:
             return None
         lazy_result, _ = lazy
         self._accumulate_results(
-            lazy_result, node.progress.accumulated_tool_results,
+            lazy_result,
+            node.progress.accumulated_tool_results,
         )
         revalidated = self._revalidate_with_accumulated(
-            node, lazy_result, node.progress.accumulated_tool_results,
+            node,
+            lazy_result,
+            node.progress.accumulated_tool_results,
         )
         return lazy_result, revalidated, revalidated.is_valid
 
@@ -264,16 +305,23 @@ class LazyRetryMixin:
         if not self._lazy_gate_passes(node, llm_result, validation):
             return None
         lazy = await self._maybe_lazy_recovery(
-            node, agent, resolved_tools, llm_result, validation,
+            node,
+            agent,
+            resolved_tools,
+            llm_result,
+            validation,
         )
         if lazy is None:
             return None
         lazy_result, _ = lazy
         self._accumulate_results(
-            lazy_result, node.progress.accumulated_tool_results,
+            lazy_result,
+            node.progress.accumulated_tool_results,
         )
         revalidated = self._revalidate_with_accumulated(
-            node, lazy_result, node.progress.accumulated_tool_results,
+            node,
+            lazy_result,
+            node.progress.accumulated_tool_results,
         )
         return lazy_result, revalidated, lazy_attempts + 1
 
@@ -290,9 +338,16 @@ class LazyRetryMixin:
     ) -> AsyncIterator[dict[str, Any]]:
         """Emit the valid-completion stream for an in-loop lazy-synthesized result."""
         async for event in self._stream_valid_node_completion(
-            node, lazy_result.content, lazy_result.tool_calls,
-            stream_messages, include_meta, node_type,
-            attempt_number, final_only, emit_lifecycle):
+            node,
+            lazy_result.content,
+            lazy_result.tool_calls,
+            stream_messages,
+            include_meta,
+            node_type,
+            attempt_number,
+            final_only,
+            emit_lifecycle,
+        ):
             yield event
 
     async def _finalize_lazy_stream_recovery(
@@ -309,14 +364,21 @@ class LazyRetryMixin:
         """Record + emit completion events for a lazy-recovered streamed node."""
         recovery_content = lazy_result.content or combined
         self._record_node_output(
-            node, recovery_content, lazy_result.tool_calls, clear_prior=True)
+            node, recovery_content, lazy_result.tool_calls, clear_prior=True
+        )
         if recovery_content:
             self._record_node_content_transcript(node, recovery_content)
         on_complete_response = self._build_on_complete_response(node, lazy_result)
         node.on_complete(self.queue, on_complete_response)
         async for event in self._stream_node_completed(
-            node, recovery_content, emit_lifecycle, include_meta,
-            final_only, node_type, max_attempts):
+            node,
+            recovery_content,
+            emit_lifecycle,
+            include_meta,
+            final_only,
+            node_type,
+            max_attempts,
+        ):
             yield event
 
     def _resolve_lazy_task_id(

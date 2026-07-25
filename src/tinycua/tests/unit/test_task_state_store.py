@@ -61,7 +61,7 @@ def test_approved_result_propagates_context_to_next_sibling() -> None:
         TaskResult(content="generated", metadata={"auto_generated": True}),
     ],
 )
-def test_approval_without_executor_evidence_leaves_task_in_progress(
+def test_approval_without_successful_executor_report_leaves_task_in_progress(
     result: TaskResult | None,
 ) -> None:
     """Invalid approval cannot mutate review, task, parent, or sibling state."""
@@ -72,7 +72,9 @@ def test_approval_without_executor_evidence_leaves_task_in_progress(
 
     if result is not None:
         store.record_result(first.task_id, result)
-    with pytest.raises(ValueError, match="requires successful executor evidence"):
+    with pytest.raises(
+        ValueError, match="requires a successful non-empty executor report"
+    ):
         store.record_reviewer_decision(first.task_id, ReviewerDecision.APPROVED)
 
     assert first.status == TaskStatus.IN_PROGRESS
@@ -87,12 +89,14 @@ def test_approval_without_executor_evidence_leaves_task_in_progress(
 
 
 def test_failed_leaf_can_be_retried_and_completed() -> None:
-    """A failed leaf reopens when new executor evidence is recorded."""
+    """A failed leaf reopens when a new executor report is recorded."""
     store = TaskStateStore()
     task = store.create_task("Retry me")
 
     store.record_result(task.task_id, TaskResult(content="failed", success=False))
-    with pytest.raises(ValueError, match="requires successful executor evidence"):
+    with pytest.raises(
+        ValueError, match="requires a successful non-empty executor report"
+    ):
         store.record_reviewer_decision(task.task_id, ReviewerDecision.APPROVED)
     assert task.status == TaskStatus.IN_PROGRESS
 
@@ -116,7 +120,9 @@ def test_decompose_existing_parent_is_idempotent() -> None:
     assert [store.tasks[task_id].title for task_id in child_ids] == ["First", "Second"]
 
 
-def test_task_store_validates_status_transitions_and_records_reviewer_decisions() -> None:
+def test_task_store_validates_status_transitions_and_records_reviewer_decisions() -> (
+    None
+):
     """Invalid lifecycle transitions fail instead of silently mutating state."""
     store = TaskStateStore()
     task = store.create_task("Write report")
@@ -144,7 +150,9 @@ def test_update_task_invalidates_render_and_records_auditable_event() -> None:
     before = store.version
     assert "Stale title" in store.render_markdown()
 
-    store.update_task(task.task_id, title="Corrected title", metadata={"source": "review"})
+    store.update_task(
+        task.task_id, title="Corrected title", metadata={"source": "review"}
+    )
 
     assert store.version > before
     assert "Corrected title" in store.render_markdown()
@@ -152,7 +160,9 @@ def test_update_task_invalidates_render_and_records_auditable_event() -> None:
     assert task.metadata["source"] == "review"
 
 
-def test_cancel_and_supersede_terminal_tasks_advance_selection_and_preserve_lineage() -> None:
+def test_cancel_and_supersede_terminal_tasks_advance_selection_and_preserve_lineage() -> (
+    None
+):
     """Disposed leaves remain auditable but cannot be scheduled again."""
     store = TaskStateStore()
     root = store.create_task("Root")
@@ -163,7 +173,9 @@ def test_cancel_and_supersede_terminal_tasks_advance_selection_and_preserve_line
     assert impossible.status == TaskStatus.CANCELLED
     assert store.active_task_id == remaining.task_id
 
-    replacement = store.supersede_task(remaining.task_id, "Replacement", "use available data")
+    replacement = store.supersede_task(
+        remaining.task_id, "Replacement", "use available data"
+    )
     assert remaining.status == TaskStatus.SUPERSEDED
     assert replacement.parent_id == root.task_id
     assert replacement.metadata["supersedes"] == remaining.task_id
@@ -184,8 +196,8 @@ def test_tree_validation_rejects_duplicate_links_before_mutation() -> None:
     assert child.title == "Child"
 
 
-def test_acceptance_clauses_require_coverage_and_passing_evidence() -> None:
-    """A root cannot complete until every explicit clause has current evidence."""
+def test_acceptance_clauses_are_advisory_context() -> None:
+    """Acceptance clauses remain root context without gating task completion."""
     store = TaskStateStore()
     root = store.create_task(
         "Root",
@@ -193,38 +205,16 @@ def test_acceptance_clauses_require_coverage_and_passing_evidence() -> None:
     )
     first, second = store.decompose_task(
         root.task_id,
-        [
-            {"title": "Run CLI", "clause_ids": ["acceptance-1"]},
-            {"title": "Check UI", "clause_ids": ["acceptance-2"]},
-        ],
+        ["Run CLI", "Check UI"],
     )
 
     assert root.metadata["acceptance_clauses"] == [
         {"id": "acceptance-1", "text": "CLI exits zero"},
         {"id": "acceptance-2", "text": "UI renders the result"},
     ]
-    assert store.get_task(first).metadata["acceptance_clause_ids"] == ["acceptance-1"]
-    assert store.get_task(second).metadata["acceptance_clause_ids"] == ["acceptance-2"]
-
     store.record_result(first, TaskResult(content="source inspected", metadata={}))
-    with pytest.raises(ValueError, match="passing evidence"):
-        store.record_reviewer_decision(first, ReviewerDecision.APPROVED)
-
-    store.record_result(
-        first,
-        TaskResult(
-            content="CLI passed",
-            metadata={"clause_evidence": {"acceptance-1": [{"passed": True}]}},
-        ),
-    )
     store.record_reviewer_decision(first, ReviewerDecision.APPROVED)
-    store.record_result(
-        second,
-        TaskResult(
-            content="UI passed",
-            metadata={"clause_evidence": {"acceptance-2": [{"passed": True}]}},
-        ),
-    )
+    store.record_result(second, TaskResult(content="UI inspected", metadata={}))
     store.record_reviewer_decision(second, ReviewerDecision.APPROVED)
 
     store.record_result(root.task_id, TaskResult(content="verified root"))
@@ -233,8 +223,8 @@ def test_acceptance_clauses_require_coverage_and_passing_evidence() -> None:
     assert root.status == TaskStatus.COMPLETED
 
 
-def test_root_decomposition_allows_incremental_acceptance_coverage() -> None:
-    """Root planning may cover acceptance clauses across multiple mutations."""
+def test_root_decomposition_does_not_assign_acceptance_ownership() -> None:
+    """Decomposition stays independent from advisory acceptance context."""
     store = TaskStateStore()
     root = store.create_task(
         "Root",
@@ -243,15 +233,15 @@ def test_root_decomposition_allows_incremental_acceptance_coverage() -> None:
 
     first = store.decompose_task(
         root.task_id,
-        [{"title": "Run CLI", "clause_ids": ["acceptance-1"]}],
+        ["Run CLI"],
     )
     second = store.decompose_task(
         root.task_id,
-        [{"title": "Check UI", "clause_ids": ["acceptance-2"]}],
+        ["Check UI"],
     )
 
-    assert store.get_task(first[0]).metadata["acceptance_clause_ids"] == ["acceptance-1"]
-    assert store.get_task(second[-1]).metadata["acceptance_clause_ids"] == ["acceptance-2"]
+    assert store.get_task(first[0]).metadata == {}
+    assert store.get_task(second[-1]).metadata == {}
 
 
 def test_decomposition_rejects_duplicate_sibling_titles() -> None:
@@ -301,33 +291,38 @@ def test_reviewer_decision_is_replaceable_until_committed() -> None:
     ]
 
 
-def test_invalid_staged_approval_is_retained_for_correction() -> None:
-    """A failed approval commit leaves the provisional decision available."""
+def test_staged_approval_ignores_advisory_acceptance_clauses() -> None:
+    """A review report can approve without machine-readable clause evidence."""
     store = TaskStateStore()
     task = store.create_task("Review me", acceptance_clauses=["verify behavior"])
     store.record_result(task.task_id, TaskResult(content="evidence"))
-    store.stage_reviewer_decision(task.task_id, ReviewerDecision.APPROVED)
+    store.stage_reviewer_decision(
+        task.task_id,
+        ReviewerDecision.APPROVED,
+        rationale="The result satisfies the requested behavior.",
+    )
 
-    with pytest.raises(ValueError, match="passing evidence"):
-        store.commit_staged_reviewer_decision(task.task_id)
+    store.commit_staged_reviewer_decision(task.task_id)
 
-    assert task.task_id in store._staged_reviewer_decisions
+    assert task.status is TaskStatus.COMPLETED
+    assert task.reviewer_decisions[-1]["rationale"] == (
+        "The result satisfies the requested behavior."
+    )
 
 
-def test_malformed_clause_evidence_does_not_approve_child() -> None:
-    """Acceptance evidence must be a list of passing mappings."""
+def test_result_metadata_does_not_gate_approval() -> None:
+    """Reviewer decisions depend on the report, not structured proof metadata."""
     store = TaskStateStore()
     root = store.create_task("Root", acceptance_clauses=["verify behavior"])
-    child = store.create_task("Child", parent_id=root.task_id, clause_ids=["acceptance-1"])
+    child = store.create_task("Child", parent_id=root.task_id)
     store.record_result(
         child.task_id,
         TaskResult(
             content="done",
-            metadata={"clause_evidence": {"acceptance-1": "malformed"}},
+            metadata={"notes": "free-form execution details"},
         ),
     )
 
-    with pytest.raises(ValueError, match="passing evidence"):
-        store.record_reviewer_decision(child.task_id, ReviewerDecision.APPROVED)
+    store.record_reviewer_decision(child.task_id, ReviewerDecision.APPROVED)
 
-    assert child.status is not TaskStatus.COMPLETED
+    assert child.status is TaskStatus.COMPLETED

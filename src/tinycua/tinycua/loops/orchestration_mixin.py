@@ -216,7 +216,6 @@ class OrchestrationMixin:
         self._apply_loop_result_hook(node, llm_result, node_input)
         self._publish_structured_outputs_to_root(node)
         self._maybe_populate_root_mission(node)
-        self._maybe_warn_reviewer_no_verification(node, llm_result)
         self._apply_task_lifecycle_marker(node, content)
 
         # Fire agent_monitor after-hook (if configured)
@@ -468,7 +467,6 @@ class OrchestrationMixin:
         self._apply_loop_result_hook(node, llm_result, node_input)
         self._publish_structured_outputs_to_root(node)
         self._maybe_populate_root_mission(node)
-        self._maybe_warn_reviewer_no_verification(node, llm_result)
         self._apply_task_lifecycle_marker(node, combined)
         on_complete_response = self._build_on_complete_response(node, llm_result)
         node.on_complete(self.queue, on_complete_response)
@@ -1610,7 +1608,6 @@ class OrchestrationMixin:
         self._apply_loop_result_hook(node, recovered_result, None)
         self._publish_structured_outputs_to_root(node)
         self._maybe_populate_root_mission(node)
-        self._maybe_warn_reviewer_no_verification(node, recovered_result)
         self._apply_task_lifecycle_marker(node, recovery_content)
         on_complete_response = self._build_on_complete_response(node, recovered_result)
         node.on_complete(self.queue, on_complete_response)

@@ -77,7 +77,10 @@ class TestStateDrivenQueue:
         second = store.create_task("Second", parent_id=root.task_id)
         # Executor completes first AND reports result for second.
         store.record_result(first.task_id, TaskResult(content="did both", success=True))
-        store.record_result(second.task_id, TaskResult(content="completed as part of task 1", success=True))
+        store.record_result(
+            second.task_id,
+            TaskResult(content="completed as part of task 1", success=True),
+        )
         # Reviewer approves first → active moves to second.
         store.record_reviewer_decision(first.task_id, ReviewerDecision.APPROVED)
         # Now second is active and has a result → schedule_next should spawn [reviewer] only.
@@ -92,35 +95,47 @@ class TestReviewerTestingGuidance:
 
     def test_instruction_uses_active_acceptance_criteria(self):
         from tinycua.loops.node_guidance import _RESULT_REVIEWER_INSTRUCTION
+
         lowered = _RESULT_REVIEWER_INSTRUCTION.lower()
         assert "active task" in lowered
         assert "acceptance criteria" in lowered
 
-    def test_instruction_allows_re_running_code(self):
+    def test_instruction_allows_optional_claim_inspection(self):
         from tinycua.loops.node_guidance import _RESULT_REVIEWER_INSTRUCTION
-        assert "verification" in _RESULT_REVIEWER_INSTRUCTION.lower()
-        assert "re-execution" in _RESULT_REVIEWER_INSTRUCTION.lower()
+
+        lowered = _RESULT_REVIEWER_INSTRUCTION.lower()
+        assert "inspect claims" in lowered
+        assert "when useful" in lowered
 
     def test_instruction_does_not_decide_sibling_tasks(self):
         from tinycua.loops.node_guidance import _RESULT_REVIEWER_INSTRUCTION
+
         assert "only the active task" in _RESULT_REVIEWER_INSTRUCTION.lower()
         assert "satisfies sibling tasks" not in _RESULT_REVIEWER_INSTRUCTION.lower()
 
     def test_continuation_chooses_checks_from_acceptance_criteria(self):
         from tinycua.loops.node_guidance import _RESULT_REVIEWER_CONTINUATION
+
         lowered = _RESULT_REVIEWER_CONTINUATION.lower()
         assert "acceptance criteria" in lowered
-        assert "appropriate" in lowered
+        assert "review" in lowered
         assert "python -c" not in lowered
 
-    def test_tool_guidance_says_testf_not_sufficient(self):
+    def test_tool_guidance_keeps_inspection_optional(self):
         from tinycua.loops.node_guidance import build_reviewer_tool_guidance
+
         class _FakeTool:
             def __init__(self, name):
                 self.name = name
-        tools = [_FakeTool("read_file"), _FakeTool("run_shell"), _FakeTool("task_review_decision")]
+
+        tools = [
+            _FakeTool("read_file"),
+            _FakeTool("run_shell"),
+            _FakeTool("task_review_decision"),
+        ]
         guidance = build_reviewer_tool_guidance(tools)
-        assert "existence alone" in guidance.lower()
+        assert "when they help" in guidance.lower()
+        assert "claimed behavior" in guidance.lower()
         assert "actually works" in guidance.lower()
 
 
@@ -129,12 +144,14 @@ class TestTaskResultUpdateClarity:
 
     def test_tool_description_mentions_success_true(self):
         from tinycua.tools.task_tools import TaskResultUpdateTool
+
         tool = TaskResultUpdateTool()
         assert "success=true" in tool.description.lower()
         assert "success=false" in tool.description.lower()
 
     def test_retry_message_mentions_success_true(self):
         from tinycua.loops.task_nodes import TinyCUATaskExecutorNode
+
         loop = TinyCUALoop()
         node = TinyCUATaskExecutorNode(
             node_id="task_executor",
@@ -142,6 +159,7 @@ class TestTaskResultUpdateClarity:
         )
         node.ensure_session(loop.root_session)
         from tinycua.config.types import ValidationError
+
         error = ValidationError("task_executor must call task_result_update")
         llm_result = LLMResult(content="", metadata={"tool_results": []})
         msg = loop._retry_message_for_validation(error, node, [], llm_result)
@@ -205,7 +223,8 @@ class TestResponseNoDuplication:
         # Should have only ONE output entry from this node, not two.
         # Output is recorded on node.session (child session), not root.
         output_entries = [
-            e for e in node.session.session_context
+            e
+            for e in node.session.session_context
             if getattr(e, "segment", None) == "output"
             and getattr(e, "source_node_id", None) == "response"
         ]
