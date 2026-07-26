@@ -25,7 +25,9 @@ from tinycua.loops.task_nodes import (
 )
 from tinycua.models.task import TaskResult
 from tinycua.models.node_handoff import NodeHandoff
+from tinycua.models.node_input import NodeInput
 from tinycua.loops.tinycua_loop import TinyCUALoop
+from tinycua.models.digested_information import DigestedInformation
 from tinycua.models.session import Session
 from tinycua_sdk import Agent, LanguageModel
 from tinycua_sdk.agent import BaseLoop
@@ -1226,21 +1228,22 @@ async def test_stream_digester_digest_only_does_not_route_to_response():
     agent = MagicMock()
     agent.instructions = "test"
     agent.skills = []
+    agent.tool_permissions = {}
+    agent.is_cancelled = False
+    agent.policy = MagicMock(max_tool_calls=100)
+    agent._cancel_event = asyncio.Event()
 
     async def mock_stream(messages, tools, *, stream=False):
         del messages, tools, stream
-        return {
-            "content": "",
-            "tool_calls": [
-                {
-                    "id": "call_digest",
-                    "type": "function",
-                    "function": {
-                        "name": "digest_information",
-                        "arguments": '{"information":"notes app"}',
-                    },
-                },
-            ],
+        yield {
+            "type": "tool_call.ready",
+            "id": "commit-digest",
+            "name": "digest_information",
+            "arguments": (
+                '{"context_summary":"Relevant context was gathered.",'
+                '"key_points":[],"advisory_instructions":[],'
+                '"constraints":[],"known_gaps":[]}'
+            ),
         }
 
     agent._call_llm = mock_stream
@@ -1264,6 +1267,80 @@ async def test_stream_digester_digest_only_does_not_route_to_response():
     assert not any(
         entry.get("node_id") == "response" for entry in loop.get_execution_trace()
     )
+
+
+async def test_stream_digester_observes_exploration_before_structured_commit() -> None:
+    """Exploration cannot complete Digester before its structured commit."""
+    digester = TinyCUAInformationDigesterNode(
+        node_id="digester",
+        config=create_node_config("digester"),
+    )
+    queue = NodeQueue(items=[digester])
+    queue.set_input(
+        digester,
+        NodeInput(
+            input_type="worker",
+            metadata={"original_query": "Summarize the available context"},
+        ),
+    )
+    loop = TinyCUALoop(queue=queue)
+    calls = 0
+
+    agent = MagicMock()
+    agent.instructions = "test"
+    agent.skills = []
+    agent.tool_permissions = {}
+    agent.is_cancelled = False
+    agent.policy = MagicMock(max_tool_calls=100)
+    agent._cancel_event = asyncio.Event()
+
+    async def mock_stream(_messages, tools, *, stream=False):
+        nonlocal calls
+        del stream
+        calls += 1
+        assert "digest_information" in {tool.name for tool in tools}
+        if calls == 1:
+            yield {
+                "type": "tool_call.ready",
+                "id": "inspect-context",
+                "name": "list_files",
+                "arguments": '{"path":"."}',
+            }
+            return
+        if calls == 2:
+            yield {
+                "type": "tool_call.ready",
+                "id": "commit-digest",
+                "name": "digest_information",
+                "arguments": (
+                    '{"context_summary":"Relevant context was gathered.",'
+                    '"key_points":["One relevant input was found"],'
+                    '"constraints":[],"advisory_instructions":[],'
+                    '"known_gaps":[]}'
+                ),
+            }
+            return
+        raise AssertionError("Digester continued after its successful commit")
+
+    agent._call_llm = mock_stream
+
+    async for _event in loop._stream_node_events(
+        digester,
+        agent,
+        [Tool(name="list_files")],
+        None,
+        queue.input_for_current(),
+    ):
+        pass
+
+    assert calls == 2
+    digests = [
+        entry.content
+        for entry in loop.root_session.session_context
+        if isinstance(entry.content, DigestedInformation)
+    ]
+    assert digests[-1].context_summary == "Relevant context was gathered."
+    assert digests[-1].original_query == "Summarize the available context"
 
 
 # --- Existing passthrough tests (backward compat) ---
