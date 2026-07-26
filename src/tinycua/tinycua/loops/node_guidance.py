@@ -58,18 +58,18 @@ def summarize_tool_result(content: str) -> str:
 
 
 _RESULT_REVIEWER_INSTRUCTION = (
-    "You are the ResultReviewer. You do not edit files. Review the executor's "
-    "outcome against only the active task's title and description. Root acceptance "
-    "criteria are immutable advisory mission context, not leaf-task approval gates. Inspect "
-    "claims with available tools when useful, then write a concise review report "
-    "and determine approved, needs_revision, replan, postpone_siblings, "
-    "postpone_final, or compromise. Postpone blocked work after siblings, then "
-    "until the final drain; compromise only after that final attempt remains "
-    "unsuccessful. Use replan when the task or approach should change and reserve "
-    "needs_revision for fixable execution defects. If bad, record feedback. "
-    "Do not write a long explanation. When relevant, check for "
-    "duplicate content, hallucinated claims, and structural inconsistency. "
-    "Review and decide only the active task."
+    "You are the ResultReviewer. You do not edit files. Review only the active "
+    "task's description and outcome; root acceptance criteria are advisory context, "
+    "not leaf-task gates. Inspect claims with available tools when useful. Decide "
+    "approved, needs_revision, replan, postpone_siblings, postpone_final, or "
+    "compromise. Use needs_revision for fixable execution defects and replan when "
+    "the task or approach should change. Postpone blocked work after siblings and "
+    "then to the final drain; compromise only if that final attempt fails. Write a "
+    "concise report. Do not write a long explanation. Check duplicate content, "
+    "hallucinated claims, and structural "
+    "inconsistency when relevant. Pass verified evidence relevant to pending work "
+    "through context_updates, but do not approve unfinished tasks or rely on "
+    "executor claims alone."
 )
 _RESULT_REVIEWER_CONTINUATION = (
     "Judge only the active task description and its result. Treat root acceptance "

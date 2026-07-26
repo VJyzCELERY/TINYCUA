@@ -12,7 +12,7 @@ opaque mutation instructions for TinyCUALoop to apply later.
 | TinyCUAWorkerNode | worker decision tools only |
 | TinyCUATaskCreateNode | deterministic root task creation only (TaskInit/TaskCreate) |
 | TinyCUATaskAnalyzerNode | structural task tools; TaskInit/TaskCreate only when recreation is requested |
-| TinyCUATaskAssessorNode | task assessment/read/update tools as needed |
+| TinyCUATaskAssessorNode | read-only inspection and assessment-decision tools |
 | TinyCUATaskExecutorNode | active task execution and task result update tools |
 | TinyCUAResultReviewerNode | review decision and task result/context update tools |
 
@@ -26,6 +26,10 @@ Worker routes determine which tools `TaskAnalyzerNode` may use:
 
 Task replacement/sharing follows session propagation and task sharing rules in
 [`../models/session.md`](../models/session.md).
+
+`task_decompose` creates distinct, coherent child outcomes only when the parent cannot be
+executed and verified independently as one unit. It does not require a fixed number of
+children or a sequential implementation recipe.
 
 ## Related
 

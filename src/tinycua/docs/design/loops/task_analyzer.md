@@ -5,15 +5,20 @@
 
 ## Role
 
-`TinyCUATaskAnalyzerNode` is a concrete `ProcessNode` that performs mode-specific task
-analysis, decomposition, and refinement. It takes the previous query/continuation and
-applies a mode-specific continuation prompt.
+`TinyCUATaskAnalyzerNode` is a concrete `ProcessNode` that produces or refines an
+actionable roadmap. It grounds planning decisions in available evidence and commits one
+appropriate structural decision per pass.
+
+Tasks represent distinct, coherent outcomes with enough context to execute and verify
+independently. The analyzer uses no more tasks than needed, avoids overlap, preserves
+explicit constraints, and leaves unsupported architecture and implementation choices
+open. Named outputs are required but not exhaustive unless the request says otherwise.
 
 ## Non-Responsibilities
 
 - Does not create root tasks (that belongs to TaskCreateNode).
 - Does not execute tasks (that belongs to TaskExecutor).
-- Does not assess task quality or completeness (that belongs to TaskAssessor).
+- Does not issue the read-only readiness decision (that belongs to TaskAssessor).
 
 ## Inputs
 
@@ -22,7 +27,8 @@ applies a mode-specific continuation prompt.
 
 ## Outputs / State Produced
 
-- Task tree mutations according to the current mode.
+- One appropriate structural decision according to the current mode: decompose, create,
+  update without structural change, or safely shrink work.
 - Final response is treated as a summary of task changes/actions.
 - After completion, the task tree must not be `None`.
 
@@ -67,8 +73,9 @@ TaskAnalyzerNode completes:
 
 ## Failure / Retry Behavior
 
-Retry according to `NodeRetryPolicy`. If task tree is `None` after completion, that
-is a contract violation.
+Retry according to `NodeRetryPolicy`. Recovery preserves the same structural alternatives
+rather than preferring decomposition. If task tree is `None` after completion, that is a
+contract violation.
 
 ## Related Config
 

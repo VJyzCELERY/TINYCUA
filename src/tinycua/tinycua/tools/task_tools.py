@@ -382,9 +382,10 @@ class TaskDecomposeTool(SessionTaskToolMixin, Tool):
             self,
             name="task_decompose",
             description=(
-                "Decompose an existing task into concrete sequential subtasks. "
-                "Choose subtasks from the request and current state; do not use a "
-                "fixed template. task_id may be UUID or roadmap number."
+                "Decompose a task into distinct, coherent outcomes when it cannot "
+                "be executed and verified independently as one unit. Ground each "
+                "child in the request and current state. task_id may be UUID or "
+                "roadmap number."
             ),
             parameters={
                 "type": "object",

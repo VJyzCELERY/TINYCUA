@@ -153,7 +153,7 @@ def test_assessor_separates_context_only_mission_from_actual_assignment() -> Non
     rendered = "\n".join(str(message.get("content", "")) for message in messages)
     assert "## Current Mission — Context Only" in rendered
     assert "## Your Actual Assigned Task" in messages[-1]["content"]
-    assert "Assess decomposition readiness" in messages[-1]["content"]
+    assert "Review roadmap quality" in messages[-1]["content"]
     assert "not your assigned task" in rendered
     assert session.chat_history == history_before
     assert session.session_context == context_before
@@ -832,8 +832,8 @@ def test_result_reviewer_prompt_uses_unified_task_context() -> None:
     assert "Created backend/app.py" in rendered
 
 
-def test_task_assessor_prompt_is_whole_tree_decomposition_only() -> None:
-    """Assessor sees decomposition-gate context, not executor completion concepts."""
+def test_task_assessor_prompt_reviews_whole_tree_plan_quality() -> None:
+    """Assessor reviews generic plan quality, not implementation choices."""
     loop = TinyCUALoop()
     root = loop.root_session.task_store.create_task("Build application")
     loop.root_session.task_store.create_task("Create backend", parent_id=root.task_id)
@@ -852,7 +852,11 @@ def test_task_assessor_prompt_is_whole_tree_decomposition_only() -> None:
     combined = f"{rendered}\n{tool_surface}"
 
     assert "whole roadmap" in rendered.lower()
-    assert "further decomposition" in rendered.lower()
+    assert "one coherent outcome" in rendered.lower()
+    assert "sufficient context" in rendered.lower()
+    assert "materially overlapping" in rendered.lower()
+    assert "prematurely prescriptive" in rendered.lower()
+    assert "do not impose" in rendered.lower()
     assert "task_result_update" not in combined
     assert "task_update" not in combined
     assert "task_assessment_decision" in rendered
@@ -886,7 +890,8 @@ def test_task_assessor_local_replan_prompt_is_active_region_only() -> None:
     assert "local replan" in rendered.lower()
     assert "active task" in rendered.lower()
     assert "Create backend" in rendered
-    assert "whole roadmap" in rendered.lower()
+    assert "one coherent outcome" in rendered.lower()
+    assert "do not reassess the whole roadmap" in rendered.lower()
     assert "task_result_update" not in combined
     assert "task_update" not in combined
     assert "task_assessment_decision" in rendered

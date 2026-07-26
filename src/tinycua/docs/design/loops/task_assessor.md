@@ -5,9 +5,13 @@
 
 ## Role
 
-`TinyCUATaskAssessorNode` is a concrete `ProcessNode` that evaluates the task tree and
-selects unfinished tasks for decomposition or reanalysis. It operates in two modes
-depending on the caller.
+`TinyCUATaskAssessorNode` is a concrete, read-only planning reviewer. It evaluates whether
+unfinished tasks are coherent, actionable, independently verifiable, appropriately
+scoped, nonredundant, and grounded in available evidence. It selects only tasks with a
+material planning defect and operates in two modes depending on the caller.
+
+The assessor does not impose architecture, output layout, tool choice, task count, or
+decomposition depth. Size alone is not a reason to decompose a task.
 
 ## Non-Responsibilities
 
@@ -44,8 +48,7 @@ depending on the caller.
 
 ### Reviewer-Replan Mode
 
-- Evaluates the current active task / local region first, then consolidates with the
-  rest of the tree.
+- Evaluates only the current active task and nearby local region.
 - Selects only unfinished tasks.
 - Accepted/finished tasks must not be selected.
 
