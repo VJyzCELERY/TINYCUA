@@ -117,8 +117,8 @@ def test_all_chat_completions_use_required_string_tool_choice() -> None:
     assert tool_choice == "required"
 
 
-def test_task_assessor_uses_read_only_handoff_tools_without_task_update() -> None:
-    """TaskAssessor no longer narrows to mutation-only task_update."""
+def test_task_assessor_uses_read_only_decision_tools_without_task_update() -> None:
+    """TaskAssessor narrows to inspection and its dedicated decision tool."""
     model = LanguageModel(
         provider="openai-chat-completions",
         model_name="local-model",
@@ -142,7 +142,10 @@ def test_task_assessor_uses_read_only_handoff_tools_without_task_update() -> Non
     )
 
     assert tool_choice is None
-    assert [tool.name for tool in narrowed_tools] == ["task_inspect", "node_handoff"]
+    assert [tool.name for tool in narrowed_tools] == [
+        "task_inspect",
+        "task_assessment_decision",
+    ]
 
 
 def test_result_reviewer_is_not_provider_forced() -> None:

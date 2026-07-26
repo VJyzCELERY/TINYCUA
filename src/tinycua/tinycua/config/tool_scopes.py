@@ -14,7 +14,7 @@ from __future__ import annotations
 from tinycua.config.node_config import NodeToolPolicy
 from tinycua.tools.digest_information import DigestInformationTool
 from tinycua.tools.enhanced_context_retrieval import EnhancedContextRetrievalTool
-from tinycua.tools.handoff_tools import NodeHandoffTool
+from tinycua.tools.handoff_tools import TaskAssessmentDecisionTool
 from tinycua.tools.routing import QueryRouteSelectionTool, WorkerRouteSelectionTool
 from tinycua.tools.task_tools import (
     FinalResponseSynthesisTool,
@@ -143,14 +143,14 @@ def task_analyzer_tool_scope(
 def task_assessor_tool_scope() -> NodeToolPolicy:
     """Task assessment/read/update tools.
 
-    TaskAssessorNode receives task_inspect and task_update for
-    assessing task state. No creation tools are included.
+    TaskAssessorNode receives task_inspect and its validated decision tool.
+    No mutation or generic handoff tools are included.
 
     Returns:
         NodeToolPolicy for TaskAssessorNode.
     """
     return NodeToolPolicy(
-        node_tools=[TaskInspectTool(), NodeHandoffTool()],
+        node_tools=[TaskInspectTool(), TaskAssessmentDecisionTool()],
         include_agent_tools="selected",
         allowed_agent_tool_names=EXPLORATORY_AGENT_TOOLS,
     )

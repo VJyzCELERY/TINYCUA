@@ -137,9 +137,9 @@ Retry prompts are assistant-role continuations. Exhaustion behavior:
 | `TinyCUAAnalysisEffortNodeConfig` | `effort: WorkerEffort = "none"` |
 | `TinyCUATaskCreateNodeConfig` | `task_schema: dict \| None` |
 | `TinyCUATaskAnalyzerNodeConfig` | `allow_task_create: bool = true`; `allow_task_recreate: bool = true`; `task_schema: dict | None` |
-| `TinyCUATaskAssessorNodeConfig` | `assessment_schema: dict | None`; `allow_task_updates: bool = true` |
+| `TinyCUATaskAssessorNodeConfig` | `assessment_schema: dict | None`; read-only `ready` / `analyze` decisions |
 | `TinyCUATaskExecutorNodeConfig` | `execution_schema: dict | None`; `allow_outer_tools: bool = true` |
-| `TinyCUAResultReviewerNodeConfig` | `review_labels: list[str] = ["approved", "needs_revision", "rejected", "replan"]`; `review_schema: dict | None` |
+| `TinyCUAResultReviewerNodeConfig` | `review_labels: list[str] = ["approved", "needs_revision", "replan", "postpone_siblings", "postpone_final", "compromise"]`; `review_schema: dict | None` |
 | `TinyCUAResultAggregationNodeConfig` | `aggregation_schema: dict | None`; `max_task_depth: int | None` |
 | `TinyCUAResponseNodeConfig` | `allow_information_digest_request: bool = true`; `final_response_schema: dict | None` |
 

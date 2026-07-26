@@ -85,10 +85,11 @@ flowchart TD
     UPDATE --> REMAIN
     REMAIN -->|Yes| PICK
     REMAIN -->|No| AGG
-    NEXT -->|needs_revision / rejected| REVISE
+    NEXT -->|needs_revision| REVISE
     REVISE --> RECOVER
     RECOVER --> TE
     NEXT -->|replan| REPLAN
+    NEXT -->|postpone siblings / final| REMAIN
     REPLAN --> TA
     TA -. "updates" .-> TL
     AGG --> WR
@@ -131,13 +132,13 @@ terminal decision — the agent stays active, ready for human-in-the-loop intera
 through passthrough routing. See [result-reviewer.md](result-reviewer.md) for the
 recovery model details.
 
-The Worker only terminates successfully when the final unfinished task is approved and no remaining unfinished tasks exist. If the final task is sent back for revision, replanned, or decomposed into new tasks, the Worker continues.
+Runnable work is selected deterministically in three drains: normal work, eligible sibling-postponed work, then final-postponed work. Compromised tasks are terminal for routing but remain unsuccessful limitations. If the final task is sent back for revision, replanned, or decomposed into new tasks, the Worker continues.
 
 ---
 
 ## Worker Result
 
-The Worker Result aggregates approved task outputs for the Primary Agent to synthesize into a final response. See [state-objects.md](state-objects.md) for the canonical schema.
+The Worker Result aggregates approved task outputs and separately labels compromised unsuccessful limitations for the Primary Agent to synthesize into a final response. See [state-objects.md](state-objects.md) for the canonical schema.
 
 The Worker Result should contain only approved task outputs and enough provenance for the Primary Agent to synthesize a final answer without bypassing Worker guarantees.
 
@@ -150,4 +151,4 @@ The Worker Result should contain only approved task outputs and enough provenanc
 | Roadmap model | Sequential execution | Keeps orchestration simple; parallel work belongs inside individual task execution, not at the top level |
 | Human-in-the-loop | Clarification is not termination | Pausing for user input preserves the sub-session context; resuming avoids restarting the whole request |
 | Agent structure | Internal specialized agents, not standalone | Worker agents use sub-sessions for context isolation but remain part of the same TINYCUA agent — distinct from future explicit Sub Agents |
-| Worker output | Aggregated accepted results only | The Primary Agent receives only provenanced, accepted outputs — no rejected or intermediate results bypass Worker guarantees |
+| Worker output | Accepted results plus explicit compromises | The Primary Agent receives provenanced accepted outputs without hiding terminal unsuccessful limitations |

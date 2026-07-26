@@ -54,7 +54,8 @@ NodeInput <: StateObject
 Conversion rules:
 
 - external user strings become `{"role": "user", "content": query}`
-- internal strings become `{"role": "assistant", "content": text}`
+- internal strings become user-role provider messages; `Node.build_messages()` marks
+  their internal origin with a `[System: ...]` prefix
 - `NodeInput` and `NodePayload` are trusted internal transport objects
 - user strings are never parsed as structured internal input
 

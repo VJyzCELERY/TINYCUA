@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-import tempfile
 from pathlib import Path
 
 from tinycua.agent.tools.native.context import bind_workspace, resolve_workspace_path

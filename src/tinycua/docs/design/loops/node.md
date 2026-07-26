@@ -80,10 +80,11 @@ Nodes accept:
 NodeInputLike = str | NodeInput | NodePayload | list[dict]
 ```
 
-External strings become user-role messages. Internal strings become assistant-role
-messages. `NodeInput` and `NodePayload` are trusted internal objects; user strings are
-not parsed as structured internal input. See [`../models/state_object.md`](../models/state_object.md)
-for model fields and conversion rules.
+External and internal strings become user-role provider messages. `Node.build_messages()`
+marks internal strings with a `[System: ...]` prefix to distinguish them without using
+assistant-prefill semantics. `NodeInput` and `NodePayload` are trusted internal objects;
+user strings are not parsed as structured internal input. See
+[`../models/state_object.md`](../models/state_object.md) for conversion rules.
 
 ## Node Contract
 
@@ -107,6 +108,18 @@ NodeProgress (FR-062)
   · accumulated_tool_results: list[dict]
   · state: Literal["pending", "running", "revising", "done", "failed"]
 ```
+
+### Focused ACTION/COMMIT Lifecycle
+
+Lifecycle nodes expose ordinary action tools plus only their own commit tool during
+ACTION; they never expose `terminate` or another node's commit tool. Action-only batches
+may continue. The first commit attempt suppresses later calls in that batch.
+
+A successful direct commit completes the node without another LLM or terminate turn.
+Missing, malformed, denied, or failed commits—and prose-only ACTION summaries—enter a
+COMMIT-only fallback without reopening ACTION. That fallback exposes only the node-owned
+commit tools and carries the bounded ACTION summary; a successful fallback commit ends
+the node automatically.
 
 The node itself remains the runtime unit:
 
@@ -156,7 +169,7 @@ reviewer decisions, consolidates information, and emits response-ready context f
 ```text
 ResultReviewer:
   - review executor output
-  - decide approved / needs_revision / rejected / replan
+  - decide approved / needs_revision / replan / postpone_siblings / postpone_final / compromise
   - update active TaskResult
   - update active task context
   - trigger task-tree transition
@@ -205,7 +218,7 @@ TaskExecutor → ResultReviewer
     → [TaskExecutor, ResultReviewer]
   has result, no negative review:
     → [TaskExecutor, ResultReviewer]
-  has result + needs_revision / rejected:
+  has result + needs_revision:
     → [TaskExecutor, ResultReviewer]
   failed result:
     → [TaskExecutor, ResultReviewer]

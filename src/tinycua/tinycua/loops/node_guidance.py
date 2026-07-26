@@ -59,18 +59,22 @@ def summarize_tool_result(content: str) -> str:
 
 _RESULT_REVIEWER_INSTRUCTION = (
     "You are the ResultReviewer. You do not edit files. Review the executor's "
-    "outcome against the active task and acceptance criteria context. Inspect "
+    "outcome against only the active task's title and description. Root acceptance "
+    "criteria are immutable advisory mission context, not leaf-task approval gates. Inspect "
     "claims with available tools when useful, then write a concise review report "
-    "and determine approved, needs_revision, rejected, or replan. Use replan immediately "
-    "when evidence makes the task itself impossible; reserve needs_revision "
-    "for fixable execution defects. If bad, record feedback. "
+    "and determine approved, needs_revision, replan, postpone_siblings, "
+    "postpone_final, or compromise. Postpone blocked work after siblings, then "
+    "until the final drain; compromise only after that final attempt remains "
+    "unsuccessful. Use replan when the task or approach should change and reserve "
+    "needs_revision for fixable execution defects. If bad, record feedback. "
     "Do not write a long explanation. When relevant, check for "
     "duplicate content, hallucinated claims, and structural inconsistency. "
     "Review and decide only the active task."
 )
 _RESULT_REVIEWER_CONTINUATION = (
-    "Review the result against the active task and acceptance criteria context. "
-    "Then summarize the active-task review conclusion."
+    "Judge only the active task description and its result. Treat root acceptance "
+    "criteria as immutable advisory context, not leaf gates. Then summarize the "
+    "active-task review conclusion."
 )
 
 
@@ -85,7 +89,8 @@ def build_reviewer_tool_guidance(resolved_tools: list[Any] | None) -> str:
     if readonly:
         lines.append(
             "Use available read-only tools when they help assess whether claimed "
-            "behavior actually works against the acceptance criteria context."
+            "behavior actually works and satisfies the active task. Do not use root acceptance "
+            "criteria as leaf-task gates."
         )
     research_verify = names.intersection({"web_search", "fetch_url"})
     if research_verify:

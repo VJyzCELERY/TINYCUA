@@ -92,6 +92,29 @@ def test_reviewer_prompt_orders_decision_before_context_only_curation() -> None:
     assert "context_updates" in contract.success_criteria
 
 
+def test_reviewer_curation_lists_only_nonterminal_tasks() -> None:
+    loop = TinyCUALoop()
+    store = loop.root_session.task_store
+    root = store.create_task("Root")
+    active = store.create_task("Active", parent_id=root.task_id)
+    future = store.create_task("Future", parent_id=root.task_id)
+    terminal = [
+        (store.create_task("Done", parent_id=root.task_id), TaskStatus.COMPLETED),
+        (store.create_task("Cancelled", parent_id=root.task_id), TaskStatus.CANCELLED),
+        (store.create_task("Superseded", parent_id=root.task_id), TaskStatus.SUPERSEDED),
+        (store.create_task("Compromised", parent_id=root.task_id), TaskStatus.COMPROMISED),
+    ]
+    for task, status in terminal:
+        task.status = status
+
+    prompt = _reviewer_node(loop.root_session)._reviewer_context_blocks(
+        active, loop.root_session
+    )
+
+    assert future.title in prompt
+    assert all(task.title not in prompt for task, _status in terminal)
+
+
 def test_approval_with_inspect_in_same_batch_is_valid() -> None:
     """A valid decision needs no terminate turn."""
     loop = TinyCUALoop()

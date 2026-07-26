@@ -70,7 +70,7 @@ class TestNodeProgress:
         assert progress.history == []
 
     def test_action_summary_transitions_to_isolated_commit_and_termination(self):
-        """Lifecycle phases keep action output available without exposing commit tools."""
+        """Lifecycle phases preserve action output for isolated commit fallback."""
         progress = NodeProgress()
         progress.advance_lifecycle(LifecyclePhase.SUMMARY, summary="tests passed")
         progress.advance_lifecycle(LifecyclePhase.COMMIT)
@@ -139,9 +139,9 @@ class TestNodeContract:
 
     def test_task_assessor_contract(self):
         contract = get_node_contract("task_assessor")
-        assert contract.required_tools == frozenset({"node_handoff"})
+        assert contract.required_tools == frozenset({"task_assessment_decision"})
         assert contract.requires_terminate is True
-        assert contract.early_stop_tool == "node_handoff"
+        assert contract.early_stop_tool == "task_assessment_decision"
 
     def test_query_analyst_contract(self):
         contract = get_node_contract("query_analyst")
@@ -174,13 +174,14 @@ class TestNodeContract:
         assert not contract.is_satisfied(set())
         assert not contract.is_satisfied({"task_init"})
 
-    def test_executor_phase_tools_are_exclusive(self):
-        """Commit does not retain action tools."""
+    def test_executor_action_includes_owned_commit_and_commit_is_exclusive(self):
+        """ACTION can commit directly while fallback COMMIT excludes action tools."""
         names = {"read_file", "run_shell", "task_result_update", "terminate"}
 
         assert phase_tool_names("task_executor", names, LifecyclePhase.ACTION) == {
             "read_file",
             "run_shell",
+            "task_result_update",
         }
         assert phase_tool_names("task_executor", names, LifecyclePhase.COMMIT) == {
             "task_result_update",

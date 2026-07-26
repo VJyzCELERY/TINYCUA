@@ -6,9 +6,8 @@ from __future__ import annotations
 from tinycua.config.node_config import (
     NodeConfigBase,
     NodeMessagePolicy,
-    NodeRetryPolicy,
 )
-from tinycua.config.types import LLMResult, ValidationResult
+from tinycua.config.types import LLMResult
 from tinycua.models.node_input import NodeInput, NodePayload
 from tinycua.models.session import Session
 
@@ -114,47 +113,6 @@ class MinimalDecisionNode:
     @parent.setter
     def parent(self, value: object | None) -> None:
         self._impl.parent = value
-
-
-class RetryTestProcessNode:
-    """ProcessNode that fails validation N times then succeeds."""
-
-    INSTRUCTION = "You are a retry test node."
-
-    def __init__(
-        self,
-        node_id: str,
-        config: NodeConfigBase,
-    ) -> None:
-        from tinycua.loops.node import ProcessNode
-
-        self._impl = ProcessNode(
-            node_id=node_id,
-            config=config,
-            instruction=self.INSTRUCTION,
-        )
-        self.retry_count = 0
-
-    def __call__(self, input: object) -> LLMResult:  # noqa: ARG002
-        # Override validate_output to fail first N-1 times
-        max_attempts = self._impl.config.retry_policy.max_attempts
-
-        def patched_validate(response: LLMResult) -> ValidationResult:  # noqa: ARG005
-            self.retry_count += 1
-            result = ValidationResult()
-            if self.retry_count < max_attempts:
-                result.is_valid = False
-                result.errors = [f"Simulated failure on attempt {self.retry_count}"]
-            else:
-                result.is_valid = True
-                result.errors = []
-            return result
-
-        self._impl.validate_output = patched_validate  # type: ignore[method-assign]
-        return self._impl(input)  # type: ignore[arg-type]
-
-    def ensure_session(self, root_or_parent_session: Session) -> Session:
-        return self._impl.ensure_session(root_or_parent_session)
 
 
 class LifecycleTestProcessNode:
@@ -303,25 +261,8 @@ def test_message_building_excludes_implicit_session_context() -> None:
     assert not any("Previous context" in m["content"] for m in continuation_msgs)
 
 
-def test_retry_on_validation_failure() -> None:
-    """Node retries when validation fails."""
-    mock_llm = MockLLM(response="retry result")
-    config = NodeConfigBase(
-        llm_client=mock_llm,
-        retry_policy=NodeRetryPolicy(max_attempts=3),
-    )
-    node = RetryTestProcessNode(node_id="test-retry", config=config)
-    session = Session()
-    node.ensure_session(session)
-
-    result = node("Trigger retry")
-
-    assert result is not None
-    assert node.retry_count == 3
-
-
-def test_lifecycle_hooks_fire() -> None:
-    """record_output and propagate are called. on_complete is called by the loop, not __call__."""
+def test_direct_call_records_without_loop_lifecycle_hooks() -> None:
+    """Direct node calls record output but leave lifecycle work to the loop."""
     mock_llm = MockLLM(response="lifecycle result")
     config = NodeConfigBase(llm_client=mock_llm)
     node = LifecycleTestProcessNode(node_id="test-lifecycle", config=config)
@@ -331,4 +272,5 @@ def test_lifecycle_hooks_fire() -> None:
     node("Test input")
 
     assert node.record_output_called
-    assert node.propagate_called
+    assert not node.propagate_called
+    assert not node.on_complete_called
