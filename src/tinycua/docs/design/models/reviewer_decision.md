@@ -9,7 +9,7 @@ Reviewer decision models capture `TinyCUAResultReviewerNode` output.
 
 ```text
 ReviewerDecision
-  · outcome: Literal["approved", "needs_revision", "rejected", "replan"]
+  · outcome: Literal["approved", "needs_revision", "replan", "postpone_siblings", "postpone_final", "compromise"]
   · rationale: str
   · target_task_id: str | None
   · metadata: dict
@@ -18,14 +18,20 @@ ReviewerDecision
 ## ReviewerDecision Responsibilities
 
 - Record a concise free-form review report
-- Decide approved / needs_revision / rejected / replan
+- Decide approval, revision, replan, monotonic postponement, or compromise
 - Update active `TaskResult`
 - Optionally hand useful claims to future task context
 - Trigger task-tree transition
 
-> **Vocabulary (FR-057):** `rejected` is aliased to `needs_revision` — both send the
-> task back for revision with the same loop behavior. `open_question` is off by
-> default; it is only available when explicitly enabled via reviewer config.
+> **Legacy vocabulary:** stored `rejected` values remain parseable as
+> `needs_revision` behavior but are no longer offered to the model. `open_question`
+> remains available only when explicitly enabled via reviewer config.
+
+Each deferred decision requires a fresh non-empty unsuccessful execution result.
+Non-root postponement advances once from sibling drain to final drain; the root skips
+the sibling phase. Normal work drains before sibling-postponed work, and final-postponed
+work drains globally last. `compromise` is valid only after final postponement and
+preserves the unsuccessful result plus a rationale as terminal history.
 
 ## Replan Path
 

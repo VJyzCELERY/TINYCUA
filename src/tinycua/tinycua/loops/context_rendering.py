@@ -174,7 +174,16 @@ def _render_aggregated_result(value: Any) -> str:
         lines.append("**Accepted results:**")
         for r in results:
             if isinstance(r, dict):
-                lines.append(f"- {r.get('task_id', '?')}: {r.get('content', r.get('summary', ''))[:100]}")
+                lines.append(
+                    f"- {r.get('task_id', '?')}: {r.get('content', r.get('summary', ''))[:100]}"
+                )
+    compromised = data.get("compromised_results", [])
+    if compromised:
+        lines.append("**Compromised results (unsuccessful limitations):**")
+        for result in compromised:
+            if isinstance(result, dict):
+                content = result.get("content", result.get("summary", ""))
+                lines.append(f"- {result.get('task_id', '?')}: {content[:100]}")
     return "\n".join(lines)
 
 

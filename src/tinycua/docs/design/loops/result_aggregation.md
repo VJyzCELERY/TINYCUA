@@ -5,8 +5,8 @@
 
 ## Role
 
-`TinyCUAResultAggregationNode` is a concrete `ProcessNode` entered only after the root
-task is accepted/done. It traverses the root task tree, inspects each task
+`TinyCUAResultAggregationNode` is a concrete `ProcessNode` entered only after retained
+work is terminal. It traverses the root task tree, inspects each task
 context/result/artifacts/reviewer decisions, consolidates information, and emits
 response-ready context for `ResponseNode`.
 
@@ -38,11 +38,15 @@ AggregatedResult
   · root_task_id: str
   · task_summaries: list[str]
   · accepted_results: list[TaskResult]
+  · compromised_results: list[TaskResult]
   · artifacts: list[dict]
   · final_context: str
   · response_continuation: str
   · metadata: dict
 ```
+
+Accepted outputs and compromised unsuccessful limitations remain separate. Compromised
+summaries are labeled explicitly so ResponseNode cannot present them as verified results.
 
 ## Traversal Strategy
 

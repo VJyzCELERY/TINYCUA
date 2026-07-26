@@ -23,14 +23,16 @@ depending on the caller.
 
 ## Outputs / State Produced
 
-- List of selected unfinished tasks for TaskAnalyzer to process.
-- If no tasks are selected, signals that no analyzer pass is needed.
+- A validated `task_assessment_decision` handoff with a non-empty rationale.
+- `ready` requires an empty selection and skips only the paired analyzer.
+- `analyze` requires one or more valid unfinished references, canonicalized and deduplicated for TaskAnalyzer.
 
 ## Tools
 
 | Tool Scope | Description |
 |------------|-------------|
-| Task assessment / read / update tools | Assess task completeness and select unfinished tasks. |
+| `task_inspect` | Read task state without mutating it. |
+| `task_assessment_decision` | Validate and hand off `ready` or `analyze`. |
 
 ## Modes
 
@@ -50,12 +52,15 @@ depending on the caller.
 ## Queue Behavior / `on_complete()`
 
 ```text
-TaskAssessor completes:
-  → If tasks selected:
+TaskAssessor commits task_assessment_decision:
+  → analyze with valid unfinished tasks:
       advance queue; next is TaskAnalyzerNode
-  → If no tasks selected (effort loop):
-      do not spawn analyzer; advance back to AnalysisEffortNode
+  → ready with an empty selection:
+      remove only the paired TaskAnalyzerNode; advance to the following node
 ```
+
+Missing or terminal task references, blank rationale, and mismatched decision/selection
+shapes are rejected. The assessor remains read-only.
 
 ### Effort Loop Queue Examples
 

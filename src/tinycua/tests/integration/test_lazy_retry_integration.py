@@ -3,7 +3,7 @@
 End-to-end: a node's first LLM response completes without calling the required
 state tool. With recovery_strategy="markdown_synthesis", the runtime makes one
 no-tools non-streaming continuation, parses the markdown, synthesizes the state
-tool call, and completes action, commit, and terminate phases in 3 LLM calls.
+tool call, and completes through commit-only fallback in 3 LLM calls.
 
 Written BEFORE implementation (TDD RED phase).
 """
@@ -50,7 +50,7 @@ class _SequenceLLM:
 @pytest.mark.asyncio
 async def test_executor_terminates_with_lazy_retry():
     """Attempt 1 fails (no tool call), lazy synthesizes task_result_update, then
-    the lifecycle completes action, commit, and terminate phases."""
+    the lifecycle completes through commit-only fallback."""
     loop = TinyCUALoop()
     loop.session_config = SessionConfig(recovery_strategy="markdown_synthesis")
 
@@ -68,7 +68,7 @@ async def test_executor_terminates_with_lazy_retry():
     # Response 1: no tool call (validation fails: missing task_result_update).
     # Response 2: valid lazy markdown with the active task_id.
     # (Any further calls would be the standard retry path; we don't expect
-    # to reach them because the lifecycle completes after the terminate phase.)
+    # to reach them because the synthesized commit completes the lifecycle.)
     lazy_markdown = _EXECUTOR_VALID_MARKDOWN.format(task_id=root.task_id)
     llm = _SequenceLLM([
         {"role": "assistant", "content": "I'm done with the task.", "tool_calls": []},
@@ -79,10 +79,10 @@ async def test_executor_terminates_with_lazy_retry():
     agent.tool_permissions = {}
     agent._call_llm = llm
 
-    # _execute_node runs the full lifecycle: retry → lazy commit report → terminate.
+    # _execute_node runs ACTION summary, COMMIT fallback, then lazy synthesis.
     content, tool_calls = await loop._execute_node(node, agent, tools=[TaskResultUpdateTool()])
 
-    # ACTION, COMMIT, and TERMINATE each require a focused LLM call.
+    # ACTION, COMMIT fallback, and lazy synthesis each require one focused LLM call.
     assert llm.call_count == 3, f"Expected 3 LLM calls, got {llm.call_count}"
     # The synthesized commit report is immediately visible to the reviewer.
     task = store.tasks[root.task_id]

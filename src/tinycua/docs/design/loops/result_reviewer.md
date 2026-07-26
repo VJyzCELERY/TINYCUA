@@ -6,8 +6,8 @@
 ## Role
 
 `TinyCUAResultReviewerNode` is a concrete `ProcessNode` that reviews TaskExecutor
-output and records a free-form report plus a decision to approve, send back for
-revision, or replan.
+output and records a free-form report plus a decision to approve, revise, replan,
+postpone, or compromise.
 
 ## Non-Responsibilities
 
@@ -26,7 +26,8 @@ See the full handoff protocol in
 
 ## Outputs / State Produced
 
-- `ReviewerDecision` with one of: `approved`, `needs_revision`, `rejected`, `replan`,
+- `ReviewerDecision` with one of: `approved`, `needs_revision`, `replan`,
+  `postpone_siblings`, `postpone_final`, `compromise`,
   plus a concise free-form report.
 - Updated active `TaskResult` and task context.
 
@@ -46,8 +47,13 @@ review but are not machine-enforced coverage or evidence gates.
 |----------|----------|
 | `approved` | Semantic check passes; update active task status/result to approved. |
 | `needs_revision` | Plan is solid but execution result does not satisfy success criteria; send back for revision. |
-| `rejected` | Alias for `needs_revision` (FR-057). Treated identically by the loop. |
 | `replan` | Executor result indicates current plan/task decomposition should change. |
+| `postpone_siblings` | Defer non-root blocked work until its normal siblings finish or defer. |
+| `postpone_final` | On revisit, defer work until the global final drain. |
+| `compromise` | Preserve a failed non-empty result and rationale as a terminal limitation. |
+
+Stored legacy `rejected` decisions retain `needs_revision` behavior but are not offered
+by model-facing tools or guidance.
 
 > `open_question` is off by default (FR-057). When enabled via config, the reviewer
 > stays active and installs a mandatory passthrough for user input.
@@ -83,7 +89,7 @@ ResultReviewer completes:
   has result, no negative review:
     → [TaskExecutor, ResultReviewer]              # verify/refresh, then review
 
-  has result + needs_revision / rejected:
+  has result + needs_revision:
     → [TaskExecutor, ResultReviewer]              # revise then re-review
 
   failed result:
@@ -125,8 +131,10 @@ ResultReviewer replan:
 ## Propagation
 
 - Propagates reviewer decision to downstream nodes.
-- On `needs_revision` / `rejected`, propagates revision instructions to TaskExecutor.
+- On `needs_revision`, propagates revision instructions to TaskExecutor.
 - On `replan`, propagates the local replan scope to TaskAssessor + TaskAnalyzer.
+- On postponement or compromise, schedules from the explicit reviewed task decision,
+  not the newly active task.
 
 ## Related Config
 

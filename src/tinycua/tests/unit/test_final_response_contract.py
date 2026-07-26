@@ -1342,7 +1342,11 @@ def test_task_assessor_validation_failure_preserves_analyzer_after_handoff() -> 
             source_node="task_assessor",
             target_node="task_analyzer",
             instruction="Analyze the selected task.",
-            payload={"decision": "analyze", "selected_task_ids": [task.task_id]},
+            payload={
+                "decision": "analyze",
+                "selected_task_ids": [task.task_id],
+                "rationale": "The selected task needs decomposition.",
+            },
         )
     )
 
@@ -1391,8 +1395,8 @@ def test_optional_task_analyzer_validation_failure_skips_pass() -> None:
     ]
 
 
-def test_task_executor_scopes_result_update_to_commit_phase() -> None:
-    """Executor commit phase exposes only its state prerequisite."""
+def test_task_executor_exposes_result_update_in_action_and_commit() -> None:
+    """ACTION can commit directly and fallback COMMIT remains isolated."""
     executor = TinyCUATaskExecutorNode(
         node_id="task_executor",
         config=create_node_config("task_executor"),
@@ -1406,7 +1410,7 @@ def test_task_executor_scopes_result_update_to_commit_phase() -> None:
 
     assert [
         tool.name for tool in loop._phase_tools(executor, tools, LifecyclePhase.ACTION)
-    ] == ["write_file"]
+    ] == ["write_file", "task_result_update"]
     assert [
         tool.name for tool in loop._phase_tools(executor, tools, LifecyclePhase.COMMIT)
     ] == [

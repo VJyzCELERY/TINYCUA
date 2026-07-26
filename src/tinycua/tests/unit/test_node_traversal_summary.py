@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 from typing import Any
 
 import pytest
@@ -50,7 +49,11 @@ class TestPrintNodeTraversalConsecutiveDedup:
         captured = capsys.readouterr()
         assert "task_executor (×3)" in captured.err
         # Should NOT have 3 separate task_executor lines (excluding the ×3 line).
-        lines = [l for l in captured.err.strip().split("\n") if l and l != "=== NODE TRAVERSAL ==="]
+        lines = [
+            line
+            for line in captured.err.strip().split("\n")
+            if line and line != "=== NODE TRAVERSAL ==="
+        ]
         assert len(lines) == 1
 
     def test_two_consecutive_collapse(self, capsys: pytest.CaptureFixture[str]):
@@ -74,7 +77,11 @@ class TestPrintNodeTraversalNonConsecutiveReentry:
         ])
         print_node_traversal(loop)
         captured = capsys.readouterr()
-        lines = [l for l in captured.err.strip().split("\n") if l and l != "=== NODE TRAVERSAL ==="]
+        lines = [
+            line
+            for line in captured.err.strip().split("\n")
+            if line and line != "=== NODE TRAVERSAL ==="
+        ]
         # 3 separate lines — no dedup because they're not consecutive.
         assert len(lines) == 3
         assert lines[0] == "task_executor"
@@ -112,7 +119,11 @@ class TestPrintNodeTraversalOrderPreserved:
         ])
         print_node_traversal(loop)
         captured = capsys.readouterr()
-        lines = [l for l in captured.err.strip().split("\n") if l and l != "=== NODE TRAVERSAL ==="]
+        lines = [
+            line
+            for line in captured.err.strip().split("\n")
+            if line and line != "=== NODE TRAVERSAL ==="
+        ]
         assert lines == [
             "query_analyst",
             "digester",

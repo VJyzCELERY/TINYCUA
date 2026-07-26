@@ -9,9 +9,8 @@ Written BEFORE implementation (TDD RED phase). The method does not exist yet.
 
 from __future__ import annotations
 
-import json
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -19,7 +18,6 @@ from tinycua.config.node_config import create_node_config
 from tinycua.config.session_config import SessionConfig
 from tinycua.config.types import LLMResult, ValidationResult
 from tinycua.loops.task_nodes import TinyCUAResultReviewerNode, TinyCUATaskExecutorNode
-from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.task import TaskResult, TaskStatus
 from tinycua.tools.task_tools import TaskResultUpdateTool, TaskReviewDecisionTool

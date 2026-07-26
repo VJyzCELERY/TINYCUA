@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 # decision — never emitted by the LLM. The derived counter breaks on it.
 _REPLAN_BOUNDARY = "replan_boundary"
 
+
 @dataclass
 class WorkerRuntimeController:
     """Mutate worker queues from task state instead of fixed linear chains.
@@ -57,22 +58,24 @@ class WorkerRuntimeController:
                 else 3
             )
 
-    def schedule_replan(self, queue: NodeQueue, replan_reason: str = "") -> None:
+    def schedule_replan(
+        self, queue: NodeQueue, task: Any, replan_reason: str = ""
+    ) -> None:
         """Schedule local assessor/analyzer replan before execution.
 
-        Also inserts a ``replan_boundary`` sentinel into the active task's
+        Also inserts a ``replan_boundary`` sentinel into the reviewed task's
         ``reviewer_decisions`` audit trail (FR-049) so the derived
         ``consecutive_failures`` counter resets. The full audit trail is
         preserved — only the consecutive run is broken.
 
         Args:
             queue: The node queue to mutate.
+            task: The explicitly reviewed task being replanned.
             replan_reason: Optional reason string (e.g. auto-replan trigger
                 context) passed to the analyzer via config metadata.
         """
-        active = self.store.get_active_task()
-        if active is not None:
-            active.reviewer_decisions.append(
+        if task is not None:
+            task.reviewer_decisions.append(
                 {
                     "decision": _REPLAN_BOUNDARY,
                     "rationale": replan_reason or "replan triggered",
@@ -107,12 +110,16 @@ class WorkerRuntimeController:
     def _replan_count(self, task: Any) -> int:
         """Count replan_boundary entries in the task's reviewer_decisions."""
         return sum(
-            1
-            for d in task.reviewer_decisions
-            if d.get("decision") == _REPLAN_BOUNDARY
+            1 for d in task.reviewer_decisions if d.get("decision") == _REPLAN_BOUNDARY
         )
 
-    def schedule_after_review(self, queue: NodeQueue) -> None:
+    def schedule_after_review(
+        self,
+        queue: NodeQueue,
+        *,
+        reviewed_task_id: str,
+        decision: ReviewerDecision | str,
+    ) -> None:
         """Schedule the next nodes after a reviewer decision.
 
         When a task has been sent back for rework ``replan_threshold``
@@ -124,27 +131,29 @@ class WorkerRuntimeController:
         Replanning is intentionally unbounded: incomplete work never routes to
         the response node.
         """
-        active = self.store.get_active_task()
-        latest = active.reviewer_decisions[-1] if active and active.reviewer_decisions else {}
-        decision = latest.get("decision")
-        if decision in {ReviewerDecision.NEEDS_REVISION.value, ReviewerDecision.REJECTED.value}:
+        reviewed = self.store.get_task(reviewed_task_id)
+        reviewer_decision = ReviewerDecision(decision)
+        if reviewer_decision in {
+            ReviewerDecision.NEEDS_REVISION,
+            ReviewerDecision.REJECTED,
+        }:
             # FR-057: needs_revision and rejected are unified (aliases) — both
             # send the task back for rework and increment consecutive_failures
             # identically. No terminal-failure path for rejected by design.
             # Auto-replan gate: if consecutive failures reach the threshold,
             # route to TaskAnalyzer instead of retrying the executor.
-            if active and active.consecutive_failures >= self.replan_threshold:
-                reason = self._build_replan_reason(active)
+            if reviewed.consecutive_failures >= self.replan_threshold:
+                reason = self._build_replan_reason(reviewed)
                 logger.info(
                     "replan_triggered task_id=%s consecutive_failures=%d threshold=%d "
                     "replans=%d decision=%s — routing to TaskAnalyzer for replan",
-                    active.task_id,
-                    active.consecutive_failures,
+                    reviewed.task_id,
+                    reviewed.consecutive_failures,
                     self.replan_threshold,
-                    self._replan_count(active),
-                    decision,
+                    self._replan_count(reviewed),
+                    reviewer_decision.value,
                 )
-                self.schedule_replan(queue, replan_reason=reason)
+                self.schedule_replan(queue, reviewed, replan_reason=reason)
                 return
             queue.items.extend(
                 [
@@ -159,12 +168,14 @@ class WorkerRuntimeController:
                 ]
             )
             return
-        if decision == ReviewerDecision.REPLAN.value:
-            reason = self._build_replan_reason(active) if active else ""
-            self.schedule_replan(queue, replan_reason=reason)
+        if reviewer_decision == ReviewerDecision.REPLAN:
+            reason = self._build_replan_reason(reviewed)
+            self.schedule_replan(queue, reviewed, replan_reason=reason)
             return
-        if decision == ReviewerDecision.OPEN_QUESTION.value:
-            self.schedule_replan(queue, replan_reason=self._build_replan_reason(active))
+        if reviewer_decision == ReviewerDecision.OPEN_QUESTION:
+            self.schedule_replan(
+                queue, reviewed, replan_reason=self._build_replan_reason(reviewed)
+            )
             return
         self.schedule_next(queue)
 

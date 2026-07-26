@@ -195,6 +195,7 @@ class LazyRetryMixin:
                 agent,
                 [synthesized],
                 [required_tool],
+                node,
             )
         except Exception:
             logger.debug(

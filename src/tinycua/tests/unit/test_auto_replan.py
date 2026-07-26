@@ -24,14 +24,12 @@ class TestConsecutiveFailures:
         root = store.create_task("Root")
         child = store.create_task("Child", parent_id=root.task_id)
         store.transition(child.task_id, TaskStatus.IN_PROGRESS)
-        # 3 rejections, then approve, then 2 rejections
+        # Approval terminates the task and breaks the rejection run.
         for _ in range(3):
             store.record_reviewer_decision(child.task_id, ReviewerDecision.NEEDS_REVISION)
         store.record_result(child.task_id, TaskResult(content="ok"))
         store.record_reviewer_decision(child.task_id, ReviewerDecision.APPROVED)
-        for _ in range(2):
-            store.record_reviewer_decision(child.task_id, ReviewerDecision.NEEDS_REVISION)
-        assert child.consecutive_failures == 2
+        assert child.consecutive_failures == 0
 
     def test_no_decisions(self):
         store = TaskStateStore()
@@ -61,7 +59,9 @@ class TestAutoReplanThreshold:
             store.record_reviewer_decision(child.task_id, ReviewerDecision.NEEDS_REVISION)
         queue = NodeQueue()
 
-        WorkerRuntimeController(store).schedule_after_review(queue)
+        WorkerRuntimeController(store).schedule_after_review(
+            queue, reviewed_task_id=child.task_id, decision="needs_revision"
+        )
 
         # Should route to assessor+analyzer (replan), not executor+reviewer
         ids = [n.node_id for n in queue.items]
@@ -79,7 +79,9 @@ class TestAutoReplanThreshold:
             store.record_reviewer_decision(child.task_id, ReviewerDecision.NEEDS_REVISION)
         queue = NodeQueue()
 
-        WorkerRuntimeController(store).schedule_after_review(queue)
+        WorkerRuntimeController(store).schedule_after_review(
+            queue, reviewed_task_id=child.task_id, decision="needs_revision"
+        )
 
         # Should route to executor+reviewer (retry), not replan
         ids = [n.node_id for n in queue.items]
@@ -103,7 +105,9 @@ class TestAutoReplanThreshold:
             store.record_reviewer_decision(child2.task_id, ReviewerDecision.NEEDS_REVISION)
         queue = NodeQueue()
 
-        WorkerRuntimeController(store).schedule_after_review(queue)
+        WorkerRuntimeController(store).schedule_after_review(
+            queue, reviewed_task_id=child2.task_id, decision="needs_revision"
+        )
 
         # 4 < 5 → still retry
         ids = [n.node_id for n in queue.items]
@@ -120,7 +124,9 @@ class TestAutoReplanThreshold:
         queue = NodeQueue()
 
         # threshold=7 → 5 < 7 → still retry
-        WorkerRuntimeController(store, replan_threshold=7).schedule_after_review(queue)
+        WorkerRuntimeController(store, replan_threshold=7).schedule_after_review(
+            queue, reviewed_task_id=child.task_id, decision="needs_revision"
+        )
 
         ids = [n.node_id for n in queue.items]
         assert ids == ["task_executor", "result_reviewer"]
@@ -142,7 +148,9 @@ class TestAutoReplanThreshold:
         queue = NodeQueue()
 
         ctrl = WorkerRuntimeController(store)
-        ctrl.schedule_after_review(queue)
+        ctrl.schedule_after_review(
+            queue, reviewed_task_id=child.task_id, decision="needs_revision"
+        )
 
         # The analyzer config should have a replan_reason with the rationales.
         analyzer = next(n for n in queue.items if n.node_id == "task_analyzer")

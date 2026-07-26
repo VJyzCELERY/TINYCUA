@@ -66,7 +66,7 @@ class _RouteMatrixScript:
             return "task_executor"
         if "task_update" in tool_names:
             return "result_reviewer"
-        if "node_handoff" in tool_names:
+        if "task_assessment_decision" in tool_names:
             return "task_assessor"
         if "task_result_update" in tool_names:
             return "task_executor"
@@ -238,7 +238,8 @@ class _RouteMatrixScript:
             }
         if node == "task_assessor":
             if any(
-                m.get("role") == "tool" and "node_handoff" in str(m.get("content", ""))
+                m.get("role") == "tool"
+                and "task_assessment_decision" in str(m.get("content", ""))
                 for m in messages
             ):
                 return {"content": "Assessment handed off.", "tool_calls": []}
@@ -247,8 +248,11 @@ class _RouteMatrixScript:
                 "tool_calls": [
                     {
                         "function": {
-                            "name": "node_handoff",
-                            "arguments": '{"target_node":"task_analyzer","instruction":"ready"}',
+                            "name": "task_assessment_decision",
+                            "arguments": (
+                                '{"decision":"ready","selected_task_ids":[],'
+                                '"rationale":"The roadmap is executable."}'
+                            ),
                         }
                     }
                 ],

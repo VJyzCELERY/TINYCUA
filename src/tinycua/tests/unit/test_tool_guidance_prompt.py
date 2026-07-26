@@ -33,6 +33,7 @@ from tinycua.tools.task_tools import (
     TaskShrinkTool,
     TaskUpdateTool,
 )
+from tinycua.tools.handoff_tools import TaskAssessmentDecisionTool
 
 
 def test_task_executor_tool_guidance_prefers_narrowest_tool() -> None:
@@ -91,21 +92,19 @@ def test_task_analyzer_commit_guidance_names_only_commit_tools() -> None:
     assert "task_decompose" in guidance or "task_update" in guidance
 
 
-def test_task_assessor_commit_guidance_names_only_handoff() -> None:
+def test_task_assessor_commit_guidance_names_only_decision_tool() -> None:
     """Assessor commit guidance omits action-only inspection tools."""
     node = TinyCUATaskAssessorNode(
         node_id="task_assessor", config=create_node_config("task_assessor")
     )
-    from tinycua.tools.handoff_tools import NodeHandoffTool
-
-    tools = [TaskInspectTool(), NodeHandoffTool()]
+    tools = [TaskInspectTool(), TaskAssessmentDecisionTool()]
 
     guidance = node.build_tool_system_prompt(tools)
 
-    assert "node_handoff" in guidance
+    assert "task_assessment_decision" in guidance
     assert "task_inspect" not in guidance
-    assert "recommendations" in guidance
-    assert "task_ids" in guidance
+    assert "selected_task_ids" in guidance
+    assert "rationale" in guidance
 
 
 def test_task_analyzer_treats_assessor_recommendations_as_advisory() -> None:

@@ -3,7 +3,7 @@
 > **Category:** Agent Spec
 
 > **File:** `architecture/information-digestion.md`
-> **Last Updated:** 2026-05-30
+> **Last Updated:** 2026-07-26
 > **Status:** Implemented
 > **See also:** [overview.md](overview.md), [query-analyst.md](query-analyst.md), [session-architecture.md](session-architecture.md), [context-retrieval.md](context-retrieval.md), [primary-agent.md](primary-agent.md), [worker-orchestration.md](worker-orchestration.md), [task-analysis.md](task-analysis.md), [state-objects.md](state-objects.md), [analysis-digested-info-vs-query.md](analysis-digested-info-vs-query.md)
 
@@ -21,7 +21,7 @@ Key framing:
 
 - The Information Digester does **not** receive the full Session `Context` as its direct context. It accesses the Session `Context` through **Enhanced Context Retrieval** — a search tool that explores the Session `Context` as an external information source.
 - The Information Digester does not distinguish between a raw user query and a `Context Enhanced Query`. It treats whatever it receives as the query and explores for missing context.
-- The Information Digester is an **exploration agent** — its core loop is: identify information gaps in the query → use Enhanced Context Retrieval to search the Session `Context` → compile relevant findings into `Digested Information`.
+- The Information Digester is an **exploration agent** — its advised priority is: inspect explicitly referenced workspace files → search Session `Context` through Enhanced Context Retrieval → research externally only while material uncertainty remains → compile relevant findings into `Digested Information`.
 
 ---
 
@@ -38,6 +38,8 @@ The Information Digester does **not** receive the full Session `Context` as dire
 **Tools:**
 
 - **Enhanced Context Retrieval** — searches the current Session `Context` (structured markdown) as an external data store. See [context-retrieval.md](context-retrieval.md).
+- **Read-only file exploration** — inspects workspace files explicitly referenced by the request before broader retrieval.
+- **Web search/fetch** — resolves material external uncertainty using timeframe-appropriate authoritative sources.
 
 **Output:**
 
@@ -51,7 +53,9 @@ The digest is sent to downstream agents as structured text; storage format is an
 flowchart TD
     CEQ{{"Context Enhanced Query\n(treated as user query)"}}
     GAPS["Identify information gaps\nin the query"]
+    FILES["Inspect explicitly referenced\nworkspace files"]
     RETRIEVE["Enhanced Context Retrieval\n(search Session Context)"]
+    EXTERNAL["External research\nonly if uncertainty remains"]
     SESSION_CTX[("Session Context\n(structured markdown)\n— current state")]
     RET_CTX{{"Retrieved Context\n(low-level, fine detail)"}}
     FOCUS["Identify relevant topics/entities"]
@@ -62,9 +66,11 @@ flowchart TD
     DI{{"Digested Information"}}
 
     CEQ --> GAPS
-    GAPS --> RETRIEVE
+    GAPS --> FILES
+    FILES --> RETRIEVE
+    RETRIEVE --> EXTERNAL
     SESSION_CTX -. "searched by" .-> RETRIEVE
-    RETRIEVE --> RET_CTX
+    EXTERNAL --> RET_CTX
     RET_CTX --> FOCUS
     FOCUS --> EXTRACT
     EXTRACT --> FILTER
@@ -72,6 +78,10 @@ flowchart TD
     PRESERVE --> STRUCTURE
     STRUCTURE --> DI
 ```
+
+This priority is agent guidance rather than a deterministic tool-order gate. Exploration
+stops once downstream planning has reliable context; the digester does not execute or
+solve the task.
 
 ---
 

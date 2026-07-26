@@ -270,14 +270,14 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
     ),
     "task_assessor": NodeContract(
         node_id="task_assessor",
-        required_tools=frozenset({"node_handoff"}),
+        required_tools=frozenset({"task_assessment_decision"}),
         requires_terminate=True,
-        early_stop_tool="node_handoff",
+        early_stop_tool="task_assessment_decision",
         goal="Assess decomposition readiness and instruct the analyzer which tasks to refine.",
         role_boundary="Only assess readiness and hand off scoped findings. Do not mutate task state or execute work.",
-        success_criteria="node_handoff called with the assessment (selected tasks, reasons, or 'no further decomposition useful').",
+        success_criteria="task_assessment_decision called with ready or canonical unfinished analysis targets and a rationale.",
         tool_rationale={
-            "node_handoff": "Passes your assessment to the analyzer. Without it, the analyzer doesn't know what to focus on.",
+            "task_assessment_decision": "Validates readiness and passes canonical targets to the paired analyzer.",
         },
     ),
     "task_executor": NodeContract(
@@ -298,15 +298,15 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
         required_tools=frozenset({"task_review_decision"}),
         requires_terminate=True,
         retry_max_attempts=25,
-        goal="Review the executor outcome, report a decision, and atomically curate relevant future-task context.",
+        goal="Review only the active task outcome, report a decision, and atomically curate relevant future-task context.",
         role_boundary=(
             "Review only the active task. The decision may include context handoffs "
             "for unfinished tasks; never review or execute those tasks, modify their "
             "artifacts, or fix executor work."
         ),
-        success_criteria="task_review_decision called with a concise report and any relevant future-task context_updates.",
+        success_criteria="task_review_decision called for the active task with a concise report and any relevant future-task context_updates.",
         tool_rationale={
-            "task_review_decision": "Records your report and verdict (approved/needs_revision/rejected/replan). This drives the task lifecycle — approved→completed, needs_revision→rework.",
+            "task_review_decision": "Records approved, needs_revision, replan, monotonic postponement, or terminal compromise. Approved completes; needs_revision reworks; compromise remains unsuccessful.",
             "task_inspect": "Reads task state for active-task review and future-task context curation.",
         },
         additional_recovery_tools=("task_inspect",),
@@ -339,7 +339,7 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
         success_criteria="digest_information called with a concise summary of findings (context first, then original query).",
         tool_rationale={
             "digest_information": "Records the gathered context. Downstream nodes (analyzer, executor) rely on this — without it, planning is ungrounded.",
-            "enhanced_context_retrieval": "Inspects prior conversation history. Use this before external research to avoid redundant work.",
+            "enhanced_context_retrieval": "Inspects prior conversation history after explicitly referenced workspace files have been read.",
             "web_search": "Resolves material external uncertainty with sources appropriate to the requested timeframe.",
         },
     ),
@@ -396,9 +396,14 @@ def phase_tool_names(
     commit_tools = set(contract.required_tools)
     for group in contract.any_of_tools:
         commit_tools.update(group)
-    action_tools = tool_names - commit_tools - {"terminate"}
+    all_commit_tools: set[str] = set()
+    for registered in _NODE_CONTRACTS.values():
+        all_commit_tools.update(registered.required_tools)
+        for group in registered.any_of_tools:
+            all_commit_tools.update(group)
+    action_tools = tool_names - all_commit_tools - {"terminate"}
     if phase == LifecyclePhase.ACTION:
-        return action_tools
+        return action_tools | (commit_tools & tool_names)
     if phase == LifecyclePhase.COMMIT:
         return commit_tools & tool_names
     if phase == LifecyclePhase.TERMINATE:

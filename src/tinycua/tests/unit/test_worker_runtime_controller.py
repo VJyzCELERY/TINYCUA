@@ -16,7 +16,9 @@ def test_worker_runtime_retry_keeps_same_active_task() -> None:
     store.record_reviewer_decision(active.task_id, ReviewerDecision.NEEDS_REVISION)
     queue = NodeQueue()
 
-    WorkerRuntimeController(store).schedule_after_review(queue)
+    WorkerRuntimeController(store).schedule_after_review(
+        queue, reviewed_task_id=active.task_id, decision="needs_revision"
+    )
 
     assert store.active_task_id == active.task_id
     assert [node.node_id for node in queue.items] == ["task_executor", "result_reviewer"]
@@ -34,7 +36,9 @@ def test_worker_runtime_repeated_revision_never_routes_to_response() -> None:
         store.record_reviewer_decision(active.task_id, ReviewerDecision.NEEDS_REVISION)
     queue = NodeQueue()
 
-    WorkerRuntimeController(store).schedule_after_review(queue)
+    WorkerRuntimeController(store).schedule_after_review(
+        queue, reviewed_task_id=active.task_id, decision="needs_revision"
+    )
 
     assert store.all_done() is False
     assert store.active_task_id == active.task_id
@@ -81,7 +85,9 @@ def test_worker_runtime_failed_task_retries_same_leaf() -> None:
     store.transition(first.task_id, TaskStatus.FAILED)
     queue = NodeQueue()
 
-    WorkerRuntimeController(store).schedule_after_review(queue)
+    WorkerRuntimeController(store).schedule_after_review(
+        queue, reviewed_task_id=first.task_id, decision="needs_revision"
+    )
 
     assert first.status == TaskStatus.FAILED
     assert second.status == TaskStatus.PENDING
@@ -113,7 +119,9 @@ def test_worker_runtime_replan_uses_local_assessor_mode() -> None:
     store.record_reviewer_decision(active.task_id, ReviewerDecision.REPLAN)
     queue = NodeQueue()
 
-    WorkerRuntimeController(store).schedule_after_review(queue)
+    WorkerRuntimeController(store).schedule_after_review(
+        queue, reviewed_task_id=active.task_id, decision="replan"
+    )
 
     assert [node.node_id for node in queue.items] == [
         "task_assessor",
@@ -134,7 +142,9 @@ def test_open_question_replans_instead_of_bailing_to_response() -> None:
     store.record_reviewer_decision(active.task_id, ReviewerDecision.OPEN_QUESTION)
     queue = NodeQueue()
 
-    WorkerRuntimeController(store).schedule_after_review(queue)
+    WorkerRuntimeController(store).schedule_after_review(
+        queue, reviewed_task_id=active.task_id, decision="open_question"
+    )
 
     assert [node.node_id for node in queue.items] == [
         "task_assessor",
@@ -155,7 +165,9 @@ def test_open_question_enabled_replans_instead_of_bailing_to_response() -> None:
 
     WorkerRuntimeController(
         store, enable_open_question_review=True
-    ).schedule_after_review(queue)
+    ).schedule_after_review(
+        queue, reviewed_task_id=active.task_id, decision="open_question"
+    )
 
     assert [node.node_id for node in queue.items] == [
         "task_assessor",
@@ -163,3 +175,26 @@ def test_open_question_enabled_replans_instead_of_bailing_to_response() -> None:
         "task_executor",
         "result_reviewer",
     ]
+
+
+def test_worker_runtime_uses_explicit_reviewed_task_after_postponement() -> None:
+    """Scheduling uses the committed verdict, not the newly selected sibling."""
+    store = TaskStateStore()
+    root = store.create_task("Root")
+    reviewed = store.create_task("Blocked", parent_id=root.task_id)
+    sibling = store.create_task("Runnable", parent_id=root.task_id)
+    store.record_result(reviewed.task_id, TaskResult(content="blocked", success=False))
+    store.record_reviewer_decision(
+        reviewed.task_id, "postpone_siblings", rationale="run sibling first"
+    )
+    assert store.active_task_id == sibling.task_id
+    queue = NodeQueue()
+
+    WorkerRuntimeController(store).schedule_after_review(
+        queue,
+        reviewed_task_id=reviewed.task_id,
+        decision="postpone_siblings",
+    )
+
+    assert [node.node_id for node in queue.items] == ["task_executor", "result_reviewer"]
+    assert store.active_task_id == sibling.task_id
