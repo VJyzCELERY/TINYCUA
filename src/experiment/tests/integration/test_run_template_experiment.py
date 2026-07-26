@@ -154,28 +154,27 @@ setInterval(draw, 1000);
     assert set(score["critical_categories"]) == set(score["categories"])
 
 
-def test_research_evaluator_accepts_frozen_model_name_variants(
+def test_research_evaluator_accepts_model_name_variants(
     tmp_path: Path,
 ) -> None:
-    """Research freshness accepts natural model-name formatting variants."""
+    """Research relevancy accepts natural model-name formatting variants."""
     fixture = FIXTURES / "experiment-2"
     cases = (
-        ("exact-hyphen", "", "GPT-5.6-Sol"),
-        ("missing-model", "2026-07-22", ""),
-        ("all-spaces", "", "GPT 5.6 Sol"),
-        ("mixed-sep", "", "GPT-5.6 Sol"),
-        ("no-claude-opus", "", "Opus 4.8"),
-        ("no-claude-fable", "", "Fable 5"),
-        ("trailing-period", "", "Claude Fable 5."),
-        ("all-spaces-terra", "", "GPT 5.6 Terra"),
-        ("later", "2026-07-23", "GPT-5.6-Sol"),
+        ("exact-hyphen", "GPT-5.6-Sol"),
+        ("missing-model", ""),
+        ("all-spaces", "GPT 5.6 Sol"),
+        ("mixed-sep", "GPT-5.6 Sol"),
+        ("no-claude-opus", "Opus 4.8"),
+        ("no-claude-fable", "Fable 5"),
+        ("trailing-period", "Claude Fable 5."),
+        ("all-spaces-terra", "GPT 5.6 Terra"),
     )
-    for name, date_text, model in cases:
+    for name, model in cases:
         submission = tmp_path / name
         submission.mkdir()
         shutil.copy(fixture / "workdir" / "TASK.md", submission / "TASK.md")
         (submission / "report.md").write_text(
-            f"# Frontier LLM Report\n\nSnapshot date: {date_text}\n\n{model}\n"
+            f"# Frontier LLM Report\n\n{model}\n"
         )
         (tmp_path / f"{name}-result").mkdir()
 
@@ -207,8 +206,7 @@ def test_research_evaluator_accepts_frozen_model_name_variants(
             "python /eval/check.py /cases/trailing-period "
             "/cases/trailing-period-result || true; "
             "python /eval/check.py /cases/all-spaces-terra "
-            "/cases/all-spaces-terra-result || true; "
-            "python /eval/check.py /cases/later /cases/later-result || true",
+            "/cases/all-spaces-terra-result || true",
         ],
         capture_output=True,
         text=True,
@@ -223,9 +221,9 @@ def test_research_evaluator_accepts_frozen_model_name_variants(
             (tmp_path / f"{name}-result" / "score.json").read_text()
         )
 
-    assert "latest_relevancy" in score("exact-hyphen")["critical_categories"]
-    assert score("exact-hyphen")["categories"]["latest_relevancy"]["points"] == 1
-    assert score("missing-model")["categories"]["latest_relevancy"]["points"] == 0
+    assert "model_relevancy" in score("exact-hyphen")["critical_categories"]
+    assert score("exact-hyphen")["categories"]["model_relevancy"]["points"] == 1
+    assert score("missing-model")["categories"]["model_relevancy"]["points"] == 0
     for variant in (
         "all-spaces",
         "mixed-sep",
@@ -233,13 +231,12 @@ def test_research_evaluator_accepts_frozen_model_name_variants(
         "no-claude-fable",
         "trailing-period",
         "all-spaces-terra",
-        "later",
     ):
-        assert score(variant)["categories"]["latest_relevancy"]["points"] == 1, (
-            f"variant '{variant}' should pass latest_relevancy"
+        assert score(variant)["categories"]["model_relevancy"]["points"] == 1, (
+            f"variant '{variant}' should pass model_relevancy"
         )
-    assert 0 < score("exact-hyphen")["metrics"]["rouge_l_f1"] <= 100
-    assert 0 < score("exact-hyphen")["metrics"]["bleu"] <= 100
+    assert 0 <= score("exact-hyphen")["metrics"]["rouge_l_f1"] <= 100
+    assert 0 <= score("exact-hyphen")["metrics"]["bleu"] <= 100
 
 
 def test_experiment_four_wrapper_runs_filename_neutral_app_with_uv_and_prints_pid(

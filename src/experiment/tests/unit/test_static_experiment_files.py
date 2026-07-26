@@ -118,20 +118,32 @@ def test_searxng_enables_broad_engine_coverage() -> None:
     _ = json  # keep import alive for the assertion surface
 
 
-def test_research_fixture_task_hides_frozen_model_names() -> None:
-    """Experiment 2's task never leaks the answer-key model names."""
+def test_research_fixture_hides_evaluator_models_and_snapshot_framing() -> None:
+    """Experiment 2 hides evaluator data and omits snapshot/date framing."""
     import json
 
     fixtures = ROOT / "experiment-fixtures" / "experiments-list"
-    evidence = json.loads(
-        (fixtures / "experiment-2" / "eval" / "evidence.json").read_text()
-    )
-    task = (fixtures / "experiment-2" / "workdir" / "TASK.md").read_text()
+    fixture = fixtures / "experiment-2"
+    evidence = json.loads((fixture / "eval" / "evidence.json").read_text())
+    task = (fixture / "workdir" / "TASK.md").read_text()
+    manifest = (fixture / "manifest.yaml").read_text()
+    agent_visible = f"{task}\n{manifest}".lower()
     for model in evidence["models"]:
-        assert model not in task, f"TASK.md leaks frozen model name: {model}"
+        assert model not in task, f"TASK.md leaks evaluator model name: {model}"
         assert model.lower() not in task.lower(), (
-            f"TASK.md leaks frozen model name (case-insensitive): {model}"
+            f"TASK.md leaks evaluator model name (case-insensitive): {model}"
         )
+    for marker in ("frozen", "snapshot", "22 july 2026", "2026-07-22"):
+        assert marker not in agent_visible
+    assert "## scope" in task.lower()
+    assert "## snapshot scope" not in task.lower()
+
+    evaluator = (fixture / "eval" / "check.py").read_text().lower()
+    reference = (fixture / "eval" / "reference.md").read_text().lower()
+    assert "frozen" not in evaluator
+    assert "snapshot" not in evaluator
+    assert "2026-07-22" not in (fixture / "eval" / "evidence.json").read_text()
+    assert "22 july 2026" not in reference
 
 
 def test_browser_fixtures_share_one_evaluator_image_and_toolset() -> None:
