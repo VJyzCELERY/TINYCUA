@@ -13,12 +13,12 @@ from sacrebleu.metrics import BLEU
 PASS_THRESHOLD = 12
 CRITICAL_CATEGORIES = (
     "report_exists",
-    "latest_relevancy",
+    "model_relevancy",
     "task_integrity",
 )
 MODEL_FAMILIES = ("gpt", "claude", "gemini", "kimi", "glm", "llama", "qwen")
 REQUIRED_HEADINGS = (
-    "snapshot scope",
+    "scope",
     "models",
     "evidence",
     "benchmark interpretation",
@@ -56,8 +56,8 @@ def rouge_l_f1(candidate: str, reference: str) -> float:
     )
 
 
-def check_latest_relevancy(text: str, models: tuple[str, ...]) -> str:
-    """Require one model name from the frozen snapshot, tolerating formatting.
+def check_model_relevancy(text: str, models: tuple[str, ...]) -> str:
+    """Require one bundled reference model name, tolerating formatting.
 
     Accepts space/hyphen interchange, an optional leading ``Claude``/``Anthropic``
     provider prefix, and trailing sentence punctuation so agents who write
@@ -76,8 +76,8 @@ def check_latest_relevancy(text: str, models: tuple[str, ...]) -> str:
         body = r"[\s.\-]+".join(re.escape(t) for t in body_tokens)
         pattern = rf"(?<!\w){prefix}{body}[.,;:]?(?!\w)"
         if re.search(pattern, text, re.IGNORECASE):
-            return f"report names frozen snapshot model {model}"
-    raise ValueError("report does not name a model from the frozen snapshot")
+            return f"report names reference model {model}"
+    raise ValueError("report does not name a bundled reference model")
 
 
 def evaluate(
@@ -120,14 +120,14 @@ def evaluate(
 
 
 def main() -> int:
-    """Score report correctness, structure, freshness, and integrity."""
+    """Score report structure, model relevance, coverage, and integrity."""
     submission = Path(sys.argv[1])
     result = Path(sys.argv[2])
     report = submission / "report.md"
     text = report.read_text() if report.is_file() else ""
     lower = text.lower()
-    evidence_corpus = json.loads(Path("/eval/evidence.json").read_text())
-    frozen_models = tuple(evidence_corpus["models"])
+    reference_corpus = json.loads(Path("/eval/evidence.json").read_text())
+    reference_models = tuple(reference_corpus["models"])
     reference = Path("/eval/reference.md").read_text()
     headings = [
         (len(match.group(1)), match.group(2).strip().lower())
@@ -187,26 +187,26 @@ def main() -> int:
             "contamin" in lower and ("limit" in lower or "evaluation" in lower),
             "contamination and evaluation limits are discussed",
         ),
-        "latest_relevancy": lambda: check_latest_relevancy(text, frozen_models),
+        "model_relevancy": lambda: check_model_relevancy(text, reference_models),
         **{
-            f"snapshot_{re.sub(r'[^a-z0-9]+', '_', model.lower()).strip('_')}": lambda model=model: (
+            f"reference_{re.sub(r'[^a-z0-9]+', '_', model.lower()).strip('_')}": lambda model=model: (
                 require(
-                    model.lower() in lower, f"frozen snapshot model covered: {model}"
+                    model.lower() in lower, f"reference model covered: {model}"
                 )
             )
-            for model in frozen_models
+            for model in reference_models
         },
-        "frozen_reference_coverage": lambda: require(
+        "reference_coverage": lambda: require(
             BLEU(max_ngram_order=1, effective_order=True)
             .corpus_score([text], [[reference]])
             .score
             >= 8.0,
-            "frozen-reference BLEU-1 coverage is at least 8.0",
+            "reference BLEU-1 coverage is at least 8.0",
         ),
         "task_integrity": lambda: require(
             sha256((submission / "TASK.md").read_bytes()).hexdigest()
             == Path("/eval/TASK.md.sha256").read_text().strip(),
-            "TASK.md hash matches evaluator snapshot",
+            "TASK.md hash matches evaluator copy",
         ),
     }
     metrics = {
