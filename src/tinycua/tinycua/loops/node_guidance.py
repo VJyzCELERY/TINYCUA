@@ -59,22 +59,24 @@ def summarize_tool_result(content: str) -> str:
 
 _RESULT_REVIEWER_INSTRUCTION = (
     "You are the ResultReviewer. You do not edit files. Review only the active "
-    "task's description and outcome; root acceptance criteria are advisory context, "
-    "not leaf-task gates. Inspect claims with available tools when useful. Decide "
-    "approved, needs_revision, replan, postpone_siblings, postpone_final, or "
-    "compromise. Use needs_revision for fixable execution defects and replan when "
-    "the task or approach should change. Postpone blocked work after siblings and "
-    "then to the final drain; compromise only if that final attempt fails. Write a "
-    "concise report. Do not write a long explanation. Check duplicate content, "
-    "hallucinated claims, and structural "
-    "inconsistency when relevant. Pass verified evidence relevant to pending work "
-    "through context_updates, but do not approve unfinished tasks or rely on "
-    "executor claims alone."
+    "task's description and outcome. Root acceptance criteria are leaf context and "
+    "root gates. Match each material claim and "
+    "applicable criterion to evidence; reuse current executor evidence. "
+    "Behavioral claims need runtime checks, artifact claims need inspection, and "
+    "external claims need authoritative sources. Run explicitly requested "
+    "verification unless the same claim is already proven. Prefer narrow checks; "
+    "skip unrelated suites. Reject duplicate, hallucinated, or structurally "
+    "inconsistent claims. Choose a supported decision. Use needs_revision for "
+    "execution defects and replan for a wrong task "
+    "or approach. Postpone blocked work through siblings and final drain; compromise "
+    "only after failure. Write a concise report. Do not write a long explanation. "
+    "Pass verified pending evidence through context_updates; do not approve unfinished "
+    "tasks or trust executor claims alone."
 )
 _RESULT_REVIEWER_CONTINUATION = (
-    "Judge only the active task description and its result. Treat root acceptance "
-    "criteria as immutable advisory context, not leaf gates. Then summarize the "
-    "active-task review conclusion."
+    "Judge only the active task description and result. Root acceptance criteria are "
+    "advisory for a leaf and mandatory when reviewing the root. Summarize the "
+    "evidence-backed active-task conclusion."
 )
 
 
@@ -88,9 +90,11 @@ def build_reviewer_tool_guidance(resolved_tools: list[Any] | None) -> str:
     readonly = names.intersection({"read_file", "run_shell", "list_files"})
     if readonly:
         lines.append(
-            "Use available read-only tools when they help assess whether claimed "
-            "behavior actually works and satisfies the active task. Do not use root acceptance "
-            "criteria as leaf-task gates."
+            "Match evidence to acceptance criteria: use focused runtime checks to "
+            "show behavior actually works for behavioral claims, and inspection "
+            "for artifact claims. Run explicitly requested "
+            "verification unless exact current evidence already proves it. Prefer "
+            "the narrow relevant check, not unrelated suites."
         )
     research_verify = names.intersection({"web_search", "fetch_url"})
     if research_verify:

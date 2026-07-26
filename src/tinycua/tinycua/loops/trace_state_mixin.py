@@ -42,6 +42,18 @@ def normalize_tool_outcome(
 ) -> dict[str, Any]:
     """Return the bounded prompt-visible outcome correlated to one tool call."""
     function = tool_call.get("function", {}) if isinstance(tool_call, dict) else {}
+    arguments = function.get("arguments", {}) if isinstance(function, dict) else {}
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except json.JSONDecodeError:
+            arguments = {}
+    invocation = {}
+    if isinstance(arguments, dict):
+        for key in ("command", "path", "url", "query"):
+            value = arguments.get(key)
+            if value is not None:
+                invocation[key] = sanitize_internal_reprs(str(value))[:500]
     output = result.get("output") if isinstance(result, dict) else None
     details = output if isinstance(output, dict) else result
     raw_content = json.dumps(details, default=str)
@@ -62,6 +74,7 @@ def normalize_tool_outcome(
         "success": success,
         "error": str(error) if error is not None else None,
         "exit_code": exit_code,
+        "invocation": invocation,
         "content": rendered,
         "length": len(rendered),
         "hash": sha256(rendered.encode()).hexdigest(),

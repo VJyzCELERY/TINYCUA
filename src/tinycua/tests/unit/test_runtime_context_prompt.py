@@ -37,6 +37,10 @@ def test_build_runtime_context_includes_date_snapshot() -> None:
     ctx = build_runtime_context(date_snapshot="2026-06-21 (Sunday)")
     assert "## Runtime Context" in ctx
     assert "Today: 2026-06-21 (Sunday)" in ctx
+    assert "authoritative reference for the current date" in ctx
+    assert "knowledge cutoff" in ctx
+    assert "unknown until verified" in ctx
+    assert "state the uncertainty instead of guessing" in ctx
 
 
 def test_system_prompt_is_byte_stable_across_calls() -> None:

@@ -147,6 +147,13 @@ def build_runtime_context(
     parts = ["## Runtime Context", "Agent runtime: TinyCUA"]
     if date_snapshot:
         parts.append(f"Today: {date_snapshot}")
+        parts.append(
+            "Today is the authoritative reference for the current date. Your "
+            "training data and knowledge cutoff are not evidence of what is true "
+            "today. Treat claims about the current state of the world as unknown "
+            "until verified with available evidence. If verification is unavailable, "
+            "state the uncertainty instead of guessing."
+        )
     if env_snapshot:
         parts.append(env_snapshot)
     if workspace_dir is not None:
