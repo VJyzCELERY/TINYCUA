@@ -500,7 +500,12 @@ class Node(ABC):
                 if name in visible_names
             }
         if rationale:
-            tool_lines = ["## Required Tools — Why Each Is Needed"]
+            heading = (
+                "## Alternative Commit Tools — Choose One Appropriate Tool"
+                if contract.any_of_tools
+                else "## Required Tools — Why Each Is Needed"
+            )
+            tool_lines = [heading]
             tool_lines.extend(f"- {name}: {reason}" for name, reason in rationale.items())
             sections.append("\n".join(tool_lines))
         return "\n\n".join(sections)
