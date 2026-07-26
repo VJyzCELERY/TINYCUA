@@ -22,6 +22,7 @@ class TestContractDerivedMaps:
 
     def test_terminated_node_ids_matches_contract(self):
         expected = {
+            "digester",
             "task_create",
             "task_analyzer",
             "task_assessor",

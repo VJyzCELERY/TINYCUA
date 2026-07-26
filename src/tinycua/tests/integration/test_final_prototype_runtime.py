@@ -68,13 +68,22 @@ class ScriptedAgentResponses:
                 "content": "creating tasks",
                 "tool_calls": [{"function": {"name": "select_worker_route", "arguments": '{"route":"task_creation"}'}}],
             }
+        if (
+            "digest_information" in tool_names
+            and "final_response_synthesis" not in tool_names
+        ):
+            return {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "digest_information",
+                            "arguments": '{"context_summary":"Relevant context was gathered."}',
+                        }
+                    }
+                ],
+            }
         if "task_init" in tool_names:
-            if any(
-                message.get("role") == "tool"
-                and "task_init" in str(message.get("content", ""))
-                for message in messages
-            ):
-                return {"content": "initialized task tree", "tool_calls": []}
             return {
                 "content": "",
                 "tool_calls": [

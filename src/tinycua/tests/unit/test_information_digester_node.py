@@ -3,8 +3,10 @@
 from unittest.mock import MagicMock, patch
 
 from tinycua.config.node_config import create_node_config
+from tinycua.config.types import LLMResult
 from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
 from tinycua.models.digested_information import DigestedInformation
+from tinycua.models.node_input import NodeInput
 from tinycua.models.session import Session
 
 
@@ -29,6 +31,9 @@ class TestInformationDigesterNode:
         # Simulate ensure_session with a root session
         root_session = Session()
         root_session.session_id = "root-session-123"
+        root_session.date_snapshot = "2042-03-04 (Tuesday)"
+        root_session.env_snapshot = "test environment"
+        root_session.agents_md_snapshot = "test instructions"
 
         result = digester.ensure_session(root_session)
 
@@ -36,6 +41,10 @@ class TestInformationDigesterNode:
         assert result is not None
         assert result.session_id != root_session.session_id
         assert result.parent_id == root_session.session_id
+        assert result.date_snapshot == root_session.date_snapshot
+        assert result.env_snapshot == root_session.env_snapshot
+        assert result.agents_md_snapshot == root_session.agents_md_snapshot
+        assert result.node_progress is root_session.node_progress
 
     def test_ensure_session_with_parent_creates_fresh(self) -> None:
         """ensure_session() creates fresh session even when parent exists."""
@@ -114,6 +123,49 @@ class TestInformationDigesterNode:
         entry = session.session_context[0]
         assert entry.role == "assistant"
         assert entry.content is digest
+
+    def test_parse_loop_result_uses_successful_digest_tool_output(self) -> None:
+        """Tool-owned structured output is the propagated digest source."""
+        digester = TinyCUAInformationDigesterNode(
+            node_id="digester",
+            config=create_node_config("digester"),
+        )
+        digester.session = Session()
+
+        digest = digester.parse_loop_result(
+            LLMResult(
+                content="",
+                metadata={
+                    "tool_results": [
+                        {
+                            "name": "digest_information",
+                            "output": {
+                                "success": True,
+                                "context_summary": "Relevant context was gathered.",
+                                "key_points": ["One relevant input was found"],
+                                "advisory_instructions": ["Verify uncertain claims"],
+                                "constraints": ["Preserve the requested scope"],
+                                "known_gaps": ["One source was unavailable"],
+                            },
+                        }
+                    ]
+                },
+            ),
+            NodeInput(
+                input_type="worker",
+                metadata={"original_query": "Summarize the available context"},
+            ),
+        )
+
+        assert digest == DigestedInformation(
+            context_summary="Relevant context was gathered.",
+            original_query="Summarize the available context",
+            key_points=["One relevant input was found"],
+            advisory_instructions=["Verify uncertain claims"],
+            constraints=["Preserve the requested scope"],
+            known_gaps=["One source was unavailable"],
+        )
+        assert digester.session.session_context[-1].content is digest
 
     def test_prompt_prioritizes_referenced_workspace_files(self) -> None:
         """Named workspace files are inspected before session or web context."""
