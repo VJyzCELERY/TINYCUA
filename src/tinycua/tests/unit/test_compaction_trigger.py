@@ -154,6 +154,32 @@ async def test_maybe_compact_lazy_wires_llm_call():
     assert strategy._llm_call is not None
 
 
+async def test_maybe_compact_llm_receives_authoritative_session_date():
+    """LLM compaction gets the same authoritative date context as nodes."""
+    strategy = SimpleCompaction()
+    session = Session(
+        session_config=SessionConfig(
+            compaction_strategy=strategy,
+            compaction_threshold=0.5,
+            compaction_keep_recent=1,
+        )
+    )
+    session.date_snapshot = "2026-07-26 (Sunday)"
+    session._last_input_tokens = 800
+    session.session_context = [_entry("old"), _entry("recent")]
+    loop = _make_loop(session)
+    loop._invoke_agent_llm = AsyncMock(return_value={"content": "summary"})
+    agent = _make_agent(max_context=1000)
+    node = SimpleNamespace(node_id="x", session=session)
+
+    await loop._maybe_compact(node, agent)
+
+    messages = loop._invoke_agent_llm.await_args.args[1]
+    system = messages[0]["content"]
+    assert "Today: 2026-07-26 (Sunday)" in system
+    assert "knowledge cutoff" in system
+
+
 async def test_maybe_compact_swallows_compaction_errors():
     """A compaction failure is logged, not raised."""
     strategy = SimpleCompaction()

@@ -15,6 +15,7 @@ from tinycua_sdk.agent.executor import ToolExecutor
 from tinycua_sdk.agent.loop import BaseLoop
 
 from tinycua.agent.tools.native.output_persist import persist_if_oversized
+from tinycua.config.system_prompt import build_runtime_context
 from tinycua.config.types import LLMResult, ValidationResult
 from tinycua.loops.context_rendering import render_llm_content, sanitize_internal_reprs
 from tinycua.loops.lazy_retry_mixin import LazyRetryMixin
@@ -973,7 +974,7 @@ class TinyCUALoop(
         return max_context if isinstance(max_context, (int, float)) else None
 
     def _build_compaction_llm_call(
-        self, agent: Agent
+        self, agent: Agent, date_snapshot: str
     ) -> Callable[[list[dict[str, str]]], Any]:
         """Build an async LLM callable for the compaction strategy.
 
@@ -984,7 +985,15 @@ class TinyCUALoop(
         """
 
         async def _llm_call(messages: list[dict[str, str]]) -> str:
-            raw = await self._invoke_agent_llm(agent, messages, [], stream=False)
+            runtime_context = build_runtime_context(date_snapshot=date_snapshot)
+            dated_messages = [dict(message) for message in messages]
+            if dated_messages and dated_messages[0].get("role") == "system":
+                dated_messages[0]["content"] = (
+                    f"{dated_messages[0].get('content', '')}\n\n{runtime_context}"
+                )
+            else:
+                dated_messages.insert(0, {"role": "system", "content": runtime_context})
+            raw = await self._invoke_agent_llm(agent, dated_messages, [], stream=False)
             content = raw.get("content", "") if isinstance(raw, dict) else ""
             return str(content).strip()
 
@@ -1008,13 +1017,13 @@ class TinyCUALoop(
         sc = session.session_config
         if sc is None or sc.compaction_strategy is None:
             return
-        # Lazy LLM-call wiring: if the strategy is a SimpleCompaction without
-        # an llm_call, inject one built from the agent so compaction uses the
-        # same model as the worker (not a hardcoded fallback). Set once.
+        # Lazily bind compaction to this agent/model once.
         strategy = sc.compaction_strategy
         llm_call = getattr(strategy, "_llm_call", None)
         if llm_call is None and hasattr(strategy, "_llm_call"):
-            strategy._llm_call = self._build_compaction_llm_call(agent)
+            strategy._llm_call = self._build_compaction_llm_call(
+                agent, session.date_snapshot
+            )
         if session._last_input_tokens <= 0:
             return  # chicken-and-egg: no prior call data yet
         max_context = self._agent_max_context(agent)
@@ -1062,7 +1071,9 @@ class TinyCUALoop(
         strategy = sc.compaction_strategy
         llm_call = getattr(strategy, "_llm_call", None)
         if llm_call is None and hasattr(strategy, "_llm_call"):
-            strategy._llm_call = self._build_compaction_llm_call(agent)
+            strategy._llm_call = self._build_compaction_llm_call(
+                agent, session.date_snapshot
+            )
         keep_recent = max(0, sc.compaction_keep_recent)
         entries = list(session.session_context)
         if len(entries) <= keep_recent:

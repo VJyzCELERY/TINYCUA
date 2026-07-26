@@ -157,6 +157,30 @@ def test_tool_outcome_is_bounded_correlated_and_actionable() -> None:
     assert outcome["hash"]
 
 
+def test_tool_outcome_retains_only_bounded_verification_identifiers() -> None:
+    """Reviewer-visible evidence keeps identifiers but not content payloads."""
+    outcome = normalize_tool_outcome(
+        {
+            "id": "call-8",
+            "function": {
+                "name": "run_shell",
+                "arguments": {
+                    "command": "uv run pytest -q",
+                    "path": "tests",
+                    "content": "secret source body",
+                },
+            },
+        },
+        {"name": "run_shell", "allowed": True, "output": {"exit_code": 0}},
+    )
+
+    assert outcome["invocation"] == {
+        "command": "uv run pytest -q",
+        "path": "tests",
+    }
+    assert "secret source body" not in str(outcome)
+
+
 def test_tool_outcome_uses_persisted_prompt_content() -> None:
     """Outcomes describe the representation that reaches the model."""
     outcome = normalize_tool_outcome(
