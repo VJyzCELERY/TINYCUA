@@ -17,6 +17,15 @@ Primary tools:
 | `enhanced_context_retrieval` | Search scoped context and read-only exploration surfaces. |
 | `digest_information` | Produce structured digested information. |
 
+`digest_information` accepts a required `context_summary` plus optional arrays for
+`key_points`, `advisory_instructions`, `constraints`, and `known_gaps`. It validates
+those fields and returns them with `success=true`. The runtime preserves and attaches
+the original user query separately.
+
+The tool is InformationDigester's required commit. File, session, and external
+exploration remain optional and model-directed; no specific source or tool order is
+required. Exploration results are returned to the model before it commits the digest.
+
 ### Enhanced Context Retrieval Cache Behavior
 
 `enhanced_context_retrieval` lazily creates a scoped session-context cache file and runs
@@ -36,8 +45,9 @@ duplicate those input messages in its own reusable context; it stores and propag
 only new digest output.
 
 The digester always creates a **fresh node session** — it does not inherit or reuse the
-suspended parent/root session. It avoids eager loading of parent/root context and accesses
-it lazily through `enhanced_context_retrieval` when needed.
+suspended parent/root session identity. It inherits stable run snapshots and shared
+runtime state, avoids eager loading of parent/root context, and accesses that context
+lazily through `enhanced_context_retrieval` when needed.
 
 The digester uses the selected-output propagation profile targeting its suspended parent.
 The digest lands in the parent node's `session_context` before the parent resumes.

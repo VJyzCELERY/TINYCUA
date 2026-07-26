@@ -333,10 +333,12 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
     ),
     "digester": NodeContract(
         node_id="digester",
+        required_tools=frozenset({"digest_information"}),
+        requires_terminate=True,
         early_stop_tool="digest_information",
         goal="Gather comprehensive context to ground downstream task planning.",
         role_boundary="Only gather and digest context. Do not create tasks, execute work, or write deliverables.",
-        success_criteria="digest_information called with a concise summary of findings (context first, then original query).",
+        success_criteria="digest_information called with a concise structured summary of findings.",
         tool_rationale={
             "digest_information": "Records the gathered context. Downstream nodes (analyzer, executor) rely on this — without it, planning is ungrounded.",
             "enhanced_context_retrieval": "Inspects prior conversation history after explicitly referenced workspace files have been read.",

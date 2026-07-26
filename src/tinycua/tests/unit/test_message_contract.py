@@ -973,7 +973,14 @@ def test_digester_may_digest_without_forced_context_retrieval() -> None:
             content="",
             metadata={
                 "tool_results": [
-                    {"name": "digest_information", "allowed": True, "output": {}}
+                    {
+                        "name": "digest_information",
+                        "allowed": True,
+                        "output": {
+                            "success": True,
+                            "context_summary": "Relevant context was gathered.",
+                        },
+                    }
                 ]
             },
         ),
@@ -989,7 +996,14 @@ def test_digester_may_digest_without_forced_context_retrieval() -> None:
                         "allowed": True,
                         "output": {},
                     },
-                    {"name": "digest_information", "allowed": True, "output": {}},
+                    {
+                        "name": "digest_information",
+                        "allowed": True,
+                        "output": {
+                            "success": True,
+                            "context_summary": "Relevant context was gathered.",
+                        },
+                    },
                 ]
             },
         ),

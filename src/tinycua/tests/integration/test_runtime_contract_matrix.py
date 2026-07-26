@@ -80,6 +80,8 @@ class RuntimeContractScript:
             return {}
 
     def _detect_node(self, tool_names: set[str]) -> str:
+        if "final_response_synthesis" in tool_names:
+            return "final"
         if "select_query_route" in tool_names:
             return "query_analyst"
         if "select_worker_route" in tool_names:
@@ -132,7 +134,7 @@ class RuntimeContractScript:
                 return {"content": "Digest recorded.", "tool_calls": []}
             return {
                 "content": "",
-                "tool_calls": [{"function": {"name": "digest_information", "arguments": '{"information":"Build a note-taking app."}'}}],
+                "tool_calls": [{"function": {"name": "digest_information", "arguments": '{"context_summary":"Relevant context was gathered."}'}}],
             }
         if node == "task_create":
             if any(
