@@ -38,11 +38,22 @@ class TestAnalyzerPromptTerminate:
         # "call task_inspect".
         assert not lowered.startswith("based on the roadmap and mission context above, call task_inspect.")
 
-    def test_continuation_avoids_report_specific_decomposition(self):
-        lowered = _TASK_ANALYZER_CONTINUATION.lower()
-        assert "write report" not in lowered
-        assert "report file" not in lowered
-        assert "redundant" in lowered
+    def test_prompt_uses_planning_discipline_without_prescribing_implementation(self):
+        rendered = f"{_TASK_ANALYZER_INSTRUCTION}\n{_TASK_ANALYZER_CONTINUATION}".lower()
+
+        assert "one coherent outcome" in rendered
+        assert "executed and verified independently" in rendered
+        assert "implementation choices open" in rendered
+        assert "explicit constraints" in rendered
+        assert "no more tasks than needed" in rendered
+        assert "sequential subtasks" not in rendered
+
+    def test_local_prompt_does_not_expose_runtime_reexecution_behavior(self):
+        lowered = _TASK_ANALYZER_LOCAL_REPLAN_CONTINUATION.lower()
+
+        assert "no structural change" in lowered
+        assert "runtime" not in lowered
+        assert "re-execution" not in lowered
 
 
 class TestAnalyzerMaxAttempts:
