@@ -9,6 +9,7 @@ import pytest
 # Safety gate — hardline blocks
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.parametrize(
     "command",
     [
@@ -66,6 +67,7 @@ def test_cmdpos_anchor_prevents_false_positive_blocks(command: str) -> None:
 # Safety gate — recoverable destructive warns but allows
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.parametrize(
     "command",
     [
@@ -109,8 +111,18 @@ def test_benign_commands_pass_clean() -> None:
     """Read-only inspection commands pass with no block and no warning."""
     from tinycua.agent.tools.native.shell import _check_command_safety
 
-    for cmd in ["ls -la", "cat file.txt", "grep foo bar.txt", "pytest", "test -f x",
-                "git status", "git diff", "git log", "find . -name '*.py'", "echo hello"]:
+    for cmd in [
+        "ls -la",
+        "cat file.txt",
+        "grep foo bar.txt",
+        "pytest",
+        "test -f x",
+        "git status",
+        "git diff",
+        "git log",
+        "find . -name '*.py'",
+        "echo hello",
+    ]:
         blocked, _reason, warning = _check_command_safety(cmd)
         assert not blocked, f"benign cmd blocked: {cmd!r}"
         assert warning is None, f"benign cmd warned: {cmd!r} → {warning!r}"
@@ -119,6 +131,7 @@ def test_benign_commands_pass_clean() -> None:
 # ---------------------------------------------------------------------------
 # Exit-code interpretation
 # ---------------------------------------------------------------------------
+
 
 def test_exit_code_zero_returns_none() -> None:
     from tinycua.agent.tools.native.shell import _interpret_exit_code
@@ -135,13 +148,18 @@ def test_grep_no_match_meaning() -> None:
 def test_diff_files_differ_meaning() -> None:
     from tinycua.agent.tools.native.shell import _interpret_exit_code
 
-    assert _interpret_exit_code("diff a b", 1) == "Files differ (expected, not an error)"
+    assert (
+        _interpret_exit_code("diff a b", 1) == "Files differ (expected, not an error)"
+    )
 
 
 def test_test_condition_false_meaning() -> None:
     from tinycua.agent.tools.native.shell import _interpret_exit_code
 
-    assert _interpret_exit_code("test -f nonexist", 1) == "Condition evaluated to false (expected, not an error)"
+    assert (
+        _interpret_exit_code("test -f nonexist", 1)
+        == "Condition evaluated to false (expected, not an error)"
+    )
 
 
 def test_curl_network_error_meanings() -> None:
@@ -157,9 +175,14 @@ def test_pipeline_last_command_extracted() -> None:
     from tinycua.agent.tools.native.shell import _interpret_exit_code
 
     # `cat x | grep foo` → grep's exit code determines the meaning.
-    assert _interpret_exit_code("cat x | grep foo", 1) == "No matches found (not an error)"
+    assert (
+        _interpret_exit_code("cat x | grep foo", 1) == "No matches found (not an error)"
+    )
     # `echo ok && grep foo bar` → grep's exit code.
-    assert _interpret_exit_code("echo ok && grep foo bar", 1) == "No matches found (not an error)"
+    assert (
+        _interpret_exit_code("echo ok && grep foo bar", 1)
+        == "No matches found (not an error)"
+    )
 
 
 def test_unknown_command_nonzero_returns_none() -> None:
@@ -173,19 +196,26 @@ def test_env_var_assignment_stripped() -> None:
     """VAR=val cmd ... → the env prefix is stripped before extracting the base command."""
     from tinycua.agent.tools.native.shell import _interpret_exit_code
 
-    assert _interpret_exit_code("FOO=bar grep foo baz", 1) == "No matches found (not an error)"
+    assert (
+        _interpret_exit_code("FOO=bar grep foo baz", 1)
+        == "No matches found (not an error)"
+    )
 
 
 def test_absolute_path_command_normalized() -> None:
     """/usr/bin/grep → grep."""
     from tinycua.agent.tools.native.shell import _interpret_exit_code
 
-    assert _interpret_exit_code("/usr/bin/grep foo bar", 1) == "No matches found (not an error)"
+    assert (
+        _interpret_exit_code("/usr/bin/grep foo bar", 1)
+        == "No matches found (not an error)"
+    )
 
 
 # ---------------------------------------------------------------------------
 # Output truncation
 # ---------------------------------------------------------------------------
+
 
 def test_truncate_under_cap_unchanged() -> None:
     from tinycua.agent.tools.native.shell import _truncate_output, _MAX_OUTPUT_CHARS
@@ -195,7 +225,11 @@ def test_truncate_under_cap_unchanged() -> None:
 
 
 def test_truncate_over_cap_head_tail() -> None:
-    from tinycua.agent.tools.native.shell import _truncate_output, _MAX_OUTPUT_CHARS, _OUTPUT_HEAD_CHARS
+    from tinycua.agent.tools.native.shell import (
+        _truncate_output,
+        _MAX_OUTPUT_CHARS,
+        _OUTPUT_HEAD_CHARS,
+    )
 
     text = "H" * _OUTPUT_HEAD_CHARS + "M" * 100_000 + "T" * 100
     trunc = _truncate_output(text)
@@ -213,8 +247,12 @@ def test_truncate_over_cap_head_tail() -> None:
 # Timeout bounding
 # ---------------------------------------------------------------------------
 
+
 def test_timeout_default_when_invalid() -> None:
-    from tinycua.agent.tools.native.shell import _bounded_timeout, _DEFAULT_TIMEOUT_SECONDS
+    from tinycua.agent.tools.native.shell import (
+        _bounded_timeout,
+        _DEFAULT_TIMEOUT_SECONDS,
+    )
 
     assert _bounded_timeout("notanint") == _DEFAULT_TIMEOUT_SECONDS
     assert _bounded_timeout(None) == _DEFAULT_TIMEOUT_SECONDS
@@ -238,6 +276,7 @@ def test_timeout_above_max_rejected_by_tool() -> None:
 # ---------------------------------------------------------------------------
 # Real execution (integration-flavored unit tests)
 # ---------------------------------------------------------------------------
+
 
 def test_run_shell_echo() -> None:
     from tinycua.agent.tools.native.shell import run_shell
@@ -341,6 +380,7 @@ def test_run_shell_large_output_truncated() -> None:
 # ---------------------------------------------------------------------------
 # ANSI stripping helper
 # ---------------------------------------------------------------------------
+
 
 def test_strip_ansi_plain_text_unchanged() -> None:
     from tinycua.agent.tools.native.shell import strip_ansi

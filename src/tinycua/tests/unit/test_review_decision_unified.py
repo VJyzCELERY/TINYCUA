@@ -18,7 +18,9 @@ class TestNeedsRevisionRejectedUnified:
         child1 = store1.create_task("Child", parent_id=root1.task_id)
         store1.transition(child1.task_id, TaskStatus.IN_PROGRESS)
         for _ in range(3):
-            store1.record_reviewer_decision(child1.task_id, ReviewerDecision.NEEDS_REVISION)
+            store1.record_reviewer_decision(
+                child1.task_id, ReviewerDecision.NEEDS_REVISION
+            )
         assert child1.consecutive_failures == 3
 
         # rejected

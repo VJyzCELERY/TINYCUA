@@ -206,7 +206,9 @@ def read_file(
         if offset is not None:
             offset = int(offset)
     except (TypeError, ValueError) as exc:
-        return {"error": f"Invalid line argument (start/offset must be integers): {exc}"}
+        return {
+            "error": f"Invalid line argument (start/offset must be integers): {exc}"
+        }
     result = _read_lines(path)
     if isinstance(result, dict):
         return result  # error dict
@@ -332,13 +334,17 @@ def _strategy_line_trimmed(content: str, old: str) -> list[tuple[int, int]]:
     if not norm_matches:
         return []
     # Map normalized positions back to original — approximate by line counting.
-    return _map_line_matches(content_lines, content_norm_lines, old_lines, norm_matches, content)
+    return _map_line_matches(
+        content_lines, content_norm_lines, old_lines, norm_matches, content
+    )
 
 
 def _strategy_whitespace_normalized(content: str, old: str) -> list[tuple[int, int]]:
     """Strategy 3: collapse runs of spaces/tabs to single space."""
+
     def normalize(s: str) -> str:
         return re.sub(r"[ \t]+", " ", s)
+
     old_norm = normalize(old)
     content_norm = normalize(content)
     norm_matches = _find_all(content_norm, old_norm)
@@ -357,12 +363,20 @@ def _strategy_indentation_flexible(content: str, old: str) -> list[tuple[int, in
     norm_matches = _find_all(content_norm, old_norm)
     if not norm_matches:
         return []
-    return _map_line_matches(content_lines, content_norm_lines, old_lines, norm_matches, content)
+    return _map_line_matches(
+        content_lines, content_norm_lines, old_lines, norm_matches, content
+    )
 
 
 def _strategy_escape_normalized(content: str, old: str) -> list[tuple[int, int]]:
     """Strategy 5: unescape common escape sequences in old_string."""
-    old_unescaped = old.replace("\\n", "\n").replace("\\t", "\t").replace("\\r", "\r").replace('\\"', '"').replace("\\'", "'")
+    old_unescaped = (
+        old.replace("\\n", "\n")
+        .replace("\\t", "\t")
+        .replace("\\r", "\r")
+        .replace('\\"', '"')
+        .replace("\\'", "'")
+    )
     if old_unescaped == old:
         return []  # no escapes to normalize — skip
     return _find_all(content, old_unescaped)
@@ -490,15 +504,22 @@ def _map_line_matches(
             pos_in_stripped = line_norm.find(stripped_old)
             if pos_in_stripped >= 0:
                 # Find the corresponding position in the original line.
-                orig_line_pos = _find_in_original_line(line_content, stripped_old, pos_in_stripped)
+                orig_line_pos = _find_in_original_line(
+                    line_content, stripped_old, pos_in_stripped
+                )
                 if orig_line_pos >= 0:
-                    orig_start = sum(len(content_lines[j]) + 1 for j in range(start_line)) + orig_line_pos
+                    orig_start = (
+                        sum(len(content_lines[j]) + 1 for j in range(start_line))
+                        + orig_line_pos
+                    )
                     orig_end = orig_start + len(old_lines[0])
         results.append((orig_start, orig_end))
     return results
 
 
-def _find_in_original_line(line: str, stripped_pattern: str, pos_in_stripped: int) -> int:
+def _find_in_original_line(
+    line: str, stripped_pattern: str, pos_in_stripped: int
+) -> int:
     """Find the position of stripped_pattern in the original (unstripped) line."""
     # For line-trimmed and indentation-flexible, the pattern's content
     # matches a contiguous region in the original line. Find it by
@@ -508,7 +529,9 @@ def _find_in_original_line(line: str, stripped_pattern: str, pos_in_stripped: in
         return idx
     # If exact find fails, try finding by content (ignoring leading ws).
     for i in range(len(line)):
-        if line[i:].startswith(stripped_pattern) or line[i:].lstrip().startswith(stripped_pattern):
+        if line[i:].startswith(stripped_pattern) or line[i:].lstrip().startswith(
+            stripped_pattern
+        ):
             return i
     return -1
 
@@ -555,10 +578,14 @@ def _fuzzy_find_and_replace(
             matched_text = content[start:end]
             matched_lines = matched_text.count("\n") + 1
             if matched_lines >= 2 * old_line_count + 3:
-                return content, 0, (
-                    f"Matched region ({matched_lines} lines) is disproportionately "
-                    f"larger than old_string ({old_line_count} lines). Provide more "
-                    f"context in old_string to narrow the match."
+                return (
+                    content,
+                    0,
+                    (
+                        f"Matched region ({matched_lines} lines) is disproportionately "
+                        f"larger than old_string ({old_line_count} lines). Provide more "
+                        f"context in old_string to narrow the match."
+                    ),
                 )
         # Apply replacements (work backwards to preserve positions).
         result = content
@@ -567,13 +594,21 @@ def _fuzzy_find_and_replace(
         return result, len(matches), None
     # FR-052: if any strategy found >1 matches, return a distinct actionable error.
     if max_multi_match > 1:
-        return content, 0, (
-            f"Found {max_multi_match} matches for old_string. Provide more "
-            f"context in old_string to disambiguate, or set replace_all=True "
-            f"to replace all {max_multi_match}."
+        return (
+            content,
+            0,
+            (
+                f"Found {max_multi_match} matches for old_string. Provide more "
+                f"context in old_string to disambiguate, or set replace_all=True "
+                f"to replace all {max_multi_match}."
+            ),
         )
     # All strategies found zero matches.
-    return content, 0, f"Could not find old_string in the file. Check for exact whitespace and indentation. Tried {len(_MATCH_STRATEGIES)} matching strategies."
+    return (
+        content,
+        0,
+        f"Could not find old_string in the file. Check for exact whitespace and indentation. Tried {len(_MATCH_STRATEGIES)} matching strategies.",
+    )
 
 
 @tool
@@ -928,6 +963,7 @@ def _iter_searchable_files(
             continue
         if file_glob:
             import fnmatch
+
             if not fnmatch.fnmatch(entry.name, file_glob):
                 continue
         results.append(entry)
@@ -985,7 +1021,10 @@ def _search_counts(
         for line in lines:
             if regex.search(line):
                 file_counts[str(filepath)] = file_counts.get(str(filepath), 0) + 1
-    result = [f"{fp}: {cnt} match{'es' if cnt != 1 else ''}" for fp, cnt in file_counts.items()]
+    result = [
+        f"{fp}: {cnt} match{'es' if cnt != 1 else ''}"
+        for fp, cnt in file_counts.items()
+    ]
     return result[offset : offset + limit]
 
 
@@ -1158,7 +1197,9 @@ def search_files(
             results = _search_files_by_name(resolved, pattern, limit, offset)
         else:
             files = _iter_searchable_files(resolved, file_glob)
-            results = _search_content(files, pattern, context, output_mode, limit, offset)
+            results = _search_content(
+                files, pattern, context, output_mode, limit, offset
+            )
 
         if not results:
             return ["No matches found."]
@@ -1167,5 +1208,12 @@ def search_files(
         return {"error": str(exc)}
 
 
-for _native_file_tool in (read_file, write_file, str_replace, append_file, list_files, search_files):
+for _native_file_tool in (
+    read_file,
+    write_file,
+    str_replace,
+    append_file,
+    list_files,
+    search_files,
+):
     bind_workspace_to_tool(_native_file_tool)

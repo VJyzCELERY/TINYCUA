@@ -20,7 +20,11 @@ def test_web_search_blank_query_returns_error_without_network() -> None:
     from tinycua.agent.tools.native.web_search import web_search
 
     result = web_search("   ")
-    assert result == {"success": False, "error": "query must not be blank", "results": []}
+    assert result == {
+        "success": False,
+        "error": "query must not be blank",
+        "results": [],
+    }
 
 
 def test_web_search_uses_env_var_url(httpx_mock) -> None:
@@ -60,8 +64,16 @@ def test_web_search_parses_results(httpx_mock) -> None:
         url="http://localhost:8080/search?q=python&format=json",
         json={
             "results": [
-                {"title": "Python", "url": "https://python.org", "content": "Python language"},
-                {"title": "PyPI", "url": "https://pypi.org", "content": "Package index"},
+                {
+                    "title": "Python",
+                    "url": "https://python.org",
+                    "content": "Python language",
+                },
+                {
+                    "title": "PyPI",
+                    "url": "https://pypi.org",
+                    "content": "Package index",
+                },
             ]
         },
     )
@@ -97,7 +109,9 @@ def test_web_search_max_results_limits_output(httpx_mock) -> None:
     httpx_mock.add_response(
         method="GET",
         url="http://localhost:8080/search?q=test&format=json",
-        json={"results": [{"title": str(i), "url": "", "content": ""} for i in range(10)]},
+        json={
+            "results": [{"title": str(i), "url": "", "content": ""} for i in range(10)]
+        },
     )
     from tinycua.agent.tools.native.web_search import web_search
 
@@ -137,7 +151,9 @@ def test_web_search_coerces_string_params(httpx_mock) -> None:
     httpx_mock.add_response(
         method="GET",
         url="http://localhost:8080/search?q=test&format=json",
-        json={"results": [{"title": str(i), "url": "", "content": ""} for i in range(10)]},
+        json={
+            "results": [{"title": str(i), "url": "", "content": ""} for i in range(10)]
+        },
     )
     from tinycua.agent.tools.native.web_search import web_search
 

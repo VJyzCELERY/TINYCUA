@@ -104,9 +104,7 @@ def main() -> int:
         for pattern, reason, ref in _FORBIDDEN_GUIDANCE_PATTERNS:
             if pattern.lower() in lower:
                 rel = path.relative_to(path.parent.parent).as_posix()
-                violations.append(
-                    f"- {rel}: {pattern!r}\n    {reason}\n    ref: {ref}"
-                )
+                violations.append(f"- {rel}: {pattern!r}\n    {reason}\n    ref: {ref}")
 
     if not violations:
         print("check_runtime_policy_guidance: no forbidden patterns found.")

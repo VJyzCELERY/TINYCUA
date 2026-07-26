@@ -254,9 +254,7 @@ def fetch_url(
             limit,
         )
     if not isinstance(max_size, int) or isinstance(max_size, bool) or max_size < 1:
-        return _error_result(
-            "max_size must be a positive integer", url, offset, limit
-        )
+        return _error_result("max_size must be a positive integer", url, offset, limit)
 
     # Add default User-Agent if not provided.
     req_headers = dict(headers or {})
@@ -275,7 +273,10 @@ def fetch_url(
                     follow_redirects=True,
                 )
                 # Retry on 429/5xx (transient server errors).
-                if response.status_code in {429, 500, 502, 503, 504} and attempt < _MAX_RETRIES:
+                if (
+                    response.status_code in {429, 500, 502, 503, 504}
+                    and attempt < _MAX_RETRIES
+                ):
                     import time
 
                     backoff = min(2**attempt, 10)
@@ -310,9 +311,7 @@ def fetch_url(
         except httpx.InvalidURL:
             return _error_result(f"Invalid URL: {url}", url, offset, limit)
         except httpx.HTTPError as exc:
-            last_error = _error_result(
-                f"HTTP error: {exc}", url, offset, limit
-            )
+            last_error = _error_result(f"HTTP error: {exc}", url, offset, limit)
             if attempt < _MAX_RETRIES:
                 import time
 

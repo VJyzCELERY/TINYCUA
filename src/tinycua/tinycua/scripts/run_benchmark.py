@@ -247,9 +247,7 @@ def run_full_benchmark(
 
         try:
             execution = agent.run_task(spec)
-            usage = agent.collect_usage(
-                task_id, task_dir, execution.elapsed_time
-            )
+            usage = agent.collect_usage(task_id, task_dir, execution.elapsed_time)
 
             status = "success" if execution.error is None else "failed"
             error_msg = execution.error

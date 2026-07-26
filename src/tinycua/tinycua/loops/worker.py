@@ -217,9 +217,7 @@ class TinyCUAWorkerNode(DecisionNode):
                     config=create_node_config("result_reviewer", self.config),
                 ),
             ]
-            queue.spawn_after_current(
-                spawned
-            )
+            queue.spawn_after_current(spawned)
             if digest is not None:
                 queue.set_input(
                     spawned[0],

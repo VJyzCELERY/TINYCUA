@@ -248,8 +248,7 @@ class TestHandleExhaustion:
         node._handle_exhaustion(validation, 2)
         assert node.session.session_context == []
         assert any(
-            "RETRY_EXHAUSTED" in item["message"]
-            for item in node.session.diagnostics
+            "RETRY_EXHAUSTED" in item["message"] for item in node.session.diagnostics
         )
 
     def test_route_failure_fallback(self):
@@ -267,8 +266,7 @@ class TestHandleExhaustion:
         # Should have recorded diagnostic failure as fallback.
         assert node.session.session_context == []
         assert any(
-            "RETRY_EXHAUSTED" in item["message"]
-            for item in node.session.diagnostics
+            "RETRY_EXHAUSTED" in item["message"] for item in node.session.diagnostics
         )
 
 

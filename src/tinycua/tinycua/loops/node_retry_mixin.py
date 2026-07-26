@@ -77,7 +77,10 @@ class NodeRetryMixin:
         while True:
             try:
                 return await self._call_agent_llm(
-                    agent, node, attempt_messages, attempt_tools,
+                    agent,
+                    node,
+                    attempt_messages,
+                    attempt_tools,
                 )
             except (asyncio.CancelledError, KeyboardInterrupt):
                 raise
@@ -88,13 +91,19 @@ class NodeRetryMixin:
                 suffix = ", aborting continuation" if break_on_error else ""
                 logger.warning(
                     "provider_error_retry node=%s attempt=%d retry=%d error=%s — forcing compaction%s",
-                    node.node_id, attempt, provider_retries_ref[0], str(exc)[:200], suffix,
+                    node.node_id,
+                    attempt,
+                    provider_retries_ref[0],
+                    str(exc)[:200],
+                    suffix,
                 )
                 await self._force_compact(node, agent)
                 if break_on_error:
                     return None  # caller breaks to next attempt
                 attempt_messages[:] = self._messages_with_retry_prompt(
-                    base_messages, retry_feedback, retry_message,
+                    base_messages,
+                    retry_feedback,
+                    retry_message,
                 )
 
     def _reset_progress_for_retry(self, node: Node) -> None:
@@ -206,8 +215,14 @@ class NodeRetryMixin:
             attempt_tools = self._attempt_tools(node, resolved_tools, retry_message)
             # FR-086: catch provider errors, force-compaction, and retry.
             raw_response = await self._call_llm_with_provider_retry(
-                agent, node, attempt, attempt_messages, attempt_tools,
-                base_messages, retry_feedback, retry_message,
+                agent,
+                node,
+                attempt,
+                attempt_messages,
+                attempt_tools,
+                base_messages,
+                retry_feedback,
+                retry_message,
                 provider_retries_ref,
             )
             last_result = LLMResult(
@@ -277,7 +292,9 @@ class NodeRetryMixin:
                 if last_result.reasoning:
                     assistant_msg["reasoning_content"] = last_result.reasoning
                 attempt_messages.append(assistant_msg)
-                self._append_tool_result_messages(attempt_messages, tool_results, normalized_tool_calls)
+                self._append_tool_result_messages(
+                    attempt_messages, tool_results, normalized_tool_calls
+                )
                 self._append_lifecycle_phase_directive(
                     attempt_messages, node, phase_before, attempt_tools
                 )
@@ -299,9 +316,16 @@ class NodeRetryMixin:
                 # (context overflow from accumulated tool results). On error,
                 # force-compaction and break to the next attempt.
                 raw_response = await self._call_llm_with_provider_retry(
-                    agent, node, attempt, attempt_messages, attempt_tools,
-                    base_messages, retry_feedback, retry_message,
-                    provider_retries_ref, break_on_error=True,
+                    agent,
+                    node,
+                    attempt,
+                    attempt_messages,
+                    attempt_tools,
+                    base_messages,
+                    retry_feedback,
+                    retry_message,
+                    provider_retries_ref,
+                    break_on_error=True,
                 )
                 if raw_response is None:
                     break  # provider error → next attempt rebuilds from compacted context
@@ -331,17 +355,21 @@ class NodeRetryMixin:
             last_validation = self._validate_node_result(node, last_result)
             if last_validation.is_valid:
                 return last_result, attempt, last_validation
-            action, last_result, last_validation, lazy_attempts, retry_context = (
-                await self._retry_invalid_attempt(
-                    node,
-                    agent,
-                    resolved_tools,
-                    last_result,
-                    last_validation,
-                    attempt,
-                    max_attempts,
-                    lazy_attempts,
-                )
+            (
+                action,
+                last_result,
+                last_validation,
+                lazy_attempts,
+                retry_context,
+            ) = await self._retry_invalid_attempt(
+                node,
+                agent,
+                resolved_tools,
+                last_result,
+                last_validation,
+                attempt,
+                max_attempts,
+                lazy_attempts,
             )
             if action == "return":
                 return last_result, attempt, last_validation

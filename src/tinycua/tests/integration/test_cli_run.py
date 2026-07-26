@@ -119,7 +119,9 @@ class TestCLIRunArgumentParsing:
         """--env specifies an env file path to load before resolving defaults."""
         from tinycua.cli.run import parse_args
 
-        args = parse_args(["--dir", str(tmp_path), "--env", str(tmp_path / ".env"), "build app"])
+        args = parse_args(
+            ["--dir", str(tmp_path), "--env", str(tmp_path / ".env"), "build app"]
+        )
         assert args.env_file == tmp_path / ".env"
 
     def test_run_defaults(self):
@@ -138,17 +140,26 @@ class TestCLIRunArgumentParsing:
         """Given all flags, they are parsed correctly."""
         from tinycua.cli.run import parse_args
 
-        args = parse_args([
-            "--timeout", "30",
-            "--dir", str(tmp_path),
-            "--provider-url", "http://localhost:8080/v1",
-            "--provider-type", "openai-responses",
-            "--api-key", "sk-test",
-            "--model", "llama-3-8b",
-            "--worker-effort", "high",
-            "--verbose",
-            "my task",
-        ])
+        args = parse_args(
+            [
+                "--timeout",
+                "30",
+                "--dir",
+                str(tmp_path),
+                "--provider-url",
+                "http://localhost:8080/v1",
+                "--provider-type",
+                "openai-responses",
+                "--api-key",
+                "sk-test",
+                "--model",
+                "llama-3-8b",
+                "--worker-effort",
+                "high",
+                "--verbose",
+                "my task",
+            ]
+        )
         assert args.prompt == "my task"
         assert args.timeout == 30
         assert args.dir == tmp_path
@@ -167,11 +178,14 @@ class TestCLIRunConfigLoading:
         """Given env vars, config is loaded correctly."""
         from tinycua.cli.config import load_config
 
-        with patch.dict("os.environ", {
-            "TINYCUA_BASE_URL": "http://env-host:8080/v1",
-            "TINYCUA_API_KEY": "env-key",
-            "TINYCUA_MODEL": "env-model",
-        }):
+        with patch.dict(
+            "os.environ",
+            {
+                "TINYCUA_BASE_URL": "http://env-host:8080/v1",
+                "TINYCUA_API_KEY": "env-key",
+                "TINYCUA_MODEL": "env-model",
+            },
+        ):
             config = load_config(base_url=None, api_key=None, model=None)
             assert config["base_url"] == "http://env-host:8080/v1"
             assert config["api_key"] == "env-key"
@@ -181,10 +195,13 @@ class TestCLIRunConfigLoading:
         """Given both env vars and CLI flags, CLI flags win."""
         from tinycua.cli.config import load_config
 
-        with patch.dict("os.environ", {
-            "TINYCUA_BASE_URL": "http://env-host:8080/v1",
-            "TINYCUA_API_KEY": "env-key",
-        }):
+        with patch.dict(
+            "os.environ",
+            {
+                "TINYCUA_BASE_URL": "http://env-host:8080/v1",
+                "TINYCUA_API_KEY": "env-key",
+            },
+        ):
             config = load_config(
                 base_url="http://cli-host:9090/v1",
                 api_key="cli-key",
@@ -205,9 +222,13 @@ class TestCLIRunConfigLoading:
         """Given no api_key in env or CLI, raises ValueError."""
         from tinycua.cli.config import load_config
 
-        with patch.dict("os.environ", {
-            "TINYCUA_BASE_URL": "http://localhost:8080/v1",
-        }, clear=True):
+        with patch.dict(
+            "os.environ",
+            {
+                "TINYCUA_BASE_URL": "http://localhost:8080/v1",
+            },
+            clear=True,
+        ):
             with pytest.raises(ValueError, match="api_key"):
                 load_config(base_url=None, api_key=None, model=None)
 
@@ -237,37 +258,42 @@ class TestCLIRunExitCodes:
         mock_agent.loop = mock_loop
 
         mock_run_streaming = MagicMock(return_value="stream-coro")
-        with patch("tinycua.cli.run.create_tinycua_agent", return_value=mock_agent), \
-             patch("tinycua.cli.run.run_streaming", new=mock_run_streaming), \
-             patch("tinycua.cli.run._run_async_safely", return_value="done"), \
-             patch("tinycua.cli.run.load_config", return_value={
-                 "base_url": "http://localhost:8080/v1",
-                 "api_key": "test",
-                 "model": "test-model",
-                 "provider_type": "openai-chat-completions",
-             }):
-                exit_code = run_command(
-                    prompt="test task",
-                    dir=tmp_path,
-                    provider_url=None,
-                    provider_type=None,
-                    api_key=None,
-                    model=None,
-                    worker_effort="medium",
-                    timeout=10,
-                    verbose=False,
-                    env_file=None,
-                    save_artifacts=True,
-                )
-                assert exit_code == 0
-                artifact_dir = tmp_path / ".tinycua-artifacts"
-                assert (artifact_dir / "execution_trace.json").exists()
-                assert (artifact_dir / "state_snapshot.json").exists()
-                assert (artifact_dir / "task_tree.json").exists()
-                assert (artifact_dir / "task_tree.txt").exists()
-                assert (artifact_dir / "transcript.txt").exists()
-                assert (artifact_dir / "transcript_events.json").exists()
-                assert (artifact_dir / "final_response_events.json").exists()
+        with (
+            patch("tinycua.cli.run.create_tinycua_agent", return_value=mock_agent),
+            patch("tinycua.cli.run.run_streaming", new=mock_run_streaming),
+            patch("tinycua.cli.run._run_async_safely", return_value="done"),
+            patch(
+                "tinycua.cli.run.load_config",
+                return_value={
+                    "base_url": "http://localhost:8080/v1",
+                    "api_key": "test",
+                    "model": "test-model",
+                    "provider_type": "openai-chat-completions",
+                },
+            ),
+        ):
+            exit_code = run_command(
+                prompt="test task",
+                dir=tmp_path,
+                provider_url=None,
+                provider_type=None,
+                api_key=None,
+                model=None,
+                worker_effort="medium",
+                timeout=10,
+                verbose=False,
+                env_file=None,
+                save_artifacts=True,
+            )
+            assert exit_code == 0
+            artifact_dir = tmp_path / ".tinycua-artifacts"
+            assert (artifact_dir / "execution_trace.json").exists()
+            assert (artifact_dir / "state_snapshot.json").exists()
+            assert (artifact_dir / "task_tree.json").exists()
+            assert (artifact_dir / "task_tree.txt").exists()
+            assert (artifact_dir / "transcript.txt").exists()
+            assert (artifact_dir / "transcript_events.json").exists()
+            assert (artifact_dir / "final_response_events.json").exists()
 
     def test_exit_code_1_on_error(self, tmp_path):
         """Given an agent crash, exit code is 1."""
@@ -276,12 +302,15 @@ class TestCLIRunExitCodes:
         with patch("tinycua.cli.run.create_tinycua_agent") as mock_factory:
             mock_factory.side_effect = RuntimeError("endpoint unreachable")
 
-            with patch("tinycua.cli.run.load_config", return_value={
-                "base_url": "http://localhost:8080/v1",
-                "api_key": "test",
-                "model": "test-model",
-                "provider_type": "openai-chat-completions",
-            }):
+            with patch(
+                "tinycua.cli.run.load_config",
+                return_value={
+                    "base_url": "http://localhost:8080/v1",
+                    "api_key": "test",
+                    "model": "test-model",
+                    "provider_type": "openai-chat-completions",
+                },
+            ):
                 exit_code = run_command(
                     prompt="test task",
                     dir=tmp_path,
@@ -305,15 +334,23 @@ class TestCLIRunExitCodes:
             mock_agent = MagicMock()
             mock_factory.return_value = mock_agent
 
-            with patch("tinycua.cli.run.load_config", return_value={
-                "base_url": "http://localhost:8080/v1",
-                "api_key": "test",
-                "model": "test-model",
-                "provider_type": "openai-chat-completions",
-            }):
+            with patch(
+                "tinycua.cli.run.load_config",
+                return_value={
+                    "base_url": "http://localhost:8080/v1",
+                    "api_key": "test",
+                    "model": "test-model",
+                    "provider_type": "openai-chat-completions",
+                },
+            ):
                 mock_run_streaming = MagicMock(return_value="stream-coro")
-                with patch("tinycua.cli.run.run_streaming", new=mock_run_streaming), \
-                     patch("tinycua.cli.run._run_async_safely", side_effect=asyncio.CancelledError):
+                with (
+                    patch("tinycua.cli.run.run_streaming", new=mock_run_streaming),
+                    patch(
+                        "tinycua.cli.run._run_async_safely",
+                        side_effect=asyncio.CancelledError,
+                    ),
+                ):
                     exit_code = run_command(
                         prompt="test task",
                         dir=tmp_path,
@@ -384,7 +421,11 @@ class TestCLIRunMainDispatch:
             text=True,
         )
         # Should exit with 0 (help displayed) or show usage
-        assert result.returncode == 0 or "usage" in result.stderr.lower() or "usage" in result.stdout.lower()
+        assert (
+            result.returncode == 0
+            or "usage" in result.stderr.lower()
+            or "usage" in result.stdout.lower()
+        )
 
     def test_main_run_subcommand_dispatches(self):
         """Given 'run' subcommand, main dispatches to run_command."""

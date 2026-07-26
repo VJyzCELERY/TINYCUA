@@ -225,7 +225,9 @@ class SmokeTaskSelector:
                     category=task_def["category"],
                     prompt=task_def["prompt"],
                     timeout_seconds=task_def["timeout_seconds"],
-                    workspace_path=self._output_base / "workspace" / task_def["task_id"],
+                    workspace_path=self._output_base
+                    / "workspace"
+                    / task_def["task_id"],
                     output_dir=self._output_base / "output" / task_def["task_id"],
                     dependencies=deps,
                 )
@@ -277,7 +279,15 @@ def categorize_failure(
         return "missing_dependency"
 
     # LLM error detection
-    llm_keywords = ["llm", "model", "api", "openai", "connection", "endpoint", "unreachable"]
+    llm_keywords = [
+        "llm",
+        "model",
+        "api",
+        "openai",
+        "connection",
+        "endpoint",
+        "unreachable",
+    ]
     if any(kw in error_str for kw in llm_keywords):
         return "llm_error"
     if isinstance(error, (ConnectionError, OSError)):
@@ -344,9 +354,7 @@ class SmokeReportGenerator:
                     "usage": r.usage,
                     "failure_reason": r.failure_reason,
                     "failure_category": r.failure_category,
-                    "artifact_paths": {
-                        k: str(v) for k, v in r.artifact_paths.items()
-                    },
+                    "artifact_paths": {k: str(v) for k, v in r.artifact_paths.items()},
                 }
                 for r in report.results
             ],
@@ -486,15 +494,20 @@ class SmokeRunOrchestrator:
         )
         tasks = selector.select()
 
-        logger.info("Selected %d smoke tasks across %d categories",
-                     len(tasks), len({t.category for t in tasks}))
+        logger.info(
+            "Selected %d smoke tasks across %d categories",
+            len(tasks),
+            len({t.category for t in tasks}),
+        )
 
         results: list[SmokeResult] = []
 
         for task in tasks:
             result = self._execute_task(task)
             results.append(result)
-            logger.info("Task %s: %s (%.1fs)", task.task_id, result.status, result.elapsed_time)
+            logger.info(
+                "Task %s: %s (%.1fs)", task.task_id, result.status, result.elapsed_time
+            )
 
         # Build report
         report = self._build_report(results)
@@ -582,7 +595,8 @@ class SmokeRunOrchestrator:
                     status="fail",
                     elapsed_time=elapsed,
                     usage=usage,
-                    failure_reason=execution.stderr or f"Exit code {execution.returncode}",
+                    failure_reason=execution.stderr
+                    or f"Exit code {execution.returncode}",
                     failure_category=failure_cat,
                     artifact_paths=artifact_paths,
                 )
@@ -945,12 +959,16 @@ def smoke_run_command(
         Exit code: 0 success, 1 error.
     """
     if verbose:
-        logging.basicConfig(level=logging.DEBUG, format="%(name)s %(levelname)s: %(message)s")
+        logging.basicConfig(
+            level=logging.DEBUG, format="%(name)s %(levelname)s: %(message)s"
+        )
     else:
         logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
     resolved_model = model or os.environ.get("TINYCUA_MODEL", "llama3")
-    resolved_base_url = base_url or os.environ.get("TINYCUA_BASE_URL", "http://localhost:8000")
+    resolved_base_url = base_url or os.environ.get(
+        "TINYCUA_BASE_URL", "http://localhost:8000"
+    )
     resolved_api_key = api_key or os.environ.get("TINYCUA_API_KEY", "")
 
     orchestrator = SmokeRunOrchestrator(
@@ -998,11 +1016,13 @@ def _print_summary(report: SmokeReport) -> None:
         print("  CATEGORY BREAKDOWN")
         print("  " + "-" * 56)
         for cat, counts in report.category_summary.items():
-            print(f"    {cat}: "
-                  f"{counts.get('pass', 0)} pass, "
-                  f"{counts.get('fail', 0)} fail, "
-                  f"{counts.get('skip', 0)} skip, "
-                  f"{counts.get('timeout', 0)} timeout")
+            print(
+                f"    {cat}: "
+                f"{counts.get('pass', 0)} pass, "
+                f"{counts.get('fail', 0)} fail, "
+                f"{counts.get('skip', 0)} skip, "
+                f"{counts.get('timeout', 0)} timeout"
+            )
         print()
 
     if report.failure_taxonomy:

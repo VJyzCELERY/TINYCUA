@@ -114,15 +114,11 @@ class TinyCUATaskCreateNode(ProcessNode):
 
         if content.advisory_instructions:
             parts.append("Advisory Instructions:")
-            parts.extend(
-                f"  - {advice}" for advice in content.advisory_instructions
-            )
+            parts.extend(f"  - {advice}" for advice in content.advisory_instructions)
 
         if content.constraints:
             parts.append("Constraints:")
-            parts.extend(
-                f"  - {constraint}" for constraint in content.constraints
-            )
+            parts.extend(f"  - {constraint}" for constraint in content.constraints)
 
         if content.known_gaps:
             parts.append("Known Gaps:")

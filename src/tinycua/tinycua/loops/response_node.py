@@ -103,7 +103,9 @@ class ResponseNode(ProcessNode):
         if isinstance(input, NodeInput) and input.metadata.get("original_query"):
             system = self.build_system_message(resolved_tools)
             messages = [system] if system.get("content") else []
-            messages.append({"role": "user", "content": str(input.metadata["original_query"])})
+            messages.append(
+                {"role": "user", "content": str(input.metadata["original_query"])}
+            )
             return messages
         return super().build_messages(session, input, resolved_tools)
 

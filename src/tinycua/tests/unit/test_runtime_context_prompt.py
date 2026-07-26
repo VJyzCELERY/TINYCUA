@@ -272,7 +272,9 @@ def test_agents_md_snapshot_read_at_most_once(tmp_path) -> None:
     assert node.session.agents_md_snapshot == "rule v1"
 
 
-def test_agents_md_section_appears_between_instruction_and_runtime_context(tmp_path) -> None:
+def test_agents_md_section_appears_between_instruction_and_runtime_context(
+    tmp_path,
+) -> None:
     """AGENTS.md is a static fragment after the node instruction, before runtime context."""
     from pathlib import Path
 

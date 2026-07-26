@@ -221,9 +221,7 @@ def test_summary_all_json_written(tmp_path):
         "cost": 0.0,
     }
 
-    with patch(
-        "tinycua.scripts.run_benchmark.TinyCUAAgent", mock_agent_class
-    ):
+    with patch("tinycua.scripts.run_benchmark.TinyCUAAgent", mock_agent_class):
         # Run with just 2 tasks to keep it fast
         run_full_benchmark(config, tmp_path, tasks=["t1", "t2"])
 
@@ -306,9 +304,7 @@ def test_task_artifacts_preserved(tmp_path):
         "cost": 0.0,
     }
 
-    with patch(
-        "tinycua.scripts.run_benchmark.TinyCUAAgent", mock_agent_class
-    ):
+    with patch("tinycua.scripts.run_benchmark.TinyCUAAgent", mock_agent_class):
         run_full_benchmark(config, tmp_path, tasks=["t1"])
 
     # Check task output dir exists with artifacts

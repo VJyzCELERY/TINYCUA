@@ -30,8 +30,8 @@ import hashlib
 import json
 from pathlib import Path
 
-_PERSIST_THRESHOLD = 100_000      # persist a single result above this
-_PREVIEW_CHARS = 4_000            # preview kept in-message when persisted
+_PERSIST_THRESHOLD = 100_000  # persist a single result above this
+_PREVIEW_CHARS = 4_000  # preview kept in-message when persisted
 # Safety-net ceiling only — NOT a tight budget. Normal operation should never
 # hit this; it exists so a pathological runaway (e.g. a model reading 100
 # distinct large files in one node attempt) can't OOM the prompt. Set high so
@@ -41,7 +41,9 @@ _TURN_SAFETY_NET = 200_000
 # Tools that operate on a file path and whose older results are superseded by
 # a newer result for the same path. read_file/edit_file/write_file on path X
 # are stale once a newer read/edit/write of X exists — the file changed.
-_FILE_PATH_TOOLS = frozenset({"read_file", "str_replace", "append_file", "write_file", "search_files"})
+_FILE_PATH_TOOLS = frozenset(
+    {"read_file", "str_replace", "append_file", "write_file", "search_files"}
+)
 _MUTATION_TOOLS = frozenset({"str_replace", "append_file", "write_file"})
 
 # ponytail: write to ./tmp/tool-results/ (gitignored, repo-local). Per-session
@@ -207,7 +209,9 @@ def evict_superseded_file_reads(tool_messages: list[dict]) -> list[dict]:
     # without the assistant messages — the caller must pass the full
     # attempt_messages list (assistant + tool messages interleaved).
     # Detect: if there are no assistant messages here, we can't map; bail.
-    has_assistant = any(m.get("role") == "assistant" and m.get("tool_calls") for m in tool_messages)
+    has_assistant = any(
+        m.get("role") == "assistant" and m.get("tool_calls") for m in tool_messages
+    )
     if not has_assistant:
         return tool_messages
 
@@ -240,7 +244,9 @@ def evict_superseded_file_reads(tool_messages: list[dict]) -> list[dict]:
         if latest is not None and i < latest:
             original = str(msg.get("content", ""))
             tool_name = str(msg.get("name") or "tool")
-            msg["content"] = _stub_content(original, tool_name, reason="superseded by newer read of same file")
+            msg["content"] = _stub_content(
+                original, tool_name, reason="superseded by newer read of same file"
+            )
     return tool_messages
 
 
@@ -302,7 +308,9 @@ def enforce_turn_budget(
         if not original:
             continue
         tool_name = str(msg.get("name") or "tool")
-        msg["content"] = _stub_content(original, tool_name, reason="safety-net overflow")
+        msg["content"] = _stub_content(
+            original, tool_name, reason="safety-net overflow"
+        )
         total -= len(original) - len(msg["content"])
     return tool_messages
 
@@ -310,6 +318,7 @@ def enforce_turn_budget(
 # ---------------------------------------------------------------------------
 # Self-check
 # ---------------------------------------------------------------------------
+
 
 def _self_check() -> None:
     """Verify persist + staleness eviction + safety net. Not a test suite."""
@@ -330,16 +339,64 @@ def _self_check() -> None:
 
     msgs = [
         # assistant tool_calls mapping ids → path
-        {"role": "assistant", "content": "", "tool_calls": [
-            {"id": "r1", "function": {"name": "read_file", "arguments": _json.dumps({"path": "api.py"})}},
-            {"id": "r2", "function": {"name": "read_file", "arguments": _json.dumps({"path": "api.py"})}},
-            {"id": "r3", "function": {"name": "read_file", "arguments": _json.dumps({"path": "api.py"})}},
-            {"id": "o1", "function": {"name": "read_file", "arguments": _json.dumps({"path": "other.py"})}},
-        ]},
-        {"role": "tool", "tool_call_id": "r1", "name": "read_file", "content": "X" * 5_000},
-        {"role": "tool", "tool_call_id": "r2", "name": "read_file", "content": "Y" * 5_000},
-        {"role": "tool", "tool_call_id": "r3", "name": "read_file", "content": "Z" * 5_000},
-        {"role": "tool", "tool_call_id": "o1", "name": "read_file", "content": "W" * 5_000},
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "r1",
+                    "function": {
+                        "name": "read_file",
+                        "arguments": _json.dumps({"path": "api.py"}),
+                    },
+                },
+                {
+                    "id": "r2",
+                    "function": {
+                        "name": "read_file",
+                        "arguments": _json.dumps({"path": "api.py"}),
+                    },
+                },
+                {
+                    "id": "r3",
+                    "function": {
+                        "name": "read_file",
+                        "arguments": _json.dumps({"path": "api.py"}),
+                    },
+                },
+                {
+                    "id": "o1",
+                    "function": {
+                        "name": "read_file",
+                        "arguments": _json.dumps({"path": "other.py"}),
+                    },
+                },
+            ],
+        },
+        {
+            "role": "tool",
+            "tool_call_id": "r1",
+            "name": "read_file",
+            "content": "X" * 5_000,
+        },
+        {
+            "role": "tool",
+            "tool_call_id": "r2",
+            "name": "read_file",
+            "content": "Y" * 5_000,
+        },
+        {
+            "role": "tool",
+            "tool_call_id": "r3",
+            "name": "read_file",
+            "content": "Z" * 5_000,
+        },
+        {
+            "role": "tool",
+            "tool_call_id": "o1",
+            "name": "read_file",
+            "content": "W" * 5_000,
+        },
     ]
     evict_superseded_file_reads(msgs)
     # r1, r2 stubbed (superseded by r3 for same path api.py)
@@ -353,7 +410,12 @@ def _self_check() -> None:
 
     # Safety net: only fires at very high total (200K). Under it → no trimming.
     small_msgs = [
-        {"role": "tool", "tool_call_id": f"t{i}", "name": "run_shell", "content": "X" * 1_000}
+        {
+            "role": "tool",
+            "tool_call_id": f"t{i}",
+            "name": "run_shell",
+            "content": "X" * 1_000,
+        }
         for i in range(10)
     ]  # 10K total — well under 200K
     enforce_turn_budget(small_msgs)

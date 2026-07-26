@@ -51,8 +51,10 @@ def normalize_tool_outcome(
     success = not (
         result.get("allowed") is False
         or bool(error)
-        or isinstance(exit_code, int) and exit_code != 0
-        or isinstance(details, dict) and details.get("success") is False
+        or isinstance(exit_code, int)
+        and exit_code != 0
+        or isinstance(details, dict)
+        and details.get("success") is False
     )
     return {
         "call_id": str(tool_call.get("id") or result.get("call_id") or ""),
@@ -65,6 +67,7 @@ def normalize_tool_outcome(
         "hash": sha256(rendered.encode()).hexdigest(),
         "truncated": len(raw_content) > len(rendered),
     }
+
 
 class TraceStateMixin:
     """Mixin extracted from TinyCUALoop for modularity."""
@@ -80,7 +83,11 @@ class TraceStateMixin:
             # File path artifacts from write_file / edit_file
             if name in {"write_file", "str_replace", "append_file"}:
                 output = item.get("output")
-                if isinstance(output, dict) and output.get("success") is True and output.get("path"):
+                if (
+                    isinstance(output, dict)
+                    and output.get("success") is True
+                    and output.get("path")
+                ):
                     artifacts.append(
                         {
                             "path": str(output["path"]),
@@ -167,8 +174,14 @@ class TraceStateMixin:
     ) -> None:
         """Record bounded transcript events for executed tool inputs and results."""
         for index, tool_result in enumerate(tool_results):
-            tool_call = (tool_calls or [])[index] if tool_calls and index < len(tool_calls) else {}
-            function = tool_call.get("function", {}) if isinstance(tool_call, dict) else {}
+            tool_call = (
+                (tool_calls or [])[index]
+                if tool_calls and index < len(tool_calls)
+                else {}
+            )
+            function = (
+                tool_call.get("function", {}) if isinstance(tool_call, dict) else {}
+            )
             arguments = function.get("arguments", tool_call.get("arguments", {}))
             if isinstance(arguments, str):
                 try:
@@ -246,7 +259,8 @@ class TraceStateMixin:
             # FR-074: clear prior output entries from this node to prevent
             # duplication on recovery re-runs.
             node.session.session_context = [
-                entry for entry in node.session.session_context
+                entry
+                for entry in node.session.session_context
                 if not (
                     getattr(entry, "segment", None) == "output"
                     and getattr(entry, "source_node_id", None) == node.node_id
@@ -273,16 +287,25 @@ class TraceStateMixin:
         return llm_result
 
     def _successful_executor_action_results(
-        self, tool_results: list[dict[str, Any]],
+        self,
+        tool_results: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
         """Return successful non-state tool results that can guide continuation."""
         action_or_research_tools = {
-            "write_file", "str_replace", "append_file", "run_shell", "run_python",
-            "fetch_url", "web_search",
+            "write_file",
+            "str_replace",
+            "append_file",
+            "run_shell",
+            "run_python",
+            "fetch_url",
+            "web_search",
         }
         useful = []
         for item in tool_results:
-            if not isinstance(item, dict) or item.get("name") not in action_or_research_tools:
+            if (
+                not isinstance(item, dict)
+                or item.get("name") not in action_or_research_tools
+            ):
                 continue
             output = item.get("output")
             if isinstance(output, dict) and output.get("success") is False:
@@ -297,7 +320,8 @@ class TraceStateMixin:
         return useful
 
     def _successful_executor_inspection_results(
-        self, tool_results: list[dict[str, Any]],
+        self,
+        tool_results: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
         """Return successful read-only executor evidence usable for retry."""
         useful = []
