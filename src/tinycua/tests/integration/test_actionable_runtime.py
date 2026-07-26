@@ -13,6 +13,21 @@ from tinycua.factory import create_tinycua_agent
 from tinycua.loops.node import NodeExecutionError
 
 
+def _digest_commit_response() -> dict:
+    """Return a fixture-neutral successful Digester commit."""
+    return {
+        "content": "",
+        "tool_calls": [
+            {
+                "function": {
+                    "name": "digest_information",
+                    "arguments": '{"context_summary":"Relevant context was gathered."}',
+                }
+            }
+        ],
+    }
+
+
 def _patch_queue_factory_to_raise_on_task_create(agent) -> None:
     """Patch agent.loop.queue_factory so task_create raises fast on exhaustion.
 
@@ -98,11 +113,11 @@ class AppCreationScript:
                     }
                 ],
             }
-        if "digest_information" in tool_names:
-            return {
-                "content": '{"context_summary":"Create a tiny Python app"}',
-                "tool_calls": [],
-            }
+        if (
+            "digest_information" in tool_names
+            and "final_response_synthesis" not in tool_names
+        ):
+            return _digest_commit_response()
         if "task_init" in tool_names:
             if any(
                 message.get("role") == "tool"
@@ -307,6 +322,11 @@ class PlannerOnlyScript:
                     }
                 ],
             }
+        if (
+            "digest_information" in tool_names
+            and "final_response_synthesis" not in tool_names
+        ):
+            return _digest_commit_response()
         return {"content": self.planner_text, "tool_calls": []}
 
 
@@ -339,6 +359,11 @@ class PromptEchoScript:
                     }
                 ],
             }
+        if (
+            "digest_information" in tool_names
+            and "final_response_synthesis" not in tool_names
+        ):
+            return _digest_commit_response()
         return {
             "content": "\n\n".join(
                 str(message.get("content", ""))

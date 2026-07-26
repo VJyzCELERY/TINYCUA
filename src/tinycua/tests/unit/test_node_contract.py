@@ -154,6 +154,12 @@ class TestNodeContract:
         assert contract.required_tools == frozenset({"select_worker_route"})
         assert contract.requires_terminate is False
 
+    def test_digester_contract(self):
+        contract = get_node_contract("digester")
+        assert contract.required_tools == frozenset({"digest_information"})
+        assert contract.requires_terminate is True
+        assert contract.early_stop_tool == "digest_information"
+
     def test_unknown_node_gets_empty_contract(self):
         contract = get_node_contract("unknown_node")
         assert contract.required_tools == frozenset()
@@ -204,6 +210,7 @@ class TestTerminatedNodeIds:
         assert "task_assessor" in ids
         assert "task_executor" in ids
         assert "result_reviewer" in ids
+        assert "digester" in ids
 
     def test_excludes_non_lifecycle_nodes(self):
         ids = terminated_node_ids()

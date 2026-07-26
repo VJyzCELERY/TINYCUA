@@ -52,6 +52,8 @@ class _RouteMatrixScript:
         self._bad_emitted: set[str] = set()
 
     def _detect_node(self, tool_names: set[str]) -> str:
+        if "final_response_synthesis" in tool_names:
+            return "response"
         if "select_query_route" in tool_names:
             return "query_analyst"
         if "select_worker_route" in tool_names:
@@ -189,7 +191,7 @@ class _RouteMatrixScript:
                     {
                         "function": {
                             "name": "digest_information",
-                            "arguments": '{"information":"Build a note-taking app."}',
+                            "arguments": '{"context_summary":"Relevant context was gathered."}',
                         }
                     }
                 ],

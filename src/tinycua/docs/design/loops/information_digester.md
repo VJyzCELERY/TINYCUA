@@ -31,6 +31,9 @@ or reuse the suspended parent/root session. Specific rules:
 
 - **Fresh session**: Digester creates a new session with its own `session_id`. It
   does not copy or inherit the parent `session_id` or root session.
+- **Stable run context**: The child session inherits the root date, environment,
+  project-instruction snapshots, and shared runtime state so every node in one run
+  uses the same authoritative context.
 - **Selected input only**: Digester receives only the selected `NodeInput` messages
   from the parent. It does not receive the full parent `session_context`.
 - **Lazy context access**: Digester accesses root/parent context lazily through
@@ -44,10 +47,9 @@ or reuse the suspended parent/root session. Specific rules:
 
 ## Outputs / State Produced
 
-- Digested information for downstream consumption (WorkerNode or ResponseNode).
-- If no useful context is found, returns/propagates a continuation-style fallback:
-  "the user asked `<user_query>`, no useful extra information was found, so downstream
-  should proceed with the user request and plan carefully before action."
+- Structured `DigestedInformation` for downstream consumption (WorkerNode or
+  ResponseNode), built from the successful `digest_information` tool result.
+- The original user query is attached by the runtime rather than repeated by the model.
 
 ## Tools
 
@@ -57,6 +59,11 @@ or reuse the suspended parent/root session. Specific rules:
 | `enhanced_context_retrieval` | Search scoped session context. |
 | `web_search` / `fetch_url` | Resolve remaining material external uncertainty. |
 | `digest_information` | Produce structured digested information. |
+
+`digest_information` is the Digester's required commit. Exploration tools remain
+optional, but an exploratory tool result cannot complete the node by itself. The
+runtime returns that result to the model for another turn. A successful structured
+digest commit completes the node directly.
 
 ### Information Priority
 
@@ -76,25 +83,11 @@ a limited ReAct-style search over that cache:
 - The cache contains only selected context for that session/tool call.
 - Search/read tools are limited to grep/search within the cache and paginated cache reads.
 
-## Fallback Behavior
-
-When no useful context is found:
-
-```text
-Fallback continuation:
-  "The user asked <user_query>. No useful extra information was found.
-   Downstream should proceed with the user request and plan carefully
-   before action."
-```
-
-This fallback is propagated as a continuation prompt to ensure downstream nodes
-(WorkerNode or ResponseNode) are aware that no additional context was found and
-should proceed with the original request.
-
 ## Queue Behavior / `on_complete()`
 
 ```text
 InformationDigester completes:
+  → Require a successful digest_information commit.
   → Propagate digested output to parent node's session via selected-output
     propagation rule.
   → Advance queue; parent node resumes.
@@ -113,9 +106,9 @@ InformationDigester completes:
 
 ## Failure / Retry Behavior
 
-Retry according to `NodeRetryPolicy`. Digest failure may prevent WorkerNode from
-having sufficient context for routing decisions, or ResponseNode from having
-sufficient context for final synthesis.
+Retry according to `NodeRetryPolicy`. Missing or failed digest commits do not advance
+the queue. Digest failure may prevent WorkerNode from having sufficient context for
+routing decisions, or ResponseNode from having sufficient context for final synthesis.
 
 ## Related Config
 

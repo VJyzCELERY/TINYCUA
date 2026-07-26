@@ -4,14 +4,12 @@ from __future__ import annotations
 
 import json
 import logging
-import uuid
 from typing import TYPE_CHECKING
 
 from tinycua.loops.context_rendering import clean_context_enhanced_query
 from tinycua.loops._input_messages import extract_user_query
 from tinycua.loops.node import ProcessNode
 from tinycua.models.digested_information import DigestedInformation
-from tinycua.models.session import Session
 
 if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
@@ -35,10 +33,10 @@ _DIGESTER_INSTRUCTION = (
     "prefer authoritative sources appropriate to the claim. Stop once planning "
     "has enough reliable context; leave execution downstream. After gathering "
     "context, call digest_information with a concise summary of what you "
-    "found: key points, constraints, advisory notes, and known gaps. "
-    "Structure your output as context first, then the original query — "
-    "your context_summary and key_points travel with the mission so every "
-    "downstream node sees them. Do NOT write code, produce solutions, or "
+    "found: context_summary, key_points, constraints, advisory notes, and "
+    "known gaps. The runtime preserves the original query separately. Your "
+    "structured context travels with the mission so every downstream node "
+    "sees it. Do NOT write code, produce solutions, or "
     "attempt the task itself."
 )
 _DIGESTER_CONTINUATION = (
@@ -47,9 +45,9 @@ _DIGESTER_CONTINUATION = (
     "(2) existing session context via enhanced_context_retrieval, (3) external "
     "research via web_search if "
     "material facts remain uncertain. Honor the requested timeframe and stop "
-    "when planning has enough reliable context. Then call digest_information with your findings, "
-    "structured as context first (summary + key points) then the original "
-    "query. Do NOT attempt to solve, write, or execute the request — your "
+    "when planning has enough reliable context. Then call digest_information "
+    "with a structured summary of your findings. The runtime preserves the "
+    "original query. Do NOT attempt to solve, write, or execute the request — your "
     "output is context for downstream planning, not a solution."
 )
 
@@ -61,7 +59,7 @@ class TinyCUAInformationDigesterNode(ProcessNode):
     ResponseNode via suspend_current_and_prepend.
 
     Key behaviors:
-    - Creates fresh node session (does not inherit parent)
+    - Creates a fresh scoped child session
     - Receives selected QueryAnalyst session context via NodeInput
     - Produces DigestedInformation output
     - Propagates to parent (WorkerNode) session_context via
@@ -121,14 +119,36 @@ class TinyCUAInformationDigesterNode(ProcessNode):
         response: LLMResult,
         input_data: NodeInputLike | None,
     ) -> DigestedInformation:
-        """Parse loop-owned LLM output into DigestedInformation."""
-        original_query = self._extract_original_query(input_data or "")
-        self._current_digest = self._parse_digest_response(
-            response.content,
-            original_query,
-        )
+        """Parse the successful digest commit into DigestedInformation."""
+        original_query = self._extract_original_query(input_data)
+        self._current_digest = self._digest_from_tool_result(response, original_query)
+        if self._current_digest is None:
+            msg = "Digester completed without a successful digest_information result."
+            raise RuntimeError(msg)
         self.propagate()
         return self._current_digest
+
+    @staticmethod
+    def _digest_from_tool_result(
+        response: LLMResult,
+        original_query: str,
+    ) -> DigestedInformation | None:
+        """Return the latest successful structured digest tool result."""
+        for item in reversed(response.metadata.get("tool_results", [])):
+            if not isinstance(item, dict) or item.get("name") != "digest_information":
+                continue
+            output = item.get("output")
+            if not isinstance(output, dict) or output.get("success") is not True:
+                continue
+            return DigestedInformation(
+                context_summary=str(output.get("context_summary", "")),
+                original_query=original_query,
+                key_points=list(output.get("key_points", [])),
+                advisory_instructions=list(output.get("advisory_instructions", [])),
+                constraints=list(output.get("constraints", [])),
+                known_gaps=list(output.get("known_gaps", [])),
+            )
+        return None
 
     def _parse_digest_response(
         self,
@@ -173,32 +193,6 @@ class TinyCUAInformationDigesterNode(ProcessNode):
                 original_query=original_query,
             )
 
-    def ensure_session(self, root_or_parent_session: Session) -> Session:
-        """Create a fresh node session (does not inherit parent).
-
-        Overrides the base class to always create a fresh session,
-        ensuring the digester does not inherit QueryAnalyst's session.
-
-        Args:
-            root_or_parent_session: The root session or parent session
-                (used only for root context access).
-
-        Returns:
-            The newly created fresh session.
-        """
-        if self.session is not None:
-            return self.session
-
-        # Always create a fresh session — do NOT inherit parent
-        self.session = Session()
-        self.session.session_id = uuid.uuid4().hex
-        self.session.parent_id = root_or_parent_session.session_id
-        self.session.session_config = root_or_parent_session.session_config
-        self.session.input_context = list(root_or_parent_session.input_context)
-        self.session.task = root_or_parent_session.task
-        self.session.task_store = root_or_parent_session.task_store
-        return self.session
-
     def propagate(self) -> None:
         """Propagate DigestedInformation to session_context.
 
@@ -215,7 +209,7 @@ class TinyCUAInformationDigesterNode(ProcessNode):
                 idempotent_by_identity=True,
             )
 
-    def _extract_original_query(self, input_data: NodeInputLike) -> str:
+    def _extract_original_query(self, input_data: NodeInputLike | None) -> str:
         """Extract original user query from input data.
 
         Args:
@@ -224,4 +218,10 @@ class TinyCUAInformationDigesterNode(ProcessNode):
         Returns:
             The original user query string, or empty string if not found.
         """
-        return extract_user_query(input_data, prefer_metadata_original=True)
+        query = extract_user_query(input_data, prefer_metadata_original=True)
+        if query or self.session is None:
+            return query
+        return extract_user_query(
+            self.session.input_context,
+            prefer_metadata_original=True,
+        )

@@ -18,38 +18,81 @@ class DigestInformationTool(Tool):
     """
 
     def __init__(self) -> None:
-        super().__init__(name="digest_information")
+        super().__init__(
+            name="digest_information",
+            description=(
+                "Commit gathered context for downstream planning. The runtime "
+                "preserves the original user query separately."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "context_summary": {"type": "string"},
+                    "key_points": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                    "advisory_instructions": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                    "constraints": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                    "known_gaps": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                },
+                "required": ["context_summary"],
+                "additionalProperties": False,
+            },
+        )
 
     def __call__(
         self,
-        information: str = "",
-        **kwargs: Any,  # noqa: ARG002
+        context_summary: str = "",
+        key_points: list[str] | None = None,
+        advisory_instructions: list[str] | None = None,
+        constraints: list[str] | None = None,
+        known_gaps: list[str] | None = None,
     ) -> dict[str, Any]:
-        """Produce a structured digest from the given information.
+        """Validate and return a structured digest commit.
 
         Args:
-            information: The raw information to digest.
-            **kwargs: Additional keyword arguments (ignored).
+            context_summary: Concise summary of gathered context.
+            key_points: Important facts for downstream planning.
+            advisory_instructions: Non-binding guidance for downstream nodes.
+            constraints: Constraints discovered while gathering context.
+            known_gaps: Material information that remains unavailable.
 
         Returns:
-            A dict containing the structured digest.
+            The validated digest or a failed commit result.
         """
-        lines = [line.strip() for line in information.splitlines() if line.strip()]
-        key_points = [
-            line.lstrip("-*•0123456789. )")
-            for line in lines
-            if line.startswith(("-", "*", "•")) or line[:1].isdigit()
-        ]
-        constraints = [
-            line
-            for line in lines
-            if any(term in line.lower() for term in {"must", "never", "constraint", "require"})
-        ]
-        summary = " ".join(lines[:2])[:800]
+        if not isinstance(context_summary, str) or not context_summary.strip():
+            return {"success": False, "error": "context_summary is required"}
+        fields = {
+            "key_points": key_points,
+            "advisory_instructions": advisory_instructions,
+            "constraints": constraints,
+            "known_gaps": known_gaps,
+        }
+        normalized: dict[str, list[str]] = {}
+        for name, values in fields.items():
+            if values is None:
+                normalized[name] = []
+            elif not isinstance(values, list) or any(
+                not isinstance(value, str) or not value.strip() for value in values
+            ):
+                return {
+                    "success": False,
+                    "error": f"{name} must contain non-empty strings",
+                }
+            else:
+                normalized[name] = [value.strip() for value in values]
         return {
-            "summary": summary,
-            "key_points": key_points[:10],
-            "constraints": constraints[:10],
-            "source_length": len(information),
-            "format": "structured_digest",
+            "success": True,
+            "context_summary": context_summary.strip(),
+            **normalized,
         }

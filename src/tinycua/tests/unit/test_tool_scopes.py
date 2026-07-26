@@ -485,7 +485,25 @@ class TestDigestInformationOutput:
     def test_returns_structured_digest(self) -> None:
         """Returns a structured digest dict."""
         tool = DigestInformationTool()
-        result = tool(information="test info")
-        assert "summary" in result
-        assert result["summary"] == "test info"
-        assert "key_points" in result
+        result = tool(
+            context_summary="test info",
+            key_points=["one"],
+            advisory_instructions=["verify it"],
+            constraints=["must stay small"],
+            known_gaps=["source unavailable"],
+        )
+
+        assert result == {
+            "success": True,
+            "context_summary": "test info",
+            "key_points": ["one"],
+            "advisory_instructions": ["verify it"],
+            "constraints": ["must stay small"],
+            "known_gaps": ["source unavailable"],
+        }
+
+    def test_rejects_blank_summary(self) -> None:
+        """A blank digest cannot satisfy the lifecycle commit."""
+        result = DigestInformationTool()(context_summary="  ")
+
+        assert result["success"] is False
