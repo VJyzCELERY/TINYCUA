@@ -65,7 +65,11 @@ async def test_compact_context_delegates_to_strategy():
         {"role": "assistant", "content": "hi"},
     ]
 
-    with patch.object(strategy, "compact", new=AsyncMock(return_value={"role": "assistant", "content": "summary"})) as mock_compact:
+    with patch.object(
+        strategy,
+        "compact",
+        new=AsyncMock(return_value={"role": "assistant", "content": "summary"}),
+    ) as mock_compact:
         result = await session.compact_context()
 
     assert result == {"role": "assistant", "content": "summary"}
@@ -81,7 +85,11 @@ async def test_compact_context_with_explicit_window():
         {"role": "assistant", "content": "after"},
     ]
 
-    with patch.object(strategy, "compact", new=AsyncMock(return_value={"role": "assistant", "content": "subset summary"})) as mock_compact:
+    with patch.object(
+        strategy,
+        "compact",
+        new=AsyncMock(return_value={"role": "assistant", "content": "subset summary"}),
+    ) as mock_compact:
         result = await session.compact_context(window=window)
 
     mock_compact.assert_called_once()
@@ -115,7 +123,11 @@ async def test_compact_context_window_not_found_raises_value_error():
     ]
     window = [{"role": "user", "content": "not-in-context"}]
 
-    with patch.object(strategy, "compact", new=AsyncMock(return_value={"role": "assistant", "content": "summary"})):
+    with patch.object(
+        strategy,
+        "compact",
+        new=AsyncMock(return_value={"role": "assistant", "content": "summary"}),
+    ):
         with pytest.raises(
             ValueError,
             match="Supplied window is not a contiguous subset of session_context",
@@ -137,7 +149,13 @@ async def test_compact_context_full_replacement_with_explicit_window():
         {"role": "assistant", "content": "hi"},
     ]
 
-    with patch.object(strategy, "compact", new=AsyncMock(return_value={"role": "assistant", "content": "greeting summary"})):
+    with patch.object(
+        strategy,
+        "compact",
+        new=AsyncMock(
+            return_value={"role": "assistant", "content": "greeting summary"}
+        ),
+    ):
         result = await session.compact_context(window=window)
 
     assert result["content"] == "greeting summary"

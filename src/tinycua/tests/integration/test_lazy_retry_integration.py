@@ -40,7 +40,13 @@ class _SequenceLLM:
         self.call_count = 0
         self.calls: list[dict[str, Any]] = []
 
-    def __call__(self, messages: list[dict[str, Any]], tools: list[Any], stream: bool = False, **kwargs: Any) -> dict[str, Any]:  # noqa: ARG002
+    def __call__(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[Any],
+        stream: bool = False,
+        **kwargs: Any,
+    ) -> dict[str, Any]:  # noqa: ARG002
         idx = min(self.call_count, len(self._responses) - 1)
         self.call_count += 1
         self.calls.append({"messages": messages, "tools": tools, "stream": stream})
@@ -70,17 +76,25 @@ async def test_executor_terminates_with_lazy_retry():
     # (Any further calls would be the standard retry path; we don't expect
     # to reach them because the synthesized commit completes the lifecycle.)
     lazy_markdown = _EXECUTOR_VALID_MARKDOWN.format(task_id=root.task_id)
-    llm = _SequenceLLM([
-        {"role": "assistant", "content": "I'm done with the task.", "tool_calls": []},
-        {"role": "assistant", "content": lazy_markdown},
-    ])
+    llm = _SequenceLLM(
+        [
+            {
+                "role": "assistant",
+                "content": "I'm done with the task.",
+                "tool_calls": [],
+            },
+            {"role": "assistant", "content": lazy_markdown},
+        ]
+    )
 
     agent = MagicMock()
     agent.tool_permissions = {}
     agent._call_llm = llm
 
     # _execute_node runs ACTION summary, COMMIT fallback, then lazy synthesis.
-    content, tool_calls = await loop._execute_node(node, agent, tools=[TaskResultUpdateTool()])
+    content, tool_calls = await loop._execute_node(
+        node, agent, tools=[TaskResultUpdateTool()]
+    )
 
     # ACTION, COMMIT fallback, and lazy synthesis each require one focused LLM call.
     assert llm.call_count == 3, f"Expected 3 LLM calls, got {llm.call_count}"
@@ -113,11 +127,13 @@ async def test_standard_mode_does_not_use_lazy_retry():
     # In standard mode, the LLM keeps failing the tool call. Use a small
     # max_attempts to keep the test fast.
     from dataclasses import replace
+
     node.config.retry_policy = replace(node.config.retry_policy, max_attempts=2)
 
     # LLM always returns a no-tool-call response.
     def always_fail(messages, tools, stream=False, **kwargs):  # noqa: ARG001
         return {"role": "assistant", "content": "no tool call", "tool_calls": []}
+
     agent = MagicMock()
     agent.tool_permissions = {}
     agent._call_llm = always_fail

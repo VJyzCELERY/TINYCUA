@@ -137,10 +137,7 @@ def test_llm_messages_dedupe_original_query_for_digester() -> None:
         for m in user_messages
     )
     # No bare (non-[System:]) user message with the original query text.
-    assert not any(
-        m.get("content") == user_message["content"]
-        for m in user_messages
-    )
+    assert not any(m.get("content") == user_message["content"] for m in user_messages)
     # No assistant handoff — internal continuations are user+[System:] now.
     assistant_handoffs = [
         message
@@ -322,20 +319,29 @@ def test_planning_nodes_encourage_exploration_before_role_duty() -> None:
 
     # Planning nodes mention available exploration tools.
     for prompt in (analyzer_prompt, assessor_prompt):
-        assert any(t in prompt for t in ("web_search", "fetch_url", "read_file", "run_shell")), (
-            "planning nodes must encourage exploration tools"
-        )
+        assert any(
+            t in prompt for t in ("web_search", "fetch_url", "read_file", "run_shell")
+        ), "planning nodes must encourage exploration tools"
     # Reviewer guidance is acceptance-driven; resolved tools are injected separately.
     assert "acceptance criteria" in reviewer_prompt.lower()
     # Executor explores the workspace/state before making changes.
-    assert any(t in executor_prompt for t in ("read_file", "list_files", "search_files")), (
-        "executor must explore workspace/state before making changes"
-    )
+    assert any(
+        t in executor_prompt for t in ("read_file", "list_files", "search_files")
+    ), "executor must explore workspace/state before making changes"
     # Execution boundary preserved: each node still says it does not execute
     # the deliverable / stays in its role.
-    assert "do not execute the task" in analyzer_prompt.lower() or "do not execute" in analyzer_prompt.lower()
-    assert "do not execute" in assessor_prompt.lower() or "do not mutate task state" in assessor_prompt.lower()
-    assert "do not edit files" in reviewer_prompt.lower() or "do not re-execute" in reviewer_prompt.lower()
+    assert (
+        "do not execute the task" in analyzer_prompt.lower()
+        or "do not execute" in analyzer_prompt.lower()
+    )
+    assert (
+        "do not execute" in assessor_prompt.lower()
+        or "do not mutate task state" in assessor_prompt.lower()
+    )
+    assert (
+        "do not edit files" in reviewer_prompt.lower()
+        or "do not re-execute" in reviewer_prompt.lower()
+    )
 
 
 def test_task_tool_descriptions_are_brief_but_specific() -> None:

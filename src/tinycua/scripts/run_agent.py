@@ -35,11 +35,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run a TinyCUA agent prompt with local artifacts and trace output.",
     )
-    parser.add_argument("--prompt", required=True, help="Natural language prompt to run.")
+    parser.add_argument(
+        "--prompt", required=True, help="Natural language prompt to run."
+    )
     parser.add_argument("--dir", required=True, type=Path, help="Workspace directory.")
     parser.add_argument("--output-dir", type=Path, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--stream", action="store_true", default=False, help=argparse.SUPPRESS)
-    parser.add_argument("--env-file", type=Path, default=Path(".env"), help="Env file to load.")
+    parser.add_argument(
+        "--stream", action="store_true", default=False, help=argparse.SUPPRESS
+    )
+    parser.add_argument(
+        "--env-file", type=Path, default=Path(".env"), help="Env file to load."
+    )
     parser.add_argument("--base-url", default=None, help="Override TINYCUA_BASE_URL.")
     parser.add_argument("--api-key", default=None, help="Override TINYCUA_API_KEY.")
     parser.add_argument("--model", default=None, help="Override TINYCUA_MODEL.")
@@ -69,7 +75,9 @@ def main(argv: list[str] | None = None) -> int:
         provider_url=args.base_url,
         api_key=args.api_key,
         model=args.model,
-        provider_type=os.environ.get("TINYCUA_PROVIDER_TYPE", "openai-chat-completions"),
+        provider_type=os.environ.get(
+            "TINYCUA_PROVIDER_TYPE", "openai-chat-completions"
+        ),
         worker_effort=args.worker_effort,
         timeout=600,
         verbose=False,

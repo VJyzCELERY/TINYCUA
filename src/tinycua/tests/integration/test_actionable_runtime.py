@@ -46,7 +46,9 @@ def _patch_queue_factory_to_raise_on_task_create(agent) -> None:
         normalized = node_kind.lower().replace("-", "_")
         if normalized in {"task_create", "result_reviewer"}:
             cfg.retry_policy = replace(
-                cfg.retry_policy, max_attempts=3, on_retry_exhausted="raise",
+                cfg.retry_policy,
+                max_attempts=3,
+                on_retry_exhausted="raise",
             )
         return cfg
 
@@ -73,11 +75,11 @@ class AppCreationScript:
             return match.group(1)
         # Try markdown format: Active: title (id=abc123)
         if key == "active_task_id":
-            match = re.search(r'Active: .+ \(id=([^\)]+)\)', text)
+            match = re.search(r"Active: .+ \(id=([^\)]+)\)", text)
             if match:
                 return match.group(1)
         if key == "root_task_id":
-            match = re.search(r'Root: .+ \(id=([^\)]+)\)', text)
+            match = re.search(r"Root: .+ \(id=([^\)]+)\)", text)
             if match:
                 return match.group(1)
         # Fallback

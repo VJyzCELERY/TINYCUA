@@ -61,7 +61,9 @@ def _resolve_agents_md(session: Session) -> str:
     except (OSError, PermissionError):
         logger.debug(
             "agents_md_read_failed workspace=%s path=%s",
-            workspace, agents_path, exc_info=True,
+            workspace,
+            agents_path,
+            exc_info=True,
         )
         session.agents_md_snapshot = ""
         return ""
@@ -197,7 +199,9 @@ class NodeRunContext:
     call these injected services to perform provider/tool/runtime-specific work.
     """
 
-    sync_executor: Callable[[Any, NodeInputLike], Awaitable[tuple[str, list[dict[str, Any]]]]]
+    sync_executor: Callable[
+        [Any, NodeInputLike], Awaitable[tuple[str, list[dict[str, Any]]]]
+    ]
     stream_executor: Callable[[Any, NodeInputLike], AsyncIterator[dict[str, Any]]]
 
 
@@ -409,7 +413,10 @@ class Node(ABC):
         progress only when there IS progress). Computes missing tools from
         the node's contract.
         """
-        if not self.progress.satisfied_requirements and not self.progress.action_summary:
+        if (
+            not self.progress.satisfied_requirements
+            and not self.progress.action_summary
+        ):
             return ""
         contract = self.contract
         if not contract:
@@ -424,7 +431,7 @@ class Node(ABC):
         )
         for group in contract.any_of_tools:
             if any_of_satisfied:
-                relevant |= (group & satisfied_set)
+                relevant |= group & satisfied_set
             else:
                 relevant |= group
         if contract.requires_terminate:
@@ -506,7 +513,9 @@ class Node(ABC):
                 else "## Required Tools — Why Each Is Needed"
             )
             tool_lines = [heading]
-            tool_lines.extend(f"- {name}: {reason}" for name, reason in rationale.items())
+            tool_lines.extend(
+                f"- {name}: {reason}" for name, reason in rationale.items()
+            )
             sections.append("\n".join(tool_lines))
         return "\n\n".join(sections)
 
@@ -631,7 +640,9 @@ class Node(ABC):
         node_continuation = self.build_continuation(session)
         if node_continuation.strip():
             if cont_role == "user":
-                messages.append({"role": "user", "content": f"[System: {node_continuation}]"})
+                messages.append(
+                    {"role": "user", "content": f"[System: {node_continuation}]"}
+                )
             else:
                 messages.append({"role": cont_role, "content": node_continuation})
 

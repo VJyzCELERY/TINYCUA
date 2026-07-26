@@ -77,7 +77,9 @@ def test_response_node_does_not_resuspend_after_digest_available() -> None:
     from tinycua.models.session_context_entry import SessionContextEntry
 
     session.session_context.append(
-        SessionContextEntry(content=DigestedInformation.fallback("hello"), segment="output")
+        SessionContextEntry(
+            content=DigestedInformation.fallback("hello"), segment="output"
+        )
     )
     response.session = session
     queue = NodeQueue(items=[response])
@@ -122,7 +124,9 @@ def test_result_aggregation_publishes_aggregated_result_context() -> None:
     root = session.task_store.create_task("root")
     child = session.task_store.create_task("child", parent_id=root.task_id)
     session.task_store.record_result(child.task_id, TaskResult(content="child output"))
-    session.task_store.record_reviewer_decision(child.task_id, ReviewerDecision.APPROVED)
+    session.task_store.record_reviewer_decision(
+        child.task_id, ReviewerDecision.APPROVED
+    )
     # Parent tasks now get a verification pass (executor verifies, reviewer
     # approves). Complete the root so all_done() is true and aggregation fires.
     session.task_store.record_result(root.task_id, TaskResult(content="root verified"))
@@ -135,7 +139,11 @@ def test_result_aggregation_publishes_aggregated_result_context() -> None:
 
     node.parse_loop_result(LLMResult(content="final context"), None)
 
-    aggregated = [entry.content for entry in session.session_context if isinstance(entry.content, AggregatedResult)]
+    aggregated = [
+        entry.content
+        for entry in session.session_context
+        if isinstance(entry.content, AggregatedResult)
+    ]
     assert aggregated
     assert aggregated[-1].root_task_id == root.task_id
     assert "child output" in aggregated[-1].final_context
@@ -157,5 +165,8 @@ def test_reviewer_revisions_do_not_escalate_to_response_before_completion() -> N
         queue, reviewed_task_id=active.task_id, decision="needs_revision"
     )
 
-    assert [node.node_id for node in queue.items] == ["task_executor", "result_reviewer"]
+    assert [node.node_id for node in queue.items] == [
+        "task_executor",
+        "result_reviewer",
+    ]
     assert "mandatory_passthrough" not in store.tasks[active.task_id].metadata

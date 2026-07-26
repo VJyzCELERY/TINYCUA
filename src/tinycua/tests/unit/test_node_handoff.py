@@ -47,7 +47,14 @@ def test_tool_transcript_records_truncated_input_arguments() -> None:
     loop._record_tool_result_transcripts(
         node,
         [{"name": "node_handoff", "outcome": {"success": True}}],
-        [{"function": {"name": "node_handoff", "arguments": {"instruction": instruction}}}],
+        [
+            {
+                "function": {
+                    "name": "node_handoff",
+                    "arguments": {"instruction": instruction},
+                }
+            }
+        ],
     )
 
     content = loop.get_transcript_events()[-1]["content"]

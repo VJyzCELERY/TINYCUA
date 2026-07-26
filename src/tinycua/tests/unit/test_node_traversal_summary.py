@@ -23,10 +23,12 @@ class TestPrintNodeTraversalGoesToStderr:
     """The traversal summary goes to stderr, not stdout."""
 
     def test_output_goes_to_stderr_not_stdout(self, capsys: pytest.CaptureFixture[str]):
-        loop = _MockLoop([
-            {"node_id": "query_analyst"},
-            {"node_id": "digester"},
-        ])
+        loop = _MockLoop(
+            [
+                {"node_id": "query_analyst"},
+                {"node_id": "digester"},
+            ]
+        )
         print_node_traversal(loop)
         captured = capsys.readouterr()
         assert "=== NODE TRAVERSAL ===" in captured.err
@@ -40,11 +42,13 @@ class TestPrintNodeTraversalConsecutiveDedup:
     """Consecutive same-node entries collapse to node_id (×N)."""
 
     def test_consecutive_duplicates_collapse(self, capsys: pytest.CaptureFixture[str]):
-        loop = _MockLoop([
-            {"node_id": "task_executor"},
-            {"node_id": "task_executor"},
-            {"node_id": "task_executor"},
-        ])
+        loop = _MockLoop(
+            [
+                {"node_id": "task_executor"},
+                {"node_id": "task_executor"},
+                {"node_id": "task_executor"},
+            ]
+        )
         print_node_traversal(loop)
         captured = capsys.readouterr()
         assert "task_executor (×3)" in captured.err
@@ -57,10 +61,12 @@ class TestPrintNodeTraversalConsecutiveDedup:
         assert len(lines) == 1
 
     def test_two_consecutive_collapse(self, capsys: pytest.CaptureFixture[str]):
-        loop = _MockLoop([
-            {"node_id": "analysis_effort"},
-            {"node_id": "analysis_effort"},
-        ])
+        loop = _MockLoop(
+            [
+                {"node_id": "analysis_effort"},
+                {"node_id": "analysis_effort"},
+            ]
+        )
         print_node_traversal(loop)
         captured = capsys.readouterr()
         assert "analysis_effort (×2)" in captured.err
@@ -69,12 +75,16 @@ class TestPrintNodeTraversalConsecutiveDedup:
 class TestPrintNodeTraversalNonConsecutiveReentry:
     """Non-consecutive re-entries appear as separate lines (preserves order)."""
 
-    def test_non_consecutive_reentries_are_separate(self, capsys: pytest.CaptureFixture[str]):
-        loop = _MockLoop([
-            {"node_id": "task_executor"},
-            {"node_id": "result_reviewer"},
-            {"node_id": "task_executor"},
-        ])
+    def test_non_consecutive_reentries_are_separate(
+        self, capsys: pytest.CaptureFixture[str]
+    ):
+        loop = _MockLoop(
+            [
+                {"node_id": "task_executor"},
+                {"node_id": "result_reviewer"},
+                {"node_id": "task_executor"},
+            ]
+        )
         print_node_traversal(loop)
         captured = capsys.readouterr()
         lines = [
@@ -106,17 +116,19 @@ class TestPrintNodeTraversalOrderPreserved:
     """The traversal order matches the execution trace order."""
 
     def test_order_preserved(self, capsys: pytest.CaptureFixture[str]):
-        loop = _MockLoop([
-            {"node_id": "query_analyst"},
-            {"node_id": "digester"},
-            {"node_id": "worker"},
-            {"node_id": "task_create"},
-            {"node_id": "task_analyzer"},
-            {"node_id": "task_executor"},
-            {"node_id": "result_reviewer"},
-            {"node_id": "result_aggregation"},
-            {"node_id": "response"},
-        ])
+        loop = _MockLoop(
+            [
+                {"node_id": "query_analyst"},
+                {"node_id": "digester"},
+                {"node_id": "worker"},
+                {"node_id": "task_create"},
+                {"node_id": "task_analyzer"},
+                {"node_id": "task_executor"},
+                {"node_id": "result_reviewer"},
+                {"node_id": "result_aggregation"},
+                {"node_id": "response"},
+            ]
+        )
         print_node_traversal(loop)
         captured = capsys.readouterr()
         lines = [

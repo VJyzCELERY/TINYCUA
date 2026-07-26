@@ -22,12 +22,16 @@ def print_node_traversal(loop: Any) -> None:
     """
     trace_data = safe_loop_call(loop, "get_execution_trace", default=[])
     if not isinstance(trace_data, list) or not trace_data:
-        print("=== NODE TRAVERSAL ===\n(no nodes executed)", file=sys.stderr, flush=True)
+        print(
+            "=== NODE TRAVERSAL ===\n(no nodes executed)", file=sys.stderr, flush=True
+        )
         return
     ids: list[str] = []
     counts: list[int] = []
     for step in trace_data:
-        node_id = step.get("node_id", "unknown") if isinstance(step, dict) else "unknown"
+        node_id = (
+            step.get("node_id", "unknown") if isinstance(step, dict) else "unknown"
+        )
         if ids and ids[-1] == node_id:
             counts[-1] += 1
         else:
@@ -132,7 +136,9 @@ class LiveStreamPrinter:
             self._print_marker(node_id, "node-error")
             return ""
         if event_type == "response.usage":
-            self._print_marker(node_id, f"usage: {format_usage(event.get('usage') or {})}")
+            self._print_marker(
+                node_id, f"usage: {format_usage(event.get('usage') or {})}"
+            )
             return ""
         return ""
 
@@ -140,7 +146,9 @@ class LiveStreamPrinter:
         """Flush pending output text that was not a JSON tool protocol payload."""
         text = self._tool_json.flush_text()
         if text:
-            self._print_text(self._tool_json.last_node_id or "unknown", text, kind="output")
+            self._print_text(
+                self._tool_json.last_node_id or "unknown", text, kind="output"
+            )
         return text
 
     def _handle_output_delta(self, node_id: str, delta: str) -> str:
@@ -178,7 +186,10 @@ class LiveStreamPrinter:
 
     def _print_marker(self, node_id: str, marker: str) -> None:
         """Print a single-line marker with the ``[node_id]`` prefix."""
-        if self._current_prefix_node is not None and self._current_prefix_node != node_id:
+        if (
+            self._current_prefix_node is not None
+            and self._current_prefix_node != node_id
+        ):
             print(flush=True)
         self._current_prefix_node = node_id
         print(f"[{node_id}] {marker}", flush=True)
@@ -248,7 +259,15 @@ def print_new_transcript_events(loop: Any, seen_count: int) -> int:
     return len(events)
 
 
-def print_summary(loop: Any, workspace_dir: Path, artifact_dir: Path | None, result: str, *, trace: bool = False, task_tree: bool = False) -> None:
+def print_summary(
+    loop: Any,
+    workspace_dir: Path,
+    artifact_dir: Path | None,
+    result: str,
+    *,
+    trace: bool = False,
+    task_tree: bool = False,
+) -> None:
     """Print a concise session summary after a live run.
 
     Args:
@@ -274,10 +293,15 @@ def print_summary(loop: Any, workspace_dir: Path, artifact_dir: Path | None, res
             terminal = step.get("is_terminal") if isinstance(step, dict) else None
             print(
                 f"[{index}] {node_id} ({node_type}) route={route} terminal={terminal}",
-                file=sys.stderr, flush=True,
+                file=sys.stderr,
+                flush=True,
             )
             if isinstance(step, dict) and step.get("validation_errors"):
-                print(f"    validation_errors={len(step['validation_errors'])}", file=sys.stderr, flush=True)
+                print(
+                    f"    validation_errors={len(step['validation_errors'])}",
+                    file=sys.stderr,
+                    flush=True,
+                )
             print(file=sys.stderr, flush=True)
     if trace:
         print("=== FINAL RESPONSE ===", file=sys.stderr, flush=True)
@@ -285,14 +309,22 @@ def print_summary(loop: Any, workspace_dir: Path, artifact_dir: Path | None, res
     if trace or task_tree:
         print("=== TASK TREE ===", file=sys.stderr, flush=True)
         if isinstance(state_snapshot, dict):
-            print(state_snapshot.get("task_tree_text", "No tasks."), file=sys.stderr, flush=True)
+            print(
+                state_snapshot.get("task_tree_text", "No tasks."),
+                file=sys.stderr,
+                flush=True,
+            )
     if trace:
         print("\n=== WORKSPACE FILES ===", file=sys.stderr, flush=True)
         for path in visible_workspace_files(workspace_dir):
             print(f"- {path}", file=sys.stderr, flush=True)
         if artifact_dir is not None:
             print("\n=== ARTIFACTS ===", file=sys.stderr, flush=True)
-            print(f"Full trace/transcript JSON saved under: {artifact_dir}", file=sys.stderr, flush=True)
+            print(
+                f"Full trace/transcript JSON saved under: {artifact_dir}",
+                file=sys.stderr,
+                flush=True,
+            )
 
 
 def truncate(value: str, limit: int) -> str:
@@ -306,7 +338,11 @@ def format_usage(usage: Any) -> str:
     """Format token usage without dumping provider event JSON."""
     if not isinstance(usage, dict):
         return str(usage)
-    parts = [f"{key}={usage[key]}" for key in ("input_tokens", "output_tokens", "total_tokens") if key in usage]
+    parts = [
+        f"{key}={usage[key]}"
+        for key in ("input_tokens", "output_tokens", "total_tokens")
+        if key in usage
+    ]
     return " ".join(parts) if parts else "received"
 
 
@@ -388,10 +424,14 @@ def could_be_tool_protocol_prefix(text: str) -> bool:
     if not stripped.startswith("{") or len(stripped) > 80_000:
         return False
     compact = "".join(stripped.split())
-    return any(
-        target.startswith(compact[: len(target)]) or compact.startswith(target[: len(compact)])
-        for target in ('{"tool_calls"', '{"tool_calls":', '{"tool_calls":[')
-    ) or "tool_calls" in stripped
+    return (
+        any(
+            target.startswith(compact[: len(target)])
+            or compact.startswith(target[: len(compact)])
+            for target in ('{"tool_calls"', '{"tool_calls":', '{"tool_calls":[')
+        )
+        or "tool_calls" in stripped
+    )
 
 
 def visible_workspace_files(workspace_dir: Path) -> list[Path]:

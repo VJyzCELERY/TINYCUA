@@ -39,7 +39,8 @@ def mock_run_success():
             log = out / "agent.log"
             usage = out / "usage.json"
             transcript.write_text(
-                json.dumps({"type": "llm.request", "usage": {"total_tokens": 10}}) + "\n"
+                json.dumps({"type": "llm.request", "usage": {"total_tokens": 10}})
+                + "\n"
             )
             log.write_text("task completed\n")
             usage.write_text(
@@ -210,9 +211,7 @@ class TestSmokeRunProducesReport:
         assert "# Smoke Run Report" in md_content
         assert "Category Summary" in md_content
 
-    def test_smoke_run_handles_task_failure(
-        self, output_base: Path, mock_run_fail
-    ):
+    def test_smoke_run_handles_task_failure(self, output_base: Path, mock_run_fail):
         """Smoke run handles individual task failures without aborting."""
         with patch("subprocess.run", mock_run_fail):
             orchestrator = SmokeRunOrchestrator(
@@ -254,9 +253,13 @@ class TestSmokeRunProducesReport:
                 transcript_path = result.artifact_paths.get("transcript")
                 if transcript_path:
                     path = Path(transcript_path)
-                    assert path.exists(), f"transcript.jsonl missing for {result.task_id}"
+                    assert path.exists(), (
+                        f"transcript.jsonl missing for {result.task_id}"
+                    )
                     lines = path.read_text().strip().splitlines()
-                    assert len(lines) > 0, f"transcript.jsonl empty for {result.task_id}"
+                    assert len(lines) > 0, (
+                        f"transcript.jsonl empty for {result.task_id}"
+                    )
                     for i, line in enumerate(lines):
                         parsed = json.loads(line)
                         assert isinstance(parsed, dict), (

@@ -40,7 +40,10 @@ async def test_query_analyst_requires_route_tool_for_local_chat_completions() ->
         captured_tool_names.append([tool.name for tool in tools])
         forced_name = "select_query_route"
         if any(tool.name == forced_name for tool in tools):
-            return {"content": "", "tool_calls": [_route_tool_call(forced_name, "passthrough")]}
+            return {
+                "content": "",
+                "tool_calls": [_route_tool_call(forced_name, "passthrough")],
+            }
         return {"content": "final answer", "tool_calls": []}
 
     agent._call_llm = call_llm  # type: ignore[method-assign]
@@ -221,7 +224,11 @@ def test_result_reviewer_retry_keeps_inspection_tools() -> None:
         "I need to call task_review_decision with the current evidence.",
     )
 
-    assert {tool.name for tool in retry_tools} >= {"read_file", "list_files", "task_review_decision"}
+    assert {tool.name for tool in retry_tools} >= {
+        "read_file",
+        "list_files",
+        "task_review_decision",
+    }
 
 
 def test_task_analyzer_retry_keeps_update_and_decompose_tools() -> None:

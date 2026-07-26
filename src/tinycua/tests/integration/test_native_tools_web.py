@@ -125,7 +125,9 @@ def test_fetch_url_paginates_html_after_markdown_conversion(httpx_mock):
     html = "<html><body><h1>Title</h1><p>abcdef</p></body></html>"
     for _ in range(2):
         httpx_mock.add_response(
-            url="https://example.com/page", text=html, headers={"content-type": "text/html"}
+            url="https://example.com/page",
+            text=html,
+            headers={"content-type": "text/html"},
         )
     from tinycua.agent.tools.native.web import fetch_url
 

@@ -5,7 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 
-def test_file_tools_resolve_relative_paths_inside_bound_workspace(tmp_path: Path) -> None:
+def test_file_tools_resolve_relative_paths_inside_bound_workspace(
+    tmp_path: Path,
+) -> None:
     """Bound file tools use the session workspace, not process cwd."""
     from tinycua.agent.tools.native.files import list_files, read_file, write_file
 
@@ -49,7 +51,9 @@ def test_shell_and_python_tools_execute_from_bound_workspace(tmp_path: Path) -> 
         assert pwd_result["exit_code"] == 0
         assert pwd_result["stdout"].strip() == str(workspace)
 
-        py_result = run_python("from pathlib import Path; Path('marker.txt').write_text('ok')")
+        py_result = run_python(
+            "from pathlib import Path; Path('marker.txt').write_text('ok')"
+        )
         assert py_result["exit_code"] == 0
         assert (workspace / "marker.txt").read_text() == "ok"
     finally:

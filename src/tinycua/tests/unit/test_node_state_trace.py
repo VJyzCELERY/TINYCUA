@@ -23,7 +23,11 @@ class TestNodeProgressTraceIntegration:
         progress.mark_tool_called("task_result_update", success=True)
         progress.mark_tool_called("read_file", success=True)
         progress.mark_tool_called("run_shell", success=False)
-        assert progress.visited_tools == {"task_result_update", "read_file", "run_shell"}
+        assert progress.visited_tools == {
+            "task_result_update",
+            "read_file",
+            "run_shell",
+        }
         # Only successful calls are in satisfied_requirements
         assert progress.satisfied_requirements == {"task_result_update", "read_file"}
         assert "run_shell" not in progress.satisfied_requirements

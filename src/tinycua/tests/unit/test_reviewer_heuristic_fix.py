@@ -28,7 +28,9 @@ class TestMissingToolHeuristic:
         loop = TinyCUALoop()
         node = _ReviewerNode(loop.root_session)
         # A different error that genuinely mentions task_review_decision.
-        error_text = "result_reviewer must call task_review_decision before terminating."
+        error_text = (
+            "result_reviewer must call task_review_decision before terminating."
+        )
 
         result = loop._missing_or_required_tool_name(node, error_text)
         assert result == "task_review_decision"

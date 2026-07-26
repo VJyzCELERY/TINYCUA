@@ -114,6 +114,4 @@ class SessionConfig:
             self.session_dir = Path(self.session_dir).expanduser().resolve()
         # FR-050: derive max_replans from worker_effort when not explicit.
         if self.max_replans is None:
-            self.max_replans = self._EFFORT_MAX_REPLANS.get(
-                str(self.worker_effort), 3
-            )
+            self.max_replans = self._EFFORT_MAX_REPLANS.get(str(self.worker_effort), 3)

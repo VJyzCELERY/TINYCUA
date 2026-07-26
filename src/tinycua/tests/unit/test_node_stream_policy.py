@@ -140,8 +140,7 @@ async def test_include_node_metadata_false_no_enrichment():
     llm_events = [
         e
         for e in events
-        if not e["type"].startswith("node.")
-        and not e["type"].startswith("transcript.")
+        if not e["type"].startswith("node.") and not e["type"].startswith("transcript.")
     ]
     for e in llm_events:
         assert "node_id" not in e

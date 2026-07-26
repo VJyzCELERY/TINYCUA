@@ -49,7 +49,11 @@ class TestReviewerSanityCheckerToolPrompt:
             def __init__(self, name: str) -> None:
                 self.name = name
 
-        tools = [_FakeTool("run_shell"), _FakeTool("read_file"), _FakeTool("task_review_decision")]
+        tools = [
+            _FakeTool("run_shell"),
+            _FakeTool("read_file"),
+            _FakeTool("task_review_decision"),
+        ]
         prompt = node.build_tool_system_prompt(tools)
         lowered = prompt.lower()
         assert "acceptance criteria" in lowered

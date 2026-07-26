@@ -336,20 +336,30 @@ def test_postponement_progresses_monotonically_and_revisit_resumes_work() -> Non
     second = store.create_task("Second", parent_id=root.task_id)
 
     store.record_result(first.task_id, TaskResult(content="blocked", success=False))
-    store.record_reviewer_decision(first.task_id, "postpone_siblings", rationale="try sibling")
+    store.record_reviewer_decision(
+        first.task_id, "postpone_siblings", rationale="try sibling"
+    )
 
     assert first.status is TaskStatus.POSTPONED
     assert store.active_task_id == second.task_id
     with pytest.raises(ValueError, match="postpone_siblings"):
         store.record_reviewer_decision(first.task_id, "postpone_siblings")
 
-    store.record_result(second.task_id, TaskResult(content="blocked too", success=False))
-    store.record_reviewer_decision(second.task_id, "postpone_siblings", rationale="drain")
+    store.record_result(
+        second.task_id, TaskResult(content="blocked too", success=False)
+    )
+    store.record_reviewer_decision(
+        second.task_id, "postpone_siblings", rationale="drain"
+    )
 
     assert store.active_task_id == first.task_id
-    store.record_result(first.task_id, TaskResult(content="still blocked", success=False))
+    store.record_result(
+        first.task_id, TaskResult(content="still blocked", success=False)
+    )
     assert first.status is TaskStatus.IN_PROGRESS
-    store.record_reviewer_decision(first.task_id, "postpone_final", rationale="last pass")
+    store.record_reviewer_decision(
+        first.task_id, "postpone_final", rationale="last pass"
+    )
 
     assert store.active_task_id == second.task_id
     with pytest.raises(ValueError, match="postpone_siblings"):
@@ -366,20 +376,28 @@ def test_postponement_requires_a_fresh_unsuccessful_result() -> None:
     store.create_task("Sibling", parent_id=root.task_id)
 
     with pytest.raises(ValueError, match="non-empty unsuccessful"):
-        store.record_reviewer_decision(task.task_id, "postpone_siblings", rationale="later")
+        store.record_reviewer_decision(
+            task.task_id, "postpone_siblings", rationale="later"
+        )
 
     store.record_result(task.task_id, TaskResult(content="done", success=True))
     with pytest.raises(ValueError, match="non-empty unsuccessful"):
-        store.record_reviewer_decision(task.task_id, "postpone_siblings", rationale="later")
+        store.record_reviewer_decision(
+            task.task_id, "postpone_siblings", rationale="later"
+        )
 
     store.record_result(task.task_id, TaskResult(content="blocked", success=False))
     store.record_reviewer_decision(task.task_id, "postpone_siblings", rationale="later")
 
     with pytest.raises(ValueError, match="fresh unsuccessful"):
-        store.record_reviewer_decision(task.task_id, "postpone_final", rationale="final")
+        store.record_reviewer_decision(
+            task.task_id, "postpone_final", rationale="final"
+        )
 
 
-def test_final_postponement_waits_for_normal_and_sibling_deferred_work_globally() -> None:
+def test_final_postponement_waits_for_normal_and_sibling_deferred_work_globally() -> (
+    None
+):
     """The final drain starts only after all earlier scheduling classes are empty."""
     store = TaskStateStore()
     root = store.create_task("Root")
@@ -389,9 +407,13 @@ def test_final_postponement_waits_for_normal_and_sibling_deferred_work_globally(
     right_leaf = store.create_task("Right leaf", parent_id=right.task_id)
 
     store.record_result(left_leaf.task_id, TaskResult(content="blocked", success=False))
-    store.record_reviewer_decision(left_leaf.task_id, "postpone_siblings", rationale="later")
+    store.record_reviewer_decision(
+        left_leaf.task_id, "postpone_siblings", rationale="later"
+    )
     store.record_result(left_leaf.task_id, TaskResult(content="blocked", success=False))
-    store.record_reviewer_decision(left_leaf.task_id, "postpone_final", rationale="final")
+    store.record_reviewer_decision(
+        left_leaf.task_id, "postpone_final", rationale="final"
+    )
 
     assert store.active_task_id == right_leaf.task_id
 
@@ -404,15 +426,27 @@ def test_compromise_requires_final_postponement_failed_result_and_rationale() ->
 
     store.record_result(task.task_id, TaskResult(content="blocked", success=False))
     with pytest.raises(ValueError, match="final postponement"):
-        store.record_reviewer_decision(task.task_id, "compromise", rationale="known gap")
-    store.record_reviewer_decision(task.task_id, "postpone_siblings", rationale="try later")
-    store.record_result(task.task_id, TaskResult(content="still blocked", success=False))
-    store.record_reviewer_decision(task.task_id, "postpone_final", rationale="last pass")
-    store.record_result(task.task_id, TaskResult(content="known limitation", success=False))
+        store.record_reviewer_decision(
+            task.task_id, "compromise", rationale="known gap"
+        )
+    store.record_reviewer_decision(
+        task.task_id, "postpone_siblings", rationale="try later"
+    )
+    store.record_result(
+        task.task_id, TaskResult(content="still blocked", success=False)
+    )
+    store.record_reviewer_decision(
+        task.task_id, "postpone_final", rationale="last pass"
+    )
+    store.record_result(
+        task.task_id, TaskResult(content="known limitation", success=False)
+    )
 
     with pytest.raises(ValueError, match="rationale"):
         store.record_reviewer_decision(task.task_id, "compromise")
-    store.record_reviewer_decision(task.task_id, "compromise", rationale="source unavailable")
+    store.record_reviewer_decision(
+        task.task_id, "compromise", rationale="source unavailable"
+    )
 
     assert task.status is TaskStatus.COMPROMISED
     assert task.result is not None and task.result.success is False
@@ -427,12 +461,20 @@ def test_root_skips_sibling_postponement_but_can_enter_final_drain() -> None:
     store.record_result(root.task_id, TaskResult(content="blocked", success=False))
 
     with pytest.raises(ValueError, match="root"):
-        store.record_reviewer_decision(root.task_id, "postpone_siblings", rationale="later")
-    store.record_reviewer_decision(root.task_id, "postpone_final", rationale="last pass")
+        store.record_reviewer_decision(
+            root.task_id, "postpone_siblings", rationale="later"
+        )
+    store.record_reviewer_decision(
+        root.task_id, "postpone_final", rationale="last pass"
+    )
 
     assert root.status is TaskStatus.POSTPONED
-    store.record_result(root.task_id, TaskResult(content="known root gap", success=False))
-    store.record_reviewer_decision(root.task_id, "compromise", rationale="cannot resolve")
+    store.record_result(
+        root.task_id, TaskResult(content="known root gap", success=False)
+    )
+    store.record_reviewer_decision(
+        root.task_id, "compromise", rationale="cannot resolve"
+    )
     assert store.all_done() is True
 
 
@@ -449,15 +491,22 @@ def test_deferred_statuses_require_reviewer_decisions(status: TaskStatus) -> Non
 
 @pytest.mark.parametrize(
     "result",
-    [TaskResult(content="", success=False), TaskResult(content="looks done", success=True)],
+    [
+        TaskResult(content="", success=False),
+        TaskResult(content="looks done", success=True),
+    ],
 )
 def test_compromise_rejects_empty_or_successful_results(result: TaskResult) -> None:
     """Compromise cannot disguise missing evidence or successful work as a limitation."""
     store = TaskStateStore()
     root = store.create_task("Root")
     store.record_result(root.task_id, TaskResult(content="blocked", success=False))
-    store.record_reviewer_decision(root.task_id, "postpone_final", rationale="last pass")
+    store.record_reviewer_decision(
+        root.task_id, "postpone_final", rationale="last pass"
+    )
     store.record_result(root.task_id, result)
 
     with pytest.raises(ValueError, match="non-empty unsuccessful"):
-        store.record_reviewer_decision(root.task_id, "compromise", rationale="known gap")
+        store.record_reviewer_decision(
+            root.task_id, "compromise", rationale="known gap"
+        )

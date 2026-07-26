@@ -37,9 +37,11 @@ def _simulate_replan_cycle(
             # Task already terminated — return its final status.
             decisions = task.reviewer_decisions if task else []
             final = task.status.value if task else "completed"
-            return executor_runs, sum(
-                1 for d in decisions if d.get("decision") == "replan_boundary"
-            ), final
+            return (
+                executor_runs,
+                sum(1 for d in decisions if d.get("decision") == "replan_boundary"),
+                final,
+            )
         # The reviewer rejects the current result.
         store.record_reviewer_decision(task_id, ReviewerDecision.NEEDS_REVISION)
         queue = NodeQueue()
@@ -53,9 +55,11 @@ def _simulate_replan_cycle(
         if task is not None and task.status == TaskStatus.FAILED:
             decisions = task.reviewer_decisions
             final = task.status.value
-            return executor_runs, sum(
-                1 for d in decisions if d.get("decision") == "replan_boundary"
-            ), final
+            return (
+                executor_runs,
+                sum(1 for d in decisions if d.get("decision") == "replan_boundary"),
+                final,
+            )
 
         if "task_executor" in ids or "task_analyzer" in ids:
             # Executor will run (either retry or after replan).
@@ -66,14 +70,20 @@ def _simulate_replan_cycle(
         # No executor/analyzer scheduled — unexpected.
         decisions = task.reviewer_decisions if task else []
         final = decisions[-1]["decision"] if decisions else "none"
-        return executor_runs, sum(
-            1 for d in decisions if d.get("decision") == "replan_boundary"
-        ), final
+        return (
+            executor_runs,
+            sum(1 for d in decisions if d.get("decision") == "replan_boundary"),
+            final,
+        )
 
     task = store.get_task(task_id)
-    return executor_runs, sum(
-        1 for d in task.reviewer_decisions if d.get("decision") == "replan_boundary"
-    ), "max_cycles_exceeded"
+    return (
+        executor_runs,
+        sum(
+            1 for d in task.reviewer_decisions if d.get("decision") == "replan_boundary"
+        ),
+        "max_cycles_exceeded",
+    )
 
 
 class TestReplanLoopUnbounded:
@@ -155,7 +165,9 @@ def test_impossible_leaf_is_disposed_once_and_never_dispatched_again() -> None:
     store = TaskStateStore()
     root = store.create_task("Write report")
     impossible = store.create_task("Fetch missing benchmark", parent_id=root.task_id)
-    remaining = store.create_task("Write report from available evidence", parent_id=root.task_id)
+    remaining = store.create_task(
+        "Write report from available evidence", parent_id=root.task_id
+    )
     dispatched: list[str] = []
 
     store.cancel_task(impossible.task_id, "selected source contains no benchmark data")

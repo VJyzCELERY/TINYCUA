@@ -32,10 +32,14 @@ def _make_agent(llm_response: dict[str, Any] | None = None) -> MagicMock:
     """Build a mock agent whose _call_llm returns the given response dict."""
     agent = MagicMock()
     agent.tool_permissions = {}
-    response = llm_response if llm_response is not None else {
-        "role": "assistant",
-        "content": "",
-    }
+    response = (
+        llm_response
+        if llm_response is not None
+        else {
+            "role": "assistant",
+            "content": "",
+        }
+    )
 
     async def mock_llm(messages, tools, stream=False, **kwargs):  # noqa: ARG001
         return response
@@ -84,16 +88,24 @@ class TestLazyRetrySuccess:
         )
         node.ensure_session(loop.root_session)
 
-        agent = _make_agent({"role": "assistant", "content": _reviewer_valid_markdown(child.task_id)})
+        agent = _make_agent(
+            {"role": "assistant", "content": _reviewer_valid_markdown(child.task_id)}
+        )
         last_result = LLMResult(content="reviewing", metadata={"tool_results": []})
         validation = ValidationResult(
             is_valid=False,
-            errors=["result_reviewer must call successful task-state tool(s): ['task_review_decision']"],
+            errors=[
+                "result_reviewer must call successful task-state tool(s): ['task_review_decision']"
+            ],
         )
         tool = TaskReviewDecisionTool()
 
         result = await loop._maybe_lazy_recovery(
-            node, agent, [tool], last_result, validation,
+            node,
+            agent,
+            [tool],
+            last_result,
+            validation,
         )
         assert result is not None
         lazy_result, lazy_validation = result
@@ -104,8 +116,11 @@ class TestLazyRetrySuccess:
         names = {tr.get("name") for tr in tool_results if isinstance(tr, dict)}
         assert "task_review_decision" in names
         successful = {
-            tr.get("name") for tr in tool_results
-            if isinstance(tr, dict) and isinstance(tr.get("output"), dict) and tr["output"].get("success")
+            tr.get("name")
+            for tr in tool_results
+            if isinstance(tr, dict)
+            and isinstance(tr.get("output"), dict)
+            and tr["output"].get("success")
         }
         assert "task_review_decision" in successful
 
@@ -125,7 +140,9 @@ class TestLazyRetrySuccess:
         )
         node.ensure_session(loop.root_session)
 
-        agent = _make_agent({"role": "assistant", "content": _executor_valid_markdown(root.task_id)})
+        agent = _make_agent(
+            {"role": "assistant", "content": _executor_valid_markdown(root.task_id)}
+        )
         last_result = LLMResult(content="working", metadata={"tool_results": []})
         validation = ValidationResult(
             is_valid=False,
@@ -134,7 +151,11 @@ class TestLazyRetrySuccess:
         tool = TaskResultUpdateTool()
 
         result = await loop._maybe_lazy_recovery(
-            node, agent, [tool], last_result, validation,
+            node,
+            agent,
+            [tool],
+            last_result,
+            validation,
         )
         assert result is not None
         lazy_result, lazy_validation = result
@@ -142,8 +163,11 @@ class TestLazyRetrySuccess:
         # but terminate may still be missing (standard recovery handles it).
         tool_results = lazy_result.metadata.get("tool_results", [])
         successful = {
-            tr.get("name") for tr in tool_results
-            if isinstance(tr, dict) and isinstance(tr.get("output"), dict) and tr["output"].get("success")
+            tr.get("name")
+            for tr in tool_results
+            if isinstance(tr, dict)
+            and isinstance(tr.get("output"), dict)
+            and tr["output"].get("success")
         }
         assert "task_result_update" in successful
 
@@ -167,15 +191,23 @@ class TestLazyRetryGarbageMarkdown:
         )
         node.ensure_session(loop.root_session)
 
-        agent = _make_agent({"role": "assistant", "content": "I don't understand the template."})
+        agent = _make_agent(
+            {"role": "assistant", "content": "I don't understand the template."}
+        )
         last_result = LLMResult(content="reviewing", metadata={"tool_results": []})
         validation = ValidationResult(
             is_valid=False,
-            errors=["result_reviewer must call successful task-state tool(s): ['task_review_decision']"],
+            errors=[
+                "result_reviewer must call successful task-state tool(s): ['task_review_decision']"
+            ],
         )
 
         result = await loop._maybe_lazy_recovery(
-            node, agent, [TaskReviewDecisionTool()], last_result, validation,
+            node,
+            agent,
+            [TaskReviewDecisionTool()],
+            last_result,
+            validation,
         )
         assert result is None
 
@@ -212,11 +244,17 @@ class TestUnresolvableTaskId:
         last_result = LLMResult(content="reviewing", metadata={"tool_results": []})
         validation = ValidationResult(
             is_valid=False,
-            errors=["result_reviewer must call successful task-state tool(s): ['task_review_decision']"],
+            errors=[
+                "result_reviewer must call successful task-state tool(s): ['task_review_decision']"
+            ],
         )
 
         result = await loop._maybe_lazy_recovery(
-            node, agent, [TaskReviewDecisionTool()], last_result, validation,
+            node,
+            agent,
+            [TaskReviewDecisionTool()],
+            last_result,
+            validation,
         )
         assert result is None
 
@@ -240,21 +278,30 @@ class TestToolExecError:
         )
         node.ensure_session(loop.root_session)
 
-        agent = _make_agent({"role": "assistant", "content": _reviewer_valid_markdown(child.task_id)})
+        agent = _make_agent(
+            {"role": "assistant", "content": _reviewer_valid_markdown(child.task_id)}
+        )
 
         # Force _execute_tool_calls to raise.
         async def boom(*args, **kwargs):  # noqa: ARG001
             raise RuntimeError("exec failed")
+
         monkeypatch.setattr(loop, "_execute_tool_calls", boom)
 
         last_result = LLMResult(content="reviewing", metadata={"tool_results": []})
         validation = ValidationResult(
             is_valid=False,
-            errors=["result_reviewer must call successful task-state tool(s): ['task_review_decision']"],
+            errors=[
+                "result_reviewer must call successful task-state tool(s): ['task_review_decision']"
+            ],
         )
 
         result = await loop._maybe_lazy_recovery(
-            node, agent, [TaskReviewDecisionTool()], last_result, validation,
+            node,
+            agent,
+            [TaskReviewDecisionTool()],
+            last_result,
+            validation,
         )
         assert result is None
 
@@ -287,7 +334,10 @@ class TestGateStandardMode:
         def mock_llm(messages, tools, stream=False, **kwargs):  # noqa: ARG001
             nonlocal call_count
             call_count += 1
-            return {"role": "assistant", "content": _reviewer_valid_markdown(child.task_id)}
+            return {
+                "role": "assistant",
+                "content": _reviewer_valid_markdown(child.task_id),
+            }
 
         agent = MagicMock()
         agent.tool_permissions = {}
@@ -296,11 +346,17 @@ class TestGateStandardMode:
         last_result = LLMResult(content="reviewing", metadata={"tool_results": []})
         validation = ValidationResult(
             is_valid=False,
-            errors=["result_reviewer must call successful task-state tool(s): ['task_review_decision']"],
+            errors=[
+                "result_reviewer must call successful task-state tool(s): ['task_review_decision']"
+            ],
         )
 
         result = await loop._maybe_lazy_recovery(
-            node, agent, [TaskReviewDecisionTool()], last_result, validation,
+            node,
+            agent,
+            [TaskReviewDecisionTool()],
+            last_result,
+            validation,
         )
         assert result is None
         assert call_count == 0, "LLM must not be called in standard mode"
@@ -338,7 +394,11 @@ class TestGateNonStateToolOrNonLazyNode:
         )
 
         result = await loop._maybe_lazy_recovery(
-            node, agent, [], last_result, validation,
+            node,
+            agent,
+            [],
+            last_result,
+            validation,
         )
         assert result is None
         assert call_count == 0
@@ -378,7 +438,11 @@ class TestGateNoTemplateNode:
         )
 
         result = await loop._maybe_lazy_recovery(
-            node, agent, [], last_result, validation,
+            node,
+            agent,
+            [],
+            last_result,
+            validation,
         )
         assert result is None
         assert call_count == 0
@@ -412,10 +476,16 @@ class TestLazyDoesNotBurnSlot:
         last_result = LLMResult(content="reviewing", metadata={"tool_results": []})
         validation = ValidationResult(
             is_valid=False,
-            errors=["result_reviewer must call successful task-state tool(s): ['task_review_decision']"],
+            errors=[
+                "result_reviewer must call successful task-state tool(s): ['task_review_decision']"
+            ],
         )
 
         result = await loop._maybe_lazy_recovery(
-            node, agent, [TaskReviewDecisionTool()], last_result, validation,
+            node,
+            agent,
+            [TaskReviewDecisionTool()],
+            last_result,
+            validation,
         )
         assert result is None

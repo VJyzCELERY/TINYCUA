@@ -171,9 +171,14 @@ class TestToolResultsReturnRelPath:
             from tinycua.agent.tools.native.files import search_files
 
             (tmp_path / "report.md").write_text("hello world\nfoo bar\nhello again\n")
-            result = search_files("hello", target="content", path=".", output_mode="content")
+            result = search_files(
+                "hello", target="content", path=".", output_mode="content"
+            )
             assert isinstance(result, list)
             # The match line should use a relative path, not absolute.
-            assert any("report.md" in str(line) and not str(line).startswith("/") for line in result)
+            assert any(
+                "report.md" in str(line) and not str(line).startswith("/")
+                for line in result
+            )
         finally:
             bind_workspace(None)

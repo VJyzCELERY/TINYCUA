@@ -65,7 +65,9 @@ class TodoWriteTool(SessionTodoToolMixin, Tool):
         """
         if descriptions is not None:
             for description in descriptions:
-                self._todo_store.append({"description": description, "status": "pending"})
+                self._todo_store.append(
+                    {"description": description, "status": "pending"}
+                )
         if done_index is not None:
             if 0 <= done_index < len(self._todo_store):
                 self._todo_store[done_index]["status"] = "done"

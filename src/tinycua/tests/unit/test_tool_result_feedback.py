@@ -46,7 +46,11 @@ async def test_tool_results_are_fed_back_to_followup_llm_call() -> None:
                     }
                 ],
             }
-        assert any(message.get("role") == "tool" and "tool saw hello" in message.get("content", "") for message in messages)
+        assert any(
+            message.get("role") == "tool"
+            and "tool saw hello" in message.get("content", "")
+            for message in messages
+        )
         return {"content": "final after tool", "tool_calls": []}
 
     agent._call_llm = call_llm
