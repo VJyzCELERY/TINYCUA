@@ -284,7 +284,11 @@ def test_str_replace_fuzzy_whitespace():
         from tinycua.agent.tools.native.files import str_replace
 
         # old_string with different indentation than the file
-        result = str_replace(filepath, old_string="def foo():\n  return 42", new_string="def bar():\n  return 0")
+        result = str_replace(
+            filepath,
+            old_string="def foo():\n  return 42",
+            new_string="def bar():\n  return 0",
+        )
         assert result["success"] is True
         content = Path(filepath).read_text()
         assert "def bar" in content
@@ -453,6 +457,7 @@ def test_search_files_multiple_files():
         Path(tmpdir, "b.py").write_text("hello = 'world'\n")
         Path(tmpdir, "c.txt").write_text("not a match\n")
         import tinycua.agent.tools.native.files as files_mod
+
         files_mod._last_search_key = None
         files_mod._search_repeat_count = 0
         from tinycua.agent.tools.native.files import search_files
@@ -471,6 +476,7 @@ def test_search_files_recursive():
         Path(tmpdir, "subdir").mkdir()
         Path(tmpdir, "subdir", "nested.py").write_text("target_function\n")
         import tinycua.agent.tools.native.files as files_mod
+
         files_mod._last_search_key = None
         files_mod._search_repeat_count = 0
         from tinycua.agent.tools.native.files import search_files

@@ -83,7 +83,9 @@ def create_tinycua_agent(
         existing_tools = list(agent_kwargs.pop("tools", []) or [])
         native_tools = _native_tools(native_tool_policy)
         existing_names = {tool.name for tool in existing_tools}
-        existing_tools.extend(tool for tool in native_tools if tool.name not in existing_names)
+        existing_tools.extend(
+            tool for tool in native_tools if tool.name not in existing_names
+        )
         agent_kwargs["tools"] = existing_tools
     _apply_tinycua_model_defaults(agent_kwargs)
     queue = create_default_queue(effective_session_config)

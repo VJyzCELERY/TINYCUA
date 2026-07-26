@@ -160,13 +160,17 @@ def test_file_mutations_preserve_exact_decoded_content():
     content = (
         'python = "\\n"\n'
         'regex = r"\\t\\w+"\n'
-        'json = "{\\"escape\\": \\\"\\\\u2208\\\"}"\n'
+        'json = "{\\"escape\\": \\"\\\\u2208\\"}"\n'
         'latex = r"\\text{value}"\n'
         "tab =\tvalue\ncarriage =\rvalue\nunicode = ∈"
     )
     with tempfile.TemporaryDirectory() as tmpdir:
         bind_workspace(tmpdir)
-        from tinycua.agent.tools.native.files import append_file, str_replace, write_file
+        from tinycua.agent.tools.native.files import (
+            append_file,
+            str_replace,
+            write_file,
+        )
 
         write_path = Path(tmpdir, "write.txt")
         assert write_file(str(write_path), content)["success"] is True
@@ -220,7 +224,9 @@ def test_str_replace_replace_all():
         Path(filepath).write_text("foo\nbar\nfoo\n")
         from tinycua.agent.tools.native.files import str_replace
 
-        result = str_replace(filepath, old_string="foo", new_string="baz", replace_all=True)
+        result = str_replace(
+            filepath, old_string="foo", new_string="baz", replace_all=True
+        )
         assert result["success"] is True
         assert result["replacements_made"] == 2
         assert Path(filepath).read_text() == "baz\nbar\nbaz\n"
@@ -286,7 +292,11 @@ def test_str_replace_fuzzy_line_trimmed():
         from tinycua.agent.tools.native.files import str_replace
 
         # old_string has no trailing spaces, file has trailing spaces on "pass" line
-        result = str_replace(filepath, old_string="def foo():\n    pass\n", new_string="def bar():\n    pass\n")
+        result = str_replace(
+            filepath,
+            old_string="def foo():\n    pass\n",
+            new_string="def bar():\n    pass\n",
+        )
         assert result["success"] is True
         assert "def bar" in Path(filepath).read_text()
 
@@ -481,6 +491,7 @@ def test_search_files_content_exact():
         filepath = os.path.join(tmpdir, "test.py")
         Path(filepath).write_text("def foo():\n    return 42\n")
         import tinycua.agent.tools.native.files as files_mod
+
         files_mod._last_search_key = None
         files_mod._search_repeat_count = 0
         from tinycua.agent.tools.native.files import search_files
@@ -498,6 +509,7 @@ def test_search_files_content_regex():
         filepath = os.path.join(tmpdir, "test.py")
         Path(filepath).write_text("val = 12345\n")
         import tinycua.agent.tools.native.files as files_mod
+
         files_mod._last_search_key = None
         files_mod._search_repeat_count = 0
         from tinycua.agent.tools.native.files import search_files
@@ -514,6 +526,7 @@ def test_search_files_files_only():
         Path(tmpdir, "a.py").touch()
         Path(tmpdir, "b.txt").touch()
         import tinycua.agent.tools.native.files as files_mod
+
         files_mod._last_search_key = None
         files_mod._search_repeat_count = 0
         from tinycua.agent.tools.native.files import search_files
@@ -531,6 +544,7 @@ def test_search_files_file_glob_filter():
         Path(tmpdir, "match.py").write_text("target_string\n")
         Path(tmpdir, "skip.txt").write_text("target_string\n")
         import tinycua.agent.tools.native.files as files_mod
+
         files_mod._last_search_key = None
         files_mod._search_repeat_count = 0
         from tinycua.agent.tools.native.files import search_files
@@ -548,6 +562,7 @@ def test_search_files_context_lines():
         filepath = os.path.join(tmpdir, "ctx.py")
         Path(filepath).write_text("line1\nline2\nMATCH\nline4\nline5\n")
         import tinycua.agent.tools.native.files as files_mod
+
         files_mod._last_search_key = None
         files_mod._search_repeat_count = 0
         from tinycua.agent.tools.native.files import search_files
@@ -566,6 +581,7 @@ def test_search_files_output_mode_count():
         bind_workspace(tmpdir)
         Path(tmpdir, "multi.py").write_text("foo\nfoo\nbar\n")
         import tinycua.agent.tools.native.files as files_mod
+
         files_mod._last_search_key = None
         files_mod._search_repeat_count = 0
         from tinycua.agent.tools.native.files import search_files
@@ -581,6 +597,7 @@ def test_search_files_no_matches():
         bind_workspace(tmpdir)
         Path(tmpdir, "empty.py").write_text("nothing here\n")
         import tinycua.agent.tools.native.files as files_mod
+
         files_mod._last_search_key = None
         files_mod._search_repeat_count = 0
         from tinycua.agent.tools.native.files import search_files
@@ -593,6 +610,7 @@ def test_search_files_no_matches():
 def test_search_files_nonexistent_path():
     """search_files returns error for nonexistent path."""
     import tinycua.agent.tools.native.files as files_mod
+
     files_mod._last_search_key = None
     files_mod._search_repeat_count = 0
     from tinycua.agent.tools.native.files import search_files
@@ -609,6 +627,7 @@ def test_search_files_loop_detection():
         bind_workspace(tmpdir)
         Path(tmpdir, "loop.py").write_text("test content\n")
         import tinycua.agent.tools.native.files as files_mod
+
         files_mod._last_search_key = None
         files_mod._search_repeat_count = 0
         from tinycua.agent.tools.native.files import search_files
@@ -628,8 +647,11 @@ def test_search_files_pagination():
     """search_files pagination via offset and limit."""
     with tempfile.TemporaryDirectory() as tmpdir:
         bind_workspace(tmpdir)
-        Path(tmpdir, "page.py").write_text("\n".join(f"match_{i}" for i in range(10)) + "\n")
+        Path(tmpdir, "page.py").write_text(
+            "\n".join(f"match_{i}" for i in range(10)) + "\n"
+        )
         import tinycua.agent.tools.native.files as files_mod
+
         files_mod._last_search_key = None
         files_mod._search_repeat_count = 0
         from tinycua.agent.tools.native.files import search_files

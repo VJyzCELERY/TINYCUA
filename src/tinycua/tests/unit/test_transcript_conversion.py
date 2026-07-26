@@ -141,7 +141,11 @@ def test_tool_outcome_is_bounded_correlated_and_actionable() -> None:
     """Prompt-visible tool outcomes preserve the call identity and failure details."""
     outcome = normalize_tool_outcome(
         {"id": "call-7", "function": {"name": "run_shell"}},
-        {"name": "run_shell", "allowed": True, "output": {"exit_code": 2, "error": "bad flag"}},
+        {
+            "name": "run_shell",
+            "allowed": True,
+            "output": {"exit_code": 2, "error": "bad flag"},
+        },
     )
 
     assert outcome["call_id"] == "call-7"
@@ -228,9 +232,7 @@ class TestConvertWorkingMessages:
 
     def test_tool_result_message(self) -> None:
         """Tool result messages are mapped to toolResult records."""
-        messages = [
-            {"role": "tool_result", "call_id": "call_abc", "content": "Done"}
-        ]
+        messages = [{"role": "tool_result", "call_id": "call_abc", "content": "Done"}]
         records = convert_working_messages_to_openclaw(messages)
         assert len(records) == 1
         assert records[0]["type"] == "toolResult"
@@ -245,7 +247,12 @@ class TestConvertWorkingMessages:
         records = convert_working_messages_to_openclaw(
             messages, per_message_usage=usage
         )
-        expected_usage = {"input": 10, "output": 5, "totalTokens": 15, "cost": {"total": 0.0}}
+        expected_usage = {
+            "input": 10,
+            "output": 5,
+            "totalTokens": 15,
+            "cost": {"total": 0.0},
+        }
         assert records[0]["message"]["usage"] == expected_usage
 
     def test_empty_messages_returns_empty_list(self) -> None:
@@ -262,9 +269,7 @@ class TestWriteOpenClawJsonl:
 
     def test_writes_jsonl(self, tmp_path: Path) -> None:
         """Records are written as JSONL."""
-        records = [
-            {"type": "message", "message": {"role": "user", "content": "Hi"}}
-        ]
+        records = [{"type": "message", "message": {"role": "user", "content": "Hi"}}]
         path = tmp_path / "transcript.jsonl"
         write_openclaw_jsonl(records, path)
         lines = path.read_text().strip().split("\n")
@@ -323,9 +328,7 @@ class TestWriteUsageSummary:
 
     def test_handles_none_token_values(self, tmp_path: Path) -> None:
         """None token values are treated as 0."""
-        events = [
-            {"input_tokens": None, "output_tokens": None, "total_tokens": None}
-        ]
+        events = [{"input_tokens": None, "output_tokens": None, "total_tokens": None}]
         path = tmp_path / "usage.json"
         write_usage_summary(path, events, elapsed_time=1.0)
         data = json.loads(path.read_text())

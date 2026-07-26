@@ -22,7 +22,12 @@ from tinycua.loops.node_contract import LifecyclePhase
 from tinycua.loops.task_nodes import TinyCUATaskAnalyzerNode, TinyCUATaskExecutorNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.task import TaskResult
-from tinycua.tools.task_tools import TaskDecomposeTool, TaskInspectTool, TaskResultUpdateTool, TerminateTool
+from tinycua.tools.task_tools import (
+    TaskDecomposeTool,
+    TaskInspectTool,
+    TaskResultUpdateTool,
+    TerminateTool,
+)
 
 
 def test_lifecycle_phase_scope_is_exclusive() -> None:
@@ -34,17 +39,23 @@ def test_lifecycle_phase_scope_is_exclusive() -> None:
     )
     tools = [TaskInspectTool(), TaskResultUpdateTool(), TerminateTool()]
 
-    assert [tool.name for tool in loop._phase_tools(node, tools, LifecyclePhase.ACTION)] == [
+    assert [
+        tool.name for tool in loop._phase_tools(node, tools, LifecyclePhase.ACTION)
+    ] == [
         "task_inspect",
         "task_result_update",
     ]
-    assert [tool.name for tool in loop._phase_tools(node, tools, LifecyclePhase.COMMIT)] == [
+    assert [
+        tool.name for tool in loop._phase_tools(node, tools, LifecyclePhase.COMMIT)
+    ] == [
         "task_result_update",
     ]
     task = loop.root_session.task_store.create_task("Active")
     loop.root_session.task_store.record_result(task.task_id, TaskResult(content="done"))
     node.progress.satisfied_requirements.add("task_result_update")
-    assert [tool.name for tool in loop._phase_tools(node, tools, LifecyclePhase.TERMINATE)] == [
+    assert [
+        tool.name for tool in loop._phase_tools(node, tools, LifecyclePhase.TERMINATE)
+    ] == [
         "task_inspect",
         "task_result_update",
         "terminate",
@@ -84,10 +95,15 @@ class TestRecoveryRetryReturnsPartialResult:
                         "type": "function",
                         "function": {
                             "name": "task_decompose",
-                            "arguments": json.dumps({
-                                "task_id": root.task_id,
-                                "subtasks": ["Search for frontier models", "Write report"],
-                            }),
+                            "arguments": json.dumps(
+                                {
+                                    "task_id": root.task_id,
+                                    "subtasks": [
+                                        "Search for frontier models",
+                                        "Write report",
+                                    ],
+                                }
+                            ),
                         },
                     }
                 ],
@@ -106,7 +122,9 @@ class TestRecoveryRetryReturnsPartialResult:
         )
         validation = ValidationResult(
             is_valid=False,
-            errors=["task_analyzer must call at least one successful task-state tool from ['task_decompose', 'task_update']; task state cannot be inferred from prose."],
+            errors=[
+                "task_analyzer must call at least one successful task-state tool from ['task_decompose', 'task_update']; task state cannot be inferred from prose."
+            ],
         )
 
         # Call _recovery_retry directly.
@@ -125,7 +143,8 @@ class TestRecoveryRetryReturnsPartialResult:
         # task_decompose was called successfully.
         tool_results = recovery_result.metadata.get("tool_results", [])
         successful = {
-            tr.get("name") for tr in tool_results
+            tr.get("name")
+            for tr in tool_results
             if isinstance(tr.get("output"), dict) and tr["output"].get("success")
         }
         assert "task_decompose" in successful
@@ -168,10 +187,12 @@ class TestUnboundedRecoveryAccumulatesPartialResult:
                         "type": "function",
                         "function": {
                             "name": "task_decompose",
-                            "arguments": json.dumps({
-                                "task_id": root.task_id,
-                                "subtasks": [f"Subtask {call_count[0]}"],
-                            }),
+                            "arguments": json.dumps(
+                                {
+                                    "task_id": root.task_id,
+                                    "subtasks": [f"Subtask {call_count[0]}"],
+                                }
+                            ),
                         },
                     }
                 ],
@@ -192,7 +213,9 @@ class TestUnboundedRecoveryAccumulatesPartialResult:
         )
         validation = ValidationResult(
             is_valid=False,
-            errors=["task_analyzer must call at least one successful task-state tool from ['task_decompose', 'task_update']; task state cannot be inferred from prose."],
+            errors=[
+                "task_analyzer must call at least one successful task-state tool from ['task_decompose', 'task_update']; task state cannot be inferred from prose."
+            ],
         )
 
         # _unbounded_recovery should:
@@ -203,7 +226,11 @@ class TestUnboundedRecoveryAccumulatesPartialResult:
         # 5. missing becomes ["terminate"] → direct_terminate fires
         # 6. Returns valid result
         recovery = await loop._unbounded_recovery(
-            node, agent, resolved_tools, original_result, validation,
+            node,
+            agent,
+            resolved_tools,
+            original_result,
+            validation,
         )
 
         # The successful commit is the final lifecycle operation.
@@ -288,10 +315,12 @@ class TestStageToolHistory:
                         "type": "function",
                         "function": {
                             "name": "task_decompose",
-                            "arguments": json.dumps({
-                                "task_id": root.task_id,
-                                "subtasks": ["Subtask A"],
-                            }),
+                            "arguments": json.dumps(
+                                {
+                                    "task_id": root.task_id,
+                                    "subtasks": ["Subtask A"],
+                                }
+                            ),
                         },
                     }
                 ],
@@ -311,11 +340,17 @@ class TestStageToolHistory:
         )
         validation = ValidationResult(
             is_valid=False,
-            errors=["task_analyzer must call at least one successful task-state tool from ['task_decompose', 'task_update']; task state cannot be inferred from prose."],
+            errors=[
+                "task_analyzer must call at least one successful task-state tool from ['task_decompose', 'task_update']; task state cannot be inferred from prose."
+            ],
         )
 
         await loop._unbounded_recovery(
-            node, agent, resolved_tools, original_result, validation,
+            node,
+            agent,
+            resolved_tools,
+            original_result,
+            validation,
         )
 
         # stage_tool_history should have at least one entry recording
@@ -324,7 +359,6 @@ class TestStageToolHistory:
         assert len(history) > 0
         # At least one entry should record task_decompose as a successful tool.
         has_decompose = any(
-            "task_decompose" in entry.get("successful_tools", [])
-            for entry in history
+            "task_decompose" in entry.get("successful_tools", []) for entry in history
         )
         assert has_decompose

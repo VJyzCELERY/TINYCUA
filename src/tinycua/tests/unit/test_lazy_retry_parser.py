@@ -88,9 +88,7 @@ class TestResultReviewerTemplate:
 
     def test_legacy_rejected_is_not_model_facing(self):
         md = (
-            "# Review Assessment : rejected\n"
-            "# Review Summary\nlegacy\n"
-            "# Task ID\nt-1\n"
+            "# Review Assessment : rejected\n# Review Summary\nlegacy\n# Task ID\nt-1\n"
         )
 
         assert parse_lazy_markdown("result_reviewer", md) is None
@@ -101,13 +99,7 @@ class TestResultReviewerTemplate:
         assert parsed is None
 
     def test_malformed_decision_enum_returns_none(self):
-        md = (
-            "# Review Assessment : maybe\n"
-            "# Review Summary\n"
-            "summary\n"
-            "# Task ID\n"
-            "t-1\n"
-        )
+        md = "# Review Assessment : maybe\n# Review Summary\nsummary\n# Task ID\nt-1\n"
         parsed = parse_lazy_markdown("result_reviewer", md)
         assert parsed is None
 
@@ -126,13 +118,7 @@ class TestResultReviewerTemplate:
         assert parsed["decision"] == "needs_revision"
 
     def test_empty_summary_returns_none(self):
-        md = (
-            "# Review Assessment : approved\n"
-            "# Review Summary\n"
-            "\n"
-            "# Task ID\n"
-            "t-1\n"
-        )
+        md = "# Review Assessment : approved\n# Review Summary\n\n# Task ID\nt-1\n"
         parsed = parse_lazy_markdown("result_reviewer", md)
         assert parsed is None
 
@@ -169,22 +155,12 @@ class TestTaskExecutorTemplate:
     def test_replan_status_returns_none(self):
         """v1 executor template maps completed→success=true, failed→false.
         'replan' is a reviewer concept, not an executor outcome — reject."""
-        md = (
-            "# Status : replan\n"
-            "# Summary\n"
-            "need to replan\n"
-            "# Task ID\n"
-            "t-3\n"
-        )
+        md = "# Status : replan\n# Summary\nneed to replan\n# Task ID\nt-3\n"
         parsed = parse_lazy_markdown("task_executor", md)
         assert parsed is None
 
     def test_missing_summary_returns_none(self):
-        md = (
-            "# Status : completed\n"
-            "# Task ID\n"
-            "t-2\n"
-        )
+        md = "# Status : completed\n# Task ID\nt-2\n"
         parsed = parse_lazy_markdown("task_executor", md)
         assert parsed is None
 
@@ -193,41 +169,29 @@ class TestRouteTemplate:
     """Parse valid/missing/malformed markdown for query_analyst / worker."""
 
     def test_query_analyst_valid_route(self):
-        md = (
-            "# Route : worker\n"
-            "# Rationale\n"
-            "This needs task decomposition.\n"
-        )
+        md = "# Route : worker\n# Rationale\nThis needs task decomposition.\n"
         parsed = parse_lazy_markdown("query_analyst", md)
         assert parsed is not None
         assert parsed["route"] == "worker"
 
     def test_worker_valid_route(self):
-        md = (
-            "# Route : proceed_execution\n"
-            "# Rationale\n"
-            "Tasks are ready to execute.\n"
-        )
+        md = "# Route : proceed_execution\n# Rationale\nTasks are ready to execute.\n"
         parsed = parse_lazy_markdown("worker", md)
         assert parsed is not None
         assert parsed["route"] == "proceed_execution"
 
     def test_route_not_in_allowed_labels_returns_none(self):
-        md = (
-            "# Route : bogus_route\n"
-            "# Rationale\n"
-            "reason\n"
+        md = "# Route : bogus_route\n# Rationale\nreason\n"
+        parsed = parse_lazy_markdown(
+            "query_analyst", md, allowed_labels={"worker", "passthrough"}
         )
-        parsed = parse_lazy_markdown("query_analyst", md, allowed_labels={"worker", "passthrough"})
         assert parsed is None
 
     def test_route_validated_against_allowed_labels(self):
-        md = (
-            "# Route : passthrough\n"
-            "# Rationale\n"
-            "simple\n"
+        md = "# Route : passthrough\n# Rationale\nsimple\n"
+        parsed = parse_lazy_markdown(
+            "query_analyst", md, allowed_labels={"worker", "passthrough"}
         )
-        parsed = parse_lazy_markdown("query_analyst", md, allowed_labels={"worker", "passthrough"})
         assert parsed is not None
         assert parsed["route"] == "passthrough"
 

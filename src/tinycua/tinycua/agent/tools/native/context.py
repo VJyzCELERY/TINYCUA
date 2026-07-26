@@ -12,7 +12,9 @@ from contextvars import ContextVar
 from pathlib import Path
 
 
-_WORKSPACE_DIR: ContextVar[Path | None] = ContextVar("native_workspace_dir", default=None)
+_WORKSPACE_DIR: ContextVar[Path | None] = ContextVar(
+    "native_workspace_dir", default=None
+)
 
 
 class WorkspaceNotBoundError(RuntimeError):
@@ -95,8 +97,10 @@ def resolve_workspace_path(path: str) -> Path:
             # /ws/exp-2/ws/exp-2/report.md. Strip the workspace's own
             # segments from the front of the relative part.
             ws_tail = workspace.parts[1:]
-            while len(rel_parts) > len(ws_tail) and rel_parts[: len(ws_tail)] == ws_tail:
-                rel_parts = rel_parts[len(ws_tail):]
+            while (
+                len(rel_parts) > len(ws_tail) and rel_parts[: len(ws_tail)] == ws_tail
+            ):
+                rel_parts = rel_parts[len(ws_tail) :]
             if len(rel_parts) < len(rel.parts):
                 # A workspace prefix was stripped — re-resolve the remainder.
                 resolved = (workspace / Path(*rel_parts)).resolve(strict=False)
@@ -106,7 +110,9 @@ def resolve_workspace_path(path: str) -> Path:
             # Not under workspace — try re-rooting under the workspace first.
             # E.g. /backend/api/auth.py → /workspace/experiment-4/backend/api/auth.py
             # if the latter exists. This fixes the experiment-4 mismatch.
-            rerooted = (workspace / candidate.relative_to(candidate.anchor)).resolve(strict=False)
+            rerooted = (workspace / candidate.relative_to(candidate.anchor)).resolve(
+                strict=False
+            )
             if rerooted.exists():
                 candidate = rerooted
             resolved = candidate.resolve(strict=False)

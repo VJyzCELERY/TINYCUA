@@ -40,15 +40,15 @@ _OUTPUT_HEAD_CHARS = 20_000
 _ANSI_ESCAPE_RE = re.compile(
     r"\x1b"
     r"(?:"
-        r"\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]"     # CSI sequence
-        r"|\][\s\S]*?(?:\x07|\x1b\\)"                  # OSC (BEL or ST terminator)
-        r"|[PX^_][\s\S]*?(?:\x1b\\)"                   # DCS/SOS/PM/APC strings
-        r"|[\x20-\x2f]+[\x30-\x7e]"                    # nF escape sequences
-        r"|[\x30-\x7e]"                                 # Fp/Fe/Fs single-byte
+    r"\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]"  # CSI sequence
+    r"|\][\s\S]*?(?:\x07|\x1b\\)"  # OSC (BEL or ST terminator)
+    r"|[PX^_][\s\S]*?(?:\x1b\\)"  # DCS/SOS/PM/APC strings
+    r"|[\x20-\x2f]+[\x30-\x7e]"  # nF escape sequences
+    r"|[\x30-\x7e]"  # Fp/Fe/Fs single-byte
     r")"
-    r"|\x9b[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]"       # 8-bit CSI
-    r"|\x9d[\s\S]*?(?:\x07|\x9c)"                       # 8-bit OSC
-    r"|[\x80-\x9f]",                                    # Other 8-bit C1 controls
+    r"|\x9b[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]"  # 8-bit CSI
+    r"|\x9d[\s\S]*?(?:\x07|\x9c)"  # 8-bit OSC
+    r"|[\x80-\x9f]",  # Other 8-bit C1 controls
     re.DOTALL,
 )
 # Fast-path check — skip full regex when no escape-like bytes are present.
@@ -69,6 +69,7 @@ def strip_ansi(text: str) -> str:
 # ---------------------------------------------------------------------------
 # Command normalization (defeats trivial obfuscation before pattern matching)
 # ---------------------------------------------------------------------------
+
 
 def _normalize_command_for_detection(command: str) -> str:
     """Normalize a command string before safety-pattern matching.
@@ -98,10 +99,10 @@ def _normalize_command_for_detection(command: str) -> str:
 # subshell openers ($( or backtick), optionally consuming leading wrapper
 # commands (sudo, env VAR=VAL, exec, nohup, setsid, time).
 _CMDPOS = (
-    r"(?:^|[;&|\n`]|\$\()"         # start position
-    r"\s*"                          # optional whitespace
+    r"(?:^|[;&|\n`]|\$\()"  # start position
+    r"\s*"  # optional whitespace
     r"(?:sudo\s+(?:-[^\s]+\s+)*)?"  # optional sudo with flags
-    r"(?:env\s+(?:\w+=\S*\s+)*)?"   # optional env with VAR=VAL pairs
+    r"(?:env\s+(?:\w+=\S*\s+)*)?"  # optional env with VAR=VAL pairs
     r"(?:(?:exec|nohup|setsid|time)\s+)*"  # optional wrapper commands
     r"\s*"
 )
@@ -114,16 +115,25 @@ _HARDLINE_PATTERNS: list[tuple[str, str]] = [
         r"\brm\s+(-[^\s]*\s+)*(/home|/home/\*|/root|/root/\*|/etc|/etc/\*|/usr|/usr/\*|/var|/var/\*|/bin|/bin/\*|/sbin|/sbin/\*|/boot|/boot/\*|/lib|/lib/\*)(\s|$)",
         "recursive delete of system directory",
     ),
-    (r"\brm\s+(-[^\s]*\s+)*(~|\$HOME)(/?|/\*)?(\s|$)", "recursive delete of home directory"),
+    (
+        r"\brm\s+(-[^\s]*\s+)*(~|\$HOME)(/?|/\*)?(\s|$)",
+        "recursive delete of home directory",
+    ),
     (r"\bmkfs(\.[a-z0-9]+)?\b", "format filesystem (mkfs)"),
-    (r"\bdd\b[^\n]*\bof=/dev/(sd|nvme|hd|mmcblk|vd|xvd)[a-z0-9]*", "dd to raw block device"),
+    (
+        r"\bdd\b[^\n]*\bof=/dev/(sd|nvme|hd|mmcblk|vd|xvd)[a-z0-9]*",
+        "dd to raw block device",
+    ),
     (r">\s*/dev/(sd|nvme|hd|mmcblk|vd|xvd)[a-z0-9]*\b", "redirect to raw block device"),
     (r":\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:", "fork bomb"),
     # kill -1 (all processes) — anchored to command position so "echo 'kill -1'" doesn't match.
     (_CMDPOS + r"kill\s+(-[^\s]+\s+)*-1\b", "kill all processes"),
     (_CMDPOS + r"(shutdown|reboot|halt|poweroff)\b", "system shutdown/reboot"),
     (_CMDPOS + r"init\s+[06]\b", "init 0/6 (shutdown/reboot)"),
-    (_CMDPOS + r"systemctl\s+(poweroff|reboot|halt|kexec)\b", "systemctl poweroff/reboot"),
+    (
+        _CMDPOS + r"systemctl\s+(poweroff|reboot|halt|kexec)\b",
+        "systemctl poweroff/reboot",
+    ),
     (_CMDPOS + r"telinit\s+[06]\b", "telinit 0/6 (shutdown/reboot)"),
 ]
 
@@ -134,7 +144,10 @@ _DANGEROUS_PATTERNS: list[tuple[str, str]] = [
     (r"\brm\s+(-[^\s]*r[^\s]*\s+|-[^\s]*\s+)+\S", "rm -r deletes recursively"),
     (r"\bchmod\b[^\n]*\b777\b", "chmod 777 opens permissions broadly"),
     (r"\bgit\s+push\b[^\n]*--force\b", "git push --force rewrites remote history"),
-    (r"\bgit\s+(reset|clean|checkout)\b[^\n]*--hard\b", "git hard reset/clean discards work"),
+    (
+        r"\bgit\s+(reset|clean|checkout)\b[^\n]*--hard\b",
+        "git hard reset/clean discards work",
+    ),
     (r">\s*/etc/", "redirect writes to /etc (system config)"),
     (r"\bsed\b[^\n]*-i\b", "sed -i edits files in place"),
     (r"\bpip\b[^\n]*\binstall\b", "pip install modifies environment"),
@@ -192,6 +205,7 @@ def _check_command_safety(command: str) -> tuple[bool, str | None, str | None]:
 # Exit-code interpretation — stop the model wasting turns on expected non-zero exits
 # ---------------------------------------------------------------------------
 
+
 def _interpret_exit_code(command: str, exit_code: int) -> str | None:
     """Return a human-readable note when a non-zero exit code is non-erroneous.
 
@@ -231,7 +245,9 @@ def _interpret_exit_code(command: str, exit_code: int) -> str | None:
         "ack": {1: "No matches found (not an error)"},
         "diff": {1: "Files differ (expected, not an error)"},
         "colordiff": {1: "Files differ (expected, not an error)"},
-        "find": {1: "Some directories were inaccessible (partial results may still be valid)"},
+        "find": {
+            1: "Some directories were inaccessible (partial results may still be valid)"
+        },
         "test": {1: "Condition evaluated to false (expected, not an error)"},
         "[": {1: "Condition evaluated to false (expected, not an error)"},
         "curl": {
@@ -240,7 +256,9 @@ def _interpret_exit_code(command: str, exit_code: int) -> str | None:
             22: "HTTP response code indicated error (e.g. 404, 500)",
             28: "Operation timed out",
         },
-        "git": {1: "Non-zero exit (often normal — e.g. 'git diff' returns 1 when files differ)"},
+        "git": {
+            1: "Non-zero exit (often normal — e.g. 'git diff' returns 1 when files differ)"
+        },
     }
 
     cmd_semantics = semantics.get(base_cmd)
@@ -253,6 +271,7 @@ def _interpret_exit_code(command: str, exit_code: int) -> str | None:
 # ---------------------------------------------------------------------------
 # Output truncation — head + tail
 # ---------------------------------------------------------------------------
+
 
 def _truncate_output(text: str) -> str:
     """Head+tail truncate to ``_MAX_OUTPUT_CHARS`` with an omission notice.
@@ -274,6 +293,7 @@ def _truncate_output(text: str) -> str:
 # Timeout bounding
 # ---------------------------------------------------------------------------
 
+
 def _bounded_timeout(timeout: int) -> int:
     """Return a safe timeout for model-requested shell execution.
 
@@ -283,7 +303,9 @@ def _bounded_timeout(timeout: int) -> int:
     """
     from tinycua.agent.tools.native._timeout import bounded_timeout
 
-    result = bounded_timeout(timeout, default=_DEFAULT_TIMEOUT_SECONDS, max_seconds=_MAX_TIMEOUT_SECONDS)
+    result = bounded_timeout(
+        timeout, default=_DEFAULT_TIMEOUT_SECONDS, max_seconds=_MAX_TIMEOUT_SECONDS
+    )
     # shell's policy is clamp (never None), so coerce the None case to max.
     return result if result is not None else _MAX_TIMEOUT_SECONDS
 
@@ -300,6 +322,7 @@ def _uses_unsafe_mkdir_braces(command: str) -> bool:
 # ---------------------------------------------------------------------------
 # The tool
 # ---------------------------------------------------------------------------
+
 
 @tool
 def run_shell(command: str, timeout: int = _DEFAULT_TIMEOUT_SECONDS) -> dict[str, Any]:
@@ -366,7 +389,7 @@ def run_shell(command: str, timeout: int = _DEFAULT_TIMEOUT_SECONDS) -> dict[str
             "exit_code": -1,
             "timed_out": False,
             "error": (
-                f"timeout {requested_timeout}s exceeds the { _MAX_TIMEOUT_SECONDS}s max; "
+                f"timeout {requested_timeout}s exceeds the {_MAX_TIMEOUT_SECONDS}s max; "
                 "narrow the command (e.g. run a subset of tests) instead of raising the timeout."
             ),
         }
@@ -447,11 +470,20 @@ bind_workspace_to_tool(run_shell)
 # exit-code logic breaks.
 # ---------------------------------------------------------------------------
 
+
 def _self_check() -> None:
     """Assert the gate and exit-code logic behave. Not a test suite."""
     # Hardline blocks
-    for cmd in ["rm -rf /", "rm -rf /etc", "mkfs.ext4 /dev/sda1", "dd if=/dev/zero of=/dev/sda",
-                "shutdown now", "reboot", "kill -1", ":(){ :|:& };:"]:
+    for cmd in [
+        "rm -rf /",
+        "rm -rf /etc",
+        "mkfs.ext4 /dev/sda1",
+        "dd if=/dev/zero of=/dev/sda",
+        "shutdown now",
+        "reboot",
+        "kill -1",
+        ":(){ :|:& };:",
+    ]:
         blocked, reason, _warn = _check_command_safety(cmd)
         assert blocked, f"expected block for: {cmd!r}"
         assert reason, f"expected block reason for: {cmd!r}"
@@ -467,16 +499,28 @@ def _self_check() -> None:
     assert warning is None, f"grep install must not warn, got: {warning!r}"
 
     # Recoverable destructive — warns but allows
-    for cmd in ["rm -rf ./tmp/build", "pip install requests", "git push --force origin main",
-                "kill 12345", "chmod 777 ./run.sh"]:
+    for cmd in [
+        "rm -rf ./tmp/build",
+        "pip install requests",
+        "git push --force origin main",
+        "kill 12345",
+        "chmod 777 ./run.sh",
+    ]:
         blocked, _r, warning = _check_command_safety(cmd)
         assert not blocked, f"recoverable cmd must not block: {cmd!r}"
         assert warning, f"expected warning for: {cmd!r}"
 
     # Exit-code interpretation
-    assert _interpret_exit_code("grep foo /nope", 1) == "No matches found (not an error)"
-    assert _interpret_exit_code("diff a b", 1) == "Files differ (expected, not an error)"
-    assert _interpret_exit_code("test -f x", 1) == "Condition evaluated to false (expected, not an error)"
+    assert (
+        _interpret_exit_code("grep foo /nope", 1) == "No matches found (not an error)"
+    )
+    assert (
+        _interpret_exit_code("diff a b", 1) == "Files differ (expected, not an error)"
+    )
+    assert (
+        _interpret_exit_code("test -f x", 1)
+        == "Condition evaluated to false (expected, not an error)"
+    )
     assert _interpret_exit_code("echo ok", 0) is None
     assert _interpret_exit_code("ls /nope", 2) is None  # unknown cmd/code → None
 
@@ -491,7 +535,10 @@ def _self_check() -> None:
     assert r["exit_code"] == 0 and "hello" in r["stdout"], r
     # grep with no match on an existing file → exit 1 + exit_code_meaning
     r = run_shell("grep nomatch_does_not_exist___ /etc/hostname")
-    assert r["exit_code"] == 1 and r.get("exit_code_meaning") == "No matches found (not an error)", r
+    assert (
+        r["exit_code"] == 1
+        and r.get("exit_code_meaning") == "No matches found (not an error)"
+    ), r
 
     print("shell.py self-check OK")
 

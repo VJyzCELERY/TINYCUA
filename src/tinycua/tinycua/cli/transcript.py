@@ -70,10 +70,12 @@ def _build_content_blocks(
 
     blocks: list[dict[str, Any]] = []
     # Text block
-    blocks.append({
-        "type": "text",
-        "text": entry.get("content", ""),
-    })
+    blocks.append(
+        {
+            "type": "text",
+            "text": entry.get("content", ""),
+        }
+    )
     # Tool use blocks
     for tc in tool_calls:
         func = tc.get("function", {})
@@ -83,12 +85,14 @@ def _build_content_blocks(
             input_data = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
         except (json.JSONDecodeError, TypeError):
             input_data = {}
-        blocks.append({
-            "type": "tool_use",
-            "id": tc.get("id", ""),
-            "name": func.get("name", ""),
-            "input": input_data,
-        })
+        blocks.append(
+            {
+                "type": "tool_use",
+                "id": tc.get("id", ""),
+                "name": func.get("name", ""),
+                "input": input_data,
+            }
+        )
     return blocks
 
 
@@ -123,14 +127,16 @@ def convert_working_messages_to_openclaw(
         # Tool result messages -> toolResult records
         if role == "tool_result":
             call_id = msg.get("call_id", "")
-            records.append({
-                "type": "toolResult",
-                "toolResult": {
-                    "callId": call_id,
-                    "tool_call_id": call_id,
-                    "content": msg.get("content", ""),
-                },
-            })
+            records.append(
+                {
+                    "type": "toolResult",
+                    "toolResult": {
+                        "callId": call_id,
+                        "tool_call_id": call_id,
+                        "content": msg.get("content", ""),
+                    },
+                }
+            )
             continue
 
         # Assistant messages with tool calls -> content blocks

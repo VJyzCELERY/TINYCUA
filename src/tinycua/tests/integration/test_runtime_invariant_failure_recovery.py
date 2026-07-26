@@ -76,9 +76,7 @@ async def test_each_internal_node_bad_once_recovers_and_run_completes(
     # No direct bad_node -> response skip (recovery path has intervening nodes).
     for i in range(len(node_ids) - 1):
         if node_ids[i] == bad_node and node_ids[i + 1] == "response":
-            pytest.fail(
-                f"loop skipped {bad_node} -> response directly: {node_ids}"
-            )
+            pytest.fail(f"loop skipped {bad_node} -> response directly: {node_ids}")
 
 
 @pytest.mark.asyncio
@@ -89,9 +87,7 @@ async def test_bad_once_task_analyzer_does_not_skip_to_response(tmp_path: Path) 
     Specifically prove TaskAnalyzer bad-once recovers via retry and does NOT
     use the forbidden vertical-slice recovery shortcut to reach response.
     """
-    agent, script = _make_agent(
-        tmp_path, bad_once_nodes=frozenset({"task_analyzer"})
-    )
+    agent, script = _make_agent(tmp_path, bad_once_nodes=frozenset({"task_analyzer"}))
 
     await agent.run("Build a note taking app with web UI")
     node_ids = _trace_node_ids(agent)
@@ -118,8 +114,10 @@ async def test_bad_forever_contract_node_fails_closed_without_illegal_route(
     downstream node.
     """
     script = _RouteMatrixScript(
-        route="worker", bad_once_nodes=frozenset(),
+        route="worker",
+        bad_once_nodes=frozenset(),
     )
+
     # Make task_analyzer bad-forever by reusing bad_once on every call: we
     # subclass to override _is_bad so the node never recovers.
     class _BadForeverScript(_RouteMatrixScript):

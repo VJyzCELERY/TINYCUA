@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
 class PromptProtocolMixin:
     """Mixin extracted from TinyCUALoop for modularity."""
 
@@ -109,13 +110,17 @@ class PromptProtocolMixin:
         parsed = self._parse_structured_tool_payload(llm_result.content, allowed)
         if parsed is None:
             return
-        if not isinstance(parsed, dict) or not isinstance(parsed.get("tool_calls"), list):
+        if not isinstance(parsed, dict) or not isinstance(
+            parsed.get("tool_calls"), list
+        ):
             return
         tool_calls: list[dict[str, Any]] = []
         for index, item in enumerate(parsed["tool_calls"]):
             if not isinstance(item, dict):
                 continue
-            function = item.get("function") if isinstance(item.get("function"), dict) else {}
+            function = (
+                item.get("function") if isinstance(item.get("function"), dict) else {}
+            )
             name = item.get("name") or function.get("name")
             if not isinstance(name, str) or name not in allowed:
                 continue
@@ -170,8 +175,7 @@ class PromptProtocolMixin:
             if not isinstance(candidate_calls, list):
                 continue
             tool_calls.extend(
-                item for item in candidate_calls
-                if isinstance(item, dict)
+                item for item in candidate_calls if isinstance(item, dict)
             )
         if tool_calls:
             return {"tool_calls": tool_calls}

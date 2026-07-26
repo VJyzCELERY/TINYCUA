@@ -21,7 +21,9 @@ from tinycua.models.session_context_entry import SessionContextEntry
 
 
 def _make_loop(session: Session) -> TinyCUALoop:
-    return TinyCUALoop(root_session=session, queue=NodeQueue(), session_config=session.session_config)
+    return TinyCUALoop(
+        root_session=session, queue=NodeQueue(), session_config=session.session_config
+    )
 
 
 def _make_agent(max_context: int = 1000) -> SimpleNamespace:
@@ -50,7 +52,9 @@ async def test_maybe_compact_noop_without_token_data():
     """No prior token data (chicken-and-egg) → no-op."""
     strategy = SimpleCompaction()
     session = Session(
-        session_config=SessionConfig(compaction_strategy=strategy, compaction_threshold=0.5)
+        session_config=SessionConfig(
+            compaction_strategy=strategy, compaction_threshold=0.5
+        )
     )
     session._last_input_tokens = 0
     session.session_context = [_entry("a"), _entry("b"), _entry("c"), _entry("d")]
@@ -66,7 +70,9 @@ async def test_maybe_compact_noop_below_threshold():
     strategy = SimpleCompaction()
     strategy.compact = AsyncMock(return_value={"role": "assistant", "content": "sum"})
     session = Session(
-        session_config=SessionConfig(compaction_strategy=strategy, compaction_threshold=0.7)
+        session_config=SessionConfig(
+            compaction_strategy=strategy, compaction_threshold=0.7
+        )
     )
     session._last_input_tokens = 500  # 500 < 0.7 * 1000 = 700
     session.session_context = [_entry("a"), _entry("b"), _entry("c"), _entry("d")]

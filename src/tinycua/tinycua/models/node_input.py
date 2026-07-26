@@ -52,7 +52,9 @@ class NodeInput(StateObject):
 
 
 # Type alias for flexible node input
-NodeInputLike: TypeAlias = str | NodeInput | NodePayload | NodeHandoff | list[dict] | dict
+NodeInputLike: TypeAlias = (
+    str | NodeInput | NodePayload | NodeHandoff | list[dict] | dict
+)
 
 
 def convert_node_input_to_messages(

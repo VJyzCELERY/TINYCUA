@@ -117,7 +117,11 @@ class TestUnboundedReplans:
         child = store.get_task(child_id)
         for _ in range(3):
             child.reviewer_decisions.append(
-                {"decision": "replan_boundary", "rationale": "prior replan", "metadata": {}}
+                {
+                    "decision": "replan_boundary",
+                    "rationale": "prior replan",
+                    "metadata": {},
+                }
             )
         # Now reject once more so the latest decision is needs_revision.
         store.record_reviewer_decision(child_id, ReviewerDecision.NEEDS_REVISION)
@@ -140,7 +144,11 @@ class TestUnboundedReplans:
         child = store.get_task(child_id)
         for _ in range(3):
             child.reviewer_decisions.append(
-                {"decision": "replan_boundary", "rationale": "prior replan", "metadata": {}}
+                {
+                    "decision": "replan_boundary",
+                    "rationale": "prior replan",
+                    "metadata": {},
+                }
             )
         store.record_reviewer_decision(child_id, ReviewerDecision.NEEDS_REVISION)
         queue = NodeQueue()

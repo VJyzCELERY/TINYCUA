@@ -21,7 +21,10 @@ def test_worker_runtime_retry_keeps_same_active_task() -> None:
     )
 
     assert store.active_task_id == active.task_id
-    assert [node.node_id for node in queue.items] == ["task_executor", "result_reviewer"]
+    assert [node.node_id for node in queue.items] == [
+        "task_executor",
+        "result_reviewer",
+    ]
 
 
 def test_worker_runtime_repeated_revision_never_routes_to_response() -> None:
@@ -42,7 +45,10 @@ def test_worker_runtime_repeated_revision_never_routes_to_response() -> None:
 
     assert store.all_done() is False
     assert store.active_task_id == active.task_id
-    assert [node.node_id for node in queue.items] == ["task_executor", "result_reviewer"]
+    assert [node.node_id for node in queue.items] == [
+        "task_executor",
+        "result_reviewer",
+    ]
 
 
 def test_worker_runtime_completed_task_advances_until_aggregation_ready() -> None:
@@ -57,7 +63,10 @@ def test_worker_runtime_completed_task_advances_until_aggregation_ready() -> Non
 
     WorkerRuntimeController(store).schedule_next(queue)
     assert store.active_task_id == second.task_id
-    assert [node.node_id for node in queue.items] == ["task_executor", "result_reviewer"]
+    assert [node.node_id for node in queue.items] == [
+        "task_executor",
+        "result_reviewer",
+    ]
 
     store.record_result(second.task_id, TaskResult(content="ok"))
     store.record_reviewer_decision(second.task_id, ReviewerDecision.APPROVED)
@@ -65,7 +74,10 @@ def test_worker_runtime_completed_task_advances_until_aggregation_ready() -> Non
     WorkerRuntimeController(store).schedule_next(queue)
     # Parent tasks now get a verification pass (executor verifies, reviewer
     # approves) — not auto-completed. So the root is scheduled for execution.
-    assert [node.node_id for node in queue.items] == ["task_executor", "result_reviewer"]
+    assert [node.node_id for node in queue.items] == [
+        "task_executor",
+        "result_reviewer",
+    ]
 
     # Complete the root verification pass → aggregation fires.
     store.record_result(root.task_id, TaskResult(content="root verified"))
@@ -92,7 +104,10 @@ def test_worker_runtime_failed_task_retries_same_leaf() -> None:
     assert first.status == TaskStatus.FAILED
     assert second.status == TaskStatus.PENDING
     assert store.active_task_id == first.task_id
-    assert [node.node_id for node in queue.items] == ["task_executor", "result_reviewer"]
+    assert [node.node_id for node in queue.items] == [
+        "task_executor",
+        "result_reviewer",
+    ]
 
 
 def test_worker_runtime_skips_cancelled_active_leaf() -> None:
@@ -107,7 +122,10 @@ def test_worker_runtime_skips_cancelled_active_leaf() -> None:
     WorkerRuntimeController(store).schedule_next(queue)
 
     assert store.active_task_id == remaining.task_id
-    assert [node.node_id for node in queue.items] == ["task_executor", "result_reviewer"]
+    assert [node.node_id for node in queue.items] == [
+        "task_executor",
+        "result_reviewer",
+    ]
 
 
 def test_worker_runtime_replan_uses_local_assessor_mode() -> None:
@@ -196,5 +214,8 @@ def test_worker_runtime_uses_explicit_reviewed_task_after_postponement() -> None
         decision="postpone_siblings",
     )
 
-    assert [node.node_id for node in queue.items] == ["task_executor", "result_reviewer"]
+    assert [node.node_id for node in queue.items] == [
+        "task_executor",
+        "result_reviewer",
+    ]
     assert store.active_task_id == sibling.task_id

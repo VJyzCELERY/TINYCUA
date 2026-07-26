@@ -30,7 +30,12 @@ from tinycua.models.node_handoff import NodeHandoff
 from tinycua.models.node_input import NodeInput
 from tinycua.models.session import Session
 from tinycua.models.session_context_entry import SessionContextEntry
-from tinycua.models.task import AggregatedResult, ReviewerDecision, TaskResult, TaskStatus
+from tinycua.models.task import (
+    AggregatedResult,
+    ReviewerDecision,
+    TaskResult,
+    TaskStatus,
+)
 from tinycua_sdk import Agent, LanguageModel
 
 
@@ -126,7 +131,8 @@ def test_downstream_nodes_do_not_replay_raw_user_input() -> None:
         )
         # Continuations are now [System: ...] user messages (not assistant).
         assert any(
-            message["role"] == "user" and "[System:" in str(message["content"])
+            message["role"] == "user"
+            and "[System:" in str(message["content"])
             and (
                 "Based on" in str(message["content"])
                 or "Your Actual Assigned Task" in str(message["content"])
@@ -332,7 +338,12 @@ def test_executor_action_phase_exposes_result_update_without_terminate() -> None
 
     tools = loop._phase_tools(
         node,
-        [Tool(name="read_file"), Tool(name="write_file"), Tool(name="task_result_update"), Tool(name="terminate")],
+        [
+            Tool(name="read_file"),
+            Tool(name="write_file"),
+            Tool(name="task_result_update"),
+            Tool(name="terminate"),
+        ],
         LifecyclePhase.ACTION,
     )
 
@@ -343,7 +354,11 @@ def test_executor_action_phase_exposes_result_update_without_terminate() -> None
     ]
     assert TinyCUALoop._advance_lifecycle_phase(
         node,
-        LLMResult(metadata={"tool_results": [{"name": "read_file", "output": {"success": True}}]}),
+        LLMResult(
+            metadata={
+                "tool_results": [{"name": "read_file", "output": {"success": True}}]
+            }
+        ),
     )
     assert node.progress.lifecycle_phase is LifecyclePhase.COMMIT
 
@@ -364,8 +379,7 @@ def test_internal_output_context_uses_assistant_role_not_user() -> None:
     messages = loop._build_node_messages(node)
 
     assert not any(
-        message.get("content") == "Worker internal analysis"
-        for message in messages
+        message.get("content") == "Worker internal analysis" for message in messages
     )
 
 
@@ -419,7 +433,8 @@ def test_response_node_continuation_is_not_assistant_role() -> None:
     assert not any("Summarize" in m.get("content", "") for m in assistant_msgs)
     # The continuation should be a [System: ...] user message.
     system_user_msgs = [
-        m for m in messages
+        m
+        for m in messages
         if m["role"] == "user" and "[System:" in m.get("content", "")
     ]
     assert any("Summarize" in m.get("content", "") for m in system_user_msgs)
@@ -691,7 +706,9 @@ def test_result_reviewer_prefers_active_leaf_over_parent_aggregate() -> None:
     """Reviewer prompt and default review tool target stay aligned."""
     loop = TinyCUALoop()
     root = loop.root_session.task_store.create_task("Parent aggregate")
-    active = loop.root_session.task_store.create_task("Active leaf", parent_id=root.task_id)
+    active = loop.root_session.task_store.create_task(
+        "Active leaf", parent_id=root.task_id
+    )
     root.result = TaskResult(content="STALE PARENT AGGREGATE")
     loop.root_session.task_store.record_result(
         active.task_id,
@@ -710,7 +727,9 @@ def test_result_reviewer_prefers_active_leaf_over_parent_aggregate() -> None:
     assert "STALE PARENT AGGREGATE" not in rendered
 
 
-def test_result_reviewer_renders_active_description_and_advisory_root_criteria() -> None:
+def test_result_reviewer_renders_active_description_and_advisory_root_criteria() -> (
+    None
+):
     """Leaf review is gated by its own work, not immutable root criteria."""
     loop = TinyCUALoop()
     root = loop.root_session.task_store.create_task(
@@ -764,7 +783,10 @@ def test_result_reviewer_updates_unified_task_context_without_context_append() -
         LLMResult(
             metadata={
                 "tool_results": [
-                    {"name": "task_review_decision", "output": {"task_id": task.task_id}}
+                    {
+                        "name": "task_review_decision",
+                        "output": {"task_id": task.task_id},
+                    }
                 ]
             }
         ),
@@ -782,7 +804,10 @@ def test_result_reviewer_updates_unified_task_context_without_context_append() -
         LLMResult(
             metadata={
                 "tool_results": [
-                    {"name": "task_review_decision", "output": {"task_id": task.task_id}}
+                    {
+                        "name": "task_review_decision",
+                        "output": {"task_id": task.task_id},
+                    }
                 ]
             }
         ),
@@ -906,7 +931,9 @@ def test_task_analyzer_local_replan_prompt_does_not_replan_root() -> None:
         "Create frontend files",
         parent_id=root.task_id,
     )
-    loop.root_session.task_store.create_task("Create backend API", parent_id=root.task_id)
+    loop.root_session.task_store.create_task(
+        "Create backend API", parent_id=root.task_id
+    )
     loop.root_session.task_store.active_task_id = active.task_id
     analyzer = TinyCUATaskAnalyzerNode(
         node_id="task_analyzer",
@@ -930,22 +957,39 @@ def test_local_replan_region_shows_sibling_and_child_results() -> None:
     found and decide whether the region needs refinement — not just titles +
     statuses.
     """
-    from tinycua.loops.task_nodes import _local_task_region, _render_local_region_markdown
+    from tinycua.loops.task_nodes import (
+        _local_task_region,
+        _render_local_region_markdown,
+    )
     from tinycua.models.task import TaskResult, TaskStatus
 
     loop = TinyCUALoop()
     root = loop.root_session.task_store.create_task("Build application")
     # Sibling A — completed with a result.
-    sibling_a = loop.root_session.task_store.create_task("Fetch Vellum data", parent_id=root.task_id)
+    sibling_a = loop.root_session.task_store.create_task(
+        "Fetch Vellum data", parent_id=root.task_id
+    )
     sibling_a.status = TaskStatus.COMPLETED
-    sibling_a.result = TaskResult(content="full vellum content", summary="Vellum: Claude Opus 4.8 #1", success=True)
+    sibling_a.result = TaskResult(
+        content="full vellum content",
+        summary="Vellum: Claude Opus 4.8 #1",
+        success=True,
+    )
     # Active task — in-progress with a partial result.
-    active = loop.root_session.task_store.create_task("Fetch Kaggle dataset", parent_id=root.task_id)
+    active = loop.root_session.task_store.create_task(
+        "Fetch Kaggle dataset", parent_id=root.task_id
+    )
     active.status = TaskStatus.IN_PROGRESS
-    active.result = TaskResult(content="partial kaggle", summary="Kaggle: GPT-5.5 scores 89% MMLU", success=True)
+    active.result = TaskResult(
+        content="partial kaggle",
+        summary="Kaggle: GPT-5.5 scores 89% MMLU",
+        success=True,
+    )
     loop.root_session.task_store.active_task_id = active.task_id
     # Sibling B — pending, no result.
-    loop.root_session.task_store.create_task("Fetch AlphaCorp article", parent_id=root.task_id)
+    loop.root_session.task_store.create_task(
+        "Fetch AlphaCorp article", parent_id=root.task_id
+    )
 
     region = _local_task_region(loop.root_session)
     rendered = _render_local_region_markdown(region)
@@ -960,7 +1004,9 @@ def test_local_replan_region_shows_sibling_and_child_results() -> None:
     assert "Fetch AlphaCorp article" in rendered
     # The region dict carries results for children + siblings (for any caller
     # that wants the structured form, not just the markdown render).
-    assert any(s.get("result") == "Vellum: Claude Opus 4.8 #1" for s in region["siblings"])
+    assert any(
+        s.get("result") == "Vellum: Claude Opus 4.8 #1" for s in region["siblings"]
+    )
     assert region["active_task"]["result"] == "Kaggle: GPT-5.5 scores 89% MMLU"
 
 

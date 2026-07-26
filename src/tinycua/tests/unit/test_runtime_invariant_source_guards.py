@@ -22,9 +22,7 @@ from pathlib import Path
 # item 8) and granted by the user on 2026-06-17.
 _HARD_LOC_GATE = 1500
 
-_TINYCUA_SOURCE_ROOT = (
-    Path(__file__).resolve().parent.parent.parent / "tinycua"
-)
+_TINYCUA_SOURCE_ROOT = Path(__file__).resolve().parent.parent.parent / "tinycua"
 
 
 def test_tinycua_source_files_do_not_exceed_loc_gate() -> None:

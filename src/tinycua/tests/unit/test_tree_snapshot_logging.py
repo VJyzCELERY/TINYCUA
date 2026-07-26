@@ -35,7 +35,9 @@ class TestLogTreeSnapshot:
         child = store.create_task("Child", parent_id=root.task_id)
         with caplog.at_level(logging.INFO, logger="tinycua.models.task"):
             store.record_result(child.task_id, TaskResult(content="done", success=True))
-        messages = [r.message for r in caplog.records if "task_tree_mutation" in r.message]
+        messages = [
+            r.message for r in caplog.records if "task_tree_mutation" in r.message
+        ]
         # record_result triggers transition (logs) then record_result (logs).
         assert len(messages) >= 2
         # The last record_result log should show the child with a result marker.
@@ -57,7 +59,11 @@ class TestDecomposeTaskSingleLog:
         mutations = [r for r in caplog.records if "task_tree_mutation" in r.message]
         # create_task for Root logs once, then decompose logs once.
         # The 3 child create_task calls should NOT log (suppressed).
-        labels = [r.message.split("method=")[1].split()[0] for r in mutations if "method=" in r.message]
+        labels = [
+            r.message.split("method=")[1].split()[0]
+            for r in mutations
+            if "method=" in r.message
+        ]
         assert "decompose_task" in labels
         # No create_task entries from the children (only from Root if it was
         # created before the caplog context — but Root was created before, so
@@ -76,18 +82,30 @@ class TestRecordReviewerDecisionLogs:
         with caplog.at_level(logging.INFO, logger="tinycua.models.task"):
             store.record_reviewer_decision(root.task_id, ReviewerDecision.APPROVED)
         mutations = [r for r in caplog.records if "task_tree_mutation" in r.message]
-        labels = [r.message.split("method=")[1].split()[0] for r in mutations if "method=" in r.message]
+        labels = [
+            r.message.split("method=")[1].split()[0]
+            for r in mutations
+            if "method=" in r.message
+        ]
         assert "record_reviewer_decision" in labels
 
     def test_needs_revision_logs(self, caplog):
         store = TaskStateStore()
         store._enable_trace = True
         root = store.create_task("Root")
-        store.record_result(root.task_id, TaskResult(content="needs work", success=True))
+        store.record_result(
+            root.task_id, TaskResult(content="needs work", success=True)
+        )
         with caplog.at_level(logging.INFO, logger="tinycua.models.task"):
-            store.record_reviewer_decision(root.task_id, ReviewerDecision.NEEDS_REVISION)
+            store.record_reviewer_decision(
+                root.task_id, ReviewerDecision.NEEDS_REVISION
+            )
         mutations = [r for r in caplog.records if "task_tree_mutation" in r.message]
-        labels = [r.message.split("method=")[1].split()[0] for r in mutations if "method=" in r.message]
+        labels = [
+            r.message.split("method=")[1].split()[0]
+            for r in mutations
+            if "method=" in r.message
+        ]
         assert "record_reviewer_decision" in labels
 
 
@@ -96,6 +114,7 @@ class TestReportPrimingRemoved:
 
     def test_analyzer_continuation_no_report_md(self):
         from tinycua.loops.task_nodes import _TASK_ANALYZER_CONTINUATION
+
         lowered = _TASK_ANALYZER_CONTINUATION.lower()
         assert "report.md" not in lowered
         assert "write report" not in lowered
@@ -105,6 +124,7 @@ class TestReportPrimingRemoved:
         from tinycua.loops.task_nodes import TinyCUATaskExecutorNode
         from tinycua.config.node_config import create_node_config
         from tinycua.loops.tinycua_loop import TinyCUALoop
+
         loop = TinyCUALoop()
         node = TinyCUATaskExecutorNode(
             node_id="task_executor",
@@ -116,17 +136,25 @@ class TestReportPrimingRemoved:
 
     def test_reviewer_instruction_no_report_md(self):
         from tinycua.loops.node_guidance import _RESULT_REVIEWER_INSTRUCTION
+
         assert "report.md" not in _RESULT_REVIEWER_INSTRUCTION
 
     def test_reviewer_continuation_no_report_md(self):
         from tinycua.loops.node_guidance import _RESULT_REVIEWER_CONTINUATION
+
         assert "report.md" not in _RESULT_REVIEWER_CONTINUATION
 
     def test_reviewer_tool_guidance_no_report_md(self):
         from tinycua.loops.node_guidance import build_reviewer_tool_guidance
+
         class _FakeTool:
             def __init__(self, name):
                 self.name = name
-        tools = [_FakeTool("read_file"), _FakeTool("run_shell"), _FakeTool("task_review_decision")]
+
+        tools = [
+            _FakeTool("read_file"),
+            _FakeTool("run_shell"),
+            _FakeTool("task_review_decision"),
+        ]
         guidance = build_reviewer_tool_guidance(tools)
         assert "report.md" not in guidance

@@ -96,7 +96,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def _prepare_run_workspace(
-    dir: Path, save_artifacts: bool, prompt: str, timeout: int,
+    dir: Path,
+    save_artifacts: bool,
+    prompt: str,
+    timeout: int,
 ) -> tuple[Path, Path | None, Path | None, Path | None] | int:
     """Resolve workspace + artifact dirs. Returns (workspace, artifact_dir, log_path, transcript_path) or 1 on error."""
     workspace = Path(dir).expanduser().resolve()
@@ -114,18 +117,27 @@ def _prepare_run_workspace(
             _test_file.touch()
             _test_file.unlink()
         except OSError:
-            print(f"Artifact directory not writable: {artifact_dir}", file=sys.stderr, flush=True)
+            print(
+                f"Artifact directory not writable: {artifact_dir}",
+                file=sys.stderr,
+                flush=True,
+            )
             return 1
         log_path = artifact_dir / "agent.log"
         transcript_path = artifact_dir / "transcript.jsonl"
-        write_log_entry(log_path, "start", "info", {"prompt": prompt, "timeout": timeout})
+        write_log_entry(
+            log_path, "start", "info", {"prompt": prompt, "timeout": timeout}
+        )
 
     return workspace, artifact_dir, log_path, transcript_path
 
 
 def _load_run_config(
-    provider_url: str | None, api_key: str | None, model: str | None,
-    provider_type: str | None, log_path: Path | None,
+    provider_url: str | None,
+    api_key: str | None,
+    model: str | None,
+    provider_type: str | None,
+    log_path: Path | None,
 ) -> dict | int:
     """Load run config. Returns config dict or 1 on error."""
     try:
@@ -136,11 +148,16 @@ def _load_run_config(
         print(f"Configuration error: {e}", file=sys.stderr, flush=True)
         return 1
     if log_path:
-        write_log_entry(log_path, "config", "info", {
-            "base_url": config["base_url"],
-            "model": config["model"],
-            "provider_type": config["provider_type"],
-        })
+        write_log_entry(
+            log_path,
+            "config",
+            "info",
+            {
+                "base_url": config["base_url"],
+                "model": config["model"],
+                "provider_type": config["provider_type"],
+            },
+        )
     return config
 
 
@@ -163,7 +180,12 @@ def _resolve_max_context(
     """
     if cli_override is not None and cli_override > 0:
         if log_path:
-            write_log_entry(log_path, "max_context", "info", {"source": "cli", "value": cli_override})
+            write_log_entry(
+                log_path,
+                "max_context",
+                "info",
+                {"source": "cli", "value": cli_override},
+            )
         return cli_override
 
     # Probe the server best-effort. Runs synchronously here since this is
@@ -175,18 +197,26 @@ def _resolve_max_context(
     try:
         resolved = asyncio.get_event_loop().run_until_complete(
             resolve_max_context(
-                config["base_url"], config["api_key"], config["model"], fallback=128000,
+                config["base_url"],
+                config["api_key"],
+                config["model"],
+                fallback=128000,
             )
         )
     except RuntimeError:
         # No running loop — use asyncio.run for a one-shot call.
         resolved = asyncio.run(
             resolve_max_context(
-                config["base_url"], config["api_key"], config["model"], fallback=128000,
+                config["base_url"],
+                config["api_key"],
+                config["model"],
+                fallback=128000,
             )
         )
     if log_path:
-        write_log_entry(log_path, "max_context", "info", {"source": "probe", "value": resolved})
+        write_log_entry(
+            log_path, "max_context", "info", {"source": "probe", "value": resolved}
+        )
     # Only return when different from the SDK default so we don't redundantly
     # pass 128000 (let the SDK default apply naturally via None).
     if resolved == 128000:
@@ -195,9 +225,13 @@ def _resolve_max_context(
 
 
 def _build_run_agent(
-    config: dict, workspace: Path, artifact_dir: Path | None,
-    worker_effort: str, no_tool_audit: bool,
-    allow_open_question: bool, replan_threshold: int | None,
+    config: dict,
+    workspace: Path,
+    artifact_dir: Path | None,
+    worker_effort: str,
+    no_tool_audit: bool,
+    allow_open_question: bool,
+    replan_threshold: int | None,
     log_path: Path | None,
     recovery_strategy: str = "standard",
 ) -> Agent | int:
@@ -212,27 +246,38 @@ def _build_run_agent(
                 worker_effort=worker_effort,
                 disable_tool_audit=no_tool_audit,
                 enable_open_question_review=allow_open_question,
-                replan_threshold=replan_threshold if replan_threshold is not None else 5,
+                replan_threshold=replan_threshold
+                if replan_threshold is not None
+                else 5,
                 compaction_strategy=SimpleCompaction(),  # FR-082
                 recovery_strategy=recovery_strategy,  # FR-087
             ),
-            llm_model=build_language_model(config, max_context=config.get("max_context")),
+            llm_model=build_language_model(
+                config, max_context=config.get("max_context")
+            ),
         )
     except Exception as e:
         if log_path:
-            write_log_entry(log_path, "error", "error", {"error": str(e), "phase": "agent_creation"})
+            write_log_entry(
+                log_path, "error", "error", {"error": str(e), "phase": "agent_creation"}
+            )
         print(f"Failed to create agent: {e}", file=sys.stderr, flush=True)
         return 1
     return agent
 
 
 def _write_run_transcripts(
-    loop: Any, artifact_dir: Path, transcript_path: Path, elapsed: float,
+    loop: Any,
+    artifact_dir: Path,
+    transcript_path: Path,
+    elapsed: float,
 ) -> None:
     """Write transcript + usage + runtime exports when --save-artifacts is set."""
     working_messages = getattr(loop, "_working_messages", [])
     usage_events = loop.get_usage_events()
-    openclaw_records = convert_working_messages_to_openclaw(working_messages, usage_events)
+    openclaw_records = convert_working_messages_to_openclaw(
+        working_messages, usage_events
+    )
     write_openclaw_jsonl(openclaw_records, transcript_path)
     raw_transcript_path = artifact_dir / "transcript.raw.jsonl"
     write_transcript(working_messages, raw_transcript_path)
@@ -242,49 +287,79 @@ def _write_run_transcripts(
 
 
 def _finalize_run_success(
-    agent: Agent, result: str, elapsed: float, timeout: int,
-    timeout_event: threading.Event, save_artifacts: bool,
-    artifact_dir: Path | None, transcript_path: Path | None,
-    log_path: Path | None, workspace: Path, trace: bool, task_tree: bool,
+    agent: Agent,
+    result: str,
+    elapsed: float,
+    timeout: int,
+    timeout_event: threading.Event,
+    save_artifacts: bool,
+    artifact_dir: Path | None,
+    transcript_path: Path | None,
+    log_path: Path | None,
+    workspace: Path,
+    trace: bool,
+    task_tree: bool,
 ) -> int:
     """Handle a completed run: timeout check, artifacts, summary. Returns exit code."""
     if timeout_event.is_set():
         if log_path:
-            write_log_entry(log_path, "timeout", "warning", {"timeout": timeout, "elapsed": elapsed})
+            write_log_entry(
+                log_path, "timeout", "warning", {"timeout": timeout, "elapsed": elapsed}
+            )
         print(f"Agent timed out after {timeout}s", file=sys.stderr, flush=True)
         return 124
 
     if log_path:
-        write_log_entry(log_path, "complete", "info", {
-            "elapsed": elapsed,
-            "result_length": len(result) if result else 0,
-        })
+        write_log_entry(
+            log_path,
+            "complete",
+            "info",
+            {
+                "elapsed": elapsed,
+                "result_length": len(result) if result else 0,
+            },
+        )
 
     loop = agent.loop
-    if save_artifacts and artifact_dir is not None and transcript_path is not None and log_path is not None:
+    if (
+        save_artifacts
+        and artifact_dir is not None
+        and transcript_path is not None
+        and log_path is not None
+    ):
         _write_run_transcripts(loop, artifact_dir, transcript_path, elapsed)
 
     print(f"Agent completed in {elapsed:.1f}s", file=sys.stderr, flush=True)
     print_node_traversal(loop)
     if trace:
         from tinycua.cli.live_stream import print_final_task_tree
+
         print_final_task_tree(loop)
     if result and not trace:
         print(result, flush=True)
-    print_live_summary(loop, workspace, artifact_dir, result, trace=trace, task_tree=task_tree)
+    print_live_summary(
+        loop, workspace, artifact_dir, result, trace=trace, task_tree=task_tree
+    )
     return 0
 
 
 def _handle_run_exception(
-    exc: BaseException, elapsed: float, timeout: int, log_path: Path | None,
+    exc: BaseException,
+    elapsed: float,
+    timeout: int,
+    log_path: Path | None,
 ) -> int:
     """Handle a run exception (CancelledError→124, other→1). Returns exit code."""
     if isinstance(exc, asyncio.CancelledError):
         if log_path:
-            write_log_entry(log_path, "timeout", "warning", {"timeout": timeout, "elapsed": elapsed})
+            write_log_entry(
+                log_path, "timeout", "warning", {"timeout": timeout, "elapsed": elapsed}
+            )
         return 124
     if log_path:
-        write_log_entry(log_path, "error", "error", {"error": str(exc), "elapsed": elapsed})
+        write_log_entry(
+            log_path, "error", "error", {"error": str(exc), "elapsed": elapsed}
+        )
     print(f"Agent error: {exc}", file=sys.stderr, flush=True)
     return 1
 
@@ -374,8 +449,14 @@ def run_command(
         config["max_context"] = resolved_max_context
 
     agent = _build_run_agent(
-        config, workspace, artifact_dir, worker_effort, no_tool_audit,
-        allow_open_question, replan_threshold, log_path,
+        config,
+        workspace,
+        artifact_dir,
+        worker_effort,
+        no_tool_audit,
+        allow_open_question,
+        replan_threshold,
+        log_path,
         recovery_strategy=recovery_strategy,
     )
     if isinstance(agent, int):
@@ -407,9 +488,18 @@ def run_command(
         result = _run_async_safely(run_streaming(agent, prompt))
         elapsed = time.monotonic() - start_time
         return _finalize_run_success(
-            agent, result, elapsed, timeout, timeout_event,
-            save_artifacts, artifact_dir, transcript_path, log_path,
-            workspace, trace, task_tree,
+            agent,
+            result,
+            elapsed,
+            timeout,
+            timeout_event,
+            save_artifacts,
+            artifact_dir,
+            transcript_path,
+            log_path,
+            workspace,
+            trace,
+            task_tree,
         )
     except Exception as e:
         elapsed = time.monotonic() - start_time
@@ -425,7 +515,9 @@ def _write_runtime_exports(loop: Any, output_dir: Path) -> None:
     """Write trace, state, task tree, and final-response event artifacts."""
     state_snapshot = _safe_loop_call(loop, "get_state_snapshot", default={})
     exports = {
-        "execution_trace.json": _safe_loop_call(loop, "get_execution_trace", default=[]),
+        "execution_trace.json": _safe_loop_call(
+            loop, "get_execution_trace", default=[]
+        ),
         "state_snapshot.json": state_snapshot,
         "task_tree.json": state_snapshot.get("task_tree", {})
         if isinstance(state_snapshot, dict)

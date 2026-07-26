@@ -462,9 +462,13 @@ class TestEnhancedContextRetrievalCache:
     def test_bound_context_includes_reusable_session_outcomes(self) -> None:
         """Bound retrieval searches root-session outputs, not only user input."""
         loop = TinyCUALoop()
-        loop.root_session.input_context = [{"role": "user", "content": "original request"}]
+        loop.root_session.input_context = [
+            {"role": "user", "content": "original request"}
+        ]
         loop.root_session.session_context.append(
-            SessionContextEntry(content="tool failure: permission denied", segment="output")
+            SessionContextEntry(
+                content="tool failure: permission denied", segment="output"
+            )
         )
         tool = EnhancedContextRetrievalTool()
         node = TinyCUATaskExecutorNode(

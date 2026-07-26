@@ -17,7 +17,9 @@ pytestmark = pytest.mark.live_llm
 
 
 def _require_live_llm() -> None:
-    dotenv.load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env.test", override=False)
+    dotenv.load_dotenv(
+        Path(__file__).resolve().parent.parent.parent / ".env.test", override=False
+    )
     if os.environ.get("TINYCUA_LIVE_LLM") != "1":
         pytest.skip("Set TINYCUA_LIVE_LLM=1 to run live LLM contract tests")
     for name in (

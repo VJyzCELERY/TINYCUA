@@ -246,7 +246,9 @@ def test_fr085_maybe_compact_not_gated_on_attempt_gt_1() -> None:
     # Find the _maybe_compact call and verify it's NOT inside an 'if attempt > 1' block.
     # The call site moved to the top of the loop body.
     maybe_compact_idx = src.find("_maybe_compact")
-    assert maybe_compact_idx != -1, "_maybe_compact must be called in _call_node_with_retry"
+    assert maybe_compact_idx != -1, (
+        "_maybe_compact must be called in _call_node_with_retry"
+    )
     # Check the region immediately before the call for an 'if attempt > 1' gate
     region_before = src[:maybe_compact_idx]
     # The old pattern was:
@@ -271,7 +273,9 @@ def test_fr085_maybe_compact_not_gated_on_attempt_gt_1() -> None:
             )
 
 
-async def test_fr085_compaction_trigger_logged_at_info(caplog: pytest.LogCaptureFixture) -> None:
+async def test_fr085_compaction_trigger_logged_at_info(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """FR-085: compaction_trigger event is logged at INFO level."""
     strategy = SimpleCompaction()
     strategy.compact = AsyncMock(return_value={"role": "assistant", "content": "sum"})
@@ -289,14 +293,18 @@ async def test_fr085_compaction_trigger_logged_at_info(caplog: pytest.LogCapture
     node = SimpleNamespace(node_id="x", session=session)
     with caplog.at_level(logging.INFO, logger="tinycua.loops.tinycua_loop"):
         await loop._maybe_compact(node, agent)
-    trigger_records = [r for r in caplog.records if "compaction_trigger" in r.getMessage()]
+    trigger_records = [
+        r for r in caplog.records if "compaction_trigger" in r.getMessage()
+    ]
     assert trigger_records, "compaction_trigger must be logged"
     assert trigger_records[0].levelno == logging.INFO, (
         "compaction_trigger must be at INFO level (FR-085)"
     )
 
 
-async def test_fr085_compaction_failure_logged_at_info(caplog: pytest.LogCaptureFixture) -> None:
+async def test_fr085_compaction_failure_logged_at_info(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """FR-085: compaction_failed event is logged at INFO level."""
     strategy = SimpleCompaction()
     strategy.compact = AsyncMock(side_effect=RuntimeError("boom"))
@@ -380,7 +388,9 @@ async def test_fr086_force_compact_noop_when_too_few_entries() -> None:
     assert len(session.session_context) == 2
 
 
-async def test_fr086_force_compact_logs_at_info(caplog: pytest.LogCaptureFixture) -> None:
+async def test_fr086_force_compact_logs_at_info(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """FR-086: forced_compaction event is logged at INFO level."""
     strategy = SimpleCompaction()
     strategy.compact = AsyncMock(return_value={"role": "assistant", "content": "sum"})
@@ -397,7 +407,9 @@ async def test_fr086_force_compact_logs_at_info(caplog: pytest.LogCaptureFixture
     node = SimpleNamespace(node_id="x", session=session)
     with caplog.at_level(logging.INFO, logger="tinycua.loops.tinycua_loop"):
         await loop._force_compact(node, agent)
-    trigger_records = [r for r in caplog.records if "forced_compaction" in r.getMessage()]
+    trigger_records = [
+        r for r in caplog.records if "forced_compaction" in r.getMessage()
+    ]
     assert trigger_records, "forced_compaction must be logged"
     assert trigger_records[0].levelno == logging.INFO
 
@@ -411,7 +423,9 @@ async def test_fr086_max_provider_retries_constant_exists() -> None:
     assert _MAX_PROVIDER_RETRIES <= 10  # reasonable bound
 
 
-async def test_fr086_force_compact_swallows_errors(caplog: pytest.LogCaptureFixture) -> None:
+async def test_fr086_force_compact_swallows_errors(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """FR-086: _force_compact catches compaction failures (logged, not raised)."""
     strategy = SimpleCompaction()
     strategy.compact = AsyncMock(side_effect=RuntimeError("compaction LLM failed"))
@@ -429,5 +443,7 @@ async def test_fr086_force_compact_swallows_errors(caplog: pytest.LogCaptureFixt
     with caplog.at_level(logging.INFO, logger="tinycua.loops.tinycua_loop"):
         # Must not raise.
         await loop._force_compact(node, agent)
-    fail_records = [r for r in caplog.records if "forced_compaction_failed" in r.getMessage()]
+    fail_records = [
+        r for r in caplog.records if "forced_compaction_failed" in r.getMessage()
+    ]
     assert fail_records, "forced_compaction_failed must be logged"

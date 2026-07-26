@@ -51,7 +51,11 @@ def web_search(query: str, max_results: int = 5, timeout: int = 15) -> dict[str,
             response.raise_for_status()
             data = response.json()
     except httpx.TimeoutException:
-        return {"success": False, "error": f"search timed out after {timeout}s", "results": []}
+        return {
+            "success": False,
+            "error": f"search timed out after {timeout}s",
+            "results": [],
+        }
     except (httpx.HTTPError, ValueError) as exc:
         return {"success": False, "error": str(exc), "results": []}
 

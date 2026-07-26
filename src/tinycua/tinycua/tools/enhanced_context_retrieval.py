@@ -89,9 +89,7 @@ class EnhancedContextRetrievalTool(Tool):
         """Persist selected context in an app-private system temporary directory."""
         if self._cache_dir is None:
             prefix = f"tinycua-context-{self._session_id or 'unbound'}-"
-            self._cache_dir = Path(
-                tempfile.mkdtemp(prefix=prefix)
-            )
+            self._cache_dir = Path(tempfile.mkdtemp(prefix=prefix))
         cache_path = self._cache_dir / f"{cache_key}.json"
         cache_path.write_text(
             json.dumps(session_context, indent=2, sort_keys=True, default=str),

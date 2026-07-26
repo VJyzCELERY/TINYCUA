@@ -36,10 +36,14 @@ class TestAnalyzerPromptTerminate:
         lowered = _TASK_ANALYZER_CONTINUATION.lower()
         # The continuation should lead with exploration or context, not
         # "call task_inspect".
-        assert not lowered.startswith("based on the roadmap and mission context above, call task_inspect.")
+        assert not lowered.startswith(
+            "based on the roadmap and mission context above, call task_inspect."
+        )
 
     def test_prompt_uses_planning_discipline_without_prescribing_implementation(self):
-        rendered = f"{_TASK_ANALYZER_INSTRUCTION}\n{_TASK_ANALYZER_CONTINUATION}".lower()
+        rendered = (
+            f"{_TASK_ANALYZER_INSTRUCTION}\n{_TASK_ANALYZER_CONTINUATION}".lower()
+        )
 
         assert "one coherent outcome" in rendered
         assert "executed and verified independently" in rendered

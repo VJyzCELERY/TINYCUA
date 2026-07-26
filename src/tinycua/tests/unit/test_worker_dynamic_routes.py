@@ -33,7 +33,12 @@ def test_worker_with_existing_task_exposes_stateful_execution_routes() -> None:
     routes = _worker_route_enum(loop, worker)
 
     assert "task_creation" not in routes
-    assert {"task_recreation", "task_reanalysis", "proceed_execution", "passthrough"}.issubset(routes)
+    assert {
+        "task_recreation",
+        "task_reanalysis",
+        "proceed_execution",
+        "passthrough",
+    }.issubset(routes)
 
 
 def test_worker_rejects_impossible_initial_route_tool_call() -> None:
