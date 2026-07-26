@@ -51,6 +51,34 @@ class TestReverseOrderAggregation:
         assert pos_child1 < pos_gc1
         assert pos_gc1 < pos_root
 
+    def test_aggregation_keeps_compromise_separate_from_accepted_results(self):
+        """Known limitations remain unsuccessful and visible in final context."""
+        store = TaskStateStore()
+        root = store.create_task("Root")
+        task = store.create_task("Unavailable source", parent_id=root.task_id)
+        store.record_result(task.task_id, TaskResult(content="source blocked", success=False))
+        store.record_reviewer_decision(task.task_id, "postpone_siblings", rationale="later")
+        store.record_result(task.task_id, TaskResult(content="still blocked", success=False))
+        store.record_reviewer_decision(task.task_id, "postpone_final", rationale="last")
+        store.record_result(task.task_id, TaskResult(content="known limitation", success=False))
+        store.record_reviewer_decision(task.task_id, "compromise", rationale="unavailable")
+
+        session = Session()
+        session.task_store = store
+        node = TinyCUAResultAggregationNode(
+            node_id="result_aggregation",
+            config=create_node_config("result_aggregation"),
+        )
+        node.session = session
+
+        continuation = node.build_continuation(session)
+        aggregated = node._build_aggregated_result("")
+
+        assert "COMPROMISED" in continuation
+        assert aggregated.accepted_results == []
+        assert aggregated.compromised_results == [task.result]
+        assert "known limitation" in aggregated.final_context
+
 
 class TestChildVerificationGate:
     """Executor and reviewer continuations surface direct children for parent tasks."""

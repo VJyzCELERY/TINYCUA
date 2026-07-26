@@ -20,7 +20,7 @@ from typing import Any
 # ---------------------------------------------------------------------------
 
 RESULT_REVIEWER_TEMPLATE = """\
-# Review Assessment : [approved | rejected | needs_revision | replan]
+# Review Assessment : [approved | needs_revision | replan | postpone_siblings | postpone_final | compromise]
 # Review Summary
 <your summary here>
 # Task ID
@@ -51,15 +51,24 @@ LAZY_TEMPLATES: dict[str, tuple[str, str]] = {
 }
 
 # Registered state tools that lazy retry may synthesize.
-LAZY_STATE_TOOLS: frozenset[str] = frozenset({
-    "task_result_update",
-    "task_review_decision",
-    "select_query_route",
-    "select_worker_route",
-})
+LAZY_STATE_TOOLS: frozenset[str] = frozenset(
+    {
+        "task_result_update",
+        "task_review_decision",
+        "select_query_route",
+        "select_worker_route",
+    }
+)
 
 # Allowed enum values per template field.
-_REVIEWER_DECISIONS = {"approved", "rejected", "needs_revision", "replan"}
+_REVIEWER_DECISIONS = {
+    "approved",
+    "needs_revision",
+    "replan",
+    "postpone_siblings",
+    "postpone_final",
+    "compromise",
+}
 _EXECUTOR_STATUSES = {"completed", "failed", "replan"}
 
 # ponytail: regex parser; upgrade to a real markdown parser if templates grow
@@ -167,7 +176,9 @@ def _parse_executor(sections: dict[str, str]) -> dict[str, Any] | None:
     }
 
 
-def _parse_route(sections: dict[str, str], allowed_labels: set[str] | None) -> dict[str, Any] | None:
+def _parse_route(
+    sections: dict[str, str], allowed_labels: set[str] | None
+) -> dict[str, Any] | None:
     """Parse query_analyst/worker route template → {route}."""
     route = sections.get("route")
     rationale = sections.get("rationale")

@@ -90,7 +90,7 @@ class RuntimeContractScript:
             return "task_create"
         if "task_decompose" in tool_names:
             return "task_analyzer"
-        if "node_handoff" in tool_names:
+        if "task_assessment_decision" in tool_names:
             return "task_assessor"
         if "task_review_decision" in tool_names:
             return "result_reviewer"
@@ -174,13 +174,14 @@ class RuntimeContractScript:
             }
         if node == "task_assessor":
             if any(
-                m.get("role") == "tool" and "node_handoff" in str(m.get("content", ""))
+                m.get("role") == "tool"
+                and "task_assessment_decision" in str(m.get("content", ""))
                 for m in messages
             ):
                 return {"content": "Assessment handed off.", "tool_calls": []}
             return {
                 "content": "",
-                "tool_calls": [{"function": {"name": "node_handoff", "arguments": '{"target_node":"task_analyzer","instruction":"Analyze unfinished tasks for execution readiness.","payload":{"assessment":"ready"}}'}}],
+                "tool_calls": [{"function": {"name": "task_assessment_decision", "arguments": '{"decision":"ready","selected_task_ids":[],"rationale":"The roadmap is executable."}'}}],
             }
         if node == "task_executor":
             task_id = self._task_id(messages)
@@ -349,10 +350,14 @@ async def test_runtime_retries_each_contract_node_then_completes_when_llm_correc
         )
         second_attempt = script.captured_messages_by_node[node][1]
         assert any(
-            "You need to" in str(message.get("content", ""))
-            and message.get("role") == "user"
+            message.get("role") == "user"
+            and "[System:" in str(message.get("content", ""))
+            and any(
+                directive in str(message.get("content", ""))
+                for directive in ("Call ", "Correct ", "COMMIT PHASE")
+            )
             for message in second_attempt
-        ), f"{node} retry did not include natural self-correction"
+        ), f"{node} retry did not include correction or commit guidance"
 
     # Task tree completed
     snapshot = agent.loop.get_state_snapshot()

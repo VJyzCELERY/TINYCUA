@@ -26,7 +26,7 @@ from tinycua.tools.task_tools import TaskDecomposeTool, TaskInspectTool, TaskRes
 
 
 def test_lifecycle_phase_scope_is_exclusive() -> None:
-    """Lifecycle phases expose only the tools needed for that phase."""
+    """ACTION includes direct commit while fallback COMMIT stays exclusive."""
     loop = TinyCUALoop()
     node = TinyCUATaskExecutorNode(
         node_id="task_executor",
@@ -35,7 +35,8 @@ def test_lifecycle_phase_scope_is_exclusive() -> None:
     tools = [TaskInspectTool(), TaskResultUpdateTool(), TerminateTool()]
 
     assert [tool.name for tool in loop._phase_tools(node, tools, LifecyclePhase.ACTION)] == [
-        "task_inspect"
+        "task_inspect",
+        "task_result_update",
     ]
     assert [tool.name for tool in loop._phase_tools(node, tools, LifecyclePhase.COMMIT)] == [
         "task_result_update",

@@ -50,7 +50,9 @@ class TestReplanBoundaryResetsConsecutiveFailures:
         _reject(store, child_id, 5)
         queue = NodeQueue()
 
-        WorkerRuntimeController(store, max_replans=3).schedule_after_review(queue)
+        WorkerRuntimeController(store, max_replans=3).schedule_after_review(
+            queue, reviewed_task_id=child_id, decision="needs_revision"
+        )
 
         # The last entry should be a replan_boundary (inserted by schedule_replan).
         child = store.get_task(child_id)
@@ -63,7 +65,9 @@ class TestReplanBoundaryResetsConsecutiveFailures:
         queue = NodeQueue()
 
         ctrl = WorkerRuntimeController(store, max_replans=3)
-        ctrl.schedule_after_review(queue)
+        ctrl.schedule_after_review(
+            queue, reviewed_task_id=child_id, decision="needs_revision"
+        )
 
         # After the boundary, consecutive_failures should be 0 (reset).
         child = store.get_task(child_id)
@@ -75,7 +79,9 @@ class TestReplanBoundaryResetsConsecutiveFailures:
         _reject(store, child_id, 5)
         queue = NodeQueue()
 
-        WorkerRuntimeController(store, max_replans=3).schedule_after_review(queue)
+        WorkerRuntimeController(store, max_replans=3).schedule_after_review(
+            queue, reviewed_task_id=child_id, decision="needs_revision"
+        )
 
         child = store.get_task(child_id)
         # 5 needs_revision + 1 replan_boundary → failure_count is 5 (boundary excluded)
@@ -87,7 +93,9 @@ class TestReplanBoundaryResetsConsecutiveFailures:
         _reject(store, child_id, 5)
         queue = NodeQueue()
 
-        WorkerRuntimeController(store, max_replans=3).schedule_after_review(queue)
+        WorkerRuntimeController(store, max_replans=3).schedule_after_review(
+            queue, reviewed_task_id=child_id, decision="needs_revision"
+        )
 
         child = store.get_task(child_id)
         # 5 needs_revision + 1 replan_boundary = 6 entries total
@@ -115,7 +123,9 @@ class TestUnboundedReplans:
         store.record_reviewer_decision(child_id, ReviewerDecision.NEEDS_REVISION)
         queue = NodeQueue()
 
-        WorkerRuntimeController(store, max_replans=3).schedule_after_review(queue)
+        WorkerRuntimeController(store, max_replans=3).schedule_after_review(
+            queue, reviewed_task_id=child_id, decision="needs_revision"
+        )
 
         child = store.get_task(child_id)
         assert child.status == TaskStatus.IN_PROGRESS
@@ -135,7 +145,9 @@ class TestUnboundedReplans:
         store.record_reviewer_decision(child_id, ReviewerDecision.NEEDS_REVISION)
         queue = NodeQueue()
 
-        WorkerRuntimeController(store, max_replans=3).schedule_after_review(queue)
+        WorkerRuntimeController(store, max_replans=3).schedule_after_review(
+            queue, reviewed_task_id=child_id, decision="needs_revision"
+        )
 
         ids = [n.node_id for n in queue.items]
         assert ids == ["task_executor", "result_reviewer"]
@@ -152,7 +164,9 @@ class TestUnboundedReplans:
         _reject(store, child_id, 5)
         queue = NodeQueue()
 
-        WorkerRuntimeController(store, max_replans=3).schedule_after_review(queue)
+        WorkerRuntimeController(store, max_replans=3).schedule_after_review(
+            queue, reviewed_task_id=child_id, decision="needs_revision"
+        )
 
         # Should replan (not force-approve): replan_count=1 < cap=3.
         child = store.get_task(child_id)

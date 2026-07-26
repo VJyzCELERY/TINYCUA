@@ -63,9 +63,9 @@ _TASK_ANALYZER_INSTRUCTION = (
     "plan, and honor the timeframe in the request. You do not "
     "execute the task or produce the deliverable — that is the "
     "TaskExecutor's job. Inspect the roadmap. If the active task needs "
-    "subtasks, identify the needed structural change. Return a concise action "
-    "summary after exploring; the next lifecycle phase will expose the state "
-    "mutation. Do not execute the task itself."
+    "subtasks, identify the needed structural change. Commit the first supported "
+    "structural mutation once it is clear; otherwise return a concise action "
+    "summary for commit-only fallback. Do not execute the task itself."
 )
 _TASK_ANALYZER_CONTINUATION = (
     "Based on the roadmap and mission context above, inspect available evidence "
@@ -92,7 +92,7 @@ _TASK_ASSESSOR_UPFRONT_INSTRUCTION = (
     "tasks or mutate task state. Inspect the whole roadmap and select "
     "unfinished tasks that are complex enough to warrant further "
     "decomposition. Identify duplicate, overlapping, obsolete, or invalid unfinished "
-    "work and hand off the specific task IDs to prune, merge, cancel, or supersede "
+    "work and select the specific task IDs to prune, merge, cancel, or supersede "
     "before any new decomposition. "
     "Use read-only assessment and summarize which tasks need analysis and why. "
     "Be concise and do not repeat upstream context."
@@ -100,11 +100,9 @@ _TASK_ASSESSOR_UPFRONT_INSTRUCTION = (
 _TASK_ASSESSOR_UPFRONT_CONTINUATION = (
     "Based on the whole roadmap above, assess decomposition readiness across "
     "the roadmap. Explore (web_search/fetch_url/read_file/run_shell) to "
-    "verify material assumptions against the requested scope and timeframe. Summarize "
-    "selected task IDs and a payload.recommendations list of {task_ids, action, "
-    "rationale} for any structural follow-up; action is decompose, shrink, update, "
-    "retain, or add. Include constraints, or state that no further upfront "
-    "decomposition is useful."
+    "verify material assumptions against the requested scope and timeframe. Decide "
+    "ready only when no further upfront decomposition is useful; otherwise select "
+    "the unfinished task IDs that require analysis and explain why."
 )
 _TASK_ASSESSOR_LOCAL_REPLAN_INSTRUCTION = (
     "You are the TaskAssessor for a ResultReviewer-requested local replan. "
@@ -118,9 +116,9 @@ _TASK_ASSESSOR_LOCAL_REPLAN_INSTRUCTION = (
 _TASK_ASSESSOR_LOCAL_REPLAN_CONTINUATION = (
     "Based on the active task and local roadmap region above, assess whether "
     "the reviewed task needs local decomposition or planning metadata updates. "
-    "Explore the local region if it helps your assessment. Summarize the local "
-    "assessment, selected decomposition target, blocked planning gap, or that "
-    "no local replan is useful."
+    "Explore the local region if it helps your assessment. Decide ready with no "
+    "selected targets when no local replan is useful, or analyze with the "
+    "unfinished local task IDs that need refinement and a concise rationale."
 )
 
 _TASK_EXECUTOR_INSTRUCTION = (
@@ -529,7 +527,8 @@ def _render_active_task_work_order(session: Session) -> str:
             "",
             "## Success Criteria",
             "- At least one action/research/file/shell tool result supports success.",
-            "- Summarize what was done and any specific blocker for the commit phase.",
+            "- Report the outcome as soon as it is known; otherwise summarize what "
+            "was done and any specific blocker for commit-only fallback.",
         ]
     )
     return "\n".join(lines)
@@ -667,10 +666,11 @@ class TinyCUATaskAssessorNode(ProcessNode):
         names = {getattr(tool, "name", "") for tool in (resolved_tools or [])}
         if "terminate" in names:
             return "Tool guidance: Call terminate now."
-        if "node_handoff" in names:
+        if "task_assessment_decision" in names:
             return (
-                "Tool guidance: Commit node_handoff with payload decision='analyze' "
-                "and selected_task_ids, or decision='ready' and selected_task_ids=[]."
+                "Tool guidance: Commit task_assessment_decision with decision='analyze', "
+                "nonempty selected_task_ids, and rationale; or decision='ready', "
+                "selected_task_ids=[], and rationale."
             )
         if not names.intersection(
             {"task_inspect", "web_search", "fetch_url", "read_file", "run_shell"}
@@ -827,7 +827,14 @@ class TinyCUAResultReviewerNode(ProcessNode):
         unfinished = [
             f"  - [{other.status.value}] {other.title} (id={other.task_id})"
             for other in session.task_store.tasks.values()
-            if other.status.value != "completed" and other.task_id != task.task_id
+            if other.status
+            not in {
+                TaskStatus.COMPLETED,
+                TaskStatus.CANCELLED,
+                TaskStatus.SUPERSEDED,
+                TaskStatus.COMPROMISED,
+            }
+            and other.task_id != task.task_id
         ]
         curation_block = ""
         if unfinished:
@@ -868,9 +875,10 @@ class TinyCUAResultReviewerNode(ProcessNode):
             child_gate = (
                 "\n## Child Task Verification Gate\n"
                 "This is a PARENT task. For this task to be approved, all "
-                "child tasks below must remain completed and their results "
-                "must still be valid. Verify integration — do not re-execute "
-                "the children.\n\n"
+                "child tasks below must be terminal and their results must still "
+                "be valid. Compromised children are unsuccessful limitations that "
+                "must remain explicit. Verify integration — do not re-execute the "
+                "children.\n\n"
                 "Child tasks (direct children only):\n" + "\n".join(child_lines) + "\n"
             )
         return f"{child_gate}{failure_note}{curation_block}"
@@ -909,11 +917,17 @@ class TinyCUAResultReviewerNode(ProcessNode):
         clauses = session.task_store.acceptance_clauses()
         clause_block = ""
         if clauses:
-            clause_block = "Acceptance criteria (context):\n" + "\n".join(
-                f"- {clause['text']}" for clause in clauses
+            clause_block = (
+                "Root acceptance criteria (immutable advisory context, not leaf "
+                "gates):\n"
+                "Use these only to understand the overall mission. Judge only the "
+                "active task against its own description and outcome.\n"
+                + "\n".join(f"- {clause['text']}" for clause in clauses)
             )
+        description = task.description.strip() or "(none provided)"
         return (
             f"{mission_prefix}Task under review: {task.task_id} — {task.title}\n"
+            f"Active task description: {description}\n"
             f"Task status: {task.status.value}\n"
             f"Outcome report: {result_content}\n"
             f"{_render_request_contract(session)}\n"
@@ -937,7 +951,6 @@ class TinyCUAResultReviewerNode(ProcessNode):
 
     def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
         """Schedule retry, replan, next task, or aggregation from task state."""
-        del response
         if self.session is None:
             return
         from tinycua.loops.worker_runtime import WorkerRuntimeController
@@ -947,12 +960,20 @@ class TinyCUAResultReviewerNode(ProcessNode):
         sc = self.session.session_config
         enable_oq = bool(sc.enable_open_question_review) if sc is not None else False
         replan_threshold = sc.replan_threshold if sc is not None else 5
+        reviewed = self._reviewed_task_from_result(response)
+        if reviewed is None or not reviewed.reviewer_decisions:
+            raise RuntimeError("Reviewer completed without a committed task decision.")
+        decision = reviewed.reviewer_decisions[-1]["decision"]
         WorkerRuntimeController(
             self.session.task_store,
             enable_open_question_review=enable_oq,
             replan_threshold=replan_threshold,
             session=self.session,
-        ).schedule_after_review(queue)
+        ).schedule_after_review(
+            queue,
+            reviewed_task_id=reviewed.task_id,
+            decision=decision,
+        )
         existing_terminal_ids = {
             node.node_id for node in queue.items if node.is_terminal
         }
@@ -1036,7 +1057,9 @@ class TinyCUAResultAggregationNode(ProcessNode):
             task = store.tasks.get(task_id)
             if task is None or task.result is None:
                 continue
-            status_mark = " ✓" if task.status.value == "completed" else ""
+            status_mark = " ✓" if task.status == TaskStatus.COMPLETED else ""
+            if task.status == TaskStatus.COMPROMISED:
+                status_mark = " ! COMPROMISED"
             lines.append(f"- **{task.title}** [{task.status.value}]{status_mark}")
             summary = task.result.summary or task.result.content
             if summary:
@@ -1064,12 +1087,13 @@ class TinyCUAResultAggregationNode(ProcessNode):
         if not store.all_done():
             return
         root = store.tasks[root_id]
-        root.result = TaskResult(
-            content=llm_result.content or self._summarize_task_results(),
-            success=True,
-            metadata={"source_node_id": self.node_id},
-        )
-        root.status = TaskStatus.COMPLETED
+        if root.status != TaskStatus.COMPROMISED:
+            root.result = TaskResult(
+                content=llm_result.content or self._summarize_task_results(),
+                success=True,
+                metadata={"source_node_id": self.node_id},
+            )
+            root.status = TaskStatus.COMPLETED
         aggregated = self._build_aggregated_result(llm_result.content)
         root.metadata["aggregated_result"] = aggregated.__dict__
         # FR-074: use idempotent_by_identity to avoid duplicating if the
@@ -1110,6 +1134,7 @@ class TinyCUAResultAggregationNode(ProcessNode):
         store = self.session.task_store
         task_summaries: list[str] = []
         accepted_results: list[TaskResult] = []
+        compromised_results: list[TaskResult] = []
         artifacts: list[dict] = []
         # Reverse post-order: last-executed leaf first, root last.
         ordered_ids = list(reversed(store._ordered_ids()))
@@ -1117,14 +1142,18 @@ class TinyCUAResultAggregationNode(ProcessNode):
             ordered_ids.append(store.root_task_id)
         for task_id in ordered_ids:
             task = store.tasks.get(task_id)
-            if (
-                task is None
-                or task.status != TaskStatus.COMPLETED
-                or task.result is None
-            ):
+            if task is None or task.result is None:
                 continue
-            task_summaries.append(f"{task.title}: {task.result.summary}")
-            accepted_results.append(task.result)
+            if task.status == TaskStatus.COMPLETED:
+                task_summaries.append(f"{task.title}: {task.result.summary}")
+                accepted_results.append(task.result)
+            elif task.status == TaskStatus.COMPROMISED:
+                task_summaries.append(
+                    f"[COMPROMISED] {task.title}: {task.result.summary}"
+                )
+                compromised_results.append(task.result)
+            else:
+                continue
             artifacts.extend(task.artifacts)
         final_context = "\n".join(
             part for part in [model_context.strip(), *task_summaries] if part
@@ -1133,6 +1162,7 @@ class TinyCUAResultAggregationNode(ProcessNode):
             root_task_id=store.root_task_id,
             task_summaries=task_summaries,
             accepted_results=accepted_results,
+            compromised_results=compromised_results,
             artifacts=artifacts,
             final_context=final_context,
             response_continuation="Use this aggregated result to answer the user.",

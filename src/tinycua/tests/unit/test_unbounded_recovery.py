@@ -326,7 +326,9 @@ class TestOpenQuestionDisabled:
         WorkerRuntimeController(
             loop.root_session.task_store,
             enable_open_question_review=False,
-        ).schedule_after_review(queue)
+        ).schedule_after_review(
+            queue, reviewed_task_id=task.task_id, decision="open_question"
+        )
 
         # Should not contain a response node — should fall through to schedule_next.
         assert not any(n.node_id == "response" for n in queue.items)

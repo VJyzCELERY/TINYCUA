@@ -53,8 +53,18 @@ or reuse the suspended parent/root session. Specific rules:
 
 | Tool Scope | Description |
 |------------|-------------|
-| `enhanced_context_retrieval` | Search scoped context and read-only exploration surfaces. |
+| Read-only file tools | Inspect explicitly referenced workspace files. |
+| `enhanced_context_retrieval` | Search scoped session context. |
+| `web_search` / `fetch_url` | Resolve remaining material external uncertainty. |
 | `digest_information` | Produce structured digested information. |
+
+### Information Priority
+
+The prompt advises the digester to inspect explicitly referenced workspace files first,
+then search session context, then use external research only if material uncertainty
+remains. It honors the requested timeframe, prefers authoritative sources, and stops once
+planning has reliable context. This is guidance, not a deterministic tool-order gate;
+task execution remains downstream.
 
 ### Enhanced Context Retrieval Cache Behavior
 

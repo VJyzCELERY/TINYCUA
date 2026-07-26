@@ -26,6 +26,8 @@ class TaskStatus(StrEnum):
     BLOCKED = "blocked"
     CANCELLED = "cancelled"
     SUPERSEDED = "superseded"
+    POSTPONED = "postponed"
+    COMPROMISED = "compromised"
 
 
 class ReviewerDecision(StrEnum):
@@ -42,6 +44,9 @@ class ReviewerDecision(StrEnum):
     REJECTED = "rejected"
     REPLAN = "replan"
     OPEN_QUESTION = "open_question"
+    POSTPONE_SIBLINGS = "postpone_siblings"
+    POSTPONE_FINAL = "postpone_final"
+    COMPROMISE = "compromise"
 
 
 @dataclass
@@ -79,6 +84,7 @@ class AggregatedResult:
     root_task_id: str
     task_summaries: list[str] = field(default_factory=list)
     accepted_results: list[TaskResult] = field(default_factory=list)
+    compromised_results: list[TaskResult] = field(default_factory=list)
     artifacts: list[dict[str, Any]] = field(default_factory=list)
     final_context: str = ""
     response_continuation: str = ""
@@ -173,7 +179,10 @@ class TaskStateStore:
     version: int = 0
 
     _ALLOWED_TRANSITIONS: ClassVar[dict[TaskStatus, set[TaskStatus]]] = {
-        TaskStatus.PENDING: {TaskStatus.IN_PROGRESS, TaskStatus.BLOCKED},
+        TaskStatus.PENDING: {
+            TaskStatus.IN_PROGRESS,
+            TaskStatus.BLOCKED,
+        },
         TaskStatus.IN_PROGRESS: {
             TaskStatus.COMPLETED,
             TaskStatus.FAILED,
@@ -182,14 +191,17 @@ class TaskStateStore:
         },
         TaskStatus.BLOCKED: {TaskStatus.IN_PROGRESS, TaskStatus.FAILED},
         TaskStatus.FAILED: {TaskStatus.PENDING, TaskStatus.IN_PROGRESS},
+        TaskStatus.POSTPONED: {TaskStatus.IN_PROGRESS},
         TaskStatus.COMPLETED: set(),
         TaskStatus.CANCELLED: set(),
         TaskStatus.SUPERSEDED: set(),
+        TaskStatus.COMPROMISED: set(),
     }
     _TERMINAL_STATUSES: ClassVar[set[TaskStatus]] = {
         TaskStatus.COMPLETED,
         TaskStatus.CANCELLED,
         TaskStatus.SUPERSEDED,
+        TaskStatus.COMPROMISED,
     }
 
     def _bump_version(self) -> None:
@@ -691,7 +703,11 @@ class TaskStateStore:
         """Persist task execution output without completing review state."""
         task = self.get_task(task_id)
         self._require_mutable(task)
-        if task.status in {TaskStatus.PENDING, TaskStatus.FAILED}:
+        if task.status in {
+            TaskStatus.PENDING,
+            TaskStatus.FAILED,
+            TaskStatus.POSTPONED,
+        }:
             self.transition(task_id, TaskStatus.IN_PROGRESS)
         task.result = result
         self._finalize_mutation("record_result", task_id)
@@ -732,6 +748,7 @@ class TaskStateStore:
         task = self.get_task(task_id)
         self._require_mutable(task)
         reviewer_decision = ReviewerDecision(decision)
+        self._validate_deferred_decision(task, reviewer_decision, rationale)
         context_updates = self._validated_reviewer_context_updates(
             task_id, (metadata or {}).get("context_updates", [])
         )
@@ -759,6 +776,15 @@ class TaskStateStore:
                 task.status = TaskStatus.IN_PROGRESS
             self.active_task_id = task.task_id
             self._bump_version()
+        elif reviewer_decision in {
+            ReviewerDecision.POSTPONE_SIBLINGS,
+            ReviewerDecision.POSTPONE_FINAL,
+        }:
+            task.status = TaskStatus.POSTPONED
+        elif reviewer_decision == ReviewerDecision.COMPROMISE:
+            task.status = TaskStatus.COMPROMISED
+            task.metadata["compromise_rationale"] = rationale
+            self._complete_ready_parents()
         elif reviewer_decision == ReviewerDecision.APPROVED:
             if task.status == TaskStatus.PENDING:
                 self.transition(task_id, TaskStatus.IN_PROGRESS)
@@ -775,6 +801,55 @@ class TaskStateStore:
             self._bump_version()
         self._finalize_mutation("record_reviewer_decision", task_id)
         return task
+
+    def _validate_deferred_decision(
+        self,
+        task: Task,
+        decision: ReviewerDecision,
+        rationale: str,
+    ) -> None:
+        """Enforce the one-way sibling, final, terminal defer sequence."""
+        postponements = [
+            item.get("decision")
+            for item in task.reviewer_decisions
+            if item.get("decision")
+            in {
+                ReviewerDecision.POSTPONE_SIBLINGS.value,
+                ReviewerDecision.POSTPONE_FINAL.value,
+            }
+        ]
+        if decision == ReviewerDecision.POSTPONE_SIBLINGS:
+            if task.task_id == self.root_task_id:
+                raise ValueError("Cannot postpone_siblings for the root task.")
+            if postponements:
+                raise ValueError("postpone_siblings cannot repeat or move backward.")
+        elif decision == ReviewerDecision.POSTPONE_FINAL:
+            valid = postponements == [ReviewerDecision.POSTPONE_SIBLINGS.value]
+            if task.task_id == self.root_task_id:
+                valid = not postponements
+            if not valid:
+                raise ValueError(
+                    "postpone_final requires exactly one prior postpone_siblings decision."
+                )
+        elif decision == ReviewerDecision.COMPROMISE:
+            if postponements[-1:] != [ReviewerDecision.POSTPONE_FINAL.value]:
+                raise ValueError("Compromise requires final postponement first.")
+            if not rationale.strip():
+                raise ValueError("Compromise requires a rationale.")
+        if decision in {
+            ReviewerDecision.POSTPONE_SIBLINGS,
+            ReviewerDecision.POSTPONE_FINAL,
+            ReviewerDecision.COMPROMISE,
+        } and (
+            task.status != TaskStatus.IN_PROGRESS
+            or not task.result
+            or task.result.success
+            or not task.result.content.strip()
+        ):
+            raise ValueError(
+                "Deferred decisions require a fresh unsuccessful result; "
+                "a non-empty unsuccessful task result is required."
+            )
 
     def _validated_reviewer_context_updates(
         self, reviewed_task_id: str, updates: Any
@@ -810,6 +885,7 @@ class TaskStateStore:
         task = self.get_task(task_id)
         self._require_mutable(task)
         reviewer_decision = ReviewerDecision(decision)
+        self._validate_deferred_decision(task, reviewer_decision, rationale)
         self._validated_reviewer_context_updates(
             task_id, (metadata or {}).get("context_updates", [])
         )
@@ -838,7 +914,7 @@ class TaskStateStore:
         return task
 
     def next_unfinished_leaf(self) -> Task | None:
-        """Return the first leaf that still needs work.
+        """Return the first runnable task in normal, sibling, then final order.
 
         Failed tasks are intentionally unfinished in one-shot worker runs. A
         failed reviewed result means the same task must be retried or locally
@@ -848,21 +924,49 @@ class TaskStateStore:
         if self.root_task_id is None:
             return None
 
-        def visit(task_id: str) -> Task | None:
-            task = self.tasks[task_id]
-            if task.children:
-                for child_id in task.children:
-                    found = visit(child_id)
-                    if found is not None:
-                        return found
-                if task.status not in self._TERMINAL_STATUSES:
-                    return task
-                return None
-            if task.status not in self._TERMINAL_STATUSES:
-                return task
-            return None
+        ordered_ids = [*self._ordered_ids(), self.root_task_id]
 
-        return visit(self.root_task_id)
+        def runnable(task: Task) -> bool:
+            return task.status not in self._TERMINAL_STATUSES and all(
+                self.tasks[child_id].status in self._TERMINAL_STATUSES
+                for child_id in task.children
+            )
+
+        def phase(task: Task) -> str:
+            for item in reversed(task.reviewer_decisions):
+                decision = item.get("decision")
+                if decision in {
+                    ReviewerDecision.POSTPONE_SIBLINGS.value,
+                    ReviewerDecision.POSTPONE_FINAL.value,
+                }:
+                    return str(decision)
+            return "normal"
+
+        tasks = [self.tasks[task_id] for task_id in ordered_ids]
+        for task in tasks:
+            if runnable(task) and phase(task) == "normal":
+                return task
+        for task in tasks:
+            if not runnable(task) or phase(task) != ReviewerDecision.POSTPONE_SIBLINGS:
+                continue
+            if task.parent_id is None:
+                continue
+            siblings = self.tasks[task.parent_id].children
+            if all(
+                sibling_id == task.task_id
+                or self.tasks[sibling_id].status in self._TERMINAL_STATUSES
+                or phase(self.tasks[sibling_id])
+                in {
+                    ReviewerDecision.POSTPONE_SIBLINGS.value,
+                    ReviewerDecision.POSTPONE_FINAL.value,
+                }
+                for sibling_id in siblings
+            ):
+                return task
+        for task in tasks:
+            if runnable(task) and phase(task) == ReviewerDecision.POSTPONE_FINAL:
+                return task
+        return None
 
     def all_done(self) -> bool:
         """Return True when no retained task remains executable."""
@@ -975,6 +1079,7 @@ class TaskStateStore:
             children = [self.tasks[child_id] for child_id in task.children]
             if all(
                 child.status in {TaskStatus.CANCELLED, TaskStatus.SUPERSEDED}
+                or child.status == TaskStatus.COMPROMISED
                 or (
                     child.status == TaskStatus.COMPLETED
                     and self._has_successful_task_report(child.result)

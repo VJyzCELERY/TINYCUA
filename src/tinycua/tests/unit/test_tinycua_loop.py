@@ -210,8 +210,8 @@ def test_executor_retry_keeps_all_tools_after_inspection() -> None:
     }
 
 
-def test_executor_result_update_is_hidden_during_action_phase() -> None:
-    """A commit-only call remains unavailable until action finishes."""
+def test_executor_result_update_is_available_during_action_phase() -> None:
+    """The owned commit tool is available during ACTION without terminate."""
     loop = TinyCUALoop()
     executor = TinyCUATaskExecutorNode(
         node_id="task_executor",
@@ -228,11 +228,11 @@ def test_executor_result_update_is_hidden_during_action_phase() -> None:
     )
 
     assert executor.progress.lifecycle_phase is LifecyclePhase.ACTION
-    assert [tool.name for tool in scoped] == ["read_file"]
+    assert [tool.name for tool in scoped] == ["read_file", "task_result_update"]
 
 
-def test_ready_assessor_handoff_skips_paired_analyzer() -> None:
-    """A ready assessment routes to the next effort pass without analysis."""
+def test_ready_assessor_handoff_skips_only_paired_analyzer() -> None:
+    """A ready assessment preserves the next configured assessor pass."""
     loop = TinyCUALoop()
     assessor = TinyCUATaskAssessorNode(
         node_id="task_assessor",
@@ -252,12 +252,27 @@ def test_ready_assessor_handoff_skips_paired_analyzer() -> None:
         source_node="task_assessor",
         target_node="task_analyzer",
         instruction="Assessment recorded.",
-        payload={"decision": "ready", "selected_task_ids": []},
+        payload={
+            "decision": "ready",
+            "selected_task_ids": [],
+            "rationale": "The roadmap is executable.",
+        },
     )
 
     assert loop._skip_ready_assessor_analyzer(assessor, handoff)
     assert [node.node_id for node in loop.queue.items] == [
         "task_assessor",
+        "analysis_effort",
+    ]
+
+    loop.queue.advance()
+    loop.queue.current.session = loop.root_session
+    loop.queue.current.run_deterministic(loop.queue)
+
+    assert [node.node_id for node in loop.queue.items[:4]] == [
+        "analysis_effort",
+        "task_assessor",
+        "task_analyzer",
         "analysis_effort",
     ]
 
@@ -276,8 +291,8 @@ def test_response_validation_rejects_internal_transcript_replay() -> None:
     assert "not replay internal" in validation.errors[0]
 
 
-def test_task_assessor_retry_narrows_to_required_handoff_tool() -> None:
-    """Assessor retries isolate node_handoff instead of repeating inspection."""
+def test_task_assessor_retry_narrows_to_required_decision_tool() -> None:
+    """Assessor retries isolate its decision instead of repeating inspection."""
     loop = TinyCUALoop()
     assessor = TinyCUATaskAssessorNode(
         node_id="task_assessor",
@@ -288,10 +303,11 @@ def test_task_assessor_retry_narrows_to_required_handoff_tool() -> None:
     retry_tools = loop._tools_for_retry_attempt(
         assessor,
         tools,
-        "task_assessor must call at least one successful task-state tool from ['node_handoff']",
+        "task_assessor must call successful task-state tool(s): "
+        "['task_assessment_decision']",
     )
 
-    assert [tool.name for tool in retry_tools] == ["node_handoff"]
+    assert [tool.name for tool in retry_tools] == ["task_assessment_decision"]
 
 
 # --- _execute_node tests ---
@@ -823,17 +839,13 @@ async def test_stream_true_returns_async_iterator():
     assert any(e["type"] == "response.output_text.delta" for e in events)
 
 
-async def test_streamed_termination_does_not_restart_completed_lifecycle_node() -> None:
-    """A successful terminate phase completes instead of being redispatched."""
+async def test_streamed_direct_commit_does_not_restart_completed_lifecycle_node() -> None:
+    """A successful ACTION commit completes instead of being redispatched."""
     node = TinyCUATaskCreateNode(
         node_id="task_create",
         config=create_node_config("task_create"),
     )
     loop = TinyCUALoop(queue=NodeQueue(items=[node]))
-    node.ensure_session(loop.root_session)
-    loop.root_session.task_store.create_task("Initialized root")
-    node.progress.mark_tool_called("task_init")
-    node.progress.advance_lifecycle(LifecyclePhase.TERMINATE)
     calls = 0
 
     agent = MagicMock()
@@ -851,13 +863,12 @@ async def test_streamed_termination_does_not_restart_completed_lifecycle_node() 
         if calls == 1:
             yield {
                 "type": "tool_call.ready",
-                "id": "terminate",
-                "name": "terminate",
-                "arguments": "{}",
+                "id": "task-init",
+                "name": "task_init",
+                "arguments": '{"title":"Initialized root","acceptance_clauses":["done"]}',
             }
             return
-        assert calls == 2, "completed lifecycle node was redispatched"
-        yield {"type": "response.completed", "finish_reason": "completed"}
+        raise AssertionError("completed lifecycle node was redispatched")
 
     async def mock_call(*args, **kwargs):
         return mock_stream(*args, **kwargs)
@@ -889,7 +900,6 @@ async def test_commit_retries_until_reviewer_decision_then_auto_completes() -> N
     task = store.create_task("Work", parent_id=root.task_id)
     store.record_result(task.task_id, TaskResult(content="done", success=True))
     reviewer.ensure_session(loop.root_session)
-    reviewer.progress.advance_lifecycle(LifecyclePhase.COMMIT)
     tool_sets: list[set[str]] = []
     commit_calls = 0
 
@@ -938,8 +948,9 @@ async def test_commit_retries_until_reviewer_decision_then_auto_completes() -> N
     ):
         pass
 
-    assert commit_calls >= 2
-    assert all(names == {"task_review_decision"} for names in tool_sets)
+    assert commit_calls == 2
+    assert tool_sets[0] == {"task_inspect", "task_review_decision"}
+    assert tool_sets[1] == {"task_review_decision"}
     assert not store._staged_reviewer_decisions
     assert task.reviewer_decisions[-1]["decision"] == "needs_revision"
 
@@ -972,8 +983,8 @@ async def test_streaming_reentry_is_consumed_before_node_restarts() -> None:
     assert reviewer.progress.recovery_attempts == {"focused_retry": 1}
 
 
-async def test_commit_stream_limits_sdk_to_one_iteration(monkeypatch) -> None:
-    """Commit returns control after one SDK model/tool iteration."""
+async def test_commit_stream_does_not_delegate_lifecycle_to_sdk(monkeypatch) -> None:
+    """TinyCUA, not the SDK loop, owns lifecycle tool execution."""
     reviewer = TinyCUAResultReviewerNode(
         node_id="result_reviewer",
         config=create_node_config("result_reviewer"),
@@ -1023,7 +1034,7 @@ async def test_commit_stream_limits_sdk_to_one_iteration(monkeypatch) -> None:
     ):
         pass
 
-    assert iteration_limits == [1]
+    assert iteration_limits == []
 
 
 async def test_run_sync_consumes_canonical_stream_runtime():

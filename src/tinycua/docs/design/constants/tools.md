@@ -11,7 +11,7 @@ which nodes can see those tools.
 | Node | Tool Scope |
 |------|------------|
 | TinyCUAQueryAnalystNode | classification + read-only task/context tools |
-| TinyCUAInformationDigesterNode | enhanced retrieval + digest tools |
+| TinyCUAInformationDigesterNode | read-only file/web exploration + enhanced retrieval + digest tools |
 | TinyCUAWorkerNode | worker decision tools only |
 | TinyCUATaskCreateNode | deterministic root task creation tools (TaskInit/TaskCreate) |
 | TinyCUATaskAnalyzerNode | task structure tools; TaskInit/TaskCreate only when recreation is requested |
@@ -47,6 +47,20 @@ behavior and optional information-digestion request capability only when enabled
 - Retrieval runs as a ReAct-style search over the cache.
 - Search/read tools are limited to grep/search within the cache and paginated cache reads.
 - `InformationDigesterNode` may call the tool, but the tool owns cache creation.
+
+## `fetch_url` Pagination Contract
+
+`fetch_url` converts HTML to Markdown before slicing model-visible content by character.
+`offset` is a non-negative character offset; `limit` is 1 through 50,000 and defaults to
+50,000. The independent `max_size` bound limits source bytes used for conversion and
+defaults to 102,400.
+
+Results include `returned_chars`, `total_chars`, `truncated`, `source_truncated`,
+`next_offset`, and `final_url`. `truncated` means another converted-character page exists;
+`source_truncated` means the source-byte bound was hit. `next_offset` appears only when
+another character page exists. Out-of-range offsets return a successful empty final page,
+and errors retain the pagination metadata. Each page refetches the URL, so pagination
+cannot recover source bytes excluded by `max_size`.
 
 ## Related
 
