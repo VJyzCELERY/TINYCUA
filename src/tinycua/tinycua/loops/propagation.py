@@ -213,11 +213,15 @@ async def propagate_on_termination(
         "parent",
         "parent_and_root",
     ):
-        await _propagate_context_to_session(entries_to_propagate, parent_session, rule.dedupe)
+        await _propagate_context_to_session(
+            entries_to_propagate, parent_session, rule.dedupe
+        )
 
     # Propagate to root if rule says so
     if rule.session_context_target in ("root", "parent_and_root"):
-        await _propagate_context_to_session(entries_to_propagate, root_session, rule.dedupe)
+        await _propagate_context_to_session(
+            entries_to_propagate, root_session, rule.dedupe
+        )
 
     # Append ChatRecord to chat_history if rule says so
     if rule.chat_history != "none" and output_entries:

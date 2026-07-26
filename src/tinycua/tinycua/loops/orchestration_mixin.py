@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 class OrchestrationMixin:
     """Orchestration and streaming mixin for TinyCUALoop."""
+
     def _node_run_context(
         self,
         agent: Agent,
@@ -40,6 +41,7 @@ class OrchestrationMixin:
         stream_messages: list[dict[str, Any]] | None = None,
     ) -> NodeRunContext:
         """Create injected runtime services for node-owned run entrypoints."""
+
         async def sync_executor(
             node: Node,
             node_input: NodeInputLike,
@@ -51,6 +53,7 @@ class OrchestrationMixin:
                 override_instructions,
                 node_input,
             )
+
         async def stream_executor(
             node: Node,
             node_input: NodeInputLike,
@@ -64,6 +67,7 @@ class OrchestrationMixin:
                 stream_messages,
             ):
                 yield event
+
         return NodeRunContext(
             sync_executor=sync_executor,
             stream_executor=stream_executor,
@@ -90,6 +94,7 @@ class OrchestrationMixin:
         if root.metadata.get("mission"):
             return  # idempotent: do not clobber an existing mission.
         from tinycua.models.digested_information import DigestedInformation
+
         digest = find_latest_entry(self.root_session, DigestedInformation)
         if digest is not None:
             root.metadata["mission"] = digest.original_query or ""
@@ -137,6 +142,7 @@ class OrchestrationMixin:
         finally:
             self._resolved_tools_for_prompt = None
         return messages, resolved_tools
+
     async def _execute_deterministic_node(
         self,
         node: Node,
@@ -168,6 +174,7 @@ class OrchestrationMixin:
             rule,
         )
         return content, llm_result.tool_calls
+
     async def _handle_validation_failure(
         self,
         node: Node,
@@ -185,7 +192,11 @@ class OrchestrationMixin:
         if self._recover_task_analyzer_validation_failure(node, validation):
             on_complete_response = self._build_on_complete_response(node, llm_result)
             trace_entry = self._trace_entry(
-                node, attempt, resolved_tools, on_complete_response, llm_result,
+                node,
+                attempt,
+                resolved_tools,
+                on_complete_response,
+                llm_result,
             )
             trace_entry["validation_errors"] = list(validation.errors)
             self._execution_trace.append(trace_entry)
@@ -193,7 +204,11 @@ class OrchestrationMixin:
         if self._recover_task_executor_validation_failure(node, validation, llm_result):
             on_complete_response = self._build_on_complete_response(node, llm_result)
             trace_entry = self._trace_entry(
-                node, attempt, resolved_tools, on_complete_response, llm_result,
+                node,
+                attempt,
+                resolved_tools,
+                on_complete_response,
+                llm_result,
             )
             trace_entry["validation_errors"] = list(validation.errors)
             self._execution_trace.append(trace_entry)
@@ -217,7 +232,9 @@ class OrchestrationMixin:
         if content:
             self._record_node_content_transcript(node, content)
         self._record_tool_result_transcripts(
-            node, llm_result.metadata.get("tool_results", []), llm_result.tool_calls,
+            node,
+            llm_result.metadata.get("tool_results", []),
+            llm_result.tool_calls,
         )
         self._apply_loop_result_hook(node, llm_result, node_input)
         self._publish_structured_outputs_to_root(node)
@@ -245,7 +262,11 @@ class OrchestrationMixin:
         node.on_complete(self.queue, on_complete_response)
 
         trace_entry = self._trace_entry(
-            node, attempt, resolved_tools, on_complete_response, llm_result,
+            node,
+            attempt,
+            resolved_tools,
+            on_complete_response,
+            llm_result,
         )
         self._execution_trace.append(trace_entry)
 
@@ -357,18 +378,30 @@ class OrchestrationMixin:
         content = llm_result.content
         if not validation.is_valid:
             recovered = await self._handle_validation_failure(
-                node, agent, resolved_tools, llm_result, validation, attempt,
+                node,
+                agent,
+                resolved_tools,
+                llm_result,
+                validation,
+                attempt,
             )
             if recovered is not None:
                 return recovered
             lazy_outcome = await self._maybe_lazy_pre_recovery(  # FR-087..093
-                node, agent, resolved_tools, llm_result, validation)
+                node, agent, resolved_tools, llm_result, validation
+            )
             if lazy_outcome is not None:
                 lazy_result, revalidated, is_valid = lazy_outcome
                 if is_valid:
                     return await self._finalize_node_success(
-                        node, lazy_result, revalidated, attempt,
-                        None, resolved_tools, lazy_result.content)
+                        node,
+                        lazy_result,
+                        revalidated,
+                        attempt,
+                        None,
+                        resolved_tools,
+                        lazy_result.content,
+                    )
                 llm_result, validation = lazy_result, revalidated
             try:
                 recovery_result = await self._unbounded_recovery(
@@ -389,13 +422,17 @@ class OrchestrationMixin:
                 # Re-entry: don't call on_complete, don't advance.
                 # The caller (queue loop) re-dispatches this node fresh.
                 self._record_node_content_transcript(
-                    node, "Recovery budget exhausted — re-entering node with fresh context.",
+                    node,
+                    "Recovery budget exhausted — re-entering node with fresh context.",
                 )
                 return "", []
             recovered_result, _ = recovery_result
             trace_entry = self._trace_entry(
-                node, attempt, resolved_tools,
-                recovered_result.content, recovered_result,
+                node,
+                attempt,
+                resolved_tools,
+                recovered_result.content,
+                recovered_result,
             )
             trace_entry["validation_errors"] = []
             trace_entry["recovery"] = "unbounded_recovery"
@@ -408,7 +445,13 @@ class OrchestrationMixin:
                 self._record_node_content_transcript(node, recovered_result.content)
             return recovered_result.content, recovered_result.tool_calls
         return await self._finalize_node_success(
-            node, llm_result, validation, attempt, node_input, resolved_tools, content,
+            node,
+            llm_result,
+            validation,
+            attempt,
+            node_input,
+            resolved_tools,
+            content,
         )
 
     async def _finalize_streamed_node(
@@ -463,7 +506,9 @@ class OrchestrationMixin:
                 node,
                 llm_result.metadata["tool_results"],
             )
-            self._record_tool_result_transcripts(node, tool_results, collected_tool_calls)
+            self._record_tool_result_transcripts(
+                node, tool_results, collected_tool_calls
+            )
             self._fill_content_from_recorded_task_result(llm_result)
         elif retry_tool_results:
             self._prepend_retry_tool_results(llm_result, retry_tool_results)
@@ -578,9 +623,9 @@ class OrchestrationMixin:
                     self.queue.items.pop(0)
                     from tinycua.loops.worker_runtime import WorkerRuntimeController
 
-                    WorkerRuntimeController(store, session=self.root_session).schedule_next(
-                        self.queue
-                    )
+                    WorkerRuntimeController(
+                        store, session=self.root_session
+                    ).schedule_next(self.queue)
                     continue
                 async for event in node.stream(
                     node_context,
@@ -869,7 +914,9 @@ class OrchestrationMixin:
         attempt: int,
     ) -> AsyncIterator[dict[str, Any]]:
         """Run a deterministic node and emit completion lifecycle events."""
-        combined, tool_calls = await self._execute_deterministic_node(node, resolved_tools)
+        combined, tool_calls = await self._execute_deterministic_node(
+            node, resolved_tools
+        )
         if stream_messages is not None:
             for tool_call in tool_calls:
                 stream_messages.append({"role": "assistant", "tool_calls": [tool_call]})
@@ -926,9 +973,7 @@ class OrchestrationMixin:
             if combined:
                 stream_messages.append({"role": "assistant", "content": combined})
             for tool_call in collected_tool_calls:
-                stream_messages.append(
-                    {"role": "assistant", "tool_calls": [tool_call]}
-                )
+                stream_messages.append({"role": "assistant", "tool_calls": [tool_call]})
         async for event in self._stream_node_completed(
             node,
             combined,
@@ -1049,23 +1094,37 @@ class OrchestrationMixin:
                 continue
             if validation.is_valid:
                 async for event in self._stream_valid_node_completion(
-                    node, combined, collected_tool_calls, stream_messages,
-                    include_meta, node_type, attempt_number, final_only,
+                    node,
+                    combined,
+                    collected_tool_calls,
+                    stream_messages,
+                    include_meta,
+                    node_type,
+                    attempt_number,
+                    final_only,
                     emit_lifecycle,
                 ):
                     yield event
                 return
             if attempt_number < max_attempts:
                 lazy_outcome = await self._maybe_lazy_in_stream_loop(  # FR-091
-                    node, agent, resolved_tools, llm_result, validation, lazy_attempts)
+                    node, agent, resolved_tools, llm_result, validation, lazy_attempts
+                )
                 if lazy_outcome is not None:
                     lazy_result, last_validation, lazy_attempts = lazy_outcome
                     last_result = lazy_result
                     last_combined = lazy_result.content
                     if last_validation.is_valid:
                         async for event in self._stream_lazy_valid_completion(
-                            node, lazy_result, stream_messages, include_meta,
-                            node_type, attempt_number, final_only, emit_lifecycle):
+                            node,
+                            lazy_result,
+                            stream_messages,
+                            include_meta,
+                            node_type,
+                            attempt_number,
+                            final_only,
+                            emit_lifecycle,
+                        ):
                             yield event
                         return
                     break  # terminate missing → _unbounded_recovery
@@ -1169,13 +1228,21 @@ class OrchestrationMixin:
                 yield event
             return
         lazy_outcome = await self._maybe_lazy_pre_recovery(  # FR-087..093
-            node, agent, resolved_tools, llm_result, validation)
+            node, agent, resolved_tools, llm_result, validation
+        )
         if lazy_outcome is not None:
             lazy_result, revalidated, is_valid = lazy_outcome
             if is_valid:
                 async for event in self._finalize_lazy_stream_recovery(
-                    node, lazy_result, combined, emit_lifecycle, include_meta,
-                    final_only, node_type, max_attempts):
+                    node,
+                    lazy_result,
+                    combined,
+                    emit_lifecycle,
+                    include_meta,
+                    final_only,
+                    node_type,
+                    max_attempts,
+                ):
                     yield event
                 return
             llm_result, validation = lazy_result, revalidated
@@ -1203,7 +1270,10 @@ class OrchestrationMixin:
         # FR-074: clear_prior=True to prevent duplicating content from
         # the failed attempt that preceded recovery.
         self._record_node_output(
-            node, recovery_content, recovered_result.tool_calls, clear_prior=True,
+            node,
+            recovery_content,
+            recovered_result.tool_calls,
+            clear_prior=True,
         )
         recovered_result.metadata = dict(recovered_result.metadata)
         if recovery_content:

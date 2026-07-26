@@ -66,7 +66,9 @@ class TestParseJudgeToolCall:
 
     def test_missing_braces_rejected(self) -> None:
         """Text without JSON braces is rejected."""
-        result = RecoveryStagesMixin._parse_judge_tool_call("no braces here", "terminate")
+        result = RecoveryStagesMixin._parse_judge_tool_call(
+            "no braces here", "terminate"
+        )
         assert result is None
 
 
@@ -118,6 +120,7 @@ class TestUnboundedRecovery:
 
         # Provide task_init + terminate tools so they can execute.
         from tinycua.tools.task_tools import TaskInitTool, TerminateTool
+
         task_init_tool = TaskInitTool()
         task_init_tool.bind_task_store(loop.root_session.task_store)
         terminate_tool = TerminateTool()
@@ -153,6 +156,7 @@ class TestUnboundedRecovery:
 
         async def mock_llm(messages, tools, stream=False):
             import asyncio as _asyncio
+
             await _asyncio.sleep(0)  # yield to event loop so timeout can fire
             return {"role": "assistant", "content": "always fails"}
 
@@ -311,7 +315,9 @@ class TestOpenQuestionDisabled:
 
         assert SessionConfig().enable_open_question_review is False
 
-    def test_schedule_after_review_does_not_route_to_response_for_open_question(self) -> None:
+    def test_schedule_after_review_does_not_route_to_response_for_open_question(
+        self,
+    ) -> None:
         """schedule_after_review falls through to schedule_next when flag disabled."""
         from tinycua.loops.worker_runtime import WorkerRuntimeController
 

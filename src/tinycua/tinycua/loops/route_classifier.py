@@ -24,7 +24,9 @@ class RouteClassifier:
         ``route`` or ``route_label`` field. Substring matching is intentionally
         rejected because it can silently choose the wrong route.
         """
-        normalized_labels = {self._normalize(label): label for label in self.allowed_labels}
+        normalized_labels = {
+            self._normalize(label): label for label in self.allowed_labels
+        }
         candidates = self._candidate_values(raw_response)
 
         for candidate in candidates:
@@ -83,4 +85,8 @@ class RouteClassifier:
             for token in re.split(r"\s+", raw_response)
             if token.strip()
         }
-        return [label for normalized, label in normalized_labels.items() if normalized in tokens]
+        return [
+            label
+            for normalized, label in normalized_labels.items()
+            if normalized in tokens
+        ]

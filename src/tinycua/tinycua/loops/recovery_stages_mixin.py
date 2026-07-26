@@ -45,17 +45,33 @@ class RecoveryStagesMixin:
             recovery_messages.append(system_msg)
         now = datetime.now().astimezone()
         recovery_messages.append(
-            {"role": "user", "content": f"<context>Current time: {now:%H:%M:%S %z}, timezone: {now.tzname() or 'local'}</context>"}
+            {
+                "role": "user",
+                "content": f"<context>Current time: {now:%H:%M:%S %z}, timezone: {now.tzname() or 'local'}</context>",
+            }
         )
         last_content = (last_result.content or "").strip()
         tool_call_summary = ""
         if last_result.tool_calls:
-            names = [tc.get("function", {}).get("name", "?") for tc in last_result.tool_calls if isinstance(tc, dict)]
+            names = [
+                tc.get("function", {}).get("name", "?")
+                for tc in last_result.tool_calls
+                if isinstance(tc, dict)
+            ]
             tool_call_summary = f" (called: {', '.join(names)})"
-        recovery_messages.append({"role": "assistant", "content": f"[My last response]{tool_call_summary}: {last_content}"})
+        recovery_messages.append(
+            {
+                "role": "assistant",
+                "content": f"[My last response]{tool_call_summary}: {last_content}",
+            }
+        )
         # FR-060: trimmed one-line summaries of previous tool results so the
         # model knows what its commands returned without re-running them.
-        tool_results = last_result.metadata.get("tool_results", []) if isinstance(last_result.metadata, dict) else []
+        tool_results = (
+            last_result.metadata.get("tool_results", [])
+            if isinstance(last_result.metadata, dict)
+            else []
+        )
         if tool_results:
             from tinycua.loops.node_guidance import summarize_tool_result
 
@@ -69,10 +85,18 @@ class RecoveryStagesMixin:
                 summary_lines.append(f"  - {name}: {summary}")
             if summary_lines:
                 recovery_messages.append(
-                    {"role": "user", "content": "Previous tool results (trimmed — do not re-run these):\n" + "\n".join(summary_lines)},
+                    {
+                        "role": "user",
+                        "content": "Previous tool results (trimmed — do not re-run these):\n"
+                        + "\n".join(summary_lines),
+                    },
                 )
-        missing_str = ", ".join(missing_tools) if missing_tools else "the required tools"
-        node_continuation = node.build_continuation(node.session) if node.session else ""
+        missing_str = (
+            ", ".join(missing_tools) if missing_tools else "the required tools"
+        )
+        node_continuation = (
+            node.build_continuation(node.session) if node.session else ""
+        )
         # FR-066: goal-oriented recovery directive — goal + progress +
         # why-missing + recent attempts + directive.
         contract = node.contract
@@ -91,13 +115,19 @@ class RecoveryStagesMixin:
         if history:
             hist_lines = ["## Recent Recovery Attempts"]
             for entry in history[-5:]:
-                tools = ", ".join(entry.get("successful_tools") or entry.get("tools", []))
+                tools = ", ".join(
+                    entry.get("successful_tools") or entry.get("tools", [])
+                )
                 if tools:
                     new = ", ".join(entry.get("new_tools", [])) or "(no new tools)"
                     summary = entry.get("result_summary", "")[:120]
-                    hist_lines.append(f"- {entry['stage']}: called {tools} → {new}. {summary}")
+                    hist_lines.append(
+                        f"- {entry['stage']}: called {tools} → {new}. {summary}"
+                    )
                 else:
-                    hist_lines.append(f"- {entry['stage']}: failed to produce a valid call")
+                    hist_lines.append(
+                        f"- {entry['stage']}: failed to produce a valid call"
+                    )
             hist_lines.append(
                 "\nYou already called these tools. Do NOT repeat them. Call the next missing tool."
             )
@@ -155,7 +185,11 @@ class RecoveryStagesMixin:
         # the judge directive. The judge now sees what task it's reviewing,
         # what the outcome report says, and what tool results were produced.
         judge_messages = self._build_recovery_messages(
-            node, [required_tool], last_result, validation, missing_tools,
+            node,
+            [required_tool],
+            last_result,
+            validation,
+            missing_tools,
         )
         # Replace the last user message (the recovery directive) with the
         # judge directive — same context, different instruction.
@@ -168,8 +202,8 @@ class RecoveryStagesMixin:
                 f"single tool call to '{tool_name}' that satisfies the "
                 f"requirement. Tool schema:\n"
                 f"{json.dumps(tool_schema, default=str)}\n\n"
-                f"Output ONLY: {{\"name\": \"{tool_name}\", "
-                f"\"arguments\": {{...}}}}"
+                f'Output ONLY: {{"name": "{tool_name}", '
+                f'"arguments": {{...}}}}'
             ),
         }
         try:
@@ -180,7 +214,9 @@ class RecoveryStagesMixin:
                 [],  # no tools — the judge produces text, not tool calls
             )
         except Exception:
-            logger.debug("node=%s judge_retry llm_call failed", node.node_id, exc_info=True)
+            logger.debug(
+                "node=%s judge_retry llm_call failed", node.node_id, exc_info=True
+            )
             return None
 
         judge_text = sanitize_internal_reprs(raw_response.get("content") or "")
@@ -189,7 +225,9 @@ class RecoveryStagesMixin:
 
         injected_tool_call = self._parse_judge_tool_call(judge_text, tool_name)
         if injected_tool_call is None:
-            logger.debug("node=%s judge_retry could not parse judge output", node.node_id)
+            logger.debug(
+                "node=%s judge_retry could not parse judge output", node.node_id
+            )
             return None  # judge didn't produce valid JSON — loop back
 
         all_tool_results: list[dict[str, Any]] = []
@@ -203,7 +241,9 @@ class RecoveryStagesMixin:
             if tool_results:
                 all_tool_results.extend(tool_results)
         except Exception:
-            logger.debug("node=%s judge_retry tool exec failed", node.node_id, exc_info=True)
+            logger.debug(
+                "node=%s judge_retry tool exec failed", node.node_id, exc_info=True
+            )
             return None
 
         judge_result = LLMResult(
@@ -494,15 +534,19 @@ class RecoveryGuardMixin:
         missing: list[str],
         attempts: dict[str, int],
         budgets: dict[str, int],
-    ) -> tuple[
-        str,
-        str | None,
-        tuple[LLMResult, ValidationResult] | None,
-    ] | None:
+    ) -> (
+        tuple[
+            str,
+            str | None,
+            tuple[LLMResult, ValidationResult] | None,
+        ]
+        | None
+    ):
         """Run the first recovery stage with budget remaining."""
-        if attempts.get("structured_output_retry", 0) < budgets[
-            "structured_output_retry"
-        ]:
+        if (
+            attempts.get("structured_output_retry", 0)
+            < budgets["structured_output_retry"]
+        ):
             recovery = await self._structured_output_retry(
                 node,
                 agent,
@@ -669,8 +713,7 @@ class RecoveryGuardMixin:
         if attempts.get(strategy, 0) < budgets[strategy]:
             return
         if any(
-            item["strategy"] == strategy
-            for item in node.progress.recovery_escalations
+            item["strategy"] == strategy for item in node.progress.recovery_escalations
         ):
             return
         node.progress.recovery_escalations.append(
@@ -782,32 +825,42 @@ class RecoveryGuardMixin:
         from tinycua.loops.node_guidance import summarize_tool_result
 
         llm_result, _ = recovery_result
-        tool_results = llm_result.metadata.get("tool_results", []) if isinstance(
-            llm_result.metadata, dict
-        ) else []
+        tool_results = (
+            llm_result.metadata.get("tool_results", [])
+            if isinstance(llm_result.metadata, dict)
+            else []
+        )
         tools_called = [
-            tr.get("name", "?") for tr in tool_results
-            if isinstance(tr, dict)
+            tr.get("name", "?") for tr in tool_results if isinstance(tr, dict)
         ]
         successful_tools = [
-            tr.get("name", "?") for tr in tool_results
+            tr.get("name", "?")
+            for tr in tool_results
             if isinstance(tr, dict)
             and isinstance(tr.get("output"), dict)
             and tr["output"].get("success") is True
         ]
         summaries = []
         for tr in tool_results:
-            if isinstance(tr, dict) and isinstance(tr.get("output"), dict) and tr["output"].get("success"):
+            if (
+                isinstance(tr, dict)
+                and isinstance(tr.get("output"), dict)
+                and tr["output"].get("success")
+            ):
                 content_str = str(tr.get("content", "") or tr.get("output", ""))
-                summaries.append(f"{tr.get('name', '?')}: {summarize_tool_result(content_str)[:120]}")
+                summaries.append(
+                    f"{tr.get('name', '?')}: {summarize_tool_result(content_str)[:120]}"
+                )
         new_tools = sorted(accumulated_after - accumulated_before)
-        node.progress.stage_tool_history.append({
-            "stage": stage_name,
-            "tools": tools_called,
-            "successful_tools": successful_tools,
-            "result_summary": "; ".join(summaries)[:300],
-            "new_tools": new_tools,
-        })
+        node.progress.stage_tool_history.append(
+            {
+                "stage": stage_name,
+                "tools": tools_called,
+                "successful_tools": successful_tools,
+                "result_summary": "; ".join(summaries)[:300],
+                "new_tools": new_tools,
+            }
+        )
 
     @staticmethod
     def _is_no_progress(

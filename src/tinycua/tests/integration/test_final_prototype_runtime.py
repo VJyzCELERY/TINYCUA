@@ -41,11 +41,11 @@ class ScriptedAgentResponses:
             return match.group(1)
         # Try markdown format: Active: title (id=abc123)
         if key == "active_task_id":
-            match = re.search(r'Active: .+ \(id=([^\)]+)\)', text)
+            match = re.search(r"Active: .+ \(id=([^\)]+)\)", text)
             if match:
                 return match.group(1)
         if key == "root_task_id":
-            match = re.search(r'Root: .+ \(id=([^\)]+)\)', text)
+            match = re.search(r"Root: .+ \(id=([^\)]+)\)", text)
             if match:
                 return match.group(1)
         # Fallback
@@ -61,12 +61,26 @@ class ScriptedAgentResponses:
         if "select_query_route" in tool_names:
             return {
                 "content": "routing to worker",
-                "tool_calls": [{"function": {"name": "select_query_route", "arguments": '{"route":"worker"}'}}],
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "select_query_route",
+                            "arguments": '{"route":"worker"}',
+                        }
+                    }
+                ],
             }
         if "select_worker_route" in tool_names:
             return {
                 "content": "creating tasks",
-                "tool_calls": [{"function": {"name": "select_worker_route", "arguments": '{"route":"task_creation"}'}}],
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "select_worker_route",
+                            "arguments": '{"route":"task_creation"}',
+                        }
+                    }
+                ],
             }
         if (
             "digest_information" in tool_names
@@ -183,7 +197,10 @@ class ScriptedAgentResponses:
             }
         if "task_result_update" in tool_names:
             task_id = self._task_id(messages)
-            if "write_file" in tool_names and task_id not in self.executor_write_done_by_task:
+            if (
+                "write_file" in tool_names
+                and task_id not in self.executor_write_done_by_task
+            ):
                 self.executor_write_done_by_task.add(task_id)
                 return {
                     "content": "",
@@ -192,9 +209,7 @@ class ScriptedAgentResponses:
                             "function": {
                                 "name": "write_file",
                                 "arguments": (
-                                    '{"path":"migration-'
-                                    + task_id
-                                    + '.txt",'
+                                    '{"path":"migration-' + task_id + '.txt",'
                                     '"content":"Executed migration steps.\\n"}'
                                 ),
                             }

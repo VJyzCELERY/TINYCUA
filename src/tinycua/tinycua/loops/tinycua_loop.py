@@ -88,6 +88,7 @@ def _extract_inline_thinking(content: str) -> tuple[str, str]:
     if not content:
         return "", content
     reasoning_parts: list[str] = []
+
     # Case 1: full <think>...</think> blocks.
     def _capture(m: re.Match) -> str:
         reasoning_parts.append(m.group(1))
@@ -99,8 +100,12 @@ def _extract_inline_thinking(content: str) -> tuple[str, str]:
         m = _BARE_THINK_PREFIX_RE.match(stripped)
         if m and m.group(1).strip():
             reasoning_parts.append(m.group(1))
-            stripped = stripped[m.end():]
-    return ("\n".join(reasoning_parts).strip(), stripped.strip()) if reasoning_parts else ("", content)
+            stripped = stripped[m.end() :]
+    return (
+        ("\n".join(reasoning_parts).strip(), stripped.strip())
+        if reasoning_parts
+        else ("", content)
+    )
 
 
 def _detect_repetition(content: str, min_block: int = 50, threshold: int = 3) -> bool:
@@ -127,7 +132,7 @@ def _detect_repetition(content: str, min_block: int = 50, threshold: int = 3) ->
     # Candidate 2: a block from the last quarter (catches "started repeating late").
     quarter = len(content) // 4
     if quarter + min_block <= len(content):
-        candidates.append(content[quarter:quarter + min_block])
+        candidates.append(content[quarter : quarter + min_block])
     # Candidate 3: the last min_block chars (catches "just started repeating").
     if len(content) >= min_block:
         candidates.append(content[-min_block:])
@@ -429,7 +434,8 @@ class TinyCUALoop(
         return ""
 
     def _normalize_system_messages(
-        self, messages: list[dict[str, Any]],
+        self,
+        messages: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
         """Collapse all system messages into a single leading system message."""
         system_parts = [
@@ -457,16 +463,27 @@ class TinyCUALoop(
             context_binder = getattr(tool, "bind_session_context", None)
             if callable(context_binder):
                 context = [
-                    {"role": message.get("role", "unknown"), "content": message.get("content", "")}
+                    {
+                        "role": message.get("role", "unknown"),
+                        "content": message.get("content", ""),
+                    }
                     for message in self.root_session.input_context
                 ]
                 context.extend(
                     {
-                        "role": entry.get("role", "unknown") if isinstance(entry, dict) else entry.role,
+                        "role": entry.get("role", "unknown")
+                        if isinstance(entry, dict)
+                        else entry.role,
                         "content": entry_content(entry),
-                        "segment": entry.get("segment") if isinstance(entry, dict) else entry.segment,
-                        "source_node_id": entry.get("source_node_id") if isinstance(entry, dict) else entry.source_node_id,
-                        "source_session_id": entry.get("source_session_id") if isinstance(entry, dict) else entry.source_session_id,
+                        "segment": entry.get("segment")
+                        if isinstance(entry, dict)
+                        else entry.segment,
+                        "source_node_id": entry.get("source_node_id")
+                        if isinstance(entry, dict)
+                        else entry.source_node_id,
+                        "source_session_id": entry.get("source_session_id")
+                        if isinstance(entry, dict)
+                        else entry.source_session_id,
                     }
                     for entry in self.root_session.session_context
                 )
@@ -501,9 +518,7 @@ class TinyCUALoop(
         """Resolve existing node tools for one focused lifecycle phase."""
         if phase == LifecyclePhase.TERMINATE and not self._can_terminate(node):
             phase = LifecyclePhase.COMMIT
-        names = phase_tool_names(
-            node.node_id, {tool.name for tool in tools}, phase
-        )
+        names = phase_tool_names(node.node_id, {tool.name for tool in tools}, phase)
         return [tool for tool in tools if tool.name in names]
 
     def _can_terminate(self, node: Node) -> bool:
@@ -519,7 +534,10 @@ class TinyCUALoop(
         if node.node_id == "result_reviewer":
             return store.active_task_id in store._staged_reviewer_decisions
         if node.node_id == "task_assessor":
-            return any(handoff.source_node == node.node_id for handoff in self._pending_handoffs)
+            return any(
+                handoff.source_node == node.node_id
+                for handoff in self._pending_handoffs
+            )
         return True
 
     def _attempt_tools(
@@ -550,7 +568,9 @@ class TinyCUALoop(
             for item in result.metadata.get("tool_results", [])
         )
         if attempted_commit or not result.tool_calls:
-            node.progress.advance_lifecycle(LifecyclePhase.SUMMARY, result.content.strip())
+            node.progress.advance_lifecycle(
+                LifecyclePhase.SUMMARY, result.content.strip()
+            )
             node.progress.advance_lifecycle(LifecyclePhase.COMMIT)
             return True
         return False
@@ -676,7 +696,8 @@ class TinyCUALoop(
         if wait > 0:
             logger.debug(
                 "tool_rate_limit name=%s wait=%.2fs",
-                tool_name, wait,
+                tool_name,
+                wait,
             )
             await asyncio.sleep(wait)
         _TOOL_RATE_LIMITS[tool_name] = (min_interval, time.monotonic())
@@ -721,9 +742,7 @@ class TinyCUALoop(
                 results.append(result)
 
             if name not in allowed_tools:
-                record(
-                    {"name": name, "allowed": False, "error": "tool_not_allowed"}
-                )
+                record({"name": name, "allowed": False, "error": "tool_not_allowed"})
                 if name in commit_tools:
                     break
                 continue
@@ -742,26 +761,30 @@ class TinyCUALoop(
                         break
                     continue
             if not isinstance(arguments, dict):
-                record(
-                    {"name": name, "allowed": True, "error": "arguments_not_object"}
-                )
+                record({"name": name, "allowed": True, "error": "arguments_not_object"})
                 if name in commit_tools:
                     break
                 continue
-            arguments = self._normalize_tool_call_arguments(allowed_tools[name], arguments)
+            arguments = self._normalize_tool_call_arguments(
+                allowed_tools[name], arguments
+            )
             self._log_tool_call_args(name, arguments)
             # ponytail: per-tool rate limit for shared backends. See
             # _TOOL_RATE_LIMITS. Async sleep so the event loop stays free.
             await self._await_tool_rate_limit(name)
             try:
-                output = await ToolExecutor.execute(allowed_tools[name], arguments, agent)  # type: ignore[arg-type]
+                output = await ToolExecutor.execute(
+                    allowed_tools[name], arguments, agent
+                )  # type: ignore[arg-type]
             except Exception as exc:  # noqa: BLE001 - recorded for trace/debugging.
                 record({"name": name, "allowed": True, "error": str(exc)})
                 if name in commit_tools:
                     break
                 continue
             if name in {"task_update", "task_result_update", "task_review_decision"}:
-                resolved_id = output.get("task_id") if isinstance(output, dict) else None
+                resolved_id = (
+                    output.get("task_id") if isinstance(output, dict) else None
+                )
                 logger.info(
                     "task_tool=%s requested_task_id=%r resolved_task_id=%r",
                     name,
@@ -794,7 +817,10 @@ class TinyCUALoop(
                 has_literal_n = "\\n" in str(arguments.get("new_string", ""))
                 logger.debug(
                     "tool=%s path=%s old_string[:100]=%r new_string[:100]=%r%s",
-                    name, path, old, new,
+                    name,
+                    path,
+                    old,
+                    new,
                     " [WARNING: literal \\n detected]" if has_literal_n else "",
                 )
             else:
@@ -802,7 +828,9 @@ class TinyCUALoop(
                 has_literal_n = "\\n" in str(arguments.get("content", ""))
                 logger.debug(
                     "tool=%s path=%s content[:100]=%r%s",
-                    name, path, content,
+                    name,
+                    path,
+                    content,
                     " [WARNING: literal \\n detected]" if has_literal_n else "",
                 )
         else:
@@ -823,7 +851,9 @@ class TinyCUALoop(
         if set(arguments) != {"arguments"} or not isinstance(nested, dict):
             return arguments
         parameters = getattr(tool, "parameters", {})
-        properties = parameters.get("properties", {}) if isinstance(parameters, dict) else {}
+        properties = (
+            parameters.get("properties", {}) if isinstance(parameters, dict) else {}
+        )
         if isinstance(properties, dict) and "arguments" in properties:
             return arguments
         return nested
@@ -837,14 +867,24 @@ class TinyCUALoop(
         """Write a durable audit JSON for action/research tool calls."""
         if self.artifact_dir is None or self._disable_tool_audit:
             return None
-        if name not in {"run_shell", "run_python", "web_search", "fetch_url", "search_files"}:
+        if name not in {
+            "run_shell",
+            "run_python",
+            "web_search",
+            "fetch_url",
+            "search_files",
+        }:
             return None
         self._tool_artifact_seq += 1
         audit_dir = self.artifact_dir / "tool-calls"
         audit_dir.mkdir(parents=True, exist_ok=True)
         path = audit_dir / f"{self._tool_artifact_seq:04d}-{name}.json"
         path.write_text(
-            json.dumps({"name": name, "arguments": arguments, "output": output}, indent=2, default=str),
+            json.dumps(
+                {"name": name, "arguments": arguments, "output": output},
+                indent=2,
+                default=str,
+            ),
             encoding="utf-8",
         )
         return str(path)
@@ -932,7 +972,9 @@ class TinyCUALoop(
         max_context = getattr(model, "max_context", None)
         return max_context if isinstance(max_context, (int, float)) else None
 
-    def _build_compaction_llm_call(self, agent: Agent) -> Callable[[list[dict[str, str]]], Any]:
+    def _build_compaction_llm_call(
+        self, agent: Agent
+    ) -> Callable[[list[dict[str, str]]], Any]:
         """Build an async LLM callable for the compaction strategy.
 
         The callable takes a list of messages (system + user) and returns the
@@ -1030,7 +1072,9 @@ class TinyCUALoop(
             return
         logger.info(
             "forced_compaction node=%s entries=%d keep_recent=%d",
-            node.node_id, len(entries), keep_recent,
+            node.node_id,
+            len(entries),
+            keep_recent,
         )
         try:
             await session.compact_context(window=window)
@@ -1056,9 +1100,7 @@ class TinyCUALoop(
                 else {}
             )
             raw_content = json.dumps(tool_result, default=str)
-            tool_call_id = (
-                tool_call.get("id") or tool_result.get("name", "")
-            )
+            tool_call_id = tool_call.get("id") or tool_result.get("name", "")
             tool_name = tool_result.get("name", "")
             content = tool_result.get("prompt_content")
             if not isinstance(content, str):
@@ -1278,11 +1320,11 @@ class TinyCUALoop(
                 else [tool.name for tool in resolved_tools] != ["terminate"]
             ),
         )
-        _rep_check_interval = 20   # check every N deltas (avoid per-delta cost)
-        _rep_min_block = 50        # min substring length to consider a repeat
-        _rep_threshold = 3         # N occurrences of the same substring → cut
+        _rep_check_interval = 20  # check every N deltas (avoid per-delta cost)
+        _rep_min_block = 50  # min substring length to consider a repeat
+        _rep_threshold = 3  # N occurrences of the same substring → cut
         _rep_max_content = 20_000  # don't scan beyond this (cap CPU)
-        _watchdog_seconds = 120     # max seconds per LLM call without tool/finish
+        _watchdog_seconds = 120  # max seconds per LLM call without tool/finish
         _delta_count = 0
         _stream_start = _time.monotonic()
         async for event in self._iter_stream_result_events(stream_result):

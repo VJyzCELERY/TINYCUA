@@ -93,9 +93,7 @@ class TestNativeToolsE2E:
 
                 assert isinstance(response, str)
                 assert (
-                    not response.strip()
-                    or "2" in response
-                    or "two" in response.lower()
+                    not response.strip() or "2" in response or "two" in response.lower()
                 )
             finally:
                 os.chdir(original_cwd)

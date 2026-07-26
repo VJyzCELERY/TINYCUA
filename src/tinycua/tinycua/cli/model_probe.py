@@ -69,15 +69,11 @@ async def resolve_max_context(
                 first_with_ctx = cl
             mid = str(getattr(m, "id", "") or "").lower()
             if mid and name_lower and (name_lower in mid or mid in name_lower):
-                logger.info(
-                    "max_context_probed model=%s context_length=%d", m.id, cl
-                )
+                logger.info("max_context_probed model=%s context_length=%d", m.id, cl)
                 return cl
 
         if first_with_ctx is not None:
-            logger.info(
-                "max_context_probed_first context_length=%d", first_with_ctx
-            )
+            logger.info("max_context_probed_first context_length=%d", first_with_ctx)
             return first_with_ctx
 
         logger.info("max_context_probe_no_field fallback=%d", fallback)

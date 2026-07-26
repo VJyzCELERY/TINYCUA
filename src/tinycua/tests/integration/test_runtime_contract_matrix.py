@@ -45,26 +45,30 @@ class RuntimeContractScript:
 
     # ── helpers ──────────────────────────────────────────────────────────
 
-    def _task_id(self, messages: list[dict[str, Any]], key: str = "active_task_id") -> str:
+    def _task_id(
+        self, messages: list[dict[str, Any]], key: str = "active_task_id"
+    ) -> str:
         text = "\n".join(str(m.get("content", "")) for m in messages)
         # Try raw dict format first: 'active_task_id': '...'
         match = re.search(rf"'{key}': '([^']+)'", text) or re.search(
-            rf'"{key}": "([^"]+)"', text,
+            rf'"{key}": "([^"]+)"',
+            text,
         )
         if match:
             return match.group(1)
         # Try markdown format: Active: title (id=abc123)
         if key == "active_task_id":
-            match = re.search(r'Active: .+ \(id=([^\)]+)\)', text)
+            match = re.search(r"Active: .+ \(id=([^\)]+)\)", text)
             if match:
                 return match.group(1)
         if key == "root_task_id":
-            match = re.search(r'Root: .+ \(id=([^\)]+)\)', text)
+            match = re.search(r"Root: .+ \(id=([^\)]+)\)", text)
             if match:
                 return match.group(1)
         # Fallback: search for any task ID in the tree
         match = re.search(r"'root_task_id': '([^']+)'", text) or re.search(
-            r'"root_task_id": "([^"]+)"', text,
+            r'"root_task_id": "([^"]+)"',
+            text,
         )
         return match.group(1) if match else ""
 
@@ -114,27 +118,52 @@ class RuntimeContractScript:
     # ── correct responses per node ───────────────────────────────────────
 
     def _correct_response(  # noqa: C901
-        self, node: str, tool_names: set[str], messages: list[dict[str, Any]],
+        self,
+        node: str,
+        tool_names: set[str],
+        messages: list[dict[str, Any]],
     ) -> dict[str, Any]:
         if node == "query_analyst":
             return {
                 "content": "",
-                "tool_calls": [{"function": {"name": "select_query_route", "arguments": '{"route":"worker"}'}}],
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "select_query_route",
+                            "arguments": '{"route":"worker"}',
+                        }
+                    }
+                ],
             }
         if node == "worker":
             return {
                 "content": "",
-                "tool_calls": [{"function": {"name": "select_worker_route", "arguments": '{"route":"task_creation"}'}}],
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "select_worker_route",
+                            "arguments": '{"route":"task_creation"}',
+                        }
+                    }
+                ],
             }
         if node == "digester":
             if any(
-                m.get("role") == "tool" and "digest_information" in str(m.get("content", ""))
+                m.get("role") == "tool"
+                and "digest_information" in str(m.get("content", ""))
                 for m in messages
             ):
                 return {"content": "Digest recorded.", "tool_calls": []}
             return {
                 "content": "",
-                "tool_calls": [{"function": {"name": "digest_information", "arguments": '{"context_summary":"Relevant context was gathered."}'}}],
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "digest_information",
+                            "arguments": '{"context_summary":"Relevant context was gathered."}',
+                        }
+                    }
+                ],
             }
         if node == "task_create":
             if any(
@@ -144,7 +173,14 @@ class RuntimeContractScript:
                 return {"content": "Initialized.", "tool_calls": []}
             return {
                 "content": "",
-                "tool_calls": [{"function": {"name": "task_init", "arguments": '{"title":"Build a note-taking app"}'}}],
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "task_init",
+                            "arguments": '{"title":"Build a note-taking app"}',
+                        }
+                    }
+                ],
             }
         if node == "task_analyzer":
             # Check if we already decomposed (task has children)
@@ -155,24 +191,44 @@ class RuntimeContractScript:
                 # Already decomposed — confirm or do nothing
                 if any(
                     m.get("role") == "tool"
-                    and ("task_decompose" in str(m.get("content", "")) or "task_update" in str(m.get("content", "")))
+                    and (
+                        "task_decompose" in str(m.get("content", ""))
+                        or "task_update" in str(m.get("content", ""))
+                    )
                     for m in messages
                 ):
                     return {"content": "Analysis complete.", "tool_calls": []}
                 return {
                     "content": "",
-                    "tool_calls": [{"function": {"name": "task_update", "arguments": f'{{"task_id":"{root_id}","assessment":"decomposition complete"}}'}}],
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": "task_update",
+                                "arguments": f'{{"task_id":"{root_id}","assessment":"decomposition complete"}}',
+                            }
+                        }
+                    ],
                 }
             # First decomposition — break root into 2 subtasks
             if any(
                 m.get("role") == "tool"
-                and ("task_decompose" in str(m.get("content", "")) or "task_update" in str(m.get("content", "")))
+                and (
+                    "task_decompose" in str(m.get("content", ""))
+                    or "task_update" in str(m.get("content", ""))
+                )
                 for m in messages
             ):
                 return {"content": "Decomposition confirmed.", "tool_calls": []}
             return {
                 "content": "",
-                "tool_calls": [{"function": {"name": "task_decompose", "arguments": f'{{"task_id":"{root_id}","subtasks":["Create backend","Create frontend"]}}'}}],
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "task_decompose",
+                            "arguments": f'{{"task_id":"{root_id}","subtasks":["Create backend","Create frontend"]}}',
+                        }
+                    }
+                ],
             }
         if node == "task_assessor":
             if any(
@@ -183,26 +239,51 @@ class RuntimeContractScript:
                 return {"content": "Assessment handed off.", "tool_calls": []}
             return {
                 "content": "",
-                "tool_calls": [{"function": {"name": "task_assessment_decision", "arguments": '{"decision":"ready","selected_task_ids":[],"rationale":"The roadmap is executable."}'}}],
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "task_assessment_decision",
+                            "arguments": '{"decision":"ready","selected_task_ids":[],"rationale":"The roadmap is executable."}',
+                        }
+                    }
+                ],
             }
         if node == "task_executor":
             task_id = self._task_id(messages)
             # First call: write file for this task
-            if "write_file" in tool_names and task_id not in self.executor_write_done_by_task:
+            if (
+                "write_file" in tool_names
+                and task_id not in self.executor_write_done_by_task
+            ):
                 self.executor_write_done_by_task.add(task_id)
                 return {
                     "content": "",
-                    "tool_calls": [{"function": {"name": "write_file", "arguments": f'{{"path":"{task_id}.txt","content":"Implementation of {task_id}\\n"}}'}}],
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": "write_file",
+                                "arguments": f'{{"path":"{task_id}.txt","content":"Implementation of {task_id}\\n"}}',
+                            }
+                        }
+                    ],
                 }
             # After write: record result
             if any(
-                m.get("role") == "tool" and "task_result_update" in str(m.get("content", ""))
+                m.get("role") == "tool"
+                and "task_result_update" in str(m.get("content", ""))
                 for m in messages
             ):
                 return {"content": "Recorded.", "tool_calls": []}
             return {
                 "content": "",
-                "tool_calls": [{"function": {"name": "task_result_update", "arguments": f'{{"content":"Completed {task_id}","success":true}}'}}],
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "task_result_update",
+                            "arguments": f'{{"content":"Completed {task_id}","success":true}}',
+                        }
+                    }
+                ],
             }
         if node == "result_reviewer":
             task_id = self._task_id(messages)
@@ -213,11 +294,14 @@ class RuntimeContractScript:
             ):
                 return {
                     "content": "",
-                    "tool_calls": [{"function": {"name": "list_files", "arguments": "{}"}}],
+                    "tool_calls": [
+                        {"function": {"name": "list_files", "arguments": "{}"}}
+                    ],
                 }
             # After inspection: decide
             if any(
-                m.get("role") == "tool" and "task_review_decision" in str(m.get("content", ""))
+                m.get("role") == "tool"
+                and "task_review_decision" in str(m.get("content", ""))
                 for m in messages
             ):
                 return {"content": "Review recorded.", "tool_calls": []}
@@ -229,14 +313,24 @@ class RuntimeContractScript:
                 return {
                     "content": "",
                     "tool_calls": [
-                        {"function": {"name": "task_review_decision", "arguments": f'{{"decision":"approved","rationale":"Task {task_id} completed successfully","task_id":"{task_id}"}}'}},
+                        {
+                            "function": {
+                                "name": "task_review_decision",
+                                "arguments": f'{{"decision":"approved","rationale":"Task {task_id} completed successfully","task_id":"{task_id}"}}',
+                            }
+                        },
                         {"function": {"name": "task_inspect", "arguments": "{}"}},
                     ],
                 }
             return {
                 "content": "",
                 "tool_calls": [
-                    {"function": {"name": "task_review_decision", "arguments": f'{{"decision":"approved","rationale":"Verified","task_id":"{task_id}"}}'}},
+                    {
+                        "function": {
+                            "name": "task_review_decision",
+                            "arguments": f'{{"decision":"approved","rationale":"Verified","task_id":"{task_id}"}}',
+                        }
+                    },
                     {"function": {"name": "task_inspect", "arguments": "{}"}},
                 ],
             }
@@ -248,7 +342,10 @@ class RuntimeContractScript:
     # ── main entry point ─────────────────────────────────────────────────
 
     async def __call__(
-        self, messages: list[dict[str, Any]], tools: Any, stream: bool = False,  # noqa: ANN001, ARG002
+        self,
+        messages: list[dict[str, Any]],
+        tools: Any,
+        stream: bool = False,  # noqa: ANN001, ARG002
     ) -> dict[str, Any]:
         tool_names = {t.name for t in tools}
         node = self._detect_node(tool_names)
@@ -275,7 +372,9 @@ def _make_agent(tmp_path: Path, script: RuntimeContractScript) -> Any:
 
 
 @pytest.mark.asyncio
-async def test_runtime_routes_full_worker_path_when_llm_calls_correct_tools(tmp_path: Path) -> None:
+async def test_runtime_routes_full_worker_path_when_llm_calls_correct_tools(
+    tmp_path: Path,
+) -> None:
     """Full worker path: analyst → worker → create → analysis_effort loop →
     nested decomposition → execute each leaf → review each → aggregate → respond."""
     script = RuntimeContractScript()
@@ -293,9 +392,16 @@ async def test_runtime_routes_full_worker_path_when_llm_calls_correct_tools(tmp_
 
     # All required nodes appear in trace
     for required_node in (
-        "query_analyst", "digester", "worker", "task_create",
-        "task_analyzer", "task_executor", "result_reviewer",
-        "analysis_effort", "result_aggregation", "response",
+        "query_analyst",
+        "digester",
+        "worker",
+        "task_create",
+        "task_analyzer",
+        "task_executor",
+        "result_reviewer",
+        "analysis_effort",
+        "result_aggregation",
+        "response",
     ):
         assert required_node in node_ids, f"{required_node} not in trace"
 
@@ -308,11 +414,15 @@ async def test_runtime_routes_full_worker_path_when_llm_calls_correct_tools(tmp_
     root_tasks = [t for t in tasks.values() if t["parent_id"] is None]
     assert len(root_tasks) == 1
     root = root_tasks[0]
-    assert len(root["children"]) >= 2, f"Root should have ≥2 children, got {len(root['children'])}"
+    assert len(root["children"]) >= 2, (
+        f"Root should have ≥2 children, got {len(root['children'])}"
+    )
 
     # All tasks completed
     for task_data in tasks.values():
-        assert task_data["status"] == "completed", f"task {task_data['task_id']} status={task_data['status']}"
+        assert task_data["status"] == "completed", (
+            f"task {task_data['task_id']} status={task_data['status']}"
+        )
 
     # Active task cleared
     assert agent.loop.root_session.task_store.active_task_id is None
@@ -323,21 +433,32 @@ async def test_runtime_routes_full_worker_path_when_llm_calls_correct_tools(tmp_
         nid = entry["node_id"]
         if nid not in seen_nodes:
             seen_nodes.add(nid)
-            assert not entry.get("validation_errors"), f"{nid} final: {entry['validation_errors']}"
+            assert not entry.get("validation_errors"), (
+                f"{nid} final: {entry['validation_errors']}"
+            )
 
     # Real file artifacts exist
-    assert any(p.name.endswith(".txt") for p in tmp_path.iterdir()), "No task artifact files written"
+    assert any(p.name.endswith(".txt") for p in tmp_path.iterdir()), (
+        "No task artifact files written"
+    )
 
 
 # ── Test 2: Bad once per contract node retries then completes ────────────
 
 
 @pytest.mark.asyncio
-async def test_runtime_retries_each_contract_node_then_completes_when_llm_corrects(tmp_path: Path) -> None:
+async def test_runtime_retries_each_contract_node_then_completes_when_llm_corrects(
+    tmp_path: Path,
+) -> None:
     """Each bad-once node gets retried and then completes on correction."""
     bad_nodes = {
-        "query_analyst", "worker", "task_create", "task_analyzer",
-        "task_assessor", "task_executor", "result_reviewer",
+        "query_analyst",
+        "worker",
+        "task_create",
+        "task_analyzer",
+        "task_assessor",
+        "task_executor",
+        "result_reviewer",
     }
     script = RuntimeContractScript(bad_once_nodes=frozenset(bad_nodes))
     agent = _make_agent(tmp_path, script)
@@ -372,7 +493,9 @@ async def test_runtime_retries_each_contract_node_then_completes_when_llm_correc
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("node_id", ["query_analyst", "worker"])
-async def test_runtime_fails_closed_when_route_node_never_calls_required_tool(tmp_path: Path, node_id: str) -> None:
+async def test_runtime_fails_closed_when_route_node_never_calls_required_tool(
+    tmp_path: Path, node_id: str
+) -> None:
     """Route node that never calls required tool exhausts retries and fails."""
     script = RuntimeContractScript(bad_forever_nodes=frozenset({node_id}))
     agent = _make_agent(tmp_path, script)
@@ -384,7 +507,9 @@ async def test_runtime_fails_closed_when_route_node_never_calls_required_tool(tm
     snapshot = agent.loop.get_state_snapshot()
     tasks = snapshot["task_tree"]["tasks"]
     if node_id == "query_analyst":
-        assert len(tasks) <= 1, f"query_analyst failure should not fabricate tasks: {len(tasks)}"
+        assert len(tasks) <= 1, (
+            f"query_analyst failure should not fabricate tasks: {len(tasks)}"
+        )
 
     trace = agent.loop.get_execution_trace()
     node_ids = [entry["node_id"] for entry in trace]
@@ -396,8 +521,12 @@ async def test_runtime_fails_closed_when_route_node_never_calls_required_tool(tm
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("node_id", ["task_create", "task_analyzer", "task_executor", "result_reviewer"])
-async def test_runtime_fails_without_fabricating_task_state_when_task_node_never_calls_tool(tmp_path: Path, node_id: str) -> None:
+@pytest.mark.parametrize(
+    "node_id", ["task_create", "task_analyzer", "task_executor", "result_reviewer"]
+)
+async def test_runtime_fails_without_fabricating_task_state_when_task_node_never_calls_tool(
+    tmp_path: Path, node_id: str
+) -> None:
     """Task-state node that never calls tool fails without producing fake completed state."""
     script = RuntimeContractScript(bad_forever_nodes=frozenset({node_id}))
     agent = _make_agent(tmp_path, script)

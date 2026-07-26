@@ -158,11 +158,17 @@ class TestRecoveryBudgetExhaustion:
         before = loop._recovery_fingerprint(node, validation, ["terminate"], evidence)
         evidence["task_init"]["output"]["task_id"] = "task-1"
         evidence_changed = loop._recovery_fingerprint(
-            node, validation, ["terminate"], evidence,
+            node,
+            validation,
+            ["terminate"],
+            evidence,
         )
         loop.root_session.task_store.create_task("Root")
         task_changed = loop._recovery_fingerprint(
-            node, validation, ["terminate"], evidence,
+            node,
+            validation,
+            ["terminate"],
+            evidence,
         )
 
         assert before != evidence_changed
@@ -193,14 +199,18 @@ class TestStructuredRetryIncludesFullContext:
         )
         validation = ValidationResult(
             is_valid=False,
-            errors=["result_reviewer must call successful task-state tool(s): ['task_review_decision']"],
+            errors=[
+                "result_reviewer must call successful task-state tool(s): ['task_review_decision']"
+            ],
         )
 
         # Build the recovery messages and check they include system prompt.
         from tinycua.tools.task_tools import TaskReviewDecisionTool
 
         recovery_tools = [TaskReviewDecisionTool()]
-        messages = loop._build_recovery_messages(node, recovery_tools, llm_result, validation, ["task_review_decision"])
+        messages = loop._build_recovery_messages(
+            node, recovery_tools, llm_result, validation, ["task_review_decision"]
+        )
 
         # The first message should be a system message (not a bare user message).
         assert messages[0].get("role") == "system"
@@ -231,21 +241,29 @@ class TestRecoveryMessagesIncludeTrimmedToolResults:
                 "tool_results": [
                     {
                         "name": "run_shell",
-                        "content": json.dumps({"output": {"exit_code": 0, "timed_out": False}}),
+                        "content": json.dumps(
+                            {"output": {"exit_code": 0, "timed_out": False}}
+                        ),
                     },
                     {
                         "name": "read_file",
-                        "content": json.dumps({"output": {"success": True, "path": "report.md"}}),
+                        "content": json.dumps(
+                            {"output": {"success": True, "path": "report.md"}}
+                        ),
                     },
                 ]
             },
         )
         validation = ValidationResult(
             is_valid=False,
-            errors=["result_reviewer must call successful task-state tool(s): ['task_review_decision']"],
+            errors=[
+                "result_reviewer must call successful task-state tool(s): ['task_review_decision']"
+            ],
         )
 
-        messages = loop._build_recovery_messages(node, [], llm_result, validation, ["task_review_decision"])
+        messages = loop._build_recovery_messages(
+            node, [], llm_result, validation, ["task_review_decision"]
+        )
 
         # Find the tool results message.
         tool_result_msg = None
@@ -283,7 +301,9 @@ class TestJudgeRetryIncludesFullContext:
         llm_result = LLMResult(content="I need to verify...")
         validation = ValidationResult(
             is_valid=False,
-            errors=["result_reviewer must call successful task-state tool(s): ['task_review_decision']"],
+            errors=[
+                "result_reviewer must call successful task-state tool(s): ['task_review_decision']"
+            ],
         )
 
         from tinycua.tools.task_tools import TaskReviewDecisionTool
@@ -298,12 +318,19 @@ class TestJudgeRetryIncludesFullContext:
 
         async def mock_llm(messages, tools, stream=False, **kwargs):
             captured_messages.append(list(messages))
-            return {"role": "assistant", "content": '{"name": "task_review_decision", "arguments": {}}'}
+            return {
+                "role": "assistant",
+                "content": '{"name": "task_review_decision", "arguments": {}}',
+            }
 
         agent._call_llm = mock_llm
 
         await loop._judge_retry(
-            node, agent, recovery_tools, llm_result, validation,
+            node,
+            agent,
+            recovery_tools,
+            llm_result,
+            validation,
             missing_tools=["task_review_decision"],
         )
 
@@ -322,7 +349,8 @@ class TestCommitEndsRecovery:
         loop = TinyCUALoop()
         task = loop.root_session.task_store.create_task("test task")
         loop.root_session.task_store.record_result(
-            task.task_id, TaskResult(content="done", success=True),
+            task.task_id,
+            TaskResult(content="done", success=True),
         )
         loop.root_session.task_store.active_task_id = task.task_id
 
@@ -381,14 +409,21 @@ class TestSummarizeToolResultMovedToNodeGuidance:
     """summarize_tool_result is importable from node_guidance (FR-060)."""
 
     def test_summarize_exit_code(self):
-        result = summarize_tool_result(json.dumps({"output": {"exit_code": 0, "timed_out": False}}))
+        result = summarize_tool_result(
+            json.dumps({"output": {"exit_code": 0, "timed_out": False}})
+        )
         assert "exit_code=0" in result
 
     def test_summarize_path(self):
-        result = summarize_tool_result(json.dumps({"output": {"success": True, "path": "report.md"}}))
+        result = summarize_tool_result(
+            json.dumps({"output": {"success": True, "path": "report.md"}})
+        )
         assert "path=report.md" in result
 
     def test_re_export_from_live_stream(self):
         from tinycua.cli.live_stream import summarize_tool_result as cli_summarize
 
-        assert cli_summarize(json.dumps({"output": {"exit_code": 1}})) == "exit_code=1 timed_out=None"
+        assert (
+            cli_summarize(json.dumps({"output": {"exit_code": 1}}))
+            == "exit_code=1 timed_out=None"
+        )

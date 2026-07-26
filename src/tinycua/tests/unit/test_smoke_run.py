@@ -56,7 +56,9 @@ class TestSmokeTaskSelector:
 
     def test_selects_tasks_from_all_categories(self):
         """Selector must return at least one task per WildClawBench category."""
-        selector = SmokeTaskSelector(available_capabilities={"browser", "email", "filesystem"})
+        selector = SmokeTaskSelector(
+            available_capabilities={"browser", "email", "filesystem"}
+        )
         tasks = selector.select()
 
         categories = {t.category for t in tasks}
@@ -96,7 +98,9 @@ class TestSmokeTaskSelector:
 
     def test_task_ids_are_unique(self):
         """All selected task IDs must be unique."""
-        selector = SmokeTaskSelector(available_capabilities={"browser", "email", "filesystem"})
+        selector = SmokeTaskSelector(
+            available_capabilities={"browser", "email", "filesystem"}
+        )
         tasks = selector.select()
 
         task_ids = [t.task_id for t in tasks]
@@ -155,7 +159,9 @@ class TestCategorizeFailure:
                 elapsed=5.0,
                 timeout=300,
             )
-            assert result == "llm_error", f"Keyword '{keyword}' not classified as llm_error"
+            assert result == "llm_error", (
+                f"Keyword '{keyword}' not classified as llm_error"
+            )
 
     def test_non_zero_exit_unknown(self):
         """Non-zero exit without other signals must be 'other'."""

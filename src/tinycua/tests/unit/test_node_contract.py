@@ -129,12 +129,14 @@ class TestNodeContract:
     def test_task_analyzer_contract_any_of(self):
         contract = get_node_contract("task_analyzer")
         # Any supported mutation lets the analyzer terminate.
-        assert contract.any_of_tools == frozenset({
-            frozenset({"task_decompose"}),
-            frozenset({"task_update"}),
-            frozenset({"task_create"}),
-            frozenset({"task_shrink"}),
-        })
+        assert contract.any_of_tools == frozenset(
+            {
+                frozenset({"task_decompose"}),
+                frozenset({"task_update"}),
+                frozenset({"task_create"}),
+                frozenset({"task_shrink"}),
+            }
+        )
         assert contract.requires_terminate is True
 
     def test_task_assessor_contract(self):

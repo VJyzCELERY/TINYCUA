@@ -69,7 +69,11 @@ def _render_payload(payload: dict[str, Any]) -> str:
         separators=(",", ":"),
         default=str,
     )
-    return rendered if len(rendered) <= _MAX_PAYLOAD_CHARS else f"{rendered[:_MAX_PAYLOAD_CHARS]}…[truncated]"
+    return (
+        rendered
+        if len(rendered) <= _MAX_PAYLOAD_CHARS
+        else f"{rendered[:_MAX_PAYLOAD_CHARS]}…[truncated]"
+    )
 
 
 def _render_digest(digest: Any) -> str:

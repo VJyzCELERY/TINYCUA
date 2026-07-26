@@ -59,9 +59,7 @@ def test_node_input_like_union_type_in_build_messages() -> None:
 
     # Internal strings use user role to avoid provider assistant-prefill behavior.
     assistant_msgs = build_messages("I will analyze the task.")
-    assert assistant_msgs == [
-        {"role": "user", "content": "I will analyze the task."}
-    ]
+    assert assistant_msgs == [{"role": "user", "content": "I will analyze the task."}]
 
     # NodePayload
     payload = NodePayload(payload_type="decision", content="approved")

@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from tinycua.config.node_config import create_node_config
-from tinycua.loops.task_nodes import TinyCUAResultAggregationNode, TinyCUATaskExecutorNode
+from tinycua.loops.task_nodes import (
+    TinyCUAResultAggregationNode,
+    TinyCUATaskExecutorNode,
+)
 from tinycua.models.session import Session
 from tinycua.models.task import TaskResult, TaskStateStore, TaskStatus
 
@@ -21,7 +24,9 @@ class TestReverseOrderAggregation:
 
         # Complete all in execution order: GC1, Child1, Child2, Root
         for tid in [grandchild1.task_id, child1.task_id, child2.task_id, root.task_id]:
-            store.record_result(tid, TaskResult(content=f"result-{tid[:4]}", success=True))
+            store.record_result(
+                tid, TaskResult(content=f"result-{tid[:4]}", success=True)
+            )
             store.record_reviewer_decision(tid, "approved")
 
         session = Session()
@@ -56,12 +61,22 @@ class TestReverseOrderAggregation:
         store = TaskStateStore()
         root = store.create_task("Root")
         task = store.create_task("Unavailable source", parent_id=root.task_id)
-        store.record_result(task.task_id, TaskResult(content="source blocked", success=False))
-        store.record_reviewer_decision(task.task_id, "postpone_siblings", rationale="later")
-        store.record_result(task.task_id, TaskResult(content="still blocked", success=False))
+        store.record_result(
+            task.task_id, TaskResult(content="source blocked", success=False)
+        )
+        store.record_reviewer_decision(
+            task.task_id, "postpone_siblings", rationale="later"
+        )
+        store.record_result(
+            task.task_id, TaskResult(content="still blocked", success=False)
+        )
         store.record_reviewer_decision(task.task_id, "postpone_final", rationale="last")
-        store.record_result(task.task_id, TaskResult(content="known limitation", success=False))
-        store.record_reviewer_decision(task.task_id, "compromise", rationale="unavailable")
+        store.record_result(
+            task.task_id, TaskResult(content="known limitation", success=False)
+        )
+        store.record_reviewer_decision(
+            task.task_id, "compromise", rationale="unavailable"
+        )
 
         session = Session()
         session.task_store = store
@@ -135,7 +150,13 @@ class TestChildVerificationGate:
         sub3_2 = store.create_task("Sub3.2", parent_id=sub3.task_id)
         sub4 = store.create_task("Sub4", parent_id=root.task_id)
         # Complete all descendants so root becomes active
-        for tid in [sub3_1.task_id, sub3_2.task_id, sub1.task_id, sub3.task_id, sub4.task_id]:
+        for tid in [
+            sub3_1.task_id,
+            sub3_2.task_id,
+            sub1.task_id,
+            sub3.task_id,
+            sub4.task_id,
+        ]:
             store.record_result(tid, TaskResult(content="done", success=True))
             store.record_reviewer_decision(tid, "approved")
 

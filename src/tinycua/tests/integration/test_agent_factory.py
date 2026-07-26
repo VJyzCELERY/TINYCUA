@@ -10,8 +10,7 @@ from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.session import Session
 
 ROUTE_PASSTHROUGH = (
-    '{"tool_calls":[{"name":"select_query_route",'
-    '"arguments":{"route":"passthrough"}}]}'
+    '{"tool_calls":[{"name":"select_query_route","arguments":{"route":"passthrough"}}]}'
 )
 
 
@@ -205,7 +204,9 @@ class TestAgentRun:
         )
         # The SDK stream catches NodeExecutionError and yields an error event.
         result = await agent.run("hello", stream=True)
-        with pytest.raises(NodeExecutionError, match="Final response must be non-empty"):
+        with pytest.raises(
+            NodeExecutionError, match="Final response must be non-empty"
+        ):
             _ = [e async for e in result]
         session = agent.loop.root_session
         # chat_history includes tool_result records (route-tool execution);
@@ -257,7 +258,9 @@ class TestAgentRun:
 
         agent._call_llm = empty_stream
         result = await agent.run("hello", stream=True)
-        with pytest.raises(NodeExecutionError, match="Final response must be non-empty"):
+        with pytest.raises(
+            NodeExecutionError, match="Final response must be non-empty"
+        ):
             _ = [e async for e in result]
         session = agent.loop.root_session
         assistant_records = [r for r in session.chat_history if r.role == "assistant"]

@@ -147,7 +147,9 @@ def test_mission_block_includes_digester_context_and_key_points() -> None:
 
 def test_mission_block_omits_empty_sections() -> None:
     """No key points → no 'Key findings:' header. No context → no context line."""
-    session = _session_with_mission(mission="Build a clock.", constraints=["single file"])
+    session = _session_with_mission(
+        mission="Build a clock.", constraints=["single file"]
+    )
     node = TinyCUATaskAnalyzerNode(
         node_id="task_analyzer", config=create_node_config("task_analyzer")
     )

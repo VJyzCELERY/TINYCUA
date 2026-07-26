@@ -8,7 +8,11 @@ import collections.abc
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from tinycua.config.node_config import NodeConfigBase, NodeToolPolicy, create_node_config
+from tinycua.config.node_config import (
+    NodeConfigBase,
+    NodeToolPolicy,
+    create_node_config,
+)
 from tinycua.config.types import LLMResult, Tool
 from tinycua.config.types import ValidationError
 from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
@@ -219,14 +223,16 @@ def test_executor_result_update_is_available_during_action_phase() -> None:
         node_id="task_executor",
         config=create_node_config("task_executor"),
     )
-    result = LLMResult(
-        tool_calls=[{"function": {"name": "task_result_update"}}]
-    )
+    result = LLMResult(tool_calls=[{"function": {"name": "task_result_update"}}])
 
     scoped = loop._tools_for_lifecycle_result(
         executor,
         result,
-        [Tool(name="read_file"), Tool(name="task_result_update"), Tool(name="terminate")],
+        [
+            Tool(name="read_file"),
+            Tool(name="task_result_update"),
+            Tool(name="terminate"),
+        ],
     )
 
     assert executor.progress.lifecycle_phase is LifecyclePhase.ACTION
@@ -715,8 +721,7 @@ def test_coerce_structured_tool_calls_accepts_name_arguments_payload() -> None:
     )
     result = LLMResult(
         content=(
-            '{"name":"task_execute",'
-            '"arguments":{"task_id":"task-1"}}</tool_call>'
+            '{"name":"task_execute","arguments":{"task_id":"task-1"}}</tool_call>'
         ),
     )
 
@@ -727,7 +732,9 @@ def test_coerce_structured_tool_calls_accepts_name_arguments_payload() -> None:
     assert result.tool_calls[0]["function"]["arguments"] == '{"task_id": "task-1"}'
 
 
-def test_coerce_structured_tool_calls_accepts_multiple_name_arguments_payloads() -> None:
+def test_coerce_structured_tool_calls_accepts_multiple_name_arguments_payloads() -> (
+    None
+):
     """Multiple explicit local-model tool payloads become one tool batch."""
     loop = TinyCUALoop()
     tools = [Tool(name="task_execute"), Tool(name="list_files")]
@@ -841,7 +848,9 @@ async def test_stream_true_returns_async_iterator():
     assert any(e["type"] == "response.output_text.delta" for e in events)
 
 
-async def test_streamed_direct_commit_does_not_restart_completed_lifecycle_node() -> None:
+async def test_streamed_direct_commit_does_not_restart_completed_lifecycle_node() -> (
+    None
+):
     """A successful ACTION commit completes instead of being redispatched."""
     node = TinyCUATaskCreateNode(
         node_id="task_create",
@@ -1142,6 +1151,7 @@ async def test_stream_task_executor_receives_injected_active_task_context():
     # Provide real tools so validation passes and the unbounded recovery loop
     # doesn't spin forever.
     from tinycua.tools.task_tools import TaskResultUpdateTool, TerminateTool
+
     task_result_tool = TaskResultUpdateTool()
     task_result_tool.bind_task_store(loop.root_session.task_store)
     terminate_tool = TerminateTool()
@@ -1155,7 +1165,9 @@ async def test_stream_task_executor_receives_injected_active_task_context():
     ):
         pass
 
-    rendered = "\n".join(str(message.get("content", "")) for message in captured_messages)
+    rendered = "\n".join(
+        str(message.get("content", "")) for message in captured_messages
+    )
     assert "Create requirements.txt" in rendered
     assert "Build application" in rendered
 
@@ -1194,6 +1206,7 @@ async def test_stream_retry_prompt_replaces_prior_retry_prompt() -> None:
 
     # Provide a mock select_query_route tool that returns success.
     from tinycua.config.types import Tool as SimpleTool
+
     route_tool = SimpleTool(name="select_query_route")
     route_tool.__call__ = lambda **kw: {"success": True, "route": "passthrough"}  # type: ignore[method-assign]
 

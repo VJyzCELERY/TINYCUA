@@ -64,7 +64,9 @@ def test_approval_without_inspect_is_accepted() -> None:
         },
     )
 
-    validation = loop._validate_result_reviewer_inspects_after_decision(node, llm_result)
+    validation = loop._validate_result_reviewer_inspects_after_decision(
+        node, llm_result
+    )
 
     assert validation.is_valid
     assert first.status == TaskStatus.COMPLETED
@@ -101,8 +103,14 @@ def test_reviewer_curation_lists_only_nonterminal_tasks() -> None:
     terminal = [
         (store.create_task("Done", parent_id=root.task_id), TaskStatus.COMPLETED),
         (store.create_task("Cancelled", parent_id=root.task_id), TaskStatus.CANCELLED),
-        (store.create_task("Superseded", parent_id=root.task_id), TaskStatus.SUPERSEDED),
-        (store.create_task("Compromised", parent_id=root.task_id), TaskStatus.COMPROMISED),
+        (
+            store.create_task("Superseded", parent_id=root.task_id),
+            TaskStatus.SUPERSEDED,
+        ),
+        (
+            store.create_task("Compromised", parent_id=root.task_id),
+            TaskStatus.COMPROMISED,
+        ),
     ]
     for task, status in terminal:
         task.status = status
@@ -259,7 +267,9 @@ def test_no_decision_skips_inspect_requirement() -> None:
         },
     )
 
-    validation = loop._validate_result_reviewer_inspects_after_decision(node, llm_result)
+    validation = loop._validate_result_reviewer_inspects_after_decision(
+        node, llm_result
+    )
 
     assert validation.is_valid
 

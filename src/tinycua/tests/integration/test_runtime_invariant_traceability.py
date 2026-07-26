@@ -121,7 +121,13 @@ def test_cli_run_help_documents_core_flags() -> None:
         with redirect_stdout(buffer):
             module.parse_args(["--help"])
     help_text = buffer.getvalue()
-    for flag in ("--dir", "--provider-url", "--provider-type", "--worker-effort", "--env"):
+    for flag in (
+        "--dir",
+        "--provider-url",
+        "--provider-type",
+        "--worker-effort",
+        "--env",
+    ):
         assert flag in help_text, f"run --help missing {flag}: {help_text!r}"
 
 
@@ -143,9 +149,17 @@ async def test_cli_run_stream_shows_deterministic_effort_node() -> None:
     # analysis_effort emits node.started then node.completed with the scheduled
     # pass content. query_analyst is shown first for context.
     events = [
-        {"type": "node.started", "node_id": "query_analyst", "node_type": "ProcessNode"},
+        {
+            "type": "node.started",
+            "node_id": "query_analyst",
+            "node_type": "ProcessNode",
+        },
         {"type": "response.output_text.delta", "node_id": "query_analyst", "delta": ""},
-        {"type": "node.started", "node_id": "analysis_effort", "node_type": "ProcessNode"},
+        {
+            "type": "node.started",
+            "node_id": "analysis_effort",
+            "node_type": "ProcessNode",
+        },
         {
             "type": "node.completed",
             "node_id": "analysis_effort",
@@ -153,7 +167,11 @@ async def test_cli_run_stream_shows_deterministic_effort_node() -> None:
             "content": "Scheduled analysis effort pass 1 of 2.",
             "finish_reason": "completed",
         },
-        {"type": "node.started", "node_id": "task_assessor", "node_type": "ProcessNode"},
+        {
+            "type": "node.started",
+            "node_id": "task_assessor",
+            "node_type": "ProcessNode",
+        },
         {
             "type": "node.completed",
             "node_id": "analysis_effort",
@@ -195,7 +213,11 @@ def test_cli_run_stream_uses_node_prefix_format() -> None:
     buffer = io.StringIO()
 
     events = [
-        {"type": "node.started", "node_id": "query_analyst", "node_type": "ProcessNode"},
+        {
+            "type": "node.started",
+            "node_id": "query_analyst",
+            "node_type": "ProcessNode",
+        },
         {
             "type": "response.output_text.delta",
             "node_id": "query_analyst",
@@ -251,7 +273,11 @@ def test_cli_run_summary_emits_trace_task_tree_workspace_artifacts(
     )
     mock_loop.get_execution_trace = MagicMock(
         return_value=[
-            {"node_id": "query_analyst", "node_type": "ProcessNode", "is_terminal": False},
+            {
+                "node_id": "query_analyst",
+                "node_type": "ProcessNode",
+                "is_terminal": False,
+            },
             {"node_id": "response", "node_type": "ProcessNode", "is_terminal": True},
         ]
     )
@@ -266,12 +292,17 @@ def test_cli_run_summary_emits_trace_task_tree_workspace_artifacts(
     buffer = io.StringIO()
     with redirect_stderr(buffer):
         print_summary(
-            mock_loop, workspace, artifact_dir, "Final response to the user.",
+            mock_loop,
+            workspace,
+            artifact_dir,
+            "Final response to the user.",
             trace=True,
         )
 
     output = buffer.getvalue()
     for section in _REQUIRED_SECTIONS:
-        assert section in output, f"missing trace section {section!r} in summary:\n{output}"
+        assert section in output, (
+            f"missing trace section {section!r} in summary:\n{output}"
+        )
     assert "Final response to the user." in output
     assert "app.py" in output

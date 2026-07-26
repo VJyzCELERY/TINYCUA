@@ -26,7 +26,9 @@ def loop_with_fast_rate_limit(monkeypatch):
         {"web_search": (0.3, 0.0)},
     )
     session = Session(session_config=SessionConfig())
-    return TinyCUALoop(root_session=session, queue=NodeQueue(), session_config=session.session_config)
+    return TinyCUALoop(
+        root_session=session, queue=NodeQueue(), session_config=session.session_config
+    )
 
 
 async def test_rate_limit_noop_for_unlisted_tool(loop_with_fast_rate_limit):

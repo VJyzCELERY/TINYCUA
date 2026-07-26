@@ -24,7 +24,9 @@ class TestAppendFileDiffPreview:
             assert "diff_preview" in result
             assert "new section" in result["diff_preview"]
             assert "new_file_size" in result
-            assert result["new_file_size"] == len("existing content\nnew section\n".encode("utf-8"))
+            assert result["new_file_size"] == len(
+                "existing content\nnew section\n".encode("utf-8")
+            )
 
     def test_append_diff_preview_has_marker(self):
         with tempfile.TemporaryDirectory() as tmpdir:

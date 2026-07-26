@@ -393,7 +393,9 @@ class TestRunTaskTranscript:
             transcript = output_dir / "transcript.jsonl"
             log = output_dir / "agent.log"
             transcript.parent.mkdir(parents=True, exist_ok=True)
-            transcript.write_text('{"type": "llm.request", "usage": {"total_tokens": 10}}\n')
+            transcript.write_text(
+                '{"type": "llm.request", "usage": {"total_tokens": 10}}\n'
+            )
             log.write_text("task completed\n")
 
             class MockProc:

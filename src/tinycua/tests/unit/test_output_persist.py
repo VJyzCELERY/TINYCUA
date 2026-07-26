@@ -5,10 +5,10 @@ from __future__ import annotations
 import json
 
 
-
 # ---------------------------------------------------------------------------
 # persist_if_oversized
 # ---------------------------------------------------------------------------
+
 
 def test_under_threshold_passthrough() -> None:
     from tinycua.agent.tools.native.output_persist import persist_if_oversized
@@ -51,6 +51,7 @@ def test_write_failure_returns_original_untruncated(tmp_path, monkeypatch) -> No
 # ---------------------------------------------------------------------------
 # evict_superseded_file_reads — the PRIMARY context bound (staleness, not size)
 # ---------------------------------------------------------------------------
+
 
 def _assistant_with_tool_calls(*calls: tuple[str, str, dict]) -> dict:
     """Build an assistant message with tool_calls. Each call: (id, name, args_dict)."""
@@ -208,11 +209,20 @@ def test_already_stubbed_not_re_stubbed() -> None:
 # enforce_turn_budget — high safety net only (NOT a tight budget)
 # ---------------------------------------------------------------------------
 
+
 def test_safety_net_no_op_under_threshold() -> None:
     """10 tool results of 1K each (10K total) — well under 200K net → untouched."""
     from tinycua.agent.tools.native.output_persist import enforce_turn_budget
 
-    msgs = [{"role": "tool", "tool_call_id": f"t{i}", "name": "run_shell", "content": "X" * 1_000} for i in range(10)]
+    msgs = [
+        {
+            "role": "tool",
+            "tool_call_id": f"t{i}",
+            "name": "run_shell",
+            "content": "X" * 1_000,
+        }
+        for i in range(10)
+    ]
     enforce_turn_budget(msgs, budget=200_000)
     assert all(m["content"] == "X" * 1_000 for m in msgs)
 
@@ -221,7 +231,15 @@ def test_safety_net_stubs_oldest_when_overrun() -> None:
     """At 250K total with 200K net, oldest non-file results stubbed until under."""
     from tinycua.agent.tools.native.output_persist import enforce_turn_budget
 
-    msgs = [{"role": "tool", "tool_call_id": f"t{i}", "name": "run_shell", "content": "X" * 50_000} for i in range(5)]
+    msgs = [
+        {
+            "role": "tool",
+            "tool_call_id": f"t{i}",
+            "name": "run_shell",
+            "content": "X" * 50_000,
+        }
+        for i in range(5)
+    ]
     enforce_turn_budget(msgs, budget=200_000)
     total = sum(len(str(m.get("content", ""))) for m in msgs)
     assert total <= 200_000 + 200
@@ -239,12 +257,18 @@ def test_safety_net_persists_oversized_first() -> None:
     output_persist._RESULTS_DIR = type(output_persist._RESULTS_DIR)(results_dir)
     try:
         msgs = [
-            {"role": "tool", "tool_call_id": "big", "name": "run_shell", "content": "A" * 150_000},
+            {
+                "role": "tool",
+                "tool_call_id": "big",
+                "name": "run_shell",
+                "content": "A" * 150_000,
+            },
         ]
         output_persist.enforce_turn_budget(msgs, budget=200_000)
         assert "<persisted-output>" in str(msgs[0]["content"])
     finally:
         import shutil
+
         shutil.rmtree(results_dir, ignore_errors=True)
 
 

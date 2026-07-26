@@ -124,6 +124,5 @@ class TestDecisionNodeSingleShot:
         result = node("input")
         assert result.route_label == ""
         assert any(
-            "RETRY_EXHAUSTED" in item["message"]
-            for item in node.session.diagnostics
+            "RETRY_EXHAUSTED" in item["message"] for item in node.session.diagnostics
         )
