@@ -99,12 +99,12 @@ class TestReviewerTestingGuidance:
         assert "active task" in lowered
         assert "acceptance criteria" in lowered
 
-    def test_instruction_allows_optional_claim_inspection(self):
+    def test_instruction_requires_claim_matched_evidence(self):
         from tinycua.loops.node_guidance import _RESULT_REVIEWER_INSTRUCTION
 
         lowered = _RESULT_REVIEWER_INSTRUCTION.lower()
-        assert "inspect claims" in lowered
-        assert "when useful" in lowered
+        assert "material claim" in lowered
+        assert "criterion to evidence" in lowered
 
     def test_instruction_does_not_decide_sibling_tasks(self):
         from tinycua.loops.node_guidance import _RESULT_REVIEWER_INSTRUCTION
@@ -120,7 +120,7 @@ class TestReviewerTestingGuidance:
         assert "review" in lowered
         assert "python -c" not in lowered
 
-    def test_tool_guidance_keeps_inspection_optional(self):
+    def test_tool_guidance_requests_proportionate_verification(self):
         from tinycua.loops.node_guidance import build_reviewer_tool_guidance
 
         class _FakeTool:
@@ -133,9 +133,10 @@ class TestReviewerTestingGuidance:
             _FakeTool("task_review_decision"),
         ]
         guidance = build_reviewer_tool_guidance(tools)
-        assert "when they help" in guidance.lower()
-        assert "claimed behavior" in guidance.lower()
+        assert "acceptance criteria" in guidance.lower()
+        assert "behavioral claims" in guidance.lower()
         assert "actually works" in guidance.lower()
+        assert "unrelated suites" in guidance.lower()
 
 
 class TestTaskResultUpdateClarity:

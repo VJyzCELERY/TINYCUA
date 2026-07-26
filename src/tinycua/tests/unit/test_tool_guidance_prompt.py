@@ -58,8 +58,8 @@ def test_task_executor_tool_guidance_prefers_narrowest_tool() -> None:
     assert "task_result_update" in guidance
 
 
-def test_result_reviewer_tool_guidance_offers_optional_inspection() -> None:
-    """Reviewer guidance offers read-only checks without making them a gate."""
+def test_result_reviewer_tool_guidance_matches_evidence_to_claims() -> None:
+    """Reviewer guidance requests focused evidence rather than arbitrary checks."""
     node = TinyCUAResultReviewerNode(
         node_id="result_reviewer", config=create_node_config("result_reviewer")
     )
@@ -73,9 +73,10 @@ def test_result_reviewer_tool_guidance_offers_optional_inspection() -> None:
 
     guidance = node.build_tool_system_prompt(tools)
 
-    assert "read-only tools" in guidance.lower()
-    assert "when they help" in guidance.lower()
-    assert "acceptance criteria" in guidance.lower()
+    assert "behavioral claims" in guidance.lower()
+    assert "artifact claims" in guidance.lower()
+    assert "explicitly requested verification" in guidance.lower()
+    assert "unrelated" in guidance.lower()
     assert "task_review_decision" in guidance
 
 

@@ -28,10 +28,8 @@ class TestNodeGuidanceModule:
 
     def test_continuation_importable(self):
         assert _RESULT_REVIEWER_CONTINUATION
-        assert (
-            "summarize the active-task review conclusion"
-            in _RESULT_REVIEWER_CONTINUATION
-        )
+        assert "evidence-backed active-task conclusion" in _RESULT_REVIEWER_CONTINUATION
+        assert "mandatory when reviewing the root" in _RESULT_REVIEWER_CONTINUATION
 
 
 class TestBuildReviewerToolGuidance:

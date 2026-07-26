@@ -902,6 +902,39 @@ class TinyCUAResultReviewerNode(ProcessNode):
             transcript_lines[-10:]
         )
 
+    @staticmethod
+    def _executor_evidence(task: Task) -> str:
+        """Render bounded executor tool evidence without replaying tool output."""
+        if task.result is None:
+            return ""
+        evidence = task.result.metadata.get("tool_results", [])
+        if not isinstance(evidence, list):
+            return ""
+        lines = []
+        for item in evidence[-16:]:
+            if not isinstance(item, dict):
+                continue
+            outcome = item.get("outcome")
+            if not isinstance(outcome, dict):
+                continue
+            name = str(outcome.get("tool_name") or item.get("name") or "tool")
+            bits = [f"success={outcome.get('success')}"]
+            if outcome.get("exit_code") is not None:
+                bits.append(f"exit_code={outcome['exit_code']}")
+            if outcome.get("error"):
+                bits.append(f"error={outcome['error']}")
+            invocation = outcome.get("invocation")
+            if isinstance(invocation, dict):
+                bits.extend(f"{key}={value}" for key, value in invocation.items())
+            if item.get("artifact_path"):
+                bits.append(f"audit={item['artifact_path']}")
+            lines.append(f"- {name}: " + "; ".join(bits))
+        if not lines:
+            return ""
+        omitted = max(0, len(evidence) - 16)
+        suffix = f"\n- ({omitted} earlier tool results omitted)" if omitted else ""
+        return "## Executor evidence\n" + "\n".join(lines) + suffix
+
     def build_continuation(self, session: Session | None = None) -> str:
         """Build reviewer continuation with latest result and unified context."""
         base = super().build_continuation(session)
@@ -917,16 +950,24 @@ class TinyCUAResultReviewerNode(ProcessNode):
         mission = _render_mission_block(session)
         mission_prefix = f"{mission}\n\n" if mission else ""
         context_blocks = self._reviewer_context_blocks(task, session)
+        evidence_block = self._executor_evidence(task)
         clauses = session.task_store.acceptance_clauses()
         clause_block = ""
         if clauses:
-            clause_block = (
-                "Root acceptance criteria (immutable advisory context, not leaf "
-                "gates):\n"
-                "Use these only to understand the overall mission. Judge only the "
-                "active task against its own description and outcome.\n"
-                + "\n".join(f"- {clause['text']}" for clause in clauses)
-            )
+            criteria = "\n".join(f"- {clause['text']}" for clause in clauses)
+            if task.task_id == session.task_store.root_task_id:
+                clause_block = (
+                    "Root acceptance criteria (final review gates):\n"
+                    "Before approval, verify every applicable criterion with "
+                    f"matching evidence.\n{criteria}"
+                )
+            else:
+                clause_block = (
+                    "Root acceptance criteria (immutable advisory context, not leaf "
+                    "gates):\nUse these only to understand the overall mission. "
+                    "Judge only the active task against its own description and "
+                    f"outcome.\n{criteria}"
+                )
         description = task.description.strip() or "(none provided)"
         return (
             f"{mission_prefix}Task under review: {task.task_id} — {task.title}\n"
@@ -935,7 +976,7 @@ class TinyCUAResultReviewerNode(ProcessNode):
             f"Outcome report: {result_content}\n"
             f"{_render_request_contract(session)}\n"
             f"Unified task context:\n{session.task_store.render_markdown()}\n"
-            f"{context_blocks}\n{clause_block}\n{base}"
+            f"{context_blocks}\n{evidence_block}\n{clause_block}\n{base}"
         )
 
     def _task_to_review(self):

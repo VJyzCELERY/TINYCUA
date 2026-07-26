@@ -20,6 +20,8 @@ postpone, or compromise.
 
 - TaskExecutor execution result.
 - Active task context and result.
+- Bounded executor evidence: tool name, command/path/URL/query, success, exit code,
+  error, and audit reference when available. Tool output bodies are not replayed.
 
 See the full handoff protocol in
 [`../models/task.md`](../models/task.md#active-task-handoff-protocol).
@@ -31,8 +33,11 @@ See the full handoff protocol in
   plus a concise free-form report.
 - Updated active `TaskResult` and task context.
 
-Acceptance criteria remain visible as immutable root-task context. They guide the
-review but are not machine-enforced coverage or evidence gates.
+Acceptance criteria remain visible as immutable root-task context. They are advisory
+while reviewing a leaf and become semantic gates when reviewing the root. The reviewer
+matches behavioral claims to focused runtime checks, artifact claims to inspection, and
+external claims to authoritative sources. This semantic coverage is not a machine-enforced
+clause-proof protocol.
 
 ## Tools
 

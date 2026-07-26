@@ -135,6 +135,11 @@ Tool interactions are preserved in chat_history alongside user and agent message
 
 Context is derived from `chat_history`, compacted information, retrieved notes, and current task/session needs. It should stay focused on what the model needs for the current session. The exact section structure is an implementation detail.
 
+Every LLM-backed node receives one session-scoped `Today` snapshot. That date is the
+authoritative reference for the current date; training data and knowledge cutoff are not
+evidence of present facts. Current-world claims must be verified with available evidence
+or reported as uncertain. LLM-based compaction receives the same snapshot.
+
 ---
 
 ## Execution Log
@@ -155,7 +160,7 @@ See [state-objects.md](state-objects.md) for the canonical Execution Log schema.
 
 Compaction is a **background system process** — not part of any agent's tool set and not shown in the agent architecture diagrams. It is triggered by model context-window pressure, not by user query size.
 
-Compaction summarizes the current `Context`, not the raw `chat_history` from scratch. The compacted information replaces the original `Context` content; `chat_history` is preserved separately. The exact structure of the compacted `Context` is an implementation detail.
+Compaction summarizes the current `Context`, not the raw `chat_history` from scratch. The compacted information replaces the original `Context` content; `chat_history` is preserved separately. LLM compaction receives the session's authoritative date context. The exact structure of the compacted `Context` is an implementation detail.
 
 This lets TINYCUA preserve exchange history while keeping model-loaded context manageable.
 

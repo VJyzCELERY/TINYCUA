@@ -760,6 +760,64 @@ def test_result_reviewer_renders_active_description_and_advisory_root_criteria()
     assert "judge only the active task" in rendered.lower()
 
 
+def test_result_reviewer_renders_root_criteria_as_final_gates() -> None:
+    """When the root itself is reviewed, its acceptance criteria are gates."""
+    loop = TinyCUALoop()
+    root = loop.root_session.task_store.create_task(
+        "Ship application",
+        acceptance_clauses=["The application passes its browser workflow."],
+    )
+    loop.root_session.task_store.record_result(
+        root.task_id,
+        TaskResult(content="Application completed.", success=True),
+    )
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="result_reviewer",
+        config=create_node_config("result_reviewer"),
+    )
+    reviewer.ensure_session(loop.root_session)
+
+    rendered = reviewer.build_continuation(loop.root_session)
+
+    assert "Root acceptance criteria (final review gates)" in rendered
+    assert "verify every applicable criterion" in rendered.lower()
+    assert "browser workflow" in rendered
+
+
+def test_result_reviewer_renders_bounded_executor_evidence() -> None:
+    """Reviewer sees executor commands and outcomes without full payloads."""
+    loop = TinyCUALoop()
+    task = loop.root_session.task_store.create_task("Verify application")
+    result = TaskResult(content="Browser flow passes.", success=True)
+    result.metadata["tool_results"] = [
+        {
+            "name": "run_shell",
+            "outcome": {
+                "tool_name": "run_shell",
+                "success": True,
+                "exit_code": 0,
+                "error": None,
+                "invocation": {"command": "sh .agent_scripts/browser.sh"},
+                "content": "large output that should not be replayed",
+            },
+        }
+    ]
+    loop.root_session.task_store.record_result(task.task_id, result)
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="result_reviewer",
+        config=create_node_config("result_reviewer"),
+    )
+    reviewer.ensure_session(loop.root_session)
+
+    rendered = reviewer.build_continuation(loop.root_session)
+
+    assert "Executor evidence" in rendered
+    assert "sh .agent_scripts/browser.sh" in rendered
+    assert "success=True" in rendered
+    assert "exit_code=0" in rendered
+    assert "large output" not in rendered
+
+
 def test_result_reviewer_updates_unified_task_context_without_context_append() -> None:
     """Reviewer context stays in the unified task tree, not session side channels."""
     loop = TinyCUALoop()
