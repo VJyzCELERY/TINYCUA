@@ -47,7 +47,7 @@ class TestContractDerivedMaps:
 
     def test_recovery_chains_match_expected(self):
         assert RECOVERY_CHAINS["task_create"] == ("task_init",)
-        assert RECOVERY_CHAINS["task_analyzer"] == ("task_decompose",)
+        assert RECOVERY_CHAINS["task_analyzer"] == ()
         assert RECOVERY_CHAINS["result_reviewer"] == ("task_review_decision",)
 
     def test_recovery_tool_map_includes_alternatives(self):
@@ -147,7 +147,7 @@ class TestGoalInjectionInSystemMessage:
         system_msg = node.build_system_message()
         content = system_msg.get("content", "")
         assert "## Your Goal" in content
-        assert "Break down the active task" in content
+        assert "Produce or refine an actionable roadmap" in content
 
     def test_system_message_contains_role_boundary(self):
         loop = TinyCUALoop()
@@ -183,9 +183,10 @@ class TestGoalInjectionInSystemMessage:
         node.ensure_session(loop.root_session)
         system_msg = node.build_system_message()
         content = system_msg.get("content", "")
-        assert "## Required Tools" in content
+        assert "## Alternative Commit Tools" in content
+        assert "choose one" in content.lower()
         assert "task_decompose" in content
-        assert "Creates child tasks" in content
+        assert "Creates distinct child outcomes" in content
 
 
 class TestProgressBlockInContinuation:
@@ -267,7 +268,7 @@ class TestRecoveryMessagesAreGoalOriented:
         # The last message is the directive — should contain the goal.
         directive = messages[-1].get("content", "")
         assert "## Node Goal" in directive
-        assert "Break down the active task" in directive
+        assert "Produce or refine an actionable roadmap" in directive
 
     def test_recovery_message_contains_why_missing(self):
         loop = TinyCUALoop()
@@ -302,7 +303,7 @@ class TestRecoveryMessagesAreGoalOriented:
         )
         directive = messages[-1].get("content", "")
         assert "## Why task_decompose Is Required" in directive
-        assert "Creates child tasks" in directive
+        assert "Creates distinct child outcomes" in directive
 
 
 class TestContractGoalFields:
@@ -310,8 +311,8 @@ class TestContractGoalFields:
 
     def test_analyzer_contract_has_goal(self):
         contract = get_node_contract("task_analyzer")
-        assert "Break down" in contract.goal
-        assert "supported task mutation" in contract.success_criteria
+        assert "actionable roadmap" in contract.goal
+        assert "appropriate structural decision" in contract.success_criteria
         assert "task_decompose" in contract.tool_rationale
         assert len(contract.tool_rationale["task_decompose"]) > 10
 

@@ -351,7 +351,9 @@ def test_task_tool_descriptions_are_brief_but_specific() -> None:
     assert all(len(description) < 220 for description in descriptions.values())
     assert "unfinished" in descriptions["task_update"]
     assert "planning" in descriptions["task_update"]
-    assert "sequential subtasks" in descriptions["task_decompose"]
+    assert "coherent" in descriptions["task_decompose"]
+    assert "outcomes" in descriptions["task_decompose"]
+    assert "sequential subtasks" not in descriptions["task_decompose"]
     assert "outcome" in descriptions["task_result_update"]
     assert "approved" in descriptions["task_review_decision"]
 
