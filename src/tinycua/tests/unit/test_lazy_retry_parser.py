@@ -17,9 +17,6 @@ import pytest
 # Import targets for the implementation. Module does not exist yet (RED).
 from tinycua.loops.lazy_templates import (  # noqa: E402
     LAZY_TEMPLATES,
-    RESULT_REVIEWER_TEMPLATE,
-    ROUTE_TEMPLATE,
-    TASK_EXECUTOR_TEMPLATE,
     parse_lazy_markdown,
 )
 
@@ -66,8 +63,18 @@ class TestResultReviewerTemplate:
         assert "verifies" in parsed["rationale"]
         assert parsed["task_id"] == "abc-123"
 
-    @pytest.mark.parametrize("decision", ["approved", "rejected", "needs_revision", "replan"])
-    def test_all_four_decisions_accepted(self, decision):
+    @pytest.mark.parametrize(
+        "decision",
+        [
+            "approved",
+            "needs_revision",
+            "replan",
+            "postpone_siblings",
+            "postpone_final",
+            "compromise",
+        ],
+    )
+    def test_model_facing_decisions_are_accepted(self, decision):
         md = (
             f"# Review Assessment : {decision}\n"
             "# Review Summary\n"
@@ -78,6 +85,15 @@ class TestResultReviewerTemplate:
         parsed = parse_lazy_markdown("result_reviewer", md)
         assert parsed is not None
         assert parsed["decision"] == decision
+
+    def test_legacy_rejected_is_not_model_facing(self):
+        md = (
+            "# Review Assessment : rejected\n"
+            "# Review Summary\nlegacy\n"
+            "# Task ID\nt-1\n"
+        )
+
+        assert parse_lazy_markdown("result_reviewer", md) is None
 
     def test_missing_section_returns_none(self):
         md = "# Review Assessment : approved\n"
@@ -99,7 +115,7 @@ class TestResultReviewerTemplate:
         """We extract sections only — preamble prose must not break parsing."""
         md = (
             "Here is my summary.\n\n"
-            "# Review Assessment : rejected\n"
+            "# Review Assessment : needs_revision\n"
             "# Review Summary\n"
             "Failed to verify.\n"
             "# Task ID\n"
@@ -107,7 +123,7 @@ class TestResultReviewerTemplate:
         )
         parsed = parse_lazy_markdown("result_reviewer", md)
         assert parsed is not None
-        assert parsed["decision"] == "rejected"
+        assert parsed["decision"] == "needs_revision"
 
     def test_empty_summary_returns_none(self):
         md = (

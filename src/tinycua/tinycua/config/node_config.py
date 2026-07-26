@@ -267,14 +267,16 @@ def create_node_config(
         retry_policy = replace(retry_policy, max_attempts=25)
     retry_guidance = {
         "digester": (
-            "Use enhanced_context_retrieval to inspect existing session "
-            "context, then web_search if external research is needed. "
+            "Inspect explicitly referenced workspace files first, then use "
+            "enhanced_context_retrieval for session context, then web_search "
+            "if external research is needed. "
             "Call digest_information with your findings. Do NOT attempt "
             "to solve or write the task — you are gathering context only."
         ),
         "information_digester": (
-            "Use enhanced_context_retrieval to inspect existing session "
-            "context, then web_search if external research is needed. "
+            "Inspect explicitly referenced workspace files first, then use "
+            "enhanced_context_retrieval for session context, then web_search "
+            "if external research is needed. "
             "Call digest_information with your findings. Do NOT attempt "
             "to solve or write the task — you are gathering context only."
         ),
@@ -295,19 +297,23 @@ def create_node_config(
             "of local work to repair the roadmap."
         ),
         "task_assessor": (
-            "Use task_inspect for read-only assessment and node_handoff to "
-            "instruct TaskAnalyzer instead of mutating task state."
+            "Use task_inspect for read-only assessment and "
+            "task_assessment_decision to commit ready or canonical unfinished "
+            "analysis targets instead of mutating task state."
         ),
         "task_executor": (
             "Use action/research tools as needed and then call "
             "task_result_update with a concise outcome report."
         ),
         "result_reviewer": (
-            "Review the executor's outcome report, then call task_review_decision "
-            "with a concise report and approved, needs_revision, rejected, or "
-            "replan. Include optional context_updates for useful future-task claims. "
-            "Use replan when evidence makes the task itself impossible; use "
-            "needs_revision for fixable execution defects."
+            "Review only the active task's description and outcome report, then "
+            "call task_review_decision "
+            "with a concise report and approved, needs_revision, replan, "
+            "postpone_siblings, postpone_final, or compromise. Include optional "
+            "context_updates for useful future-task claims. "
+            "Use replan when the task or approach should change, needs_revision for "
+            "fixable defects, sibling then final postponement for blocked work, and "
+            "compromise only after a failed final revisit."
         ),
     }.get(normalized)
     custom_retry_append = config.custom_retry_append

@@ -42,7 +42,9 @@ class TestNeedsRevisionRejectedUnified:
                 store.record_reviewer_decision(child.task_id, decision)
             queue = NodeQueue()
 
-            WorkerRuntimeController(store, max_replans=3).schedule_after_review(queue)
+            WorkerRuntimeController(store, max_replans=3).schedule_after_review(
+                queue, reviewed_task_id=child.task_id, decision=decision
+            )
 
             # Both should route to replan (assessor + analyzer).
             ids = [n.node_id for n in queue.items]
@@ -60,11 +62,11 @@ class TestNeedsRevisionRejectedUnified:
 
 
 class TestTaskReviewDecisionToolDescription:
-    """FR-057: the tool description documents rejected as an alias for needs_revision."""
+    """Legacy rejected state remains parseable but is not model-facing."""
 
-    def test_description_documents_aliasing(self):
+    def test_description_retires_rejected(self):
         tool = TaskReviewDecisionTool()
         description = tool.description.lower()
-        assert "alias" in description or "equivalent" in description
         assert "needs_revision" in description
-        assert "rejected" in description
+        assert "rejected" not in description
+        assert ReviewerDecision("rejected") is ReviewerDecision.REJECTED

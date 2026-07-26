@@ -343,6 +343,29 @@ def test_task_shrink_cancels_and_supersedes_with_a_rationale() -> None:
     assert superseded["replacement_task_id"] in store.tasks
 
 
+def test_task_shrink_can_supersede_postponed_work() -> None:
+    """Deferral does not remove the existing replacement escape hatch."""
+    store = TaskStateStore()
+    root = store.create_task("Root")
+    blocked = store.create_task("Blocked", parent_id=root.task_id)
+    store.record_result(blocked.task_id, TaskResult(content="blocked", success=False))
+    store.record_reviewer_decision(
+        blocked.task_id, "postpone_siblings", rationale="try another path"
+    )
+    shrink = TaskShrinkTool()
+    shrink.bind_task_store(store)
+
+    result = shrink(
+        "supersede",
+        blocked.task_id,
+        "available alternative",
+        replacement_title="Replacement",
+    )
+
+    assert result["success"] is True
+    assert blocked.status.value == "superseded"
+
+
 def test_root_acceptance_context_cannot_be_reassigned_through_metadata() -> None:
     """The original acceptance context remains immutable."""
     store = TaskStateStore()
@@ -466,6 +489,20 @@ def test_reviewer_decision_atomically_curates_future_task_context() -> None:
     assert active.reviewer_decisions[-1]["decision"] == "approved"
     assert "Existing output already satisfies this task" in future.metadata["context"]
     assert future.metadata["suggested_mode"] == "verify_only"
+
+
+def test_review_tool_exposes_deferred_decisions_but_not_rejected() -> None:
+    """Model-facing review choices use one revision verdict plus defer states."""
+    decisions = TaskReviewDecisionTool().parameters["properties"]["decision"]["enum"]
+
+    assert decisions == [
+        "approved",
+        "needs_revision",
+        "replan",
+        "postpone_siblings",
+        "postpone_final",
+        "compromise",
+    ]
 
 
 def test_invalid_reviewer_context_update_commits_nothing() -> None:

@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
+from tinycua.config.node_config import create_node_config
 from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
 from tinycua.models.digested_information import DigestedInformation
 from tinycua.models.session import Session
@@ -113,3 +114,19 @@ class TestInformationDigesterNode:
         entry = session.session_context[0]
         assert entry.role == "assistant"
         assert entry.content is digest
+
+    def test_prompt_prioritizes_referenced_workspace_files(self) -> None:
+        """Named workspace files are inspected before session or web context."""
+        digester = TinyCUAInformationDigesterNode(
+            node_id="d",
+            config=create_node_config("information_digester"),
+        )
+
+        instruction = digester.build_instruction().lower()
+        continuation = digester.build_continuation().lower()
+
+        for prompt in (instruction, continuation):
+            workspace = prompt.index("referenced workspace files")
+            session = prompt.index("session context")
+            external = prompt.index("external research")
+            assert workspace < session < external

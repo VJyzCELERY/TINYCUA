@@ -222,10 +222,13 @@ worker_result:
     - task_id: "<task id>"
       name: "<task name>"
       result: "<task result>"
+  compromised_results:
+    - task_id: "<task id>"
+      result: "<unsuccessful result and limitation>"
   # Additional provenance and status fields are implementation detail.
 ```
 
-The Worker Result should contain only accepted task outputs and enough provenance for the Primary Agent to synthesize a final answer without bypassing Worker guarantees. See [worker-orchestration.md](worker-orchestration.md) for the Worker's internal flow.
+The Worker Result keeps accepted outputs separate from compromised unsuccessful limitations and includes enough provenance for the Primary Agent to synthesize a transparent final answer. See [worker-orchestration.md](worker-orchestration.md) for the Worker's internal flow.
 
 ---
 
@@ -234,7 +237,7 @@ The Worker Result should contain only accepted task outputs and enough provenanc
 ```yaml
 reviewer_decision:
   task_id: "<task id>"
-  status: approved | needs_revision | rejected | replan
+  status: approved | needs_revision | replan | postpone_siblings | postpone_final | compromise
   reason: "..."
   context_updates:
     - target_task_id: "<target task id>"

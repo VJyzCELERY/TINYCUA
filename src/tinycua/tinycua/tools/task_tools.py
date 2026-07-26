@@ -683,8 +683,8 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
             self,
             name="task_review_decision",
             description=(
-                "Record the active task review: approved, needs_revision, rejected, "
-                "or replan; needs_revision and rejected are aliases. Optional "
+                "Record the active task review: approved, needs_revision, replan, "
+                "postpone_siblings, postpone_final, or compromise. Optional "
                 "context_updates atomically attach useful claims for future tasks."
             ),
             parameters={
@@ -695,8 +695,10 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
                         "enum": [
                             "approved",
                             "needs_revision",
-                            "rejected",
                             "replan",
+                            "postpone_siblings",
+                            "postpone_final",
+                            "compromise",
                         ],
                     },
                     "rationale": {
@@ -740,8 +742,7 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
 
         Args:
             task_id: Optional active-task reference for non-reviewer callers.
-            decision: Required — one of approved, needs_revision, rejected,
-                replan. Must not be omitted (no default approve).
+            decision: Required reviewer decision. Must not be omitted.
             rationale: Required free-form review report supporting the decision.
             context_updates: Optional claim handoffs for unfinished future tasks.
         """

@@ -1,8 +1,8 @@
 """Integration regression test for the replan loop (Milestone 8, FR-049/050).
 
 Simulates the full replan loop cycle that experiment-2 exhibited: a task
-that the reviewer keeps sending back. Verifies the loop is bounded by
-``max_replans`` and records failure at the cap instead of looping forever.
+that the reviewer keeps sending back. Verifies that ``max_replans`` remains
+diagnostic and never fabricates terminal failure for unfinished work.
 
 This is a focused integration test on ``WorkerRuntimeController`` — it does
 not run the full TinyCUALoop with an LLM (that would require a live model).
@@ -43,7 +43,9 @@ def _simulate_replan_cycle(
         # The reviewer rejects the current result.
         store.record_reviewer_decision(task_id, ReviewerDecision.NEEDS_REVISION)
         queue = NodeQueue()
-        ctrl.schedule_after_review(queue)
+        ctrl.schedule_after_review(
+            queue, reviewed_task_id=task_id, decision="needs_revision"
+        )
         ids = [n.node_id for n in queue.items]
 
         # Check if the task exhausted its budget and failed.
@@ -68,14 +70,17 @@ def _simulate_replan_cycle(
             1 for d in decisions if d.get("decision") == "replan_boundary"
         ), final
 
-    return executor_runs, 0, "max_cycles_exceeded"
+    task = store.get_task(task_id)
+    return executor_runs, sum(
+        1 for d in task.reviewer_decisions if d.get("decision") == "replan_boundary"
+    ), "max_cycles_exceeded"
 
 
-class TestReplanLoopBounded:
-    """The replan loop is bounded by max_replans (FR-049/050)."""
+class TestReplanLoopUnbounded:
+    """The diagnostic max_replans value does not terminate unfinished work."""
 
-    def test_loop_terminates_within_max_replans_plus_one(self):
-        """With max_replans=3, the loop fails honestly (not loops forever)."""
+    def test_loop_ignores_diagnostic_max_replans(self):
+        """A reviewer that keeps requesting revision remains active."""
         store = TaskStateStore()
         root = store.create_task("Root")
         child = store.create_task("Child", parent_id=root.task_id)
@@ -87,20 +92,12 @@ class TestReplanLoopBounded:
             store, child.task_id, ctrl
         )
 
-        # The loop must terminate (not max_cycles_exceeded).
-        assert final_decision != "max_cycles_exceeded", (
-            f"Loop did not terminate: {executor_runs} executor runs, "
-            f"final={final_decision}"
-        )
-        assert final_decision == "failed", f"Expected failure, got {final_decision}"
-        # The loop is bounded: replan_count <= max_replans (3).
-        # Executor runs are bounded by max_replans × (threshold + 1) = 3 × 6 = 18.
-        # The key assertion is replan_count <= max_replans (the loop is capped).
-        assert replan_count <= 3, f"Exceeded max_replans: {replan_count}"
-        assert executor_runs <= 18, f"Too many executor runs: {executor_runs}"
+        assert final_decision == "max_cycles_exceeded"
+        assert replan_count > 3
+        assert executor_runs == 50
 
-    def test_loop_with_high_effort_allows_more_replans(self):
-        """max_replans=6 (high effort) allows more replans before failure."""
+    def test_high_effort_value_also_remains_diagnostic(self):
+        """Changing the diagnostic value does not create a terminal edge."""
         store = TaskStateStore()
         root = store.create_task("Root")
         child = store.create_task("Child", parent_id=root.task_id)
@@ -112,13 +109,12 @@ class TestReplanLoopBounded:
             store, child.task_id, ctrl
         )
 
-        assert final_decision == "failed"
-        assert replan_count <= 6
-        # More replans allowed than the medium=3 case.
-        assert replan_count > 3, f"High effort should allow >3 replans, got {replan_count}"
+        assert final_decision == "max_cycles_exceeded"
+        assert replan_count > 6
+        assert executor_runs == 50
 
-    def test_loop_with_zero_max_replans_fails_immediately(self):
-        """max_replans=0 (none effort) fails on the first threshold crossing."""
+    def test_zero_max_replans_does_not_fail_unfinished_work(self):
+        """A zero diagnostic value still leaves recovery available."""
         store = TaskStateStore()
         root = store.create_task("Root")
         child = store.create_task("Child", parent_id=root.task_id)
@@ -130,15 +126,12 @@ class TestReplanLoopBounded:
             store, child.task_id, ctrl
         )
 
-        # With max_replans=0, the first threshold crossing (5 rejections)
-        # should fail immediately — no replans, no extra executor runs.
-        assert final_decision == "failed"
-        assert replan_count == 0
-        # Only the initial result; no executor re-runs from replans.
-        assert executor_runs == 0
+        assert final_decision == "max_cycles_exceeded"
+        assert replan_count > 0
+        assert executor_runs == 50
 
-    def test_failure_rationale_records_budget(self):
-        """The exhaustion failure records effort and cap for observability."""
+    def test_diagnostic_budget_does_not_replace_executor_result(self):
+        """Recovery never fabricates a budget-exhaustion task result."""
         store = TaskStateStore()
         root = store.create_task("Root")
         child = store.create_task("Child", parent_id=root.task_id)
@@ -146,15 +139,15 @@ class TestReplanLoopBounded:
         store.record_result(child.task_id, TaskResult(content="attempt 0"))
         ctrl = WorkerRuntimeController(store, replan_threshold=5, max_replans=2)
 
-        executor_runs, replan_count, final_decision = _simulate_replan_cycle(
+        _executor_runs, _replan_count, final_decision = _simulate_replan_cycle(
             store, child.task_id, ctrl
         )
 
-        assert final_decision == "failed"
+        assert final_decision == "max_cycles_exceeded"
         task = store.get_task(child.task_id)
         assert task.result is not None
-        assert "replan budget exhausted" in task.result.content.lower()
-        assert "cap=2" in task.result.content
+        assert task.result.content.startswith("attempt ")
+        assert "replan budget exhausted" not in task.result.content.lower()
 
 
 def test_impossible_leaf_is_disposed_once_and_never_dispatched_again() -> None:

@@ -161,7 +161,9 @@ class ValidationRetryMixin:
         """Return a required tool that should be isolated for this retry."""
         if not retry_message:
             return None
-        retry_required_by_node = {"task_assessor": "node_handoff"}
+        retry_required_by_node = {
+            "task_assessor": "task_assessment_decision",
+        }
         required = retry_required_by_node.get(node.node_id)
         if required and required in retry_message:
             return required
@@ -445,7 +447,7 @@ class ValidationRetryMixin:
             validation.is_valid = False
             validation.errors.append(
                 "ResultReviewer cannot approve a failed task result. Choose "
-                "needs_revision, rejected, or replan after "
+                "needs_revision, replan, or the next valid postponement after "
                 "inspecting the failure evidence."
             )
             return validation
@@ -662,7 +664,7 @@ class ValidationRetryMixin:
         }:
             return bool(llm_result.metadata.get("tool_results"))
         if node.node_id == "task_assessor":
-            return self._tool_results_include(llm_result, "node_handoff")
+            return self._tool_results_include(llm_result, "task_assessment_decision")
         if node.node_id == "task_executor":
             return self._tool_results_include(llm_result, "task_result_update")
         return False
@@ -817,9 +819,18 @@ class ValidationRetryMixin:
                 item
                 for item in self._pending_handoffs
                 if item.source_node == node.node_id
-                and item.target_node in (None, "task_analyzer")
-                and item.payload.get("decision") in {"analyze", "ready"}
-                and isinstance(item.payload.get("selected_task_ids"), list)
+                and item.target_node == "task_analyzer"
+                and str(item.payload.get("rationale", "")).strip()
+                and (
+                    (
+                        item.payload.get("decision") == "ready"
+                        and item.payload.get("selected_task_ids") == []
+                    )
+                    or (
+                        item.payload.get("decision") == "analyze"
+                        and bool(item.payload.get("selected_task_ids"))
+                    )
+                )
             ),
             None,
         )
@@ -993,6 +1004,7 @@ class ValidationRetryMixin:
                 agent,
                 [injected_tool_call],
                 [required_tool],
+                node,
             )
             if tool_results:
                 all_tool_results.extend(tool_results)
@@ -1082,7 +1094,7 @@ class ValidationRetryMixin:
         all_tool_results: list[dict[str, Any]] = []
         if recovery_result.tool_calls:
             tool_results = await self._execute_tool_calls(
-                agent, recovery_result.tool_calls, recovery_tools
+                agent, recovery_result.tool_calls, recovery_tools, node
             )
             if tool_results:
                 all_tool_results.extend(tool_results)
@@ -1174,12 +1186,18 @@ class ValidationRetryMixin:
             "task_inspect": "Call task_inspect (no task_id) to see the compact task list.",
             "terminate": "Call terminate to end this node.",
             "task_result_update": "Call task_result_update with a concise summary of what you did and whether it succeeded.",
-            "task_review_decision": "Call task_review_decision with your decision (approved, needs_revision, rejected, or replan).",
+            "task_review_decision": (
+                "Call task_review_decision with approved, needs_revision, replan, "
+                "postpone_siblings, postpone_final, or compromise."
+            ),
             "task_decompose": "Call task_decompose with the task_id and concrete subtasks.",
             "task_create": "Call task_create with a parent_id and missing task title.",
             "task_shrink": "Call task_shrink with a safe action and rationale.",
             "task_update": "Call task_update with the task_id and updated description.",
-            "node_handoff": "Call node_handoff with your assessment instructions for the TaskAnalyzer.",
+            "task_assessment_decision": (
+                "Call task_assessment_decision with ready and no task IDs, or "
+                "analyze with canonical unfinished task IDs, plus a rationale."
+            ),
             "task_init": "Call task_init with a root task title derived from the request.",
         }
         guidance = specific_guidance.get(tool_name, f"Call {tool_name} now.")
@@ -1218,6 +1236,7 @@ class ValidationRetryMixin:
                 agent,
                 tightening_result.tool_calls,
                 [required_tool],
+                node,
             )
             if tool_results:
                 all_tool_results.extend(tool_results)

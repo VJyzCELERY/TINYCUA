@@ -95,10 +95,19 @@ This avoids dumping every previous task result into every future task. Context u
 | Status | Orchestration Action |
 |--------|----------------------|
 | `approved` | Consolidate context for unfinished/upcoming tasks. Aggregate Worker Result when no tasks remain. |
-| `needs_revision` / `rejected` | Send the task back to the Task Executor with failure information recorded in the task context. `rejected` is aliased to `needs_revision` (FR-057). |
+| `needs_revision` | Send the task back to the Task Executor with failure information recorded in the task context. Stored legacy `rejected` decisions parse as the same behavior but are no longer model-facing. |
 | `replan` | Call the [Task Analyzer](task-analysis.md) to decompose the current task into sub-tasks. |
+| `postpone_siblings` | Defer a non-root task until normal sibling work is terminal or also sibling-postponed. |
+| `postpone_final` | Defer the revisited task until no normal or sibling-deferred work remains globally. |
+| `compromise` | Record a non-empty unsuccessful result and rationale as an explicit terminal limitation. |
 
-The Worker only terminates successfully when the final unfinished task is approved and no remaining unfinished tasks exist.
+Postponement requires a fresh non-empty unsuccessful execution result and is monotonic:
+a non-root task may move once from `postpone_siblings` to `postpone_final`; a root task
+skips the sibling phase. Normal work drains first, sibling-postponed work becomes eligible
+after its siblings are terminal or postponed, and final-postponed work drains globally
+last. `compromise` requires a fresh non-empty unsuccessful result, prior final
+postponement, and a rationale. Compromised work counts as terminal for routing but remains
+unsuccessful and visible to parent verification and final aggregation.
 
 ---
 

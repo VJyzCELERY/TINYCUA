@@ -153,7 +153,9 @@ def test_reviewer_revisions_do_not_escalate_to_response_before_completion() -> N
         store.record_reviewer_decision(active.task_id, ReviewerDecision.NEEDS_REVISION)
     queue = NodeQueue()
 
-    WorkerRuntimeController(store).schedule_after_review(queue)
+    WorkerRuntimeController(store).schedule_after_review(
+        queue, reviewed_task_id=active.task_id, decision="needs_revision"
+    )
 
     assert [node.node_id for node in queue.items] == ["task_executor", "result_reviewer"]
     assert "mandatory_passthrough" not in store.tasks[active.task_id].metadata

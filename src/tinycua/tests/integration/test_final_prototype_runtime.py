@@ -151,11 +151,10 @@ class ScriptedAgentResponses:
                     },
                 ],
             }
-        if "task_update" in tool_names:
-            task_id = self._task_id(messages)
+        if "task_assessment_decision" in tool_names:
             if any(
                 message.get("role") == "tool"
-                and "task_update" in str(message.get("content", ""))
+                and "task_assessment_decision" in str(message.get("content", ""))
                 for message in messages
             ):
                 return {"content": "assessment recorded", "tool_calls": []}
@@ -164,11 +163,10 @@ class ScriptedAgentResponses:
                 "tool_calls": [
                     {
                         "function": {
-                            "name": "task_update",
+                            "name": "task_assessment_decision",
                             "arguments": (
-                                '{"task_id":"'
-                                + task_id
-                                + '","assessment":"ready"}'
+                                '{"decision":"ready","selected_task_ids":[],'
+                                '"rationale":"The roadmap is executable."}'
                             ),
                         }
                     }

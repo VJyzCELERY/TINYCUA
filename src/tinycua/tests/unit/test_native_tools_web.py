@@ -121,4 +121,5 @@ def test_fetch_url_truncation_exact_boundary(httpx_mock):
     result = fetch_url("https://example.com/exact", max_size=1024)
     assert isinstance(result, dict)
     assert result["success"] is True
-    assert "[truncated" not in (result["content"] or "").lower()
+    assert result["content"] == body
+    assert result["source_truncated"] is False

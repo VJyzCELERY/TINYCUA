@@ -322,8 +322,8 @@ def test_terminate_phase_hides_terminate_without_executor_commit() -> None:
     assert [tool.name for tool in tools] == ["task_result_update"]
 
 
-def test_executor_action_phase_hides_result_update() -> None:
-    """Executor action tools stay focused until the action phase completes."""
+def test_executor_action_phase_exposes_result_update_without_terminate() -> None:
+    """Executor ACTION can report directly but cannot request termination."""
     loop = TinyCUALoop()
     node = TinyCUATaskExecutorNode(
         node_id="task_executor",
@@ -336,7 +336,11 @@ def test_executor_action_phase_hides_result_update() -> None:
         LifecyclePhase.ACTION,
     )
 
-    assert [tool.name for tool in tools] == ["read_file", "write_file"]
+    assert [tool.name for tool in tools] == [
+        "read_file",
+        "write_file",
+        "task_result_update",
+    ]
     assert TinyCUALoop._advance_lifecycle_phase(
         node,
         LLMResult(metadata={"tool_results": [{"name": "read_file", "output": {"success": True}}]}),
@@ -612,20 +616,20 @@ def test_task_executor_renders_reviewer_verify_only_context() -> None:
 
 
 @pytest.mark.parametrize(
-    ("node", "unavailable_tools"),
+    ("node", "owned_commit_tools"),
     [
         (
             "task_analyzer",
-            {"task_create", "task_decompose", "task_shrink", "task_update", "terminate"},
+            {"task_decompose", "task_shrink", "task_update"},
         ),
-        ("task_assessor", {"node_handoff", "terminate"}),
-        ("result_reviewer", {"task_review_decision", "terminate"}),
+        ("task_assessor", {"task_assessment_decision"}),
+        ("result_reviewer", {"task_review_decision"}),
     ],
 )
-def test_lifecycle_action_prompts_do_not_require_commit_tools(
-    node: str, unavailable_tools: set[str]
+def test_lifecycle_action_prompts_expose_owned_commit_without_terminate(
+    node: str, owned_commit_tools: set[str]
 ) -> None:
-    """Action prompts name only tools available during the action phase."""
+    """ACTION prompts advertise direct commit but never termination."""
     loop = TinyCUALoop()
     task_node = {
         "task_analyzer": TinyCUATaskAnalyzerNode,
@@ -637,7 +641,8 @@ def test_lifecycle_action_prompts_do_not_require_commit_tools(
     messages, _ = loop._prepare_node(task_node, [])
 
     rendered = json.dumps(messages)
-    assert not any(tool_name in rendered for tool_name in unavailable_tools)
+    assert all(tool_name in rendered for tool_name in owned_commit_tools)
+    assert "terminate" not in rendered
 
 
 def test_task_create_prompt_does_not_request_legacy_terminate() -> None:
@@ -703,6 +708,37 @@ def test_result_reviewer_prefers_active_leaf_over_parent_aggregate() -> None:
 
     assert "ACTIVE LEAF RESULT" in rendered
     assert "STALE PARENT AGGREGATE" not in rendered
+
+
+def test_result_reviewer_renders_active_description_and_advisory_root_criteria() -> None:
+    """Leaf review is gated by its own work, not immutable root criteria."""
+    loop = TinyCUALoop()
+    root = loop.root_session.task_store.create_task(
+        "Ship application",
+        acceptance_clauses=["The entire application is deployed."],
+    )
+    active = loop.root_session.task_store.create_task(
+        "Implement parser",
+        parent_id=root.task_id,
+        description="Parse quoted CSV fields without data loss.",
+    )
+    loop.root_session.task_store.record_result(
+        active.task_id,
+        TaskResult(content="Parser tests pass.", success=True),
+    )
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="result_reviewer",
+        config=create_node_config("result_reviewer"),
+    )
+    reviewer.ensure_session(loop.root_session)
+
+    rendered = reviewer.build_continuation(loop.root_session)
+
+    assert "Active task description: Parse quoted CSV fields" in rendered
+    assert "Root acceptance criteria" in rendered
+    assert "immutable advisory context" in rendered
+    assert "not leaf gates" in rendered
+    assert "judge only the active task" in rendered.lower()
 
 
 def test_result_reviewer_updates_unified_task_context_without_context_append() -> None:
@@ -809,15 +845,17 @@ def test_task_assessor_prompt_is_whole_tree_decomposition_only() -> None:
 
     messages, tools = loop._prepare_node(assessor, [])
     rendered = "\n".join(str(message.get("content", "")) for message in messages)
-    node_handoff = next(tool for tool in tools if tool.name == "node_handoff")
-    tool_surface = f"{node_handoff.description} {node_handoff.parameters}"
+    decision_tool = next(
+        tool for tool in tools if tool.name == "task_assessment_decision"
+    )
+    tool_surface = f"{decision_tool.description} {decision_tool.parameters}"
     combined = f"{rendered}\n{tool_surface}"
 
     assert "whole roadmap" in rendered.lower()
     assert "further decomposition" in rendered.lower()
     assert "task_result_update" not in combined
     assert "task_update" not in combined
-    assert "node_handoff" not in rendered
+    assert "task_assessment_decision" in rendered
     assert "complete" not in combined.lower()
     assert "fail executed work" not in combined.lower()
     assert "execution evidence" not in combined.lower()
@@ -840,8 +878,10 @@ def test_task_assessor_local_replan_prompt_is_active_region_only() -> None:
 
     messages, tools = loop._prepare_node(assessor, [])
     rendered = "\n".join(str(message.get("content", "")) for message in messages)
-    node_handoff = next(tool for tool in tools if tool.name == "node_handoff")
-    combined = f"{rendered}\n{node_handoff.description} {node_handoff.parameters}"
+    decision_tool = next(
+        tool for tool in tools if tool.name == "task_assessment_decision"
+    )
+    combined = f"{rendered}\n{decision_tool.description} {decision_tool.parameters}"
 
     assert "local replan" in rendered.lower()
     assert "active task" in rendered.lower()
@@ -849,7 +889,7 @@ def test_task_assessor_local_replan_prompt_is_active_region_only() -> None:
     assert "whole roadmap" in rendered.lower()
     assert "task_result_update" not in combined
     assert "task_update" not in combined
-    assert "node_handoff" not in rendered
+    assert "task_assessment_decision" in rendered
     assert "execution evidence" not in combined.lower()
 
 

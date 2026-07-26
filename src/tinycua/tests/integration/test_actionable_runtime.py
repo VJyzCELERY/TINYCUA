@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from tinycua.config.session_config import SessionConfig
-from tinycua.factory import create_default_queue, create_tinycua_agent
+from tinycua.factory import create_tinycua_agent
 from tinycua.loops.node import NodeExecutionError
 
 
@@ -147,10 +147,10 @@ class AppCreationScript:
                     }
                 ],
             }
-        if "node_handoff" in tool_names:
+        if "task_assessment_decision" in tool_names:
             if any(
                 message.get("role") == "tool"
-                and "node_handoff" in str(message.get("content", ""))
+                and "task_assessment_decision" in str(message.get("content", ""))
                 for message in messages
             ):
                 return {"content": "Assessment handed off.", "tool_calls": []}
@@ -159,11 +159,10 @@ class AppCreationScript:
                 "tool_calls": [
                     {
                         "function": {
-                            "name": "node_handoff",
+                            "name": "task_assessment_decision",
                             "arguments": (
-                                '{"target_node":"task_analyzer",'
-                                '"instruction":"Analyze unfinished tasks for execution readiness.",'
-                                '"payload":{"assessment":"ready for execution"}}'
+                                '{"decision":"ready","selected_task_ids":[],'
+                                '"rationale":"The roadmap is executable."}'
                             ),
                         }
                     }
@@ -387,7 +386,7 @@ def _assert_worker_trace_uses_allowed_edges(trace: list[dict]) -> None:
         "task_create": {"task_analyzer"},
         "task_analyzer": {"analysis_effort", "task_executor"},
         "analysis_effort": {"task_assessor", "task_executor"},
-        "task_assessor": {"task_analyzer", "task_executor"},
+        "task_assessor": {"task_analyzer", "analysis_effort", "task_executor"},
         "task_executor": {"task_executor", "result_reviewer"},
         "result_reviewer": {
             "task_executor",
@@ -421,9 +420,9 @@ async def test_worker_action_request_writes_file_and_runs_verification(
     # cleanly — the core assertion is that the executor wrote and verified the
     # app before that point.
     try:
-        result = await agent.run("Create a tiny Python app and verify it runs.")
+        await agent.run("Create a tiny Python app and verify it runs.")
     except NodeExecutionError:
-        result = ""
+        pass
 
     app_file = tmp_path / "app.py"
     trace = agent.loop.get_execution_trace()
