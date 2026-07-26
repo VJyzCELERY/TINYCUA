@@ -29,7 +29,7 @@ The Result Reviewer should be hybrid:
 
 - deterministic checks for schema validity and missing required fields;
 - **sanity-checker (FR-056)** — a deterministic pre-pass that flags obviously broken results (empty output, schema mismatch, missing required artifacts) before the LLM review runs, so semantic review effort is not wasted on structurally invalid results;
-- LLM-based semantic review for correctness, sufficiency, context propagation, and recovery decisions. The reviewer records a concise free-form report with its decision; no evidence tags or clause-proof payload are required.
+- LLM-based semantic review for correctness, sufficiency, context propagation, and recovery decisions. The reviewer records a concise free-form report with its decision; no evidence tags or clause-proof payload are required. It matches material claims to proportionate evidence and prioritizes explicit verification commands.
 
 ---
 
@@ -39,10 +39,16 @@ The Result Reviewer should be hybrid:
 
 - Current `task` — canonical schema in [state-objects.md](state-objects.md). Key fields: `task_id`, `task_name`, `task_context`, `success_criteria`.
 - `task_result` — result of the task's execution. Canonical schema in [state-objects.md](state-objects.md).
-- `execution_log` — sub-session execution log (actions and outcomes from the Task Executor's sub-session). See [session-architecture.md](session-architecture.md).
+- Bounded executor evidence — tool names, command/path/URL/query identifiers, outcomes,
+  and audit references from the Task Executor. Full tool output bodies are not replayed.
 - `shallow_task_list` — task IDs and names from the Task Tree for scope awareness (no full task details).
 
 The Result Reviewer should not receive a broad accumulated context dump by default. Accumulation happens by updating relevant future task contexts after accepted results.
+
+Root acceptance criteria are context during leaf review and semantic gates when the root
+task itself is reviewed. Behavioral claims require behavioral checks, artifact claims
+require artifact inspection, and external claims require authoritative evidence. Existing
+exact evidence may be reused; unrelated suites are not run merely because tools exist.
 
 **Output:**
 
