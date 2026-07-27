@@ -64,6 +64,7 @@ def test_no_digest_query_analyst_hands_unchanged_ceq_to_worker() -> None:
         {"role": "assistant", "content": DigestedInformation(original_query="Old")}
     )
     query.ensure_session(session)
+    query._current_context_summary = "Latest request context."  # noqa: SLF001
     queue = NodeQueue(items=[query, ResponseNode()])
     query._queue = queue  # noqa: SLF001 - routing integration setup.
 
