@@ -509,6 +509,11 @@ class TinyCUALoop(
             source_binder = getattr(tool, "bind_source_node", None)
             if callable(source_binder):
                 source_binder(node.node_id)
+            assessment_binder = getattr(tool, "bind_assessment_mode", None)
+            if callable(assessment_binder):
+                assessment_binder(
+                    str(node.config.metadata.get("task_assessor_mode", ""))
+                )
 
     def _phase_tools(
         self,
@@ -521,25 +526,6 @@ class TinyCUALoop(
             phase = LifecyclePhase.COMMIT
         names = phase_tool_names(node.node_id, {tool.name for tool in tools}, phase)
         return [tool for tool in tools if tool.name in names]
-
-    def _can_terminate(self, node: Node) -> bool:
-        """Return whether the node's real commit state permits termination."""
-        if not node.contract.is_satisfied(node.progress.satisfied_requirements):
-            return False
-        store = self.root_session.task_store
-        if node.node_id == "task_create":
-            return store.root_task_id is not None
-        if node.node_id == "task_executor":
-            active = store.get_active_task()
-            return active is not None and active.result is not None
-        if node.node_id == "result_reviewer":
-            return store.active_task_id in store._staged_reviewer_decisions
-        if node.node_id == "task_assessor":
-            return any(
-                handoff.source_node == node.node_id
-                for handoff in self._pending_handoffs
-            )
-        return True
 
     def _attempt_tools(
         self,
@@ -793,6 +779,7 @@ class TinyCUALoop(
                     resolved_id,
                 )
             self._sync_root_task()
+            self._record_analyzer_planning_resolution(node, name, output)
             tool_result = {"name": name, "allowed": True, "output": output}
             artifact_path = self._write_tool_audit_artifact(name, arguments, output)
             if artifact_path:

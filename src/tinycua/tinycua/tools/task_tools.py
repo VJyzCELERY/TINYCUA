@@ -114,7 +114,8 @@ class TaskInitTool(SessionTaskToolMixin, Tool):
                 "Initialize the worker roadmap with exactly one root task. "
                 "Choose the title and description from the actual user request; "
                 "extract every explicit observable acceptance requirement into "
-                "acceptance_clauses; use the request wording when it has no separate "
+                "acceptance_clauses as a direct paraphrase; never add requirements "
+                "and never override requirements; use the request wording when it has no separate "
                 "acceptance statement; "
                 "do not create subtasks with this tool."
             ),
@@ -220,8 +221,9 @@ class TaskInspectTool(SessionTaskToolMixin, Tool):
     - No ``task_id`` → returns a compact list ``[{id, title, status, has_result}]``
       for the whole tree. Cheap to render and to put in the prompt; this is the
       "scan the roadmap" mode.
-    - With ``task_id`` → returns one task with compacted detail (last 2
-      reviewer_decisions, result truncated to 200 chars, empty fields dropped).
+    - With ``task_id`` → returns one task with compacted detail and a bounded
+      review digest.
+    - With ``event_id`` → returns that task's full review event.
       This is the "drill into a specific task" mode.
     ``task_id`` may be a UUID or the task's 1-based number from the rendered
     roadmap.
@@ -236,7 +238,8 @@ class TaskInspectTool(SessionTaskToolMixin, Tool):
                 "Inspect task state. Without task_id, returns a compact list "
                 "of all tasks (id, title, status, has_result) — scan this "
                 "first. With task_id, returns compacted detail for one task "
-                "(last 2 reviewer decisions, result truncated to 200 chars). "
+                "(bounded review digest, result truncated to 200 chars). "
+                "With event_id, returns that task's full review event. "
                 "task_id may be a UUID or the task's 1-based number from the "
                 "rendered roadmap."
             ),
@@ -250,17 +253,36 @@ class TaskInspectTool(SessionTaskToolMixin, Tool):
                             "get the compact list of all tasks."
                         ),
                     },
+                    "event_id": {
+                        "type": "string",
+                        "description": (
+                            "Optional stable review event ID. Returns its full "
+                            "rationale for the selected or active task."
+                        ),
+                    },
                 },
                 "additionalProperties": False,
             },
         )
 
-    def __call__(self, *, task_id: str | None = None) -> dict[str, Any]:
+    def __call__(
+        self,
+        *,
+        task_id: str | None = None,
+        event_id: str | None = None,
+    ) -> dict[str, Any]:
         """Return the compact list (no task_id) or compacted detail (with task_id)."""
-        if task_id is not None:
+        if task_id is not None or event_id is not None:
             resolved = self._store.resolve_task_id(task_id)
             if resolved is None or resolved not in self._store.tasks:
                 return {"error": f"Task {task_id} not found."}
+            if event_id is not None:
+                event = self._store.review_event_detail(resolved, event_id)
+                return (
+                    event
+                    if event is not None
+                    else {"error": f"Review event {event_id} not found for task."}
+                )
             detail = self._store.compact_task_detail(resolved)
             return (
                 detail
@@ -382,10 +404,10 @@ class TaskDecomposeTool(SessionTaskToolMixin, Tool):
             self,
             name="task_decompose",
             description=(
-                "Decompose a task into distinct, coherent outcomes when it cannot "
-                "be executed and verified independently as one unit. Ground each "
-                "child in the request and current state. task_id may be UUID or "
-                "roadmap number."
+                "Split materially distinct concerns into coherent outcomes when each "
+                "gives narrower context and independent evidence, even if sharing a "
+                "file or deliverable. Keep tightly coupled work; never split "
+                "lifecycle-only phases."
             ),
             parameters={
                 "type": "object",
@@ -393,7 +415,20 @@ class TaskDecomposeTool(SessionTaskToolMixin, Tool):
                     "task_id": {"type": "string"},
                     "subtasks": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                            "oneOf": [
+                                {"type": "string"},
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "title": {"type": "string"},
+                                        "description": {"type": "string"},
+                                    },
+                                    "required": ["title", "description"],
+                                    "additionalProperties": False,
+                                },
+                            ]
+                        },
                     },
                 },
                 "required": ["task_id", "subtasks"],
@@ -684,9 +719,9 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
             self,
             name="task_review_decision",
             description=(
-                "Record the active task review: approved, needs_revision, replan, "
-                "postpone_siblings, postpone_final, or compromise. Optional "
-                "context_updates atomically attach useful claims for future tasks."
+                "Record the active task decision (approved, needs_revision, replan, "
+                "postpone, or compromise) and task-local journal. Findings and explicit "
+                "context_updates to unfinished tasks commit atomically."
             ),
             parameters={
                 "type": "object",
@@ -704,7 +739,38 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
                     },
                     "rationale": {
                         "type": "string",
-                        "description": "Concise free-form review report supporting the decision.",
+                        "description": "Full rationale supporting the decision.",
+                    },
+                    "review_summary": {
+                        "type": "string",
+                        "maxLength": 240,
+                        "description": "Concise summary shown in bounded task prompts.",
+                    },
+                    "new_findings": {
+                        "type": "array",
+                        "description": "New active-task findings; each starts OPEN.",
+                        "items": {"type": "string", "maxLength": 240},
+                    },
+                    "finding_updates": {
+                        "type": "array",
+                        "description": "Status updates for existing active-task findings.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "finding_id": {"type": "string"},
+                                "status": {
+                                    "type": "string",
+                                    "enum": [
+                                        "OPEN",
+                                        "ADDRESSED",
+                                        "INVALID",
+                                        "DEFERRED",
+                                    ],
+                                },
+                            },
+                            "required": ["finding_id", "status"],
+                            "additionalProperties": False,
+                        },
                     },
                     "context_updates": {
                         "type": "array",
@@ -737,6 +803,9 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
         task_id: str | None = None,
         decision: str = "",
         rationale: str = "",
+        review_summary: str = "",
+        new_findings: list[str] | None = None,
+        finding_updates: list[dict[str, str]] | None = None,
         context_updates: list[dict[str, str]] | None = None,
     ) -> dict[str, Any]:
         """Persist a reviewer decision for the active task.
@@ -744,7 +813,10 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
         Args:
             task_id: Optional active-task reference for non-reviewer callers.
             decision: Required reviewer decision. Must not be omitted.
-            rationale: Required free-form review report supporting the decision.
+            rationale: Full review rationale supporting the decision.
+            review_summary: Concise summary for default task prompts.
+            new_findings: New active-task findings, initially OPEN.
+            finding_updates: Status changes for existing active-task findings.
             context_updates: Optional claim handoffs for unfinished future tasks.
         """
         if not decision:
@@ -781,12 +853,18 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
                         break
         if active_id is None:
             return {"success": False, "error": "No active task"}
+        metadata: dict[str, Any] = {
+            "context_updates": context_updates or [],
+            "review_summary": review_summary,
+            "new_findings": new_findings or [],
+            "finding_updates": finding_updates or [],
+        }
         try:
             task = self._store.stage_reviewer_decision(
                 active_id,
                 ReviewerDecision(decision),
                 rationale=rationale,
-                metadata={"context_updates": context_updates or []},
+                metadata=metadata,
             )
         except ValueError as exc:
             return {"success": False, "error": str(exc)}

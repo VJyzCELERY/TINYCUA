@@ -297,9 +297,8 @@ def create_node_config(
             "of local work to repair the roadmap."
         ),
         "task_assessor": (
-            "Use task_inspect for read-only assessment and "
-            "task_assessment_decision to commit ready or canonical unfinished "
-            "analysis targets instead of mutating task state."
+            "Use task_inspect for assessment and task_assessment_decision to commit "
+            "task-bound findings and advisories; selected task IDs are derived."
         ),
         "task_executor": (
             "Use action/research tools as needed and then call "
@@ -307,10 +306,10 @@ def create_node_config(
         ),
         "result_reviewer": (
             "Review only the active task's description and outcome report, then "
-            "call task_review_decision "
-            "with a concise report and approved, needs_revision, replan, "
+            "call task_review_decision with a concise review_summary, full rationale, "
+            "task-local findings, and approved, needs_revision, replan, "
             "postpone_siblings, postpone_final, or compromise. Include optional "
-            "context_updates for useful future-task claims. "
+            "context_updates only for explicit useful future-task claims. "
             "Use replan when the task or approach should change, needs_revision for "
             "fixable defects, sibling then final postponement for blocked work, and "
             "compromise only after a failed final revisit."

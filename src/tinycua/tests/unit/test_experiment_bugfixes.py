@@ -46,7 +46,9 @@ class TestExecutorTaskOwnership:
             "report only the active task's outcome"
             in _TASK_EXECUTOR_INSTRUCTION.lower()
         )
-        assert "sibling" not in _TASK_EXECUTOR_INSTRUCTION.lower()
+        assert "do not intentionally implement pending sibling" in (
+            _TASK_EXECUTOR_INSTRUCTION.lower()
+        )
 
     def test_reviewer_decides_only_the_active_task(self):
         from tinycua.loops.node_guidance import _RESULT_REVIEWER_INSTRUCTION
