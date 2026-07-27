@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import json
 import logging
+import subprocess
 from hashlib import sha256
 from enum import Enum
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from tinycua.config.types import LLMResult
@@ -84,6 +86,30 @@ def normalize_tool_outcome(
 
 class TraceStateMixin:
     """Mixin extracted from TinyCUALoop for modularity."""
+
+    def _run_metadata(self) -> dict[str, Any]:
+        """Return JSON-safe ablation and reproducibility metadata."""
+        config = self.session_config or self.root_session.session_config
+        try:
+            source_revision = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=Path(__file__).resolve().parents[4],
+                capture_output=True,
+                check=True,
+                text=True,
+                timeout=1,
+            ).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            source_revision = "unavailable"
+        return {
+            "digest_enabled": getattr(config, "digest_enabled", True),
+            "review_enabled": getattr(config, "review_enabled", True),
+            "source_revision": source_revision,
+            "configuration": {
+                "worker_effort": getattr(config, "worker_effort", None),
+                "replan_threshold": getattr(config, "replan_threshold", None),
+            },
+        }
 
     def _artifacts_from_tool_results(
         self,

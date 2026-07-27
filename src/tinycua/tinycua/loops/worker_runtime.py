@@ -16,7 +16,7 @@ from tinycua.loops.task_nodes import (
     TinyCUATaskExecutorNode,
 )
 from tinycua.models.session import Session
-from tinycua.models.task import ReviewerDecision, TaskStateStore
+from tinycua.models.task import ReviewerDecision, TaskStateStore, TaskStatus
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +46,7 @@ class WorkerRuntimeController:
     store: TaskStateStore
     enable_open_question_review: bool = False
     replan_threshold: int = 5
+    review_enabled: bool = True
     session: Session | None = None
     max_replans: int | None = None
 
@@ -183,6 +184,41 @@ class WorkerRuntimeController:
             return
         self.schedule_next(queue)
 
+    def schedule_after_execution(self, queue: NodeQueue, task_id: str) -> None:
+        """Schedule deterministic no-review behavior after a validated report."""
+        task = self.store.get_task(task_id)
+        if task.result is None:
+            raise RuntimeError("Executor completed without a task result.")
+        if task.result.success:
+            self.store.transition(task_id, TaskStatus.COMPLETED)
+            task.metadata.pop("no_review_failures", None)
+            self.store._complete_ready_parents()
+            self.store._refresh_active_task()
+            self.store._bump_version()
+            self.schedule_next(queue)
+            return
+        failures = int(task.metadata.get("no_review_failures", 0)) + 1
+        task.metadata["no_review_failures"] = failures
+        self.store._bump_version()
+        if failures >= self.replan_threshold:
+            task.metadata["no_review_failures"] = 0
+            analyzer_config = create_node_config("task_analyzer", mode="local_replan")
+            analyzer_config.metadata["replan_task_id"] = task.task_id
+            queue.items.extend(
+                [
+                    TinyCUATaskAnalyzerNode("task_analyzer", analyzer_config),
+                    TinyCUATaskExecutorNode(
+                        "task_executor", create_node_config("task_executor")
+                    ),
+                ]
+            )
+            return
+        queue.items.append(
+            TinyCUATaskExecutorNode(
+                "task_executor", create_node_config("task_executor")
+            )
+        )
+
     def _build_replan_reason(self, task: Any) -> str:
         """Build a replan reason string from the task's rejection history.
 
@@ -251,9 +287,12 @@ class WorkerRuntimeController:
                     node_id="task_executor",
                     config=create_node_config("task_executor"),
                 ),
+            ]
+        )
+        if self.review_enabled:
+            queue.items.append(
                 TinyCUAResultReviewerNode(
                     node_id="result_reviewer",
                     config=create_node_config("result_reviewer"),
-                ),
-            ]
-        )
+                )
+            )

@@ -51,6 +51,8 @@ class SessionConfig:
         metadata: Arbitrary metadata attached to the session.
         worker_effort: Worker decomposition effort. ``medium`` defaults to two
             task-analysis passes before execution.
+        digest_enabled: Whether Information Digester runs before Worker routes.
+        review_enabled: Whether Result Reviewer runs after executor reports.
     """
 
     compaction_strategy: CompactionStrategy | None = None
@@ -62,6 +64,8 @@ class SessionConfig:
     session_dir: Path | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
     worker_effort: Literal["none", "low", "medium", "high"] = "medium"
+    digest_enabled: bool = True
+    review_enabled: bool = True
     # When True, suppress per-tool-call audit JSON files (the tool-calls/
     # subdirectory under artifact_dir). Trace/transcript/logs are still
     # written. Set via CLI --no-tool-audit.
