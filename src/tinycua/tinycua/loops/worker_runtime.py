@@ -214,7 +214,9 @@ class WorkerRuntimeController:
             )
             return
         queue.items.append(
-            TinyCUATaskExecutorNode("task_executor", create_node_config("task_executor"))
+            TinyCUATaskExecutorNode(
+                "task_executor", create_node_config("task_executor")
+            )
         )
 
     def _build_replan_reason(self, task: Any) -> str:

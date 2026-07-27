@@ -144,7 +144,10 @@ class TinyCUAWorkerNode(DecisionNode):
             digest = input.payload.get("digested_information")
             if isinstance(digest, DigestedInformation):
                 self._current_digest = digest
-        elif isinstance(input, NodeInput) and input.input_type == "context_enhanced_query":
+        elif (
+            isinstance(input, NodeInput)
+            and input.input_type == "context_enhanced_query"
+        ):
             self._current_ceq = input
         return super().build_messages(session, input, resolved_tools)
 
@@ -330,7 +333,10 @@ class TinyCUAWorkerNode(DecisionNode):
                 ),
             )
         self._set_downstream_input(
-            queue, analyzer, digest, "Use the fresh digested context to revise the roadmap."
+            queue,
+            analyzer,
+            digest,
+            "Use the fresh digested context to revise the roadmap.",
         )
 
     def on_complete(
