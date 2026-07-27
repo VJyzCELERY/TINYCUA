@@ -14,7 +14,7 @@ from tinycua.models.node_input import NodeInput
 
 if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
-    from tinycua.config.types import LLMResult
+    from tinycua.config.types import LLMResult, ValidationResult
     from tinycua.loops.node_queue import NodeQueue
     from tinycua.models.node_input import NodeInputLike
 
@@ -82,15 +82,17 @@ class TinyCUAQueryAnalystNode(DecisionNode):
             is_terminal=is_terminal,
         )
         self._queue: NodeQueue | None = None
+        self._current_context_summary = ""
 
     def build_tool_system_prompt(self, resolved_tools: list[Any] | None = None) -> str:
         """Behavioral guidance keyed on present route tools (FR-005, FR-006)."""
         names = {getattr(tool, "name", "") for tool in (resolved_tools or [])}
-        if "select_query_route" not in names:
+        if not {"summarize_query_context", "select_query_route"}.issubset(names):
             return ""
         return (
-            "Tool guidance: your final action MUST call select_query_route with "
-            "exactly one route. Do not answer with the route in text only."
+            "Tool guidance: call summarize_query_context with a concise preliminary "
+            "summary of the user's request in its session context, then call "
+            "select_query_route with exactly one route."
         )
 
     def _route_worker(self, input_data: NodeInputLike = "") -> None:
@@ -121,60 +123,89 @@ class TinyCUAQueryAnalystNode(DecisionNode):
         )
 
         queue.spawn_after_current([digester, worker_node])
-        original_messages = self._original_query_input(input_data)
-        if original_messages is not None:
-            queue.set_input(digester, original_messages)
+        ceq = self._original_query_input(input_data, target_node="digester")
+        if ceq is not None:
+            queue.set_input(digester, ceq)
 
-    def _original_query_input(self, input_data: NodeInputLike) -> NodeInputLike | None:
+    def _original_query_input(
+        self,
+        input_data: NodeInputLike,
+        *,
+        target_node: str,
+    ) -> NodeInputLike | None:
         """Return assistant-role CEQ input for the worker digester."""
         original_query = ""
         if self.session is not None and self.session.input_context:
             original_query = self._extract_user_query(list(self.session.input_context))
         if not original_query:
             original_query = self._extract_user_query(input_data)
-        if original_query:
+        if original_query and self._current_context_summary:
             return NodeInput(
                 input_type="context_enhanced_query",
                 source_node=self.node_id,
-                target_node="digester",
+                target_node=target_node,
                 messages=[
                     {
                         "role": "assistant",
-                        "content": f"Context Enhanced Query:\n{original_query}",
+                        "content": (
+                            f"Context:\n{self._current_context_summary}\n\n"
+                            f"User Request:\n{original_query}"
+                        ),
                     }
                 ],
-                metadata={"original_query": original_query},
+                metadata={
+                    "original_query": original_query,
+                    "context_summary": self._current_context_summary,
+                },
             )
         return None
+
+    @staticmethod
+    def _context_summary_from(response: LLMResult) -> str:
+        """Return the latest successful preliminary summary tool result."""
+        for item in reversed(response.metadata.get("tool_results", [])):
+            if (
+                not isinstance(item, dict)
+                or item.get("name") != "summarize_query_context"
+            ):
+                continue
+            output = item.get("output")
+            if isinstance(output, dict) and output.get("success") is True:
+                return str(output.get("context_summary", "")).strip()
+        return ""
+
+    def parse_loop_result(
+        self,
+        response: LLMResult,
+        input_data: NodeInputLike | None,  # noqa: ARG002 - lifecycle signature.
+    ) -> str:
+        """Capture the committed summary before route completion mutates the queue."""
+        self._current_context_summary = self._context_summary_from(response)
+        if not self._current_context_summary:
+            msg = "QueryAnalyst completed without summarize_query_context."
+            raise RuntimeError(msg)
+        return self._current_context_summary
+
+    def validate_output(self, response: LLMResult) -> ValidationResult:
+        """Require a successful summary commit in addition to the route call."""
+        validation = super().validate_output(response)
+        if not self._context_summary_from(response):
+            validation.is_valid = False
+            validation.errors.append(
+                "QueryAnalyst must successfully call summarize_query_context."
+            )
+        return validation
 
     def _set_response_handoff(self, queue: NodeQueue, route_label: str) -> None:
         """Forward direct-response context as assistant-role continuation."""
         if len(queue.items) < 2:
             return
         next_node = queue.items[1]
-        original_query = ""
-        if self.session is not None and self.session.input_context:
-            original_query = self._extract_user_query(list(self.session.input_context))
-        if not original_query:
-            return
-        queue.set_input(
-            next_node,
-            NodeInput(
-                input_type=f"{route_label}_response_context",
-                source_node=self.node_id,
-                target_node=next_node.node_id,
-                messages=[
-                    {
-                        "role": "assistant",
-                        "content": (
-                            "Direct response context from the entry request:\n"
-                            f"{original_query}"
-                        ),
-                    }
-                ],
-                metadata={"original_query": original_query, "route": route_label},
-            ),
-        )
+        ceq = self._original_query_input({}, target_node=next_node.node_id)
+        if ceq is not None:
+            ceq.input_type = f"{route_label}_response_context"
+            ceq.metadata["route"] = route_label
+            queue.set_input(next_node, ceq)
 
     def _extract_user_query(self, input_data: NodeInputLike) -> str:
         """Extract original user query from input data.
@@ -203,6 +234,10 @@ class TinyCUAQueryAnalystNode(DecisionNode):
         """
         if isinstance(response, DecisionResult):
             route_label = response.route_label
+            self._current_context_summary = (
+                self._current_context_summary
+                or self._context_summary_from(response.classification_response)
+            )
         else:
             route_label = response.content.strip().lower()
 

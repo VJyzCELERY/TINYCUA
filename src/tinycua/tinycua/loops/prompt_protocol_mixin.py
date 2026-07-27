@@ -59,7 +59,12 @@ class PromptProtocolMixin:
             and node_input in (None, {})
             and self.root_session.input_context
         ):
-            node_input = list(self.root_session.input_context)
+            from tinycua.loops.node import build_messages_with_dedupe
+
+            node_input = [
+                *build_messages_with_dedupe(self.root_session),
+                *self.root_session.input_context,
+            ]
         original_instruction = None
         if override_instructions is not None:
             original_instruction = node._instruction  # noqa: SLF001 - transport shim.
@@ -269,13 +274,17 @@ class PromptProtocolMixin:
     ) -> str | dict[str, Any] | None:
         """Return provider-compatible forced tool_choice for tool-required nodes.
 
-        Always uses ``"required"`` because the tool list is already narrowed to
-        the single required tool by :meth:`_llm_tools_for_required_choice`.
-        The object form ``{"type": "function", "function": {"name": ...}}`` is
+        Uses ``"required"`` only when one required tool can be exposed. The
+        object form ``{"type": "function", "function": {"name": ...}}`` is
         OpenAI-hosted-API-only and crashes local servers (LM Studio, Ollama,
-        vLLM, etc.) with HTTP 400.  Since ``"required"`` + a single tool list
-        entry is functionally identical, we use it universally.
+        vLLM, etc.) with HTTP 400. QueryAnalyst deliberately keeps its summary
+        and route tools available together, so it is validated rather than
+        provider-forced.
         """
+        if node.node_id == "query_analyst":
+            # QueryAnalyst must commit a summary and a route in one response;
+            # a singleton forced choice would hide one of those required tools.
+            return None
         required = self._required_single_tool_choice_name(node)
         if (
             node.contract.requires_terminate
@@ -301,6 +310,8 @@ class PromptProtocolMixin:
         force_required_tool: bool,
     ) -> list[Tool]:
         """Restrict required singleton calls to the selected tool only."""
+        if node.node_id == "query_analyst":
+            return resolved_tools
         required = self._required_single_tool_choice_name(node)
         if not force_required_tool:
             return resolved_tools

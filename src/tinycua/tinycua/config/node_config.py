@@ -237,7 +237,7 @@ def create_node_config(
     if normalized == "query_analyst":
         retry_policy = replace(
             retry_policy,
-            required_tool_calls=["select_query_route"],
+            required_tool_calls=["summarize_query_context", "select_query_route"],
         )
     elif normalized == "worker":
         retry_policy = replace(
@@ -281,8 +281,9 @@ def create_node_config(
             "to solve or write the task — you are gathering context only."
         ),
         "query_analyst": (
-            "Use select_query_route with exactly one route. Do not answer with "
-            "the route in text only."
+            "Call summarize_query_context with a preliminary context summary, then "
+            "select_query_route with exactly one route. Do not answer with route "
+            "or summary text only."
         ),
         "worker": (
             "Use select_worker_route with exactly one currently allowed route. "

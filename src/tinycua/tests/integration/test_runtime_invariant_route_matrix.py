@@ -164,10 +164,16 @@ class _RouteMatrixScript:
                 "tool_calls": [
                     {
                         "function": {
+                            "name": "summarize_query_context",
+                            "arguments": '{"context_summary":"Handle the current request."}',
+                        }
+                    },
+                    {
+                        "function": {
                             "name": "select_query_route",
                             "arguments": f'{{"route":"{self.route}"}}',
                         }
-                    }
+                    },
                 ],
             }
         if node == "worker":

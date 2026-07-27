@@ -11,9 +11,10 @@
 
 ## Role
 
-The Query Analyst prepares the request for routing with a fast, high-level scan. It produces:
+The Query Analyst prepares the request for routing from root reusable context. It first
+commits a neutral preliminary summary, then produces:
 
-1. a `Context Enhanced Query` (high-level), and
+1. a `Context Enhanced Query` (CEQ), and
 2. a `Classification`.
 
 The Query Analyst scans session `Context` directly (no search tool needed). Deep, precise context retrieval is the responsibility of the Information Digester.
@@ -30,18 +31,31 @@ The Query Analyst scans session `Context` directly (no search tool needed). Deep
 
 **Output:**
 
-- `Context Enhanced Query` (CEQ) — user query enriched with high-level session context. See [context-retrieval.md](context-retrieval.md) for the deep retrieval flow used by the Information Digester.
+- `summarize_query_context` — required concise summary of the request in root context.
+- `Context Enhanced Query` (CEQ) — a runtime-formatted assistant-role handoff:
+  ```text
+  Context:
+  <preliminary summary>
+
+  User Request:
+  <verbatim current user query>
+  ```
+  See [context-retrieval.md](context-retrieval.md) for the deep retrieval flow used by the Information Digester.
 - `Classification` — routing verdict via configurable labels. Canonical schema in [state-objects.md](state-objects.md).
 
 ---
 
 ## Context Scan
 
-The Query Analyst scans session context directly — it receives `session.context` and `session.chat_history` as inputs and performs a fast, high-level scan. No retrieval tool is used.
+The Query Analyst receives root reusable session context plus the current request and
+performs a high-level scan. No retrieval tool is used. Existing session compaction
+governs prompt size; the CEQ retains only the committed summary, never the
+full context it was derived from.
 
 Rules:
 
-- The Query Analyst uses session `Context` as-is for a high-level overview.
+- The Query Analyst calls `summarize_query_context` before independent route selection.
+- Runtime, not the summary tool, owns CEQ formatting and verbatim-query preservation.
 - User query size does not trigger deep retrieval (that is the Information Digester's responsibility).
 
 Deep context retrieval is defined in [context-retrieval.md](context-retrieval.md).

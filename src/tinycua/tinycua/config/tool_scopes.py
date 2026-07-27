@@ -15,6 +15,7 @@ from tinycua.config.node_config import NodeToolPolicy
 from tinycua.tools.digest_information import DigestInformationTool
 from tinycua.tools.enhanced_context_retrieval import EnhancedContextRetrievalTool
 from tinycua.tools.handoff_tools import TaskAssessmentDecisionTool
+from tinycua.tools.query_context_summary import QueryContextSummaryTool
 from tinycua.tools.routing import QueryRouteSelectionTool, WorkerRouteSelectionTool
 from tinycua.tools.task_tools import (
     FinalResponseSynthesisTool,
@@ -54,7 +55,11 @@ def query_analyst_tool_scope() -> NodeToolPolicy:
         NodeToolPolicy for QueryAnalystNode.
     """
     return NodeToolPolicy(
-        node_tools=[QueryRouteSelectionTool(), TaskInspectTool()],
+        node_tools=[
+            QueryContextSummaryTool(),
+            QueryRouteSelectionTool(),
+            TaskInspectTool(),
+        ],
         include_agent_tools="none",
     )
 
