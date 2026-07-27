@@ -84,13 +84,17 @@ class WorkerRuntimeController:
             )
             self.store._bump_version()
         analyzer_config = create_node_config("task_analyzer", mode="local_replan")
+        assessor_config = create_node_config("task_assessor", mode="local_replan")
+        for config in (analyzer_config, assessor_config):
+            config.metadata["replan_task_id"] = task.task_id
         if replan_reason:
             analyzer_config.metadata["replan_reason"] = replan_reason
+            assessor_config.metadata["replan_reason"] = replan_reason
         queue.items.extend(
             [
                 TinyCUATaskAssessorNode(
                     node_id="task_assessor",
-                    config=create_node_config("task_assessor", mode="local_replan"),
+                    config=assessor_config,
                 ),
                 TinyCUATaskAnalyzerNode(
                     node_id="task_analyzer",
