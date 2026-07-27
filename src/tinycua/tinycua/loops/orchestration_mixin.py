@@ -649,6 +649,9 @@ class OrchestrationMixin:
                     # dispatch and preserves session-backed recovery state.
                     continue
 
+                if self.queue.current is not node:
+                    continue
+
                 # Stop at terminal nodes — do not advance past them
                 if node.is_terminal and self.queue.current is node:
                     finalize_terminal_output(
