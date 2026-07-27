@@ -92,6 +92,18 @@ class TestDeleteTask:
 class TestSupersedeTask:
     """supersede_task retains lineage without changing terminal history."""
 
+    def test_supersede_rejects_task_with_unfinished_descendant(self):
+        store = TaskStateStore()
+        root = store.create_task("Root")
+        parent = store.create_task("Parent", parent_id=root.task_id)
+        store.create_task("Pending child", parent_id=parent.task_id)
+        before = store.snapshot()
+
+        with pytest.raises(ValueError, match="unfinished descendants"):
+            store.supersede_task(parent.task_id, "Replacement", "new plan")
+
+        assert store.snapshot() == before
+
     def test_supersede_rejects_child_of_completed_parent_without_mutating_tree(self):
         store = TaskStateStore()
         root = store.create_task("Root")

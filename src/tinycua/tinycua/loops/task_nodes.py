@@ -221,7 +221,9 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
             return base
         mode = str(self.config.metadata.get("task_analyzer_mode", "task_creation"))
         if mode in {"local_replan", "cancellation_repair"}:
-            region = _local_task_region(session)
+            region = _local_task_region(
+                session, self.config.metadata.get("replan_task_id")
+            )
             replan_reason = str(self.config.metadata.get("replan_reason", ""))
             reason_prefix = f"{replan_reason}\n\n" if replan_reason else ""
             return f"{reason_prefix}Local task region for replan:\n{_render_local_region_markdown(region)}\n\n{base}"
@@ -322,10 +324,10 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
         )
 
 
-def _local_task_region(session: Session) -> dict:
+def _local_task_region(session: Session, task_id: str | None = None) -> dict:
     """Return a compact active-task region for local replan prompts."""
     store = session.task_store
-    active = store.get_active_task()
+    active = store.tasks.get(task_id) if task_id else store.get_active_task()
     if active is None:
         return {"active_task": None, "children": [], "siblings": []}
     children = [store.tasks[child_id] for child_id in active.children]
@@ -484,7 +486,8 @@ def _render_local_region_markdown(region: dict) -> str:
     active = region.get("active_task")
     if active:
         lines.append(
-            f"Active: {active.get('title', 'unknown')} [{active.get('status', '?')}]"
+            f"Active: {active.get('title', 'unknown')} "
+            f"(id={active.get('task_id', '?')}) [{active.get('status', '?')}]"
         )
         active_result = active.get("result")
         if active_result:
@@ -796,10 +799,12 @@ class TinyCUATaskAssessorNode(ProcessNode):
                 f"Affected unfinished tasks: {', '.join(affected)}\n\n{base}"
             )
         if mode == "local_replan":
+            replan_reason = str(self.config.metadata.get("replan_reason", ""))
+            reason_prefix = f"{replan_reason}\n\n" if replan_reason else ""
             return (
-                f"{prefix}{prior_prefix}Local roadmap region for "
+                f"{prefix}{prior_prefix}{reason_prefix}Local roadmap region for "
                 "reviewer-requested replan:\n"
-                f"{_render_local_region_markdown(_local_task_region(session))}\n\n{base}"
+                f"{_render_local_region_markdown(_local_task_region(session, self.config.metadata.get('replan_task_id')))}\n\n{base}"
             )
         return (
             f"{prefix}{prior_prefix}Roadmap:\n"
