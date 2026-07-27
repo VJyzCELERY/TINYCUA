@@ -45,11 +45,11 @@ class TestAnalyzerPromptTerminate:
             f"{_TASK_ANALYZER_INSTRUCTION}\n{_TASK_ANALYZER_CONTINUATION}".lower()
         )
 
-        assert "one coherent outcome" in rendered
-        assert "executed and verified independently" in rendered
-        assert "implementation choices open" in rendered
-        assert "explicit constraints" in rendered
-        assert "no more tasks than needed" in rendered
+        assert "coherent, actionable, and verifiable outcome" in rendered
+        assert "focused execution" in rendered
+        assert "genuinely unsupported choices open" in rendered
+        assert "explicit workflows and hard constraints" in rendered
+        assert "fixed task count" in rendered
         assert "sequential subtasks" not in rendered
 
     def test_local_prompt_does_not_expose_runtime_reexecution_behavior(self):

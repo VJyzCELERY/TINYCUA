@@ -6,12 +6,16 @@
 ## Role
 
 `TinyCUATaskAssessorNode` is a concrete, read-only planning reviewer. It evaluates whether
-unfinished tasks are coherent, actionable, independently verifiable, appropriately
-scoped, nonredundant, and grounded in available evidence. It selects only tasks with a
-material planning defect and operates in two modes depending on the caller.
+every unfinished task is a coherent, actionable, and verifiable outcome. Once declared
+dependencies are met, an actionable task supports focused execution without hidden
+replanning or intentional sibling work; a verifiable task has specific observable
+evidence from which a reviewer can decide completion. The assessor also checks that the
+roadmap collectively covers explicit workflows and hard constraints. It selects every
+task with a material planning defect and operates in two modes depending on the caller.
 
-The assessor does not impose architecture, output layout, tool choice, task count, or
-decomposition depth. Size alone is not a reason to decompose a task.
+The assessor does not impose unsupported architecture, output layout, tool choice, a
+fixed task count, command-level work, or decomposition depth. It splits materially
+distinct outcomes while keeping tightly coupled work together.
 
 ## Non-Responsibilities
 

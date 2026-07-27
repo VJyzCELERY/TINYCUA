@@ -172,7 +172,7 @@ def test_assessor_separates_context_only_mission_from_actual_assignment() -> Non
     rendered = "\n".join(str(message.get("content", "")) for message in messages)
     assert "## Current Mission — Context Only" in rendered
     assert "## Your Actual Assigned Task" in messages[-1]["content"]
-    assert "Review roadmap quality" in messages[-1]["content"]
+    assert "coherent, actionable, and verifiable" in messages[-1]["content"]
     assert "not your assigned task" in rendered
     assert session.chat_history == history_before
     assert session.session_context == context_before
@@ -1021,11 +1021,11 @@ def test_task_assessor_prompt_reviews_whole_tree_plan_quality() -> None:
     combined = f"{rendered}\n{tool_surface}"
 
     assert "whole roadmap" in rendered.lower()
-    assert "one coherent outcome" in rendered.lower()
-    assert "sufficient context" in rendered.lower()
-    assert "materially overlapping" in rendered.lower()
-    assert "prematurely prescriptive" in rendered.lower()
-    assert "do not impose" in rendered.lower()
+    assert "coherent, actionable, and verifiable outcome" in rendered.lower()
+    assert "context support focused execution" in rendered.lower()
+    assert "materially mixed" in rendered.lower()
+    assert "missing needed context or decisions" in rendered.lower()
+    assert "impose unsupported implementation choices" in rendered.lower()
     assert "task_result_update" not in combined
     assert "task_update" not in combined
     assert "task_assessment_decision" in rendered
@@ -1061,7 +1061,7 @@ def test_task_assessor_local_replan_prompt_is_active_region_only() -> None:
     assert "active task" in rendered.lower()
     assert "Create backend" in rendered
     assert "The original approach cannot satisfy the request." in rendered
-    assert "one coherent outcome" in rendered.lower()
+    assert "coherent, actionable, and verifiable outcome" in rendered.lower()
     assert "do not reassess the whole roadmap" in rendered.lower()
     assert "task_result_update" not in combined
     assert "task_update" not in combined
