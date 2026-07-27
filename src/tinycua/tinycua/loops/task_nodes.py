@@ -878,6 +878,7 @@ class TinyCUATaskExecutorNode(ProcessNode):
 
         terminal_nodes = [node for node in queue.items[1:] if node.is_terminal]
         queue.clear_after_current()
+        queue.advance()
         WorkerRuntimeController(
             self.session.task_store,
             replan_threshold=self.session.session_config.replan_threshold,
