@@ -17,6 +17,8 @@ It receives only the current task's information plus shallow roadmap awareness. 
 
 The original user request and immutable constraints outrank generated acceptance clauses, roadmap descriptions, and model assumptions. The Executor does not intentionally implement pending sibling outcomes. It reports unavoidable sibling effects with their cause and evidence; substantial sibling work is a scope mismatch for Reviewer-led replanning. Pre-existing compliant work is verified and reported as a no-change success.
 
+A pending task cancellation is always assessed before Executor dispatch. Only an Assessor-approved cancellation is skipped; failed, blocked, and rejected-cancellation tasks remain executable or follow their normal recovery path.
+
 ---
 
 ## Inputs / Outputs

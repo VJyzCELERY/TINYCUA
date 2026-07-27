@@ -616,6 +616,11 @@ class OrchestrationMixin:
                     break
                 store = self.root_session.task_store
                 if (
+                    node.node_id == "task_executor"
+                    and self._prepend_cancellation_review()
+                ):
+                    continue
+                if (
                     node.node_id == "response"
                     and store.root_task_id is not None
                     and not store.all_done()
@@ -656,6 +661,32 @@ class OrchestrationMixin:
                 self.queue.advance(handoff)
         finally:
             self._working_messages = all_messages
+
+    def _prepend_cancellation_review(self) -> bool:
+        """Fail closed when a pending cancellation escaped before execution."""
+        requests = self.root_session.task_store.pending_cancellation_requests()
+        if not requests:
+            return False
+        from tinycua.config.node_config import create_node_config
+        from tinycua.loops.task_nodes import (
+            TinyCUATaskAnalyzerNode,
+            TinyCUATaskAssessorNode,
+        )
+
+        request_id = requests[0]["request_id"]
+        assessor_config = create_node_config(
+            "task_assessor", mode="cancellation_review"
+        )
+        assessor_config.metadata["cancellation_request_id"] = request_id
+        repair_config = create_node_config("task_analyzer", mode="cancellation_repair")
+        repair_config.metadata["cancellation_request_id"] = request_id
+        self.queue.suspend_current_and_prepend(
+            [
+                TinyCUATaskAssessorNode("task_assessor", assessor_config),
+                TinyCUATaskAnalyzerNode("task_analyzer", repair_config),
+            ]
+        )
+        return True
 
     def _pop_handoff_for_next(self, node: Node) -> NodeHandoff | None:
         """Return an explicit handoff from the completed node to the next node."""

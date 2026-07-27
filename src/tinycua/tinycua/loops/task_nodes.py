@@ -126,6 +126,19 @@ _TASK_ASSESSOR_LOCAL_REPLAN_CONTINUATION = (
     "the unfinished local task IDs needing refinement and explain the material "
     "planning defect."
 )
+_TASK_ASSESSOR_CANCELLATION_INSTRUCTION = (
+    "You are the TaskAssessor. Decide whether one newly requested cancellation is "
+    "valid. Do not execute or mutate work except through task_assessment_decision. "
+    "Approve only when the task and its unfinished descendants are genuinely "
+    "unnecessary for the original request and hard constraints, and the parent outcome "
+    "remains achievable. Difficulty, a failed approach, or temporary blockage never "
+    "justify cancellation. Ready approves; analyze rejects with one blocking finding "
+    "on the cancellation target."
+)
+_TASK_ASSESSOR_CANCELLATION_CONTINUATION = (
+    "Assess only the bound cancellation request. Use ready with no findings to approve "
+    "it, or analyze with exactly one target-bound finding to reject it for repair."
+)
 
 _TASK_EXECUTOR_INSTRUCTION = (
     "You are the TaskExecutor. Execute only the active task; do not review, decompose, "
@@ -190,7 +203,7 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
         mode = str(config.metadata.get("task_analyzer_mode", "task_creation"))
         continuation = (
             _TASK_ANALYZER_LOCAL_REPLAN_CONTINUATION
-            if mode == "local_replan"
+            if mode in {"local_replan", "cancellation_repair"}
             else _TASK_ANALYZER_CONTINUATION
         )
         super().__init__(
@@ -207,7 +220,7 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
         if session is None:
             return base
         mode = str(self.config.metadata.get("task_analyzer_mode", "task_creation"))
-        if mode == "local_replan":
+        if mode in {"local_replan", "cancellation_repair"}:
             region = _local_task_region(session)
             replan_reason = str(self.config.metadata.get("replan_reason", ""))
             reason_prefix = f"{replan_reason}\n\n" if replan_reason else ""
@@ -215,6 +228,38 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
         mission = _render_mission_block(session)
         prefix = f"{mission}\n\n" if mission else ""
         return f"{prefix}Roadmap:\n{session.task_store.render_markdown()}\n\n{base}"
+
+    def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
+        """Insert one cancellation assessment before execution can continue."""
+        del response
+        if self.session is None:
+            return
+        if self.config.metadata.get("task_analyzer_mode") == "cancellation_repair":
+            return
+        requests = self.session.task_store.pending_cancellation_requests()
+        if not requests:
+            return
+        request = requests[0]
+        request_id = request["request_id"]
+        if any(
+            node.config.metadata.get("cancellation_request_id") == request_id
+            for node in queue.items[1:]
+        ):
+            return
+        assessor_config = create_node_config(
+            "task_assessor", self.config, mode="cancellation_review"
+        )
+        assessor_config.metadata["cancellation_request_id"] = request_id
+        repair_config = create_node_config(
+            "task_analyzer", self.config, mode="cancellation_repair"
+        )
+        repair_config.metadata["cancellation_request_id"] = request_id
+        queue.spawn_after_current(
+            [
+                TinyCUATaskAssessorNode("task_assessor", assessor_config),
+                TinyCUATaskAnalyzerNode("task_analyzer", repair_config),
+            ]
+        )
 
     def build_tool_system_prompt(self, resolved_tools: list[Any] | None = None) -> str:
         """Behavioral guidance keyed on present analyzer tools (FR-005)."""
@@ -248,6 +293,11 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
             ):
                 guidance += (
                     " Use metadata plan_unchanged=true when the plan needs no change."
+                )
+            if self.config.metadata.get("task_analyzer_mode") == "cancellation_repair":
+                guidance += (
+                    " Cancellation was rejected. Do not cancel again; repair the "
+                    "target through a non-cancellation structural change."
                 )
             return guidance
         if "terminate" in names:
@@ -489,6 +539,21 @@ def _render_review_journal(store: TaskStateStore, task: Task) -> list[str]:
     return lines
 
 
+def _render_approved_cancellations(store: TaskStateStore) -> str:
+    """Render user-visible rationale for top-level approved cancellation requests."""
+    lines = []
+    for task in store.tasks.values():
+        request = task.metadata.get("cancellation_request")
+        if (
+            task.status == TaskStatus.CANCELLED
+            and isinstance(request, dict)
+            and request.get("state") == "approved"
+            and "cascade_from_task_id" not in request
+        ):
+            lines.append(f"- {task.title}: {request.get('rationale', '')}")
+    return "## Approved cancellations\n" + "\n".join(lines) if lines else ""
+
+
 def _render_active_task_work_order(session: Session) -> str:
     """Render the active task as a clear executor work order."""
     store = session.task_store
@@ -664,11 +729,14 @@ class TinyCUATaskAssessorNode(ProcessNode):
         """Initialize the task assessor node."""
         mode = str(config.metadata.get("task_assessor_mode", "upfront_decomposition"))
         if instruction is None:
-            instruction = (
-                _TASK_ASSESSOR_LOCAL_REPLAN_INSTRUCTION
-                if mode == "local_replan"
-                else _TASK_ASSESSOR_UPFRONT_INSTRUCTION
-            )
+            if mode == "cancellation_review":
+                instruction = _TASK_ASSESSOR_CANCELLATION_INSTRUCTION
+            else:
+                instruction = (
+                    _TASK_ASSESSOR_LOCAL_REPLAN_INSTRUCTION
+                    if mode == "local_replan"
+                    else _TASK_ASSESSOR_UPFRONT_INSTRUCTION
+                )
             if mode == "final_assessment":
                 instruction += (
                     " This is the final assessment after the analysis budget. Ready "
@@ -676,9 +744,13 @@ class TinyCUATaskAssessorNode(ProcessNode):
                     "task-local advisories and also proceeds without another analyzer."
                 )
         continuation = (
-            _TASK_ASSESSOR_LOCAL_REPLAN_CONTINUATION
-            if mode == "local_replan"
-            else _TASK_ASSESSOR_UPFRONT_CONTINUATION
+            _TASK_ASSESSOR_CANCELLATION_CONTINUATION
+            if mode == "cancellation_review"
+            else (
+                _TASK_ASSESSOR_LOCAL_REPLAN_CONTINUATION
+                if mode == "local_replan"
+                else _TASK_ASSESSOR_UPFRONT_CONTINUATION
+            )
         )
         super().__init__(
             node_id,
@@ -700,6 +772,29 @@ class TinyCUATaskAssessorNode(ProcessNode):
         prefix = f"{mission}\n\n" if mission else ""
         prior = _render_prior_planning_resolutions(session)
         prior_prefix = f"{prior}\n\n" if prior else ""
+        if mode == "cancellation_review":
+            request_id = str(self.config.metadata.get("cancellation_request_id", ""))
+            request = next(
+                (
+                    item
+                    for item in session.task_store.pending_cancellation_requests()
+                    if item["request_id"] == request_id
+                ),
+                None,
+            )
+            if request is None:
+                return f"{prefix}Cancellation request is no longer pending.\n\n{base}"
+            task = session.task_store.tasks[request["task_id"]]
+            affected = [
+                session.task_store.tasks[task_id].title
+                for task_id in request["affected_task_ids"]
+                if task_id in session.task_store.tasks
+            ]
+            return (
+                f"{prefix}Cancellation target: {task.task_id} — {task.title}\n"
+                f"Request rationale: {request['rationale']}\n"
+                f"Affected unfinished tasks: {', '.join(affected)}\n\n{base}"
+            )
         if mode == "local_replan":
             return (
                 f"{prefix}{prior_prefix}Local roadmap region for "
@@ -717,6 +812,12 @@ class TinyCUATaskAssessorNode(ProcessNode):
         if "terminate" in names:
             return "Tool guidance: Call terminate now."
         if "task_assessment_decision" in names:
+            if self.config.metadata.get("task_assessor_mode") == "cancellation_review":
+                return (
+                    "Tool guidance: assess only the bound cancellation request. Use "
+                    "ready with no findings to approve it, or analyze with one finding "
+                    "on its target to reject it for repair."
+                )
             return (
                 "Tool guidance: Commit task_assessment_decision with task-bound "
                 "findings and advisories. Analyze requires a blocking finding; ready "
@@ -1003,6 +1104,11 @@ class TinyCUAResultReviewerNode(ProcessNode):
         mission_prefix = f"{mission}\n\n" if mission else ""
         context_blocks = self._reviewer_context_blocks(task, session)
         evidence_block = self._executor_evidence(task)
+        cancellation_block = (
+            _render_approved_cancellations(session.task_store)
+            if task.task_id == session.task_store.root_task_id
+            else ""
+        )
         clauses = session.task_store.acceptance_clauses()
         clause_block = ""
         if clauses:
@@ -1030,7 +1136,7 @@ class TinyCUAResultReviewerNode(ProcessNode):
             f"{_render_request_contract(session)}\n"
             "Unified task context:\n"
             f"{_render_task_tree_markdown(_task_context_snapshot(session), include_results=False)}\n"
-            f"{context_blocks}\n{evidence_block}\n{clause_block}\n{base}"
+            f"{context_blocks}\n{evidence_block}\n{cancellation_block}\n{clause_block}\n{base}"
         )
 
     def _task_to_review(self):
@@ -1153,7 +1259,20 @@ class TinyCUAResultAggregationNode(ProcessNode):
             ordered_ids.append(store.root_task_id)
         for task_id in ordered_ids:
             task = store.tasks.get(task_id)
-            if task is None or task.result is None:
+            if task is None:
+                continue
+            request = task.metadata.get("cancellation_request")
+            if (
+                task.status == TaskStatus.CANCELLED
+                and isinstance(request, dict)
+                and request.get("state") == "approved"
+                and "cascade_from_task_id" not in request
+            ):
+                lines.append(
+                    f"[CANCELLED] {task.title}: {request.get('rationale', '')}"
+                )
+                continue
+            if task.result is None:
                 continue
             status_mark = " ✓" if task.status == TaskStatus.COMPLETED else ""
             if task.status == TaskStatus.COMPROMISED:
@@ -1240,7 +1359,20 @@ class TinyCUAResultAggregationNode(ProcessNode):
             ordered_ids.append(store.root_task_id)
         for task_id in ordered_ids:
             task = store.tasks.get(task_id)
-            if task is None or task.result is None:
+            if task is None:
+                continue
+            request = task.metadata.get("cancellation_request")
+            if (
+                task.status == TaskStatus.CANCELLED
+                and isinstance(request, dict)
+                and request.get("state") == "approved"
+                and "cascade_from_task_id" not in request
+            ):
+                task_summaries.append(
+                    f"[CANCELLED] {task.title}: {request.get('rationale', '')}"
+                )
+                continue
+            if task.result is None:
                 continue
             if task.status == TaskStatus.COMPLETED:
                 task_summaries.append(f"{task.title}: {task.result.summary}")

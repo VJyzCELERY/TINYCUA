@@ -96,6 +96,8 @@ Review events and findings stay on the active task across retry, replan, postpon
 
 Cross-task transfer occurs only through validated `task_review_decision.context_updates` targeting an existing unfinished task. Approved results, review events, findings, and copied context metadata are not otherwise propagated.
 
+Approved task cancellations are retained and shown during final root review and aggregation with their rationale. Cancellation is not a Reviewer recovery decision: required work that cannot be completed follows the explicit postponement and compromise path.
+
 ---
 
 ## Status-to-Action Semantics

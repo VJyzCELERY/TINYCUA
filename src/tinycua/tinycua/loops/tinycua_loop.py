@@ -514,6 +514,16 @@ class TinyCUALoop(
                 assessment_binder(
                     str(node.config.metadata.get("task_assessor_mode", ""))
                 )
+            request_binder = getattr(tool, "bind_cancellation_request_id", None)
+            if callable(request_binder):
+                request_binder(
+                    str(node.config.metadata.get("cancellation_request_id", ""))
+                )
+            analyzer_mode_binder = getattr(tool, "bind_analyzer_mode", None)
+            if callable(analyzer_mode_binder):
+                analyzer_mode_binder(
+                    str(node.config.metadata.get("task_analyzer_mode", ""))
+                )
 
     def _phase_tools(
         self,
