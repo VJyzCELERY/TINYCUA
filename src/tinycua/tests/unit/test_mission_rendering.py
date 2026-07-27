@@ -10,8 +10,10 @@ from tinycua.loops.task_nodes import (
     TinyCUATaskAssessorNode,
     TinyCUATaskExecutorNode,
 )
+from tinycua.loops.node_contract import get_node_contract
 from tinycua.models.session import Session
 from tinycua.models.task import TaskResult
+from tinycua.tools.task_tools import TaskDecomposeTool
 
 
 def _session_with_mission(
@@ -66,6 +68,31 @@ def test_task_assessor_renders_mission_block() -> None:
     assert "use markdown" in prompt
 
 
+def test_planning_boundaries_share_the_granularity_rubric() -> None:
+    """Analyzer, assessor, tool, and contract teach one neutral split rule."""
+    analyzer = TinyCUATaskAnalyzerNode(
+        node_id="task_analyzer", config=create_node_config("task_analyzer")
+    )
+    assessor = TinyCUATaskAssessorNode(
+        node_id="task_assessor", config=create_node_config("task_assessor")
+    )
+    texts = [
+        analyzer._instruction,
+        assessor._instruction,
+        TaskDecomposeTool().description,
+        get_node_contract("task_analyzer").goal,
+        get_node_contract("task_assessor").goal,
+    ]
+
+    for text in texts:
+        normalized = text.lower()
+        assert "materially distinct concerns" in normalized
+        assert "narrower context" in normalized
+        assert "independent evidence" in normalized
+        assert "tightly coupled" in normalized
+        assert "lifecycle-only phases" in normalized
+
+
 def test_task_executor_renders_mission_block() -> None:
     session = _session_with_mission("Make an analog clock.", ["single HTML file"])
     node = TinyCUATaskExecutorNode(
@@ -78,6 +105,64 @@ def test_task_executor_renders_mission_block() -> None:
     assert "## Current Mission — Context Only" in prompt
     assert "Make an analog clock." in prompt
     assert "single HTML file" in prompt
+
+
+def test_original_request_outranks_generated_task_text() -> None:
+    """Generated roadmap text cannot override the user's immutable contract."""
+    session = _session_with_mission("Build a local app.", ["do not use a database"])
+    nodes = (
+        TinyCUATaskAnalyzerNode(
+            node_id="task_analyzer", config=create_node_config("task_analyzer")
+        ),
+        TinyCUATaskAssessorNode(
+            node_id="task_assessor", config=create_node_config("task_assessor")
+        ),
+        TinyCUATaskExecutorNode(
+            node_id="task_executor", config=create_node_config("task_executor")
+        ),
+        TinyCUAResultReviewerNode(
+            node_id="result_reviewer", config=create_node_config("result_reviewer")
+        ),
+    )
+
+    for node in nodes:
+        node.ensure_session(session)
+        prompt = node.build_continuation(session)
+        assert "original request and hard constraints control" in prompt.lower()
+        assert "generated task text" in prompt.lower()
+
+
+def test_executor_requires_scope_mismatch_reporting() -> None:
+    """Executor guidance distinguishes incidental effects from sibling execution."""
+    node = TinyCUATaskExecutorNode(
+        node_id="task_executor", config=create_node_config("task_executor")
+    )
+    guidance = f"{node._instruction} {node._continuation}".lower()
+
+    assert "do not intentionally implement pending sibling" in guidance
+    assert "why it was required" in guidance
+    assert "evidence" in guidance
+    assert "partially or fully satisfied" in guidance
+    assert "scope mismatch" in guidance
+
+
+def test_executor_renders_targeted_planning_advisories() -> None:
+    """Budget-exhausted planning concerns remain visible during execution."""
+    session = _session_with_mission("Build an app.")
+    active = session.task_store.get_active_task()
+    assert active is not None
+    active.metadata["planning_advisories"] = [
+        {"advisory": "Verify the integration seam.", "analysis_budget_exhausted": True}
+    ]
+    node = TinyCUATaskExecutorNode(
+        node_id="task_executor", config=create_node_config("task_executor")
+    )
+    node.ensure_session(session)
+
+    prompt = node.build_continuation(session)
+
+    assert "Planning advisories" in prompt
+    assert "Verify the integration seam." in prompt
 
 
 def test_result_reviewer_renders_mission_block() -> None:

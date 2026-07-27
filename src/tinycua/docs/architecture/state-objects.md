@@ -237,13 +237,24 @@ The Worker Result keeps accepted outputs separate from compromised unsuccessful 
 ```yaml
 reviewer_decision:
   task_id: "<task id>"
+  event_id: "review-<task-local sequence>"
   status: approved | needs_revision | replan | postpone_siblings | postpone_final | compromise
-  reason: "..."
+  review_summary: "<concise bounded-prompt summary>"
+  rationale: "<full rationale, available on demand>"
+  new_findings:
+    - "finding-<task-local sequence>"
+  finding_updates:
+    - finding_id: "finding-1"
+      status: OPEN | ADDRESSED | INVALID | DEFERRED
   context_updates:
     - target_task_id: "<target task id>"
       update: "<context update>"
   retry_instructions: "..."  # failure context communication — format and mechanism are implementation detail
 ```
+
+Findings and review events belong only to their task. Default Executor and Reviewer
+prompts receive a bounded digest for the active task; `task_inspect(event_id=...)`
+returns one full event. Cross-task facts use explicit validated `context_updates`.
 
 `escalate_user` is not a status. When the ResultReviewer cannot resolve, the agent stays
 active with an open question. Human-in-the-loop interaction occurs through passthrough

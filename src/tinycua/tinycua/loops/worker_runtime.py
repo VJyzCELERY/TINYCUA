@@ -182,34 +182,36 @@ class WorkerRuntimeController:
     def _build_replan_reason(self, task: Any) -> str:
         """Build a replan reason string from the task's rejection history.
 
-        Includes the consecutive failure count and the last 2 rejection
-        rationales so the analyzer knows what went wrong.
+        Includes the consecutive failure count and recent task-local event
+        summaries so the analyzer knows what went wrong without full history.
         """
         count = task.consecutive_failures
         lines = [
             f"Auto-replan triggered: this task has been sent back for rework "
             f"{count} times."
         ]
-        # Collect the last 2 rejection rationales.
+        # Collect the last 2 same-task review summaries.
         back_decisions = {
             ReviewerDecision.NEEDS_REVISION.value,
             ReviewerDecision.REJECTED.value,
             ReviewerDecision.REPLAN.value,
         }
-        rationales = []
+        summaries = []
         for d in reversed(task.reviewer_decisions):
             if d.get("decision") in back_decisions:
-                rationale = d.get("rationale", "").strip()
-                if rationale:
-                    rationales.append(rationale)
-                if len(rationales) >= 2:
+                summary = str(
+                    d.get("review_summary") or d.get("rationale", "")
+                ).strip()[:240]
+                if summary and summary != d.get("decision"):
+                    summaries.append(summary)
+                if len(summaries) >= 2:
                     break
             else:
                 break
-        if rationales:
-            lines.append(f"Recent rejection rationale: {rationales[0]}")
-            if len(rationales) > 1:
-                lines.append(f"Previous rejection rationale: {rationales[1]}")
+        if summaries:
+            lines.append(f"Recent review summary: {summaries[0]}")
+            if len(summaries) > 1:
+                lines.append(f"Previous review summary: {summaries[1]}")
         lines.append(
             "The current approach is not working — decompose it differently, "
             "merge it, or adjust the plan."

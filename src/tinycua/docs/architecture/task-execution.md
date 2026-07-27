@@ -15,6 +15,8 @@ The Task Executor executes one task from the sequential roadmap.
 
 It receives only the current task's information plus shallow roadmap awareness. It should not receive the full parent session `Context` or full previous task details by default.
 
+The original user request and immutable constraints outrank generated acceptance clauses, roadmap descriptions, and model assumptions. The Executor does not intentionally implement pending sibling outcomes. It reports unavoidable sibling effects with their cause and evidence; substantial sibling work is a scope mismatch for Reviewer-led replanning. Pre-existing compliant work is verified and reported as a no-change success.
+
 ---
 
 ## Inputs / Outputs
@@ -25,7 +27,7 @@ It receives only the current task's information plus shallow roadmap awareness. 
 - `shallow_task_list` — task IDs and names from the Task Tree for scope awareness (no full task details).
 - Failure context from the Result Reviewer on retry — the Reviewer's output schema (see [state-objects.md](state-objects.md)) defines the retry contract.
 
-Retries create a new Task Executor sub-session. The new executor receives context about the previous failure so it can avoid repeating the same mistake, without inheriting the full prior execution context.
+Retries create a new Task Executor sub-session. The new executor receives the active task's bounded review digest so it can avoid repeating the same mistake, without inheriting full rationale or another task's execution context.
 
 **Output:**
 
@@ -84,5 +86,6 @@ If the Task Executor asks the user for clarification, the user reply resumes the
 |----------|--------|-----------|
 | Context scope | Current task context only | Prevents unrelated context from polluting execution |
 | Roadmap awareness | Shallow task list | Helps scope control without exposing future task details |
-| Output | Result + sub-session execution log | Gives Reviewer evidence for acceptance and context propagation |
+| Review history | Active-task digest by default | Open/deferred/recent findings and recent event summaries survive retry and postponement without crossing tasks |
+| Output | Result + sub-session execution log | Gives Reviewer evidence for the active outcome and any unavoidable scope effects |
 | Failure handling | Return explicit status | Reviewer decides retry, replan, escalation, or context update |

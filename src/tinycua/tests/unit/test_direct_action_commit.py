@@ -336,8 +336,12 @@ async def test_reviewer_decision_stays_staged_until_validation_then_commits_once
     assert llm.calls[1]["tool_names"] == ["task_review_decision"]
     assert task.reviewer_decisions == [
         {
+            "event_id": "review-1",
+            "review_summary": "Verified outcome.",
             "decision": "approved",
             "rationale": "Verified outcome.",
+            "new_findings": [],
+            "finding_updates": [],
             "metadata": {"context_updates": []},
         }
     ]

@@ -285,6 +285,62 @@ def test_ready_assessor_handoff_skips_only_paired_analyzer() -> None:
     ]
 
 
+def test_analysis_effort_appends_final_assessor_without_analyzer() -> None:
+    """Exhausting analysis always leaves one final bounded assessment."""
+    loop = TinyCUALoop()
+    effort = TinyCUAAnalysisEffortNode(
+        node_id="analysis_effort",
+        config=create_node_config("analysis_effort"),
+        pass_count=2,
+        pass_limit=2,
+    )
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    loop.queue = NodeQueue([effort, executor])
+
+    effort.run_deterministic(loop.queue)
+
+    assert [node.node_id for node in loop.queue.items] == [
+        "analysis_effort",
+        "task_assessor",
+        "task_executor",
+    ]
+    final = loop.queue.items[1]
+    assert final.config.metadata["task_assessor_mode"] == "final_assessment"
+
+
+def test_final_assessment_discards_analyzer_handoff_and_proceeds() -> None:
+    """Final findings remain task metadata instead of scheduling more analysis."""
+    loop = TinyCUALoop()
+    assessor = TinyCUATaskAssessorNode(
+        node_id="task_assessor",
+        config=create_node_config("task_assessor", mode="final_assessment"),
+    )
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor", config=create_node_config("task_executor")
+    )
+    loop.queue = NodeQueue([assessor, executor])
+    loop._pending_handoffs.append(
+        NodeHandoff(
+            source_node="task_assessor",
+            target_node="task_analyzer",
+            instruction="Budget exhausted.",
+            payload={
+                "decision": "analyze",
+                "selected_task_ids": ["task-1"],
+                "analysis_budget_exhausted": True,
+            },
+        )
+    )
+
+    assert loop._pop_handoff_for_next(assessor) is None
+    assert loop._pending_handoffs == []
+    loop.queue.advance()
+    assert loop.queue.current is executor
+
+
 def test_response_validation_rejects_internal_transcript_replay() -> None:
     """Final response must not replay node prompts or aggregation JSON."""
     loop = TinyCUALoop()
