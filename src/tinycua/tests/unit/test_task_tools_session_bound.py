@@ -349,7 +349,7 @@ def test_task_shrink_cancels_and_supersedes_with_a_rationale() -> None:
     )
 
     assert missing_rationale["success"] is False
-    assert cancelled["status"] == "cancelled"
+    assert cancelled["cancellation_state"] == "pending"
     assert superseded["replacement_task_id"] in store.tasks
 
 
