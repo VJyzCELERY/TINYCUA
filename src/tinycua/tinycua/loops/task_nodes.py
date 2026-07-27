@@ -7,6 +7,7 @@ from typing import Any, TYPE_CHECKING
 from tinycua.config.node_config import create_node_config
 from tinycua.config.types import LLMResult
 from tinycua.loops.node import ProcessNode
+from tinycua.loops.mission import _render_mission_block
 from tinycua.loops.node_guidance import (
     _RESULT_REVIEWER_CONTINUATION,
     _RESULT_REVIEWER_INSTRUCTION,
@@ -662,59 +663,6 @@ def _render_request_contract(session: Session) -> str:
     if constraints:
         lines.append("## Hard constraints")
         lines.extend(f"- {constraint}" for constraint in constraints if constraint)
-    return "\n".join(lines)
-
-
-def _render_mission_block(session: Session) -> str:
-    r"""Render a compact canonical mission block from the root task.
-
-    The mission is the single canonical "goal" carried with the task tree so
-    every worker-internal node sees the same goal without inheriting the full
-    session context. See FR-003.
-
-    Structured as ``{context}\n{query}``: the InformationDigester's
-    comprehensive research (``mission_context`` + ``mission_key_points``)
-    appears first as context, followed by the original request and hard
-    constraints. Empty sections are omitted (no empty headers). This gives
-    downstream planning/review nodes the first-layer exploration findings
-    so they don't anchor on training-data priors (e.g. "2024-2025" for a
-    "current" research task).
-
-    Returns an empty string when no mission is stored (no-op).
-    """
-    store = session.task_store
-    if store.root_task_id is None or store.root_task_id not in store.tasks:
-        return ""
-    root = store.tasks[store.root_task_id]
-    mission = str(root.metadata.get("mission", "") or "").strip()
-    mission_context = str(root.metadata.get("mission_context", "") or "").strip()
-    key_points = root.metadata.get("mission_key_points", [])
-    if not isinstance(key_points, list):
-        key_points = []
-    key_points = [str(point).strip() for point in key_points if str(point).strip()]
-    constraints = root.metadata.get("inherited_constraints", [])
-    if not isinstance(constraints, list):
-        constraints = []
-    constraints = [str(c).strip() for c in constraints if str(c).strip()]
-    if not (mission or mission_context or key_points or constraints):
-        return ""
-    lines = [
-        "## Current Mission — Context Only",
-        "This is the overall workflow objective, not your assigned task. Use it "
-        "only to understand the context for your delegated role.",
-        "The original request and hard constraints control if generated task text, "
-        "acceptance clauses, roadmap descriptions, or model assumptions conflict.",
-    ]
-    if mission_context:
-        lines.append(mission_context)
-    if key_points:
-        lines.append("Key findings:")
-        lines.extend(f"- {point}" for point in key_points)
-    if mission:
-        lines.append(f"Original request: {mission}")
-    if constraints:
-        lines.append("Hard constraints:")
-        lines.extend(f"- {constraint}" for constraint in constraints)
     return "\n".join(lines)
 
 

@@ -42,60 +42,6 @@ class TestQueryAnalystDigestSpawn:
         # items[2] is WorkerNode
         assert queue.items[2].node_id == "worker"
 
-    def test_check_existing_digest_returns_true_when_present(self) -> None:
-        """_check_existing_digest returns True when digest exists in session."""
-        query_analyst = TinyCUAQueryAnalystNode(
-            node_id="qa",
-            config=MagicMock(),
-        )
-
-        worker = MagicMock()
-        worker.session = Session()
-        digest = DigestedInformation(
-            context_summary="Already digested", original_query="q"
-        )
-        worker.session.session_context.append(
-            {
-                "role": "assistant",
-                "content": digest,
-            }
-        )
-
-        result = query_analyst._check_existing_digest(worker)
-        assert result is True
-
-    def test_check_existing_digest_returns_false_when_absent(self) -> None:
-        """_check_existing_digest returns False when no digest in session."""
-        query_analyst = TinyCUAQueryAnalystNode(
-            node_id="qa",
-            config=MagicMock(),
-        )
-
-        worker = MagicMock()
-        worker.session = Session()
-        worker.session.session_context.append(
-            {
-                "role": "assistant",
-                "content": "regular message",
-            }
-        )
-
-        result = query_analyst._check_existing_digest(worker)
-        assert result is False
-
-    def test_check_existing_digest_returns_false_when_no_session(self) -> None:
-        """_check_existing_digest returns False when worker has no session."""
-        query_analyst = TinyCUAQueryAnalystNode(
-            node_id="qa",
-            config=MagicMock(),
-        )
-
-        worker = MagicMock()
-        worker.session = None
-
-        result = query_analyst._check_existing_digest(worker)
-        assert result is False
-
     def test_extract_user_query_returns_last_user_message(self) -> None:
         """_extract_user_query extracts the last user message."""
         query_analyst = TinyCUAQueryAnalystNode(
@@ -149,8 +95,8 @@ class TestQueryAnalystDigestSpawn:
         result = query_analyst._extract_user_query(input_data)
         assert result == ""
 
-    def test_no_duplicate_digest_when_already_exists(self) -> None:
-        """_route_worker does not spawn duplicate digester when digest exists."""
+    def test_existing_digest_still_spawns_a_fresh_digester(self) -> None:
+        """Each Worker entry must consolidate the current user turn again."""
         queue = NodeQueue()
         worker = MagicMock()
         worker.node_id = "w"
@@ -177,6 +123,10 @@ class TestQueryAnalystDigestSpawn:
         query_analyst.session = worker.session
         query_analyst._queue = queue
 
-        # Check detection first
-        existing = query_analyst._check_existing_digest(worker)
-        assert existing is True
+        query_analyst._route_worker()
+
+        assert [node.node_id for node in queue.items[:3]] == [
+            "w",
+            "digester",
+            "worker",
+        ]

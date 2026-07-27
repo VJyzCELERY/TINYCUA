@@ -8,10 +8,8 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from tinycua.config.node_config import create_node_config
 from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
 from tinycua.loops._input_messages import extract_user_query
-from tinycua.loops.node import DecisionNode, DecisionResult, Node
-from tinycua.loops.session_context_query import has_entry
+from tinycua.loops.node import DecisionNode, DecisionResult
 from tinycua.loops.worker import TinyCUAWorkerNode
-from tinycua.models.digested_information import DigestedInformation
 from tinycua.models.node_input import NodeInput
 
 if TYPE_CHECKING:
@@ -98,10 +96,8 @@ class TinyCUAQueryAnalystNode(DecisionNode):
     def _route_worker(self, input_data: NodeInputLike = "") -> None:
         """Route to WorkerNode with information digestion.
 
-        1. Check if target Worker session already has DigestedInformation
-           → If yes, advance to existing Worker (no digest spawn)
-        2. Otherwise, spawn InformationDigesterNode before WorkerNode
-           → queue.spawn_after_current([digester, worker_node])
+        Always spawn InformationDigesterNode before WorkerNode so each user
+        turn is consolidated with retrievable session context.
 
         Args:
             input_data: The original node input used to preserve the user query.
@@ -117,12 +113,6 @@ class TinyCUAQueryAnalystNode(DecisionNode):
             node_id="worker",
             config=create_node_config("worker", self.config),
         )
-
-        # Check for existing digest
-        if self._check_existing_digest(worker_node):
-            # Already digested — just ensure worker is in queue
-            queue.spawn_after_current([worker_node])
-            return
 
         # Create InformationDigesterNode
         digester = TinyCUAInformationDigesterNode(
@@ -185,21 +175,6 @@ class TinyCUAQueryAnalystNode(DecisionNode):
                 metadata={"original_query": original_query, "route": route_label},
             ),
         )
-
-    def _check_existing_digest(self, worker: Node) -> bool:
-        """Check if the worker's session already has DigestedInformation.
-
-        Scans session_context for existing DigestedInformation entries.
-
-        Args:
-            worker: The worker node to check.
-
-        Returns:
-            True if DigestedInformation exists in the worker's session.
-        """
-        if worker.session is None:
-            return False
-        return has_entry(worker.session, DigestedInformation)
 
     def _extract_user_query(self, input_data: NodeInputLike) -> str:
         """Extract original user query from input data.

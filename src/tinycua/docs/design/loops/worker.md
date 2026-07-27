@@ -39,8 +39,8 @@ execution advancement.
 | Label | Behavior |
 |-------|----------|
 | `task_creation` | Deterministic first-time creation: no task exists yet. |
-| `task_recreation` | Task exists and should be rebuilt/replaced. |
-| `task_reanalysis` | Task exists and should be refined without full replacement. |
+| `task_recreation` | Archive the old tree in root retrieval context, reset the shared store, then create a fresh root. |
+| `task_reanalysis` | Keep the root mission, replace its current-turn digest overlay, then refine the roadmap. |
 | `passthrough` | Forward input to an already active or queued worker-owned node/session. |
 | `proceed_execution` | Edge case: task and active task exist but no executor is queued/active. |
 
@@ -61,15 +61,9 @@ analysis call → verdict/classification tool call → RouteMap dispatch
 
 ```text
 WorkerNode enters:
-  1. Does task exist?
-     ├── No → task_creation route
-     └── Yes → continue
-
-  2. Are worker-spawned nodes queued/active?
-     ├── Yes → LLM decision with labels:
-     │         task_recreation, task_reanalysis, passthrough, proceed_execution
-     └── No → LLM decision without passthrough:
-              task_recreation, task_reanalysis, proceed_execution
+  no root task       → task_creation
+  active task tree   → task_recreation, task_reanalysis, passthrough, proceed_execution
+  terminal task tree → task_recreation, passthrough
 ```
 
 ### Route Queue Shapes
@@ -79,7 +73,7 @@ task_creation:
   [TaskCreateNode, TaskAnalyzerNode, AnalysisEffortNode, TaskExecutor, ResultReviewer, ResponseNode]
 
 task_recreation:
-  [TaskAnalyzerNode(+TaskInit/TaskCreate), AnalysisEffortNode, TaskExecutor, ResultReviewer, ResponseNode]
+  [TaskCreateNode, TaskAnalyzerNode, AnalysisEffortNode, TaskExecutor, ResultReviewer, ResponseNode]
 
 task_reanalysis:
   [TaskAnalyzerNode(no TaskInit/TaskCreate), AnalysisEffortNode, TaskExecutor, ResultReviewer, ResponseNode]
@@ -104,11 +98,10 @@ InformationDigester completes, propagates to Worker session:
   [WorkerNode(current), TaskExecutor(stale), ResultReviewer, ResponseNode]
 
 Worker chooses task_recreation:
-  clear_after_current()
-  -> [WorkerNode(current)]
+  archive old task-tree snapshot and reset the shared task store
 
-Route handler inserts replacement path:
-  [WorkerNode, TaskAnalyzerNode(+TaskInit/TaskCreate), AnalysisEffortNode,
+Route handler inserts fresh creation path:
+  [WorkerNode, TaskCreateNode, TaskAnalyzerNode, AnalysisEffortNode,
    TaskExecutor, ResultReviewer, ResponseNode]
 ```
 
@@ -122,10 +115,12 @@ Passthrough advances the Worker and forwards input to the next worker-owned node
 
 ## Propagation
 
-- Forwards DigestedInformation (which contains the original query in fallback or
-  digested context in success case) along with WorkerDecision to downstream nodes.
-- WorkerDecision is used for routing only; DigestedInformation is the node query
-  for spawned nodes.
+- QueryAnalyst always places InformationDigester before Worker, so each Worker entry
+  has a fresh digest grounded by retrievable root-session context.
+- TaskCreate and TaskAnalyzer receive the full current digest by handoff. Executor and
+  Reviewer receive only the root's replaceable compact current-turn overlay.
+- The root mission remains immutable after creation; historical digests and archived
+  task trees are retrieval-only and are never replayed as prompt context.
 
 ## Transient Routing Node Behavior
 

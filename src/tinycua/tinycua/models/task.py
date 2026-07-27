@@ -1219,6 +1219,16 @@ class TaskStateStore:
             task.status in self._TERMINAL_STATUSES for task in self.tasks.values()
         )
 
+    def reset(self) -> None:
+        """Clear this shared store so a recreated root starts from no task state."""
+        self.tasks.clear()
+        self.root_task_id = None
+        self.active_task_id = None
+        self.transition_log.clear()
+        self._staged_reviewer_decisions.clear()
+        self._ordered_task_ids = None
+        self.version += 1
+
     def snapshot(self) -> dict[str, Any]:
         """Return a JSON-safe task tree snapshot."""
         return {
