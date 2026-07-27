@@ -128,6 +128,10 @@ class ResponseNode(ProcessNode):
 
     def _should_request_digest(self) -> bool:
         """Return whether response synthesis should first gather context."""
+        if not getattr(
+            self.config.metadata.get("session_config"), "digest_enabled", True
+        ):
+            return False
         if not self.config.metadata.get("require_digest"):
             return False
         if self.config.metadata.get("digest_requested"):

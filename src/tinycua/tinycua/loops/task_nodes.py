@@ -864,6 +864,28 @@ class TinyCUATaskExecutorNode(ProcessNode):
             f"\n\n{base}"
         )
 
+    def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
+        """Schedule validated executor results directly when review is disabled."""
+        del response
+        if self.session is None or getattr(
+            self.session.session_config, "review_enabled", True
+        ):
+            return
+        active = self.session.task_store.get_active_task()
+        if active is None or active.result is None:
+            raise RuntimeError("Executor completed without a validated task result.")
+        from tinycua.loops.worker_runtime import WorkerRuntimeController
+
+        terminal_nodes = [node for node in queue.items[1:] if node.is_terminal]
+        queue.clear_after_current()
+        WorkerRuntimeController(
+            self.session.task_store,
+            replan_threshold=self.session.session_config.replan_threshold,
+            review_enabled=False,
+            session=self.session,
+        ).schedule_after_execution(queue, active.task_id)
+        queue.items.extend(terminal_nodes)
+
     def _artifacts_from_tool_results(self, tool_results: list[dict]) -> list[dict]:
         """Extract artifact references from file-writing tool results."""
         artifacts = []
