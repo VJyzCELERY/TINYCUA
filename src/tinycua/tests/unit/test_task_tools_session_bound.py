@@ -376,6 +376,25 @@ def test_task_shrink_can_supersede_postponed_work() -> None:
     assert blocked.status.value == "superseded"
 
 
+def test_task_shrink_rejects_superseding_parent_with_pending_child() -> None:
+    """The tool preserves an executable subtree rather than orphaning it."""
+    store = TaskStateStore()
+    root = store.create_task("Root")
+    parent = store.create_task("Parent", parent_id=root.task_id)
+    store.create_task("Pending child", parent_id=parent.task_id)
+    shrink = TaskShrinkTool()
+    shrink.bind_task_store(store)
+    before = store.snapshot()
+
+    result = shrink(
+        "supersede", parent.task_id, "new plan", replacement_title="Replacement"
+    )
+
+    assert result["success"] is False
+    assert "unfinished descendants" in result["error"]
+    assert store.snapshot() == before
+
+
 def test_root_acceptance_context_cannot_be_reassigned_through_metadata() -> None:
     """The original acceptance context remains immutable."""
     store = TaskStateStore()

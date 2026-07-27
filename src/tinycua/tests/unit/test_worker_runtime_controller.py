@@ -154,6 +154,8 @@ def test_worker_runtime_replan_uses_local_assessor_mode() -> None:
     ]
     assert queue.items[0].config.metadata["task_assessor_mode"] == "local_replan"
     assert queue.items[1].config.metadata["task_analyzer_mode"] == "local_replan"
+    assert queue.items[0].config.metadata["replan_task_id"] == active.task_id
+    assert queue.items[1].config.metadata["replan_task_id"] == active.task_id
 
 
 def test_open_question_replans_instead_of_bailing_to_response() -> None:
