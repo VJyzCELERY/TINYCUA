@@ -170,7 +170,12 @@ def test_impossible_leaf_is_disposed_once_and_never_dispatched_again() -> None:
     )
     dispatched: list[str] = []
 
-    store.cancel_task(impossible.task_id, "selected source contains no benchmark data")
+    request = store.request_task_cancellation(
+        impossible.task_id, "selected source contains no benchmark data"
+    )
+    store.assess_task_cancellation(
+        request["request_id"], approved=True, rationale="The task is unnecessary."
+    )
     controller = WorkerRuntimeController(store)
     queue = NodeQueue()
     controller.schedule_next(queue)

@@ -161,7 +161,12 @@ def test_cancel_and_supersede_terminal_tasks_advance_selection_and_preserve_line
     impossible = store.create_task("Impossible", parent_id=root.task_id)
     remaining = store.create_task("Remaining", parent_id=root.task_id)
 
-    store.cancel_task(impossible.task_id, "source has no benchmark data")
+    request = store.request_task_cancellation(
+        impossible.task_id, "source has no benchmark data"
+    )
+    store.assess_task_cancellation(
+        request["request_id"], approved=True, rationale="The task is unnecessary."
+    )
     assert impossible.status == TaskStatus.CANCELLED
     assert store.active_task_id == remaining.task_id
 

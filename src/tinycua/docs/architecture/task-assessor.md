@@ -11,7 +11,7 @@
 
 ## Role
 
-The Task Assessor reviews a task tree and decides whether its paired Task Analyzer should run. It is used both during upfront Task Creation and for execution-time local replanning.
+The Task Assessor reviews a task tree and decides whether its paired Task Analyzer should run. It is used during upfront Task Creation, execution-time local replanning, and to validate a newly requested task cancellation.
 
 The Task Assessor does not perform decomposition itself. It acts as a gate: given a list of tasks, it identifies which ones are complex enough to warrant breakdown. The actual decomposition is delegated to the [Task Analyzer](task-analysis.md).
 
@@ -32,7 +32,7 @@ This is distinct from the execution-time [Result Reviewer](result-reviewer.md), 
 - `ready` with no selected task IDs skips only the paired Task Analyzer.
 - `analyze` with one or more valid unfinished task references invokes the paired Task Analyzer. References are canonicalized and deduplicated before handoff.
 
-The Task Assessor does not modify tasks or produce sub-lists. It produces selection decisions only.
+For roadmap modes, the Task Assessor produces selection decisions only. In cancellation-review mode, `ready` approves one bound cancellation request and `analyze` rejects it with one target-bound finding; the state store records that decision atomically.
 
 ---
 
@@ -72,6 +72,10 @@ flowchart TD
 The Task Assessor is invoked between passes of the Task Creation loop. It reviews the current task list and selects which tasks deserve further decomposition. During execution-time replanning, the same assessor evaluates only the active task or local region before a local analyzer pass.
 
 See [task-creation.md](task-creation.md) for the full Task Creation flow and effort-controlled pass limits.
+
+## Cancellation Review
+
+`task_shrink(action="cancel")` creates a pending request; it does not immediately make a task terminal. The next Task Assessor reviews the bound request exactly once. Approval is allowed only when cancellation removes no original-request obligation or hard constraint and the parent outcome remains achievable. Failure, difficulty, and temporary blockage are rejected reasons. Approval cancels the unattempted subtree; rejection routes to the paired Analyzer for a non-cancellation repair. Previously approved, rejected, and legacy cancelled tasks are not reassessed.
 
 ---
 

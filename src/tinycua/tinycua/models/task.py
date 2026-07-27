@@ -456,20 +456,121 @@ class TaskStateStore:
         self._finalize_mutation("update_task", task_id)
         return task
 
-    def cancel_task(self, task_id: str, rationale: str) -> Task:
-        """Retain an impossible unfinished task as terminal history."""
+    def _cancellation_subtree_ids(self, task_id: str) -> list[str]:
+        """Return unfinished descendants that an approved request would retire."""
+        task = self.get_task(task_id)
+        task_ids = []
+        for child_id in task.children:
+            task_ids.extend(self._cancellation_subtree_ids(child_id))
+        if task.status not in self._TERMINAL_STATUSES:
+            task_ids.append(task_id)
+        return task_ids
+
+    @staticmethod
+    def _task_has_execution_history(task: Task) -> bool:
+        """Return whether cancellation would hide attempted work."""
+        return bool(
+            task.status != TaskStatus.PENDING
+            or task.result
+            or task.reviewer_decisions
+            or task.review_findings
+            or task.artifacts
+        )
+
+    def pending_cancellation_requests(self) -> list[dict[str, Any]]:
+        """Return current cancellation requests awaiting one Assessor decision."""
+        requests = []
+        for task in self.tasks.values():
+            request = task.metadata.get("cancellation_request")
+            if isinstance(request, dict) and request.get("state") == "pending":
+                requests.append({"task_id": task.task_id, **request})
+        return requests
+
+    def request_task_cancellation(self, task_id: str, rationale: str) -> dict[str, Any]:
+        """Request Assessor approval before retiring unattempted local work."""
         self.validate_tree()
         task = self.get_task(task_id)
         if task_id == self.root_task_id:
-            msg = "Cannot cancel the root task."
-            raise ValueError(msg)
+            raise ValueError("Cannot cancel the root task.")
         self._require_mutable(task)
         if not rationale.strip():
-            msg = "Cancellation requires a rationale."
-            raise ValueError(msg)
-        task.status = TaskStatus.CANCELLED
-        task.metadata["cancellation_rationale"] = rationale
-        self._finalize_mutation("cancel_task", task_id, rationale=rationale)
+            raise ValueError("Cancellation requires a rationale.")
+        existing = task.metadata.get("cancellation_request")
+        if isinstance(existing, dict) and existing.get("state") == "pending":
+            raise ValueError("Task already has a pending cancellation request.")
+        if self.pending_cancellation_requests():
+            raise ValueError("Only one pending cancellation request is allowed.")
+        affected_task_ids = self._cancellation_subtree_ids(task_id)
+        if any(
+            self._task_has_execution_history(self.tasks[affected_id])
+            for affected_id in affected_task_ids
+        ):
+            raise ValueError("Cancellation cannot dispose of attempted work.")
+        request = {
+            "request_id": uuid.uuid4().hex,
+            "state": "pending",
+            "rationale": rationale.strip(),
+            "assessment_rationale": "",
+            "affected_task_ids": affected_task_ids,
+        }
+        task.metadata["cancellation_request"] = request
+        self._finalize_mutation(
+            "request_task_cancellation", task_id, request_id=request["request_id"]
+        )
+        return dict(request)
+
+    def assess_task_cancellation(
+        self,
+        request_id: str,
+        *,
+        approved: bool,
+        rationale: str,
+    ) -> Task:
+        """Commit one Assessor decision for the matching pending cancellation."""
+        if not rationale.strip():
+            raise ValueError("Cancellation assessment requires a rationale.")
+        matches = [
+            (task, request)
+            for task in self.tasks.values()
+            if isinstance(request := task.metadata.get("cancellation_request"), dict)
+            and request.get("request_id") == request_id
+        ]
+        if len(matches) != 1:
+            raise ValueError("Cancellation request was not found.")
+        task, request = matches[0]
+        if request.get("state") != "pending":
+            raise ValueError("Cancellation request is no longer pending.")
+        request["assessment_rationale"] = rationale.strip()
+        if not approved:
+            request["state"] = "rejected"
+            self._finalize_mutation(
+                "reject_task_cancellation", task.task_id, request_id=request_id
+            )
+            return task
+        affected_task_ids = request.get("affected_task_ids", [])
+        if affected_task_ids != self._cancellation_subtree_ids(task.task_id):
+            raise ValueError("Cancellation subtree changed; request a new assessment.")
+        if any(
+            self._task_has_execution_history(self.tasks[affected_id])
+            for affected_id in affected_task_ids
+        ):
+            raise ValueError("Cancellation cannot dispose of attempted work.")
+        request["state"] = "approved"
+        for affected_id in affected_task_ids:
+            affected = self.tasks[affected_id]
+            affected.status = TaskStatus.CANCELLED
+            affected.metadata["cancellation_rationale"] = request["rationale"]
+            if affected_id != task.task_id:
+                affected.metadata["cancellation_request"] = {
+                    "request_id": request_id,
+                    "state": "approved",
+                    "rationale": request["rationale"],
+                    "assessment_rationale": rationale.strip(),
+                    "cascade_from_task_id": task.task_id,
+                }
+        self._finalize_mutation(
+            "approve_task_cancellation", task.task_id, request_id=request_id
+        )
         return task
 
     def supersede_task(

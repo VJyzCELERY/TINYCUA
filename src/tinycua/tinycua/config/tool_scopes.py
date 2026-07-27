@@ -131,7 +131,7 @@ def task_analyzer_tool_scope(
     ]
     if mode == "task_recreation":
         base_tools.extend([TaskInitTool(), TaskCreateTool()])
-    elif mode in {"task_reanalysis", "local_replan"}:
+    elif mode in {"task_reanalysis", "local_replan", "cancellation_repair"}:
         base_tools.append(TaskCreateTool())
     return NodeToolPolicy(
         node_tools=base_tools,

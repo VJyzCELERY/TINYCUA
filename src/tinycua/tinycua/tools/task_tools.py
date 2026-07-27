@@ -480,13 +480,14 @@ class TaskShrinkTool(SessionTaskToolMixin, Tool):
 
     def __init__(self) -> None:
         SessionTaskToolMixin.__init__(self)
+        self._analyzer_mode = ""
         Tool.__init__(
             self,
             name="task_shrink",
             description=(
                 "Repair the task tree by deleting an untouched planning leaf, "
-                "merging a child into its direct parent, cancelling impossible "
-                "work, or superseding it with a replacement. "
+                "merging a child into its direct parent, requesting assessment to "
+                "cancel obsolete unattempted work, or superseding it with a replacement. "
                 "task_id may be UUID or roadmap number."
             ),
             parameters={
@@ -506,6 +507,10 @@ class TaskShrinkTool(SessionTaskToolMixin, Tool):
                 "additionalProperties": False,
             },
         )
+
+    def bind_analyzer_mode(self, mode: str) -> None:
+        """Bind Analyzer mode so rejected cancellation cannot be retried as a shortcut."""
+        self._analyzer_mode = mode
 
     def __call__(
         self,
@@ -571,12 +576,18 @@ class TaskShrinkTool(SessionTaskToolMixin, Tool):
                     "rationale": rationale,
                 }
             if action == "cancel":
-                task = self._store.cancel_task(resolved, rationale)
+                if self._analyzer_mode == "cancellation_repair":
+                    return {
+                        "success": False,
+                        "error": "Cancellation was rejected; use a non-cancellation repair.",
+                    }
+                request = self._store.request_task_cancellation(resolved, rationale)
                 return {
                     "success": True,
                     "action": "cancel",
                     "task_id": resolved,
-                    "status": task.status.value,
+                    "cancellation_request_id": request["request_id"],
+                    "cancellation_state": request["state"],
                 }
             if action == "supersede":
                 replacement = self._store.supersede_task(
