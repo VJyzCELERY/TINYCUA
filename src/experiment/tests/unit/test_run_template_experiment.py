@@ -9,6 +9,7 @@ import pytest
 import run_template_experiment as runner
 
 from run_template_experiment import (
+    AGENTS,
     FIXTURE_ROOT,
     Fixture,
     build_agent_command,
@@ -17,10 +18,12 @@ from run_template_experiment import (
     container_name,
     discover_fixtures,
     evaluator_base_agents,
+    parse_agents,
     parse_score,
     parse_args,
     _restart_searxng,
     state_volume_name,
+    write_run_metadata,
     workspace_volume_name,
     write_result,
 )
@@ -102,6 +105,91 @@ def test_default_fixture_root_contains_smoke_and_migrated_experiments() -> None:
         *(f"experiment-{number}" for number in range(1, 6)),
         "smoke-test",
     )
+
+
+def test_tinycua_ablation_aliases_are_selectable_without_changing_defaults() -> None:
+    """Ablations are explicit controlled-runner selections, not new defaults."""
+    aliases = ("tinycua-nr", "tinycua-nd", "tinycua-nd-nr")
+
+    assert AGENTS == ("opencode", "hermes", "openclaw", "tinycua")
+    assert parse_agents(",".join(("tinycua", *aliases))) == ("tinycua", *aliases)
+    fixture = Fixture(
+        "greeting",
+        "Reply.",
+        "busybox",
+        ("true",),
+        Path("fixture"),
+        Path("fixture/docker/Dockerfile"),
+    )
+    assert evaluator_base_agents((fixture,), aliases) == ("tinycua",)
+
+
+@pytest.mark.parametrize(
+    ("agent", "digest", "review"),
+    [
+        ("tinycua", "0", "0"),
+        ("tinycua-nr", "0", "1"),
+        ("tinycua-nd", "1", "0"),
+        ("tinycua-nd-nr", "1", "1"),
+    ],
+)
+def test_tinycua_ablation_aliases_share_service_and_set_flags(
+    agent: str, digest: str, review: str
+) -> None:
+    """Logical ablations reuse TinyCUA while retaining isolated run identities."""
+    command = build_agent_command(
+        Path("docker-compose.yml"),
+        Path("override.yaml"),
+        agent,
+        "Do work.",
+        workspace_volume_name("fixture", agent),
+        state_volume_name("fixture", agent),
+        container_name("fixture", agent, "agent"),
+    )
+
+    assert command[-1] == "tinycua"
+    assert f"EXPERIMENT_TINYCUA_NO_DIGEST={digest}" in command
+    assert f"EXPERIMENT_TINYCUA_NO_REVIEW={review}" in command
+    assert f"{state_volume_name('fixture', agent)}:/state" in command
+    assert f"{workspace_volume_name('fixture', agent)}:/workspace" in command
+
+
+def test_run_metadata_records_tinycua_ablation_configuration(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Results preserve the logical variant and its effective runtime controls."""
+    fixture = Fixture(
+        "greeting",
+        "Reply.",
+        "busybox",
+        ("true",),
+        tmp_path,
+        tmp_path / "docker" / "Dockerfile",
+    )
+    (tmp_path / "eval").mkdir()
+    monkeypatch.setattr(runner, "_git_value", lambda *_: "revision")
+    monkeypatch.setattr(
+        runner, "_image_identity", lambda image: {"reference": image}
+    )
+    metadata_path = tmp_path / "run_metadata.json"
+
+    write_run_metadata(
+        metadata_path,
+        (fixture,),
+        ("tinycua", "tinycua-nr", "tinycua-nd", "tinycua-nd-nr"),
+        {"tinycua": "tinycua-template-tinycua-base"},
+        60,
+        False,
+        {},
+    )
+
+    metadata = json.loads(metadata_path.read_text())
+    assert metadata["agent_configurations"] == {
+        "tinycua": {"service": "tinycua", "no_digest": False, "no_review": False},
+        "tinycua-nr": {"service": "tinycua", "no_digest": False, "no_review": True},
+        "tinycua-nd": {"service": "tinycua", "no_digest": True, "no_review": False},
+        "tinycua-nd-nr": {"service": "tinycua", "no_digest": True, "no_review": True},
+    }
 
 
 def test_submission_dependency_scan_ignores_generated_virtualenv(

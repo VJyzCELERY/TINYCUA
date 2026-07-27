@@ -29,6 +29,10 @@ def test_tinycua_dockerfile_installs_local_packages() -> None:
     assert "uv pip install --no-cache-dir --system ./tinycua" in dockerfile
     assert "tinycua run" in dockerfile
     assert "--dir" in dockerfile
+    assert "EXPERIMENT_TINYCUA_NO_DIGEST" in dockerfile
+    assert "EXPERIMENT_TINYCUA_NO_REVIEW" in dockerfile
+    assert "--no-digest" in dockerfile
+    assert "--no-review" in dockerfile
 
 
 def test_agent_dockerfiles_expose_harness_commands() -> None:

@@ -20,6 +20,13 @@ import yaml
 
 
 AGENTS = ("opencode", "hermes", "openclaw", "tinycua")
+TINYCUA_VARIANTS = {
+    "tinycua": (False, False),
+    "tinycua-nr": (False, True),
+    "tinycua-nd": (True, False),
+    "tinycua-nd-nr": (True, True),
+}
+SUPPORTED_AGENTS = (*AGENTS, "tinycua-nr", "tinycua-nd", "tinycua-nd-nr")
 LOCAL_PYTHON_EVALUATOR_IMAGE = "tinycua-template-tinycua-base"
 FIXTURE_ROOT = Path(__file__).with_name("experiment-fixtures") / "experiments-list"
 WORKSPACE = "/workspace"
@@ -233,23 +240,35 @@ def parse_agents(raw: str | None) -> tuple[str, ...]:
         raise ValueError("agents must not be empty")
     if len(set(agents)) != len(agents):
         raise ValueError("duplicate agents are not allowed")
-    unknown = [agent for agent in agents if agent not in AGENTS]
+    unknown = [agent for agent in agents if agent not in SUPPORTED_AGENTS]
     if unknown:
         raise ValueError(f"unknown agent(s): {', '.join(unknown)}")
     return agents
+
+
+def agent_service(agent: str) -> str:
+    """Return the physical Compose service for one logical agent identity."""
+    return "tinycua" if agent in TINYCUA_VARIANTS else agent
+
+
+def tinycua_variant(agent: str) -> dict[str, bool]:
+    """Return the two runtime ablation settings for a TinyCUA identity."""
+    no_digest, no_review = TINYCUA_VARIANTS[agent]
+    return {"no_digest": no_digest, "no_review": no_review}
 
 
 def evaluator_base_agents(
     fixtures: tuple[Fixture, ...], agents: tuple[str, ...]
 ) -> tuple[str, ...]:
     """Include the local Python evaluator base when a fixture needs it."""
-    if "tinycua" not in agents and any(
+    services = tuple(dict.fromkeys(agent_service(agent) for agent in agents))
+    if "tinycua" not in services and any(
         fixture.eval_image == LOCAL_PYTHON_EVALUATOR_IMAGE
         or fixture.evaluator_dockerfile is not None
         for fixture in fixtures
     ):
-        return (*agents, "tinycua")
-    return agents
+        return (*services, "tinycua")
+    return services
 
 
 def _selected_names(root: Path, raw: str | None) -> tuple[str, ...]:
@@ -453,8 +472,9 @@ def build_agent_command(
     name: str,
 ) -> list[str]:
     """Build a Compose command exposing isolated workspace and state volumes."""
-    environment = _agent_environment(prompt)
-    if agent == "opencode":
+    service = agent_service(agent)
+    environment = _agent_environment(prompt, agent)
+    if service == "opencode":
         environment.pop("HOME")
     return [
         "docker",
@@ -475,20 +495,29 @@ def build_agent_command(
         ],
         "-v",
         f"{workspace_volume}:{WORKSPACE}",
-        *([] if agent == "opencode" else ["-v", f"{volume}:{STATE_DIR}"]),
+        *([] if service == "opencode" else ["-v", f"{volume}:{STATE_DIR}"]),
         "--workdir",
         WORKSPACE,
-        agent,
+        service,
     ]
 
 
-def _agent_environment(prompt: str) -> dict[str, str]:
+def _agent_environment(prompt: str, agent: str | None = None) -> dict[str, str]:
     """Return the explicit environment passed to every agent Compose run."""
-    return {
+    environment = {
         "EXPERIMENT_PROMPT": prompt,
         "EXPERIMENT_WORKSPACE": WORKSPACE,
         "HOME": STATE_DIR,
     }
+    if agent in TINYCUA_VARIANTS:
+        variant = tinycua_variant(agent)
+        environment.update(
+            {
+                "EXPERIMENT_TINYCUA_NO_DIGEST": str(int(variant["no_digest"])),
+                "EXPERIMENT_TINYCUA_NO_REVIEW": str(int(variant["no_review"])),
+            }
+        )
+    return environment
 
 
 def _compose_env_file(env_file: Path) -> tuple[dict[str, str], dict[str, str]]:
@@ -532,7 +561,7 @@ def _compose_env_value(value: str, environment: dict[str, str]) -> str:
 
 
 def _agent_compose_environments(
-    env_file: Path, prompt: str
+    env_file: Path, prompt: str, agent: str | None = None
 ) -> tuple[dict[str, str], dict[str, str]]:
     """Build raw and effective environments for an agent Compose service."""
     raw_environment, environment = _compose_env_file(env_file)
@@ -547,13 +576,15 @@ def _agent_compose_environments(
             or "http://searxng:8080/search",
         }
     )
-    environment.update(_agent_environment(prompt))
+    environment.update(_agent_environment(prompt, agent))
     return raw_environment, environment
 
 
-def agent_compose_environment(env_file: Path, prompt: str) -> dict[str, str]:
+def agent_compose_environment(
+    env_file: Path, prompt: str, agent: str | None = None
+) -> dict[str, str]:
     """Build the environment visible to an agent Compose service."""
-    _, environment = _agent_compose_environments(env_file, prompt)
+    _, environment = _agent_compose_environments(env_file, prompt, agent)
     return environment
 
 
@@ -1095,6 +1126,11 @@ def write_run_metadata(
         "working_tree_dirty": bool(_git_value("status", "--porcelain")),
         "selected_fixtures": [fixture.name for fixture in fixtures],
         "selected_agents": list(agents),
+        "agent_configurations": {
+            agent: {"service": "tinycua", **tinycua_variant(agent)}
+            for agent in agents
+            if agent in TINYCUA_VARIANTS
+        },
         "fixtures": {
             fixture.name: {
                 "outcome_group": fixture.outcome_group,
@@ -1243,58 +1279,63 @@ def run_experiments(
     )
 
     failed = False
+    built_decorators: set[tuple[str, str]] = set()
     for fixture in fixtures:
         for agent in agents:
             print(f"[{fixture.name}/{agent}] starting", flush=True)
             run_root = output_root / fixture.name / agent
             submission = run_root / "workdir"
             run_root.mkdir(parents=True)
-            image = base_images[agent]
+            service = agent_service(agent)
+            image = base_images[service]
             if fixture.dockerfile.exists():
-                image = f"tinycua-template-{fixture.name}-{agent}"
-                code, _ = _run(
-                    build_decorator_command(
-                        fixture.dockerfile, base_images[agent], image
-                    ),
-                    run_root / "build.stdout.log",
-                    run_root / "build.stderr.log",
-                    timeout_seconds,
-                    configured_secrets,
-                )
-                if code:
-                    failed = True
-                    message = f"fixture image build failed exit_code={code}"
-                    print(f"[{fixture.name}/{agent}] {message}", flush=True)
-                    agent_stdout = run_root / "agent.stdout.log"
-                    agent_stderr = run_root / "agent.stderr.log"
-                    evaluator_stdout = run_root / "eval.stdout.log"
-                    evaluator_stderr = run_root / "eval.stderr.log"
-                    agent_stdout.write_text("")
-                    agent_stderr.write_text(f"Agent skipped: {message}\n")
-                    evaluator_stdout.write_text("")
-                    evaluator_stderr.write_text(f"Evaluator skipped: {message}\n")
-                    (run_root / "evaluator-result").mkdir()
-                    _, agent_environment = _agent_compose_environments(
-                        Path(".env"), fixture.prompt
+                image = f"tinycua-template-{fixture.name}-{service}"
+                decorator = (fixture.name, service)
+                if decorator not in built_decorators:
+                    code, _ = _run(
+                        build_decorator_command(
+                            fixture.dockerfile, base_images[service], image
+                        ),
+                        run_root / "build.stdout.log",
+                        run_root / "build.stderr.log",
+                        timeout_seconds,
+                        configured_secrets,
                     )
-                    timestamp = datetime.now(timezone.utc)
-                    write_result(
-                        run_root / "result.json",
-                        fixture.name,
-                        agent,
-                        state_volume_name(fixture.name, agent),
-                        timestamp,
-                        timestamp,
-                        0.0,
-                        SKIPPED_EVALUATOR_EXIT_CODE,
-                        SKIPPED_EVALUATOR_EXIT_CODE,
-                        agent_stdout,
-                        agent_stderr,
-                        agent_environment,
-                    )
-                    continue
+                    if code:
+                        failed = True
+                        message = f"fixture image build failed exit_code={code}"
+                        print(f"[{fixture.name}/{agent}] {message}", flush=True)
+                        agent_stdout = run_root / "agent.stdout.log"
+                        agent_stderr = run_root / "agent.stderr.log"
+                        evaluator_stdout = run_root / "eval.stdout.log"
+                        evaluator_stderr = run_root / "eval.stderr.log"
+                        agent_stdout.write_text("")
+                        agent_stderr.write_text(f"Agent skipped: {message}\n")
+                        evaluator_stdout.write_text("")
+                        evaluator_stderr.write_text(f"Evaluator skipped: {message}\n")
+                        (run_root / "evaluator-result").mkdir()
+                        _, agent_environment = _agent_compose_environments(
+                            Path(".env"), fixture.prompt, agent
+                        )
+                        timestamp = datetime.now(timezone.utc)
+                        write_result(
+                            run_root / "result.json",
+                            fixture.name,
+                            agent,
+                            state_volume_name(fixture.name, agent),
+                            timestamp,
+                            timestamp,
+                            0.0,
+                            SKIPPED_EVALUATOR_EXIT_CODE,
+                            SKIPPED_EVALUATOR_EXIT_CODE,
+                            agent_stdout,
+                            agent_stderr,
+                            agent_environment,
+                        )
+                        continue
+                    built_decorators.add(decorator)
             override = run_root / "compose-image.yaml"
-            _write_override(override, agent, image)
+            _write_override(override, service, image)
             record_candidate_image(
                 output_root / "run_metadata.json", fixture.name, agent, image
             )
@@ -1303,7 +1344,7 @@ def run_experiments(
             agent_stdout = run_root / "agent.stdout.log"
             agent_stderr = run_root / "agent.stderr.log"
             raw_environment, agent_environment = _agent_compose_environments(
-                Path(".env"), fixture.prompt
+                Path(".env"), fixture.prompt, agent
             )
             secret_values = _secret_values(raw_environment, agent_environment)
             started_at = datetime.now(timezone.utc)
