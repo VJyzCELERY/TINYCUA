@@ -234,6 +234,8 @@ def _build_run_agent(
     replan_threshold: int | None,
     log_path: Path | None,
     recovery_strategy: str = "standard",
+    no_digest: bool = False,
+    no_review: bool = False,
 ) -> Agent | int:
     """Build the tinycua agent. Returns the agent or 1 on error."""
     try:
@@ -245,6 +247,8 @@ def _build_run_agent(
                 artifact_dir=artifact_dir,
                 worker_effort=worker_effort,
                 disable_tool_audit=no_tool_audit,
+                digest_enabled=not no_digest,
+                review_enabled=not no_review,
                 enable_open_question_review=allow_open_question,
                 replan_threshold=replan_threshold
                 if replan_threshold is not None
@@ -379,6 +383,8 @@ def run_command(
     task_tree: bool = False,
     save_artifacts: bool = False,
     no_tool_audit: bool = False,
+    no_digest: bool = False,
+    no_review: bool = False,
     allow_open_question: bool = False,
     replan_threshold: int | None = None,
     max_context: int | None = None,
@@ -407,6 +413,8 @@ def run_command(
         task_tree: Print only the flat task tree after the run.
         save_artifacts: Write trace JSON, transcript, and logs to disk.
         no_tool_audit: Suppress per-tool-call audit JSON files.
+        no_digest: Disable Information Digester for this run.
+        no_review: Disable Result Reviewer for this run.
         allow_open_question: Allow OPEN_QUESTION reviewer decisions to bail
             to ResponseNode. Disabled by default for one-shot worker mode.
         replan_threshold: Consecutive reviewer rejections before auto-replan.
@@ -458,6 +466,8 @@ def run_command(
         replan_threshold,
         log_path,
         recovery_strategy=recovery_strategy,
+        no_digest=no_digest,
+        no_review=no_review,
     )
     if isinstance(agent, int):
         return agent
