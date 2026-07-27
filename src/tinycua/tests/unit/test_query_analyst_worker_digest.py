@@ -5,6 +5,8 @@ from unittest.mock import MagicMock
 from tinycua.loops.information_digester import TinyCUAInformationDigesterNode
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
+from tinycua.config.node_config import create_node_config
+from tinycua.config.types import LLMResult
 from tinycua.models.digested_information import DigestedInformation
 from tinycua.models.node_input import NodeInput
 from tinycua.models.session import Session
@@ -130,3 +132,26 @@ class TestQueryAnalystDigestSpawn:
             "digester",
             "worker",
         ]
+
+
+def test_query_analyst_rejects_route_without_successful_summary() -> None:
+    """Route selection alone cannot create a context-enhanced handoff."""
+    query = TinyCUAQueryAnalystNode(
+        "query_analyst", create_node_config("query_analyst")
+    )
+
+    validation = query.validate_output(
+        LLMResult(
+            tool_calls=[
+                {
+                    "function": {
+                        "name": "select_query_route",
+                        "arguments": '{"route":"worker"}',
+                    }
+                }
+            ]
+        )
+    )
+
+    assert not validation.is_valid
+    assert "summarize_query_context" in "; ".join(validation.errors)

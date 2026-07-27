@@ -23,8 +23,20 @@ def _route_tool_call(name: str, route: str) -> dict:
     }
 
 
+def _summary_tool_call() -> dict:
+    """Build the required QueryAnalyst summary tool call."""
+    return {
+        "id": "call_summary",
+        "type": "function",
+        "function": {
+            "name": "summarize_query_context",
+            "arguments": '{"context_summary":"Respond to the greeting."}',
+        },
+    }
+
+
 async def test_query_analyst_requires_route_tool_for_local_chat_completions() -> None:
-    """Local Chat Completions models get string required route choice."""
+    """QueryAnalyst keeps both mandatory commit tools available to local models."""
     model = LanguageModel(
         provider="openai-chat-completions",
         model_name="local-model",
@@ -42,7 +54,10 @@ async def test_query_analyst_requires_route_tool_for_local_chat_completions() ->
         if any(tool.name == forced_name for tool in tools):
             return {
                 "content": "",
-                "tool_calls": [_route_tool_call(forced_name, "passthrough")],
+                "tool_calls": [
+                    _summary_tool_call(),
+                    _route_tool_call(forced_name, "passthrough"),
+                ],
             }
         return {"content": "final answer", "tool_calls": []}
 
@@ -50,8 +65,10 @@ async def test_query_analyst_requires_route_tool_for_local_chat_completions() ->
 
     await agent.run("Hello there.")
 
-    assert captured_tool_choices[0] == "required"
-    assert captured_tool_names[0] == ["select_query_route"]
+    assert captured_tool_choices[0] is None
+    assert {"summarize_query_context", "select_query_route"}.issubset(
+        captured_tool_names[0]
+    )
     assert agent.config.llm_model.tool_choice is None
 
 
@@ -322,12 +339,12 @@ async def test_route_tool_failure_retries_then_fails_closed() -> None:
     assert result.content == "passthrough"
     assert len(captured_messages) == 3
     # FR-004: retry is a [System: ...] directive naming the required tool.
-    assert "Call select_query_route" in "\n".join(
+    assert "Call summarize_query_context" in "\n".join(
         message.get("content", "") for message in captured_messages[-1]
     )
     retry_counts = [
         sum(
-            "Call select_query_route" in str(message.get("content", ""))
+            "Call summarize_query_context" in str(message.get("content", ""))
             for message in call_messages
         )
         for call_messages in captured_messages

@@ -9,10 +9,6 @@ from tinycua.loops.node import NodeExecutionError
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.session import Session
 
-ROUTE_PASSTHROUGH = (
-    '{"tool_calls":[{"name":"select_query_route","arguments":{"route":"passthrough"}}]}'
-)
-
 
 class TestCreateTinyCUAAgent:
     """Tests for the create_tinycua_agent factory function."""
@@ -67,8 +63,21 @@ class TestAgentRun:
         agent._call_llm = AsyncMock(
             side_effect=[
                 {
-                    "content": ROUTE_PASSTHROUGH,
-                    "tool_calls": [],
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": "summarize_query_context",
+                                "arguments": '{"context_summary":"Respond to the greeting."}',
+                            }
+                        },
+                        {
+                            "function": {
+                                "name": "select_query_route",
+                                "arguments": '{"route":"passthrough"}',
+                            }
+                        },
+                    ],
                 },
                 {
                     "content": "Hello",
@@ -99,6 +108,14 @@ class TestAgentRun:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
+                yield {
+                    "type": "response.tool_call",
+                    "id": "call_summary",
+                    "function": {
+                        "name": "summarize_query_context",
+                        "arguments": '{"context_summary":"Respond to the greeting."}',
+                    },
+                }
                 yield {
                     "type": "response.tool_call",
                     "id": "call_route",
@@ -141,7 +158,23 @@ class TestAgentRun:
         agent = create_tinycua_agent()
         agent._call_llm = AsyncMock(
             side_effect=[
-                {"content": ROUTE_PASSTHROUGH, "tool_calls": []},
+                {
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": "summarize_query_context",
+                                "arguments": '{"context_summary":"Respond to the greeting."}',
+                            }
+                        },
+                        {
+                            "function": {
+                                "name": "select_query_route",
+                                "arguments": '{"route":"passthrough"}',
+                            }
+                        },
+                    ],
+                },
                 {
                     "content": "Hello",
                     "tool_calls": None,
@@ -189,7 +222,23 @@ class TestAgentRun:
         agent.loop.queue_factory = patched_factory
         agent._call_llm = AsyncMock(
             side_effect=[
-                {"content": ROUTE_PASSTHROUGH, "tool_calls": []},
+                {
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": "summarize_query_context",
+                                "arguments": '{"context_summary":"Respond to the greeting."}',
+                            }
+                        },
+                        {
+                            "function": {
+                                "name": "select_query_route",
+                                "arguments": '{"route":"passthrough"}',
+                            }
+                        },
+                    ],
+                },
                 *[
                     {
                         "content": "",
@@ -244,6 +293,14 @@ class TestAgentRun:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
+                yield {
+                    "type": "response.tool_call",
+                    "id": "call_summary",
+                    "function": {
+                        "name": "summarize_query_context",
+                        "arguments": '{"context_summary":"Respond to the greeting."}',
+                    },
+                }
                 yield {
                     "type": "response.tool_call",
                     "id": "call_route",

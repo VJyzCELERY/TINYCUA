@@ -97,10 +97,16 @@ class AppCreationScript:
                 "tool_calls": [
                     {
                         "function": {
+                            "name": "summarize_query_context",
+                            "arguments": '{"context_summary":"Handle the current request."}',
+                        }
+                    },
+                    {
+                        "function": {
                             "name": "select_query_route",
                             "arguments": '{"route":"worker"}',
                         }
-                    }
+                    },
                 ],
             }
         if "select_worker_route" in tool_names:
@@ -112,7 +118,7 @@ class AppCreationScript:
                             "name": "select_worker_route",
                             "arguments": '{"route":"task_creation"}',
                         }
-                    }
+                    },
                 ],
             }
         if (
@@ -132,10 +138,16 @@ class AppCreationScript:
                 "tool_calls": [
                     {
                         "function": {
+                            "name": "summarize_query_context",
+                            "arguments": '{"context_summary":"Handle the current request."}',
+                        }
+                    },
+                    {
+                        "function": {
                             "name": "task_init",
                             "arguments": '{"title":"Create a tiny Python app"}',
                         }
-                    }
+                    },
                 ],
             }
         if "task_decompose" in tool_names:
@@ -161,7 +173,7 @@ class AppCreationScript:
                                 + '","subtasks":["Write app.py","Run app verification"]}'
                             ),
                         }
-                    }
+                    },
                 ],
             }
         if "task_assessment_decision" in tool_names:
@@ -182,7 +194,7 @@ class AppCreationScript:
                                 '"rationale":"The roadmap is executable."}'
                             ),
                         }
-                    }
+                    },
                 ],
             }
         if "task_review_decision" in tool_names:
@@ -234,7 +246,7 @@ class AppCreationScript:
                                 + '","assessment":"ready for execution"}'
                             ),
                         }
-                    }
+                    },
                 ],
             }
         if {"write_file", "run_shell"} <= tool_names:
@@ -306,10 +318,22 @@ class PlannerOnlyScript:
                 "tool_calls": [
                     {
                         "function": {
+                            "name": "summarize_query_context",
+                            "arguments": '{"context_summary":"Handle the current request."}',
+                        }
+                    },
+                    {
+                        "function": {
+                            "name": "summarize_query_context",
+                            "arguments": '{"context_summary":"Handle the current request."}',
+                        }
+                    },
+                    {
+                        "function": {
                             "name": "select_query_route",
                             "arguments": '{"route":"worker"}',
                         }
-                    }
+                    },
                 ],
             }
         if "select_worker_route" in tool_names:
@@ -321,7 +345,7 @@ class PlannerOnlyScript:
                             "name": "select_worker_route",
                             "arguments": '{"route":"task_creation"}',
                         }
-                    }
+                    },
                 ],
             }
         if (
@@ -343,10 +367,16 @@ class PromptEchoScript:
                 "tool_calls": [
                     {
                         "function": {
+                            "name": "summarize_query_context",
+                            "arguments": '{"context_summary":"Handle the current request."}',
+                        }
+                    },
+                    {
+                        "function": {
                             "name": "select_query_route",
                             "arguments": '{"route":"worker"}',
                         }
-                    }
+                    },
                 ],
             }
         if "select_worker_route" in tool_names:

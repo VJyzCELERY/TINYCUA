@@ -402,7 +402,7 @@ async def test_task_executor_validates_tool_owned_result_update(tmp_path: Path) 
                             "name": "write_file",
                             "arguments": '{"path":"app.py","content":"print(\\"ok\\")"}',
                         },
-                    }
+                    },
                 ],
             }
         if len(captured_tool_choices) == 2:
@@ -418,7 +418,7 @@ async def test_task_executor_validates_tool_owned_result_update(tmp_path: Path) 
                             "name": "task_result_update",
                             "arguments": '{"content":"Created app.py","success":true}',
                         },
-                    }
+                    },
                 ],
             }
         return {"content": "", "tool_calls": []}
@@ -712,10 +712,17 @@ async def test_reusing_session_preserves_in_memory_context(tmp_path: Path) -> No
                     {
                         "type": "function",
                         "function": {
+                            "name": "summarize_query_context",
+                            "arguments": '{"context_summary":"Continue the session."}',
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
                             "name": "select_query_route",
                             "arguments": '{"route":"passthrough"}',
                         },
-                    }
+                    },
                 ],
             }
         return {"content": "remembered", "tool_calls": []}

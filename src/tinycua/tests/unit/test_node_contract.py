@@ -147,7 +147,9 @@ class TestNodeContract:
 
     def test_query_analyst_contract(self):
         contract = get_node_contract("query_analyst")
-        assert contract.required_tools == frozenset({"select_query_route"})
+        assert contract.required_tools == frozenset(
+            {"summarize_query_context", "select_query_route"}
+        )
         assert contract.requires_terminate is False
         assert contract.structured_output_schema is None
 
