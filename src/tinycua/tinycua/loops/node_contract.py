@@ -323,11 +323,12 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
     ),
     "query_analyst": NodeContract(
         node_id="query_analyst",
-        required_tools=frozenset({"select_query_route"}),
+        required_tools=frozenset({"summarize_query_context", "select_query_route"}),
         goal="Classify the user request and route it to the correct handler.",
         role_boundary="Only classify and route the request. Do not plan tasks, execute work, or write deliverables.",
-        success_criteria="select_query_route called with exactly one route (worker, uncertain, passthrough).",
+        success_criteria="summarize_query_context and exactly one select_query_route call succeed.",
         tool_rationale={
+            "summarize_query_context": "Commits the preliminary summary used to build the downstream request handoff.",
             "select_query_route": "Expresses the routing decision. Text-only answers are not actionable — the runtime reads the function call.",
         },
     ),

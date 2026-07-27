@@ -1252,6 +1252,12 @@ async def test_stream_retry_prompt_replaces_prior_retry_prompt() -> None:
         if len(captured_messages) > 3:
             yield {
                 "type": "tool_call.ready",
+                "id": "call_summary",
+                "name": "summarize_query_context",
+                "arguments": '{"context_summary":"Pass the request through."}',
+            }
+            yield {
+                "type": "tool_call.ready",
                 "id": "call_route",
                 "name": "select_query_route",
                 "arguments": '{"route":"passthrough","reason":"test"}',
@@ -1260,8 +1266,9 @@ async def test_stream_retry_prompt_replaces_prior_retry_prompt() -> None:
 
     agent._call_llm = mock_stream
 
-    # Provide a mock select_query_route tool that returns success.
+    # Provide routing tools used by the QueryAnalyst retry path.
     from tinycua.config.types import Tool as SimpleTool
+    from tinycua.tools.query_context_summary import QueryContextSummaryTool
 
     route_tool = SimpleTool(name="select_query_route")
     route_tool.__call__ = lambda **kw: {"success": True, "route": "passthrough"}  # type: ignore[method-assign]
@@ -1269,7 +1276,7 @@ async def test_stream_retry_prompt_replaces_prior_retry_prompt() -> None:
     async for _event in loop._stream_node_events(
         query,
         agent,
-        [route_tool],
+        [QueryContextSummaryTool(), route_tool],
         None,
         loop.queue.input_for_current(),
     ):
@@ -1277,7 +1284,7 @@ async def test_stream_retry_prompt_replaces_prior_retry_prompt() -> None:
 
     retry_counts = [
         sum(
-            "Call select_query_route" in str(message.get("content", ""))
+            "Call summarize_query_context" in str(message.get("content", ""))
             for message in call_messages
         )
         for call_messages in captured_messages
