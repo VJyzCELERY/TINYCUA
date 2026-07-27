@@ -260,6 +260,9 @@ class OrchestrationMixin:
 
         on_complete_response = self._build_on_complete_response(node, llm_result)
         node.on_complete(self.queue, on_complete_response)
+        # Some routing nodes create structured audit entries in on_complete.
+        # Publish again so those entries reach root retrieval context too.
+        self._publish_structured_outputs_to_root(node)
 
         trace_entry = self._trace_entry(
             node,
@@ -546,6 +549,7 @@ class OrchestrationMixin:
         self._apply_task_lifecycle_marker(node, combined)
         on_complete_response = self._build_on_complete_response(node, llm_result)
         node.on_complete(self.queue, on_complete_response)
+        self._publish_structured_outputs_to_root(node)
 
         trace_entry = self._trace_entry(
             node,
@@ -1330,6 +1334,7 @@ class OrchestrationMixin:
         self._apply_task_lifecycle_marker(node, recovery_content)
         on_complete_response = self._build_on_complete_response(node, recovered_result)
         node.on_complete(self.queue, on_complete_response)
+        self._publish_structured_outputs_to_root(node)
         async for event in self._stream_node_completed(
             node,
             recovery_content,

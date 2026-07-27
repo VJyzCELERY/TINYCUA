@@ -6,6 +6,7 @@ from tinycua.config.node_config import create_node_config
 from tinycua.config.types import LLMResult
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.loops.worker import TinyCUAWorkerNode
+from tinycua.models.task import TaskStatus
 
 
 def _worker_route_enum(loop: TinyCUALoop, worker: TinyCUAWorkerNode) -> list[str]:
@@ -65,3 +66,13 @@ def test_worker_rejects_impossible_initial_route_tool_call() -> None:
 
     assert not validation.is_valid
     assert "task_creation" in "; ".join(validation.errors)
+
+
+def test_worker_with_terminal_root_offers_only_recreation_or_passthrough() -> None:
+    """Finished work cannot be executed or reanalyzed as if it were active."""
+    loop = TinyCUALoop()
+    root = loop.root_session.task_store.create_task("Finished task")
+    root.status = TaskStatus.COMPLETED
+    worker = TinyCUAWorkerNode("worker", create_node_config("worker"))
+
+    assert _worker_route_enum(loop, worker) == ["task_recreation", "passthrough"]

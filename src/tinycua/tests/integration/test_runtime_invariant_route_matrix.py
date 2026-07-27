@@ -25,6 +25,8 @@ import pytest
 from tinycua.config.session_config import SessionConfig
 from tinycua.factory import create_tinycua_agent
 from tinycua.loops.node import NodeExecutionError
+from tinycua.models.session_context_entry import entry_content
+from tinycua.models.task import TaskStatus
 
 
 class _RouteMatrixScript:
@@ -42,10 +44,12 @@ class _RouteMatrixScript:
         self,
         *,
         route: str = "passthrough",
+        worker_route: str = "task_creation",
         bad_once_nodes: frozenset[str] = frozenset(),
         force_route: str | None = None,
     ) -> None:
         self.route = route
+        self.worker_route = worker_route
         self.bad_once_nodes = set(bad_once_nodes)
         self.force_route = force_route
         self.calls_by_node: dict[str, int] = {}
@@ -173,7 +177,7 @@ class _RouteMatrixScript:
                     {
                         "function": {
                             "name": "select_worker_route",
-                            "arguments": '{"route":"task_creation"}',
+                            "arguments": f'{{"route":"{self.worker_route}"}}',
                         }
                     }
                 ],
@@ -428,6 +432,28 @@ async def test_worker_route_reaches_executor_then_reviewer_before_response(
         f"executor must precede reviewer: {node_ids}"
     )
     assert node_ids[-1] == "response"
+
+
+@pytest.mark.asyncio
+async def test_mock_llm_recreation_archives_terminal_tree_and_creates_a_new_root(
+    tmp_path: Path,
+) -> None:
+    """A terminal tree is archived, then a mock-driven route builds a fresh one."""
+    agent, _ = _make_agent(tmp_path, route="worker", worker_route="task_recreation")
+    old_root = agent.loop.root_session.task_store.create_task("Completed old root")
+    old_root.status = TaskStatus.COMPLETED
+
+    await agent.run("Start a different objective")
+
+    store = agent.loop.root_session.task_store
+    assert store.root_task_id != old_root.task_id
+    assert any(
+        isinstance(entry_content(entry), dict)
+        and entry_content(entry).get("archive_type") == "task_tree"
+        and entry_content(entry)["task_tree"]["root_task_id"] == old_root.task_id
+        for entry in agent.loop.root_session.session_context
+    )
+    assert "task_create" in _trace_node_ids(agent)
 
 
 @pytest.mark.asyncio

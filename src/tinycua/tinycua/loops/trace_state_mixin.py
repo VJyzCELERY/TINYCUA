@@ -479,7 +479,7 @@ class TraceStateMixin:
             hook(llm_result, node_input)
 
     def _publish_structured_outputs_to_root(self, node: Node) -> None:
-        """Expose structured loop outputs on root session for observability."""
+        """Expose retrievable structured loop outputs on the root session."""
         from tinycua.models.digested_information import DigestedInformation
 
         if node.session is None:
@@ -487,7 +487,14 @@ class TraceStateMixin:
         for entry in node.session.session_context:
             if entry.segment != "output" or entry.source_node_id != node.node_id:
                 continue
-            if not isinstance(entry.content, DigestedInformation):
+            is_task_tree_archive = (
+                isinstance(entry.content, dict)
+                and entry.content.get("archive_type") == "task_tree"
+            )
+            if (
+                not isinstance(entry.content, DigestedInformation)
+                and not is_task_tree_archive
+            ):
                 continue
             if any(
                 existing.record_id == entry.record_id
