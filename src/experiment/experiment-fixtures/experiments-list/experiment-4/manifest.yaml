@@ -2,9 +2,10 @@ prompt: |
   Can you make me an app like Notion using python for the backend, intuitive webui
   for the frontend and SQLite for the primary storage / database.
 
-  I need you to implement the app in the supplied workdir. For the exact API,
-  storage, and acceptance criteria, read `TASK.md` in your workdir.
+  I need you to implement the app in the supplied workdir. For the functional
+  requirements and acceptance criteria, read `TASK.md` in your workdir.
 outcome_group: coding
+entrypoint_manages_dependencies: true
 eval_image: tinycua-template-browser-evaluator
 eval_dockerfile: eval/Dockerfile
 eval_command: ["sh", "/eval/run.sh", "/submission"]

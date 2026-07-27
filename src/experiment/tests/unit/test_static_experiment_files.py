@@ -198,42 +198,32 @@ def test_study_guide_fixture_prioritizes_content_over_fixed_outline() -> None:
     assert '"rouge_l_f1":' in evaluator
 
 
-def test_web_app_fixture_scores_maintainability_bonuses() -> None:
-    """The web-app evaluator rewards structure, docs, and verified tests."""
+def test_web_app_fixture_uses_a_free_form_start_contract() -> None:
+    """The web-app fixture scores behavior without prescribing implementation."""
     fixture = ROOT / "experiment-fixtures" / "experiments-list" / "experiment-4"
     evaluator = (fixture / "eval" / "check.py").read_text()
     task = (fixture / "workdir" / "TASK.md").read_text().lower()
-    run_script = (fixture / "workdir" / "run.sh").read_text()
+    manifest = (fixture / "manifest.yaml").read_text()
     normalized_task = " ".join(task.split())
-    critical = evaluator.split("CRITICAL_CATEGORIES = (", 1)[1].split(")", 1)[0]
 
-    for category in (
-        "modular_structure",
-        "project_documentation",
-        "tests_pass",
-        "integration_tests",
-        "coverage_80",
-    ):
-        assert f'"{category}"' in evaluator
-    assert '"modular_structure"' not in critical
+    assert "entrypoint_manages_dependencies: true" in manifest
+    assert not (fixture / "workdir" / "run.sh").exists()
+    assert not (fixture / "workdir" / "pyproject.toml").exists()
+    assert "start.sh" in normalized_task
+    assert "foreground" in normalized_task
+    assert "create, edit, and delete" in normalized_task
+    assert "restart" in normalized_task
     assert "app.py" not in normalized_task
-    assert "only prescribed application entrypoint" in normalized_task
-    assert "black-box behavior" in normalized_task
-    assert "app.py" not in run_script
-    assert 'workspace / "app.py"' not in evaluator
-    for requirement in ("`get /health`", "`post /blocks`", "`get /blocks`", "`get /`"):
-        assert requirement in normalized_task
-    for selector in ("#block-text", "#add-block", "#blocks"):
-        assert selector in normalized_task
-    assert "local module" not in normalized_task
-    assert "root readme" not in normalized_task
-    assert "pass_threshold = 15" in evaluator.lower()
-    assert 'workspace / "docs"' in evaluator
-    assert "automated test" not in normalized_task
-    assert "80%" not in task
-    assert "pytest" not in task
-    assert "coverage" not in task
-    assert "docs/" not in task
+    assert "`/health`" not in task
+    assert "`/blocks`" not in task
+    assert "#block-text" not in task
+    assert "#add-block" not in task
+    assert "start.sh" in evaluator
+    assert "os.killpg(server.process.pid" in evaluator
+    assert '"/blocks"' not in evaluator
+    assert '"/health"' not in evaluator
+    assert "ruff" not in evaluator
+    assert "coverage" not in evaluator
 
 
 def test_all_fixtures_share_ignored_agent_scripts() -> None:
@@ -255,10 +245,8 @@ def test_all_fixtures_share_ignored_agent_scripts() -> None:
     assert b"curl" in scripts[0]
     assert b"jq" in scripts[0]
     evaluator = (fixtures / "experiment-4" / "eval" / "check.py").read_text()
-    assert 'ignore=shutil.ignore_patterns(".agent_scripts", ".venv")' in evaluator
-    assert 'VIRTUAL_ENV = ".venv"' in evaluator
-    assert evaluator.count("VIRTUAL_ENV") >= 5
-    assert "bufsize=0" in evaluator
+    assert '".agent_scripts"' in evaluator
+    assert '".venv"' in evaluator
 
 
 def test_helper_scripts_wrap_setup_and_runner() -> None:

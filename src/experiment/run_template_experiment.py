@@ -69,6 +69,7 @@ class Fixture:
     submission_dockerfile: Path | None = None
     outcome_group: str = "coding"
     evaluator_dockerfile: Path | None = None
+    entrypoint_manages_dependencies: bool = False
 
 
 @dataclass(frozen=True)
@@ -304,6 +305,17 @@ def _submission_dockerfile(data: dict[object, object], fixture: str) -> Path | N
     return _submission_path(data[field], field, fixture) if field in data else None
 
 
+def _entrypoint_manages_dependencies(
+    data: dict[object, object], fixture: str
+) -> bool:
+    """Return whether a free-form submission owns its dependency setup."""
+    field = "entrypoint_manages_dependencies"
+    value = data.get(field, False)
+    if not isinstance(value, bool):
+        raise ValueError(f"fixture {fixture} {field} must be a boolean")
+    return value
+
+
 def _validated_dockerfile(path: Path, description: str) -> None:
     """Require a decorator Dockerfile with the shared base-image contract."""
     if not path.is_file():
@@ -344,6 +356,7 @@ def _load_fixture(root: Path, name: str) -> Fixture:
         raise ValueError(f"fixture {name} eval_command must be a non-empty string list")
     submission_dependency_files = _declared_submission_dependency_files(data, name)
     submission_dockerfile = _submission_dockerfile(data, name)
+    entrypoint_manages_dependencies = _entrypoint_manages_dependencies(data, name)
     outcome_group = data.get("outcome_group", "coding")
     if outcome_group not in {"coding", "research", "conversation"}:
         raise ValueError(
@@ -371,6 +384,7 @@ def _load_fixture(root: Path, name: str) -> Fixture:
         submission_dockerfile,
         outcome_group,
         evaluator_dockerfile,
+        entrypoint_manages_dependencies,
     )
 
 
@@ -552,6 +566,7 @@ def build_evaluator_command(
     submission_dependency_files: tuple[Path, ...] = (),
     agent_stdout: Path | None = None,
     result_directory: Path | None = None,
+    install_submission_dependencies: bool = True,
 ) -> list[str]:
     """Build the separate read-only evaluator container command."""
     command = [
@@ -572,10 +587,14 @@ def build_evaluator_command(
             ["-v", f"{agent_stdout.resolve()}:/agent-output/agent.stdout.log:ro"]
         )
     command.append(image)
-    submission_manifests = tuple(
-        manifest
-        for manifest in (Path("requirements.txt"), *submission_dependency_files)
-        if manifest.name == "requirements.txt"
+    submission_manifests = (
+        tuple(
+            manifest
+            for manifest in (Path("requirements.txt"), *submission_dependency_files)
+            if manifest.name == "requirements.txt"
+        )
+        if install_submission_dependencies
+        else ()
     )
     manifests = (
         *(submission / manifest for manifest in submission_manifests),
@@ -1350,8 +1369,12 @@ def run_experiments(
                 evaluator_stderr.write_text(f"Evaluator skipped: {cleanup_error}\n")
             else:
                 try:
-                    dependency_files = _existing_submission_dependency_files(
-                        submission, fixture.submission_dependency_files
+                    dependency_files = (
+                        ()
+                        if fixture.entrypoint_manages_dependencies
+                        else _existing_submission_dependency_files(
+                            submission, fixture.submission_dependency_files
+                        )
                     )
                 except ValueError as error:
                     evaluator_code = SKIPPED_EVALUATOR_EXIT_CODE
@@ -1386,6 +1409,7 @@ def run_experiments(
                                     dependency_files,
                                     agent_stdout,
                                     evaluator_result,
+                                    not fixture.entrypoint_manages_dependencies,
                                 ),
                                 evaluator_stdout,
                                 evaluator_stderr,
@@ -1404,6 +1428,7 @@ def run_experiments(
                                 dependency_files,
                                 agent_stdout,
                                 evaluator_result,
+                                not fixture.entrypoint_manages_dependencies,
                             ),
                             evaluator_stdout,
                             evaluator_stderr,
