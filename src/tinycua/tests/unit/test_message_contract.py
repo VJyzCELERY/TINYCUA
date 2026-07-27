@@ -193,12 +193,26 @@ def test_query_analyst_worker_route_handoff_is_assistant_context() -> None:
     queue = NodeQueue(items=[query, response])
     query._queue = queue
 
+    summary_result = LLMResult(
+        content="",
+        metadata={
+            "tool_results": [
+                {
+                    "name": "summarize_query_context",
+                    "output": {
+                        "success": True,
+                        "context_summary": "Continue the existing note-app work.",
+                    },
+                }
+            ]
+        },
+    )
     query.on_complete(
         queue,
         DecisionResult(
             route_label="worker",
-            analysis_response=LLMResult(content="worker"),
-            classification_response=LLMResult(content="worker"),
+            analysis_response=summary_result,
+            classification_response=summary_result,
         ),
     )
 
@@ -209,7 +223,66 @@ def test_query_analyst_worker_route_handoff_is_assistant_context() -> None:
     assert node_input.metadata["original_query"] == "Build a local note app."
     assert node_input.messages
     assert {message["role"] for message in node_input.messages} == {"assistant"}
-    assert "Context Enhanced Query" in node_input.messages[0]["content"]
+    assert node_input.messages[0]["content"] == (
+        "Context:\nContinue the existing note-app work.\n\n"
+        "User Request:\nBuild a local note app."
+    )
+
+
+def test_query_analyst_prompt_includes_root_session_context() -> None:
+    """QA receives root context before committing its preliminary summary."""
+    loop = TinyCUALoop()
+    loop.root_session.input_context = [{"role": "user", "content": "Continue it."}]
+    loop.root_session.session_context.append(
+        SessionContextEntry(segment="output", content="Earlier migration decision.")
+    )
+    query = TinyCUAQueryAnalystNode(
+        node_id="query_analyst", config=create_node_config("query_analyst")
+    )
+    loop.queue = NodeQueue(items=[query])
+
+    messages, _tools = loop._prepare_node(query, [], None)
+
+    assert any(
+        message["content"] == "Earlier migration decision." for message in messages
+    )
+    assert any(message["content"] == "Continue it." for message in messages)
+
+
+def test_query_analyst_passthrough_forwards_the_committed_ceq() -> None:
+    """Routing changes the CEQ recipient, not its summary or user-request data."""
+    query = TinyCUAQueryAnalystNode(
+        node_id="query_analyst", config=create_node_config("query_analyst")
+    )
+    query.session = Session(input_context=[{"role": "user", "content": "Hello."}])
+    response = ResponseNode(config=create_node_config("response"))
+    queue = NodeQueue(items=[query, response])
+    summary_result = LLMResult(
+        metadata={
+            "tool_results": [
+                {
+                    "name": "summarize_query_context",
+                    "output": {"success": True, "context_summary": "Greet the user."},
+                }
+            ]
+        }
+    )
+
+    query.on_complete(
+        queue,
+        DecisionResult(
+            route_label="passthrough",
+            analysis_response=summary_result,
+            classification_response=summary_result,
+        ),
+    )
+
+    handoff = queue._inputs[response.node_id]  # noqa: SLF001 - queue contract.
+    assert (
+        handoff.messages[0]["content"]
+        == "Context:\nGreet the user.\n\nUser Request:\nHello."
+    )
+    assert handoff.metadata["original_query"] == "Hello."
 
 
 def test_forwarded_output_is_not_duplicated_in_next_node_prompt() -> None:

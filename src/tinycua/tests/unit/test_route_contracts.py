@@ -39,7 +39,13 @@ async def test_query_route_accepts_strict_structured_tool_protocol() -> None:
     async def structured_route_response(messages, tools, stream=False):  # noqa: ANN001, ARG001
         if any(tool.name == "select_query_route" for tool in tools):
             return {
-                "content": '{"tool_calls":[{"name":"select_query_route","arguments":{"route":"passthrough"}}]}',
+                "content": (
+                    '{"tool_calls":['
+                    '{"name":"summarize_query_context",'
+                    '"arguments":{"context_summary":"Respond to the greeting."}},'
+                    '{"name":"select_query_route",'
+                    '"arguments":{"route":"passthrough"}}]}'
+                ),
                 "tool_calls": [],
             }
         return {"content": "Hello.", "tool_calls": []}

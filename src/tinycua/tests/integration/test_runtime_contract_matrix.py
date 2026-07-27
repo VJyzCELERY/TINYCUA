@@ -129,10 +129,16 @@ class RuntimeContractScript:
                 "tool_calls": [
                     {
                         "function": {
+                            "name": "summarize_query_context",
+                            "arguments": '{"context_summary":"Handle the current request."}',
+                        }
+                    },
+                    {
+                        "function": {
                             "name": "select_query_route",
                             "arguments": '{"route":"worker"}',
                         }
-                    }
+                    },
                 ],
             }
         if node == "worker":
