@@ -58,8 +58,7 @@ class ValidationRetryMixin:
             handoff = self._current_analyzer_handoff(node)
             if handoff is not None and handoff.payload.get("decision") == "analyze":
                 selected = set(handoff.payload.get("selected_task_ids", []))
-                resolved = set(handoff.payload.get("_resolved_task_ids", []))
-                return bool(selected) and selected.issubset(resolved)
+                return bool(selected) and not self._unresolved_analyzer_target_ids(node)
         return True
 
     def _current_analyzer_handoff(self, node: Node) -> NodeHandoff | None:
@@ -68,6 +67,23 @@ class ValidationRetryMixin:
             return None
         node_input = self.queue.input_for_current()
         return node_input if isinstance(node_input, NodeHandoff) else None
+
+    def _unresolved_analyzer_target_ids(self, node: Node) -> set[str]:
+        """Return assessor-selected targets not yet resolved by this analyzer."""
+        handoff = self._current_analyzer_handoff(node)
+        if handoff is None or handoff.payload.get("decision") != "analyze":
+            return set()
+        selected = set(handoff.payload.get("selected_task_ids", []))
+        resolved = set(handoff.payload.get("_resolved_task_ids", []))
+        return selected - resolved
+
+    def _should_stop_commit_batch(self, node: Node | None) -> bool:
+        """Stop commits unless an analyzer still has selected targets to resolve."""
+        return (
+            node is None
+            or node.node_id != "task_analyzer"
+            or not self._unresolved_analyzer_target_ids(node)
+        )
 
     def _task_is_in_subtree(self, task_id: str, target_id: str) -> bool:
         """Return whether a retained task belongs to a selected local subtree."""
@@ -467,6 +483,7 @@ class ValidationRetryMixin:
         for extra_validation in (
             self._validate_task_executor_action(node, llm_result),
             self._validate_tool_owned_task_state(node, llm_result),
+            self._validate_task_analyzer_resolutions(node),
             self._validate_result_reviewer_failed_approval(node, llm_result),
             self._validate_result_reviewer_result_exists(node, llm_result),
             self._validate_result_reviewer_inspects_after_decision(node, llm_result),
@@ -492,6 +509,23 @@ class ValidationRetryMixin:
                 except ValueError as exc:
                     validation.is_valid = False
                     validation.errors.append(str(exc))
+        return validation
+
+    def _validate_task_analyzer_resolutions(self, node: Node) -> ValidationResult:
+        """Require every assessor-selected task to have a planning resolution."""
+        validation = ValidationResult(is_valid=True, errors=[])
+        if node.node_id != "task_analyzer":
+            return validation
+        handoff = self._current_analyzer_handoff(node)
+        if handoff is None or handoff.payload.get("decision") != "analyze":
+            return validation
+        missing = sorted(self._unresolved_analyzer_target_ids(node))
+        if missing:
+            validation.is_valid = False
+            validation.errors.append(
+                "TaskAnalyzer must resolve every assessor-selected task before "
+                f"completion; unresolved task IDs: {missing}."
+            )
         return validation
 
     def _validate_decision_route_tool(

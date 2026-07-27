@@ -259,15 +259,13 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
         requires_terminate=True,
         early_stop_tool=None,
         goal=(
-            "Produce or refine an actionable roadmap: split materially distinct "
-            "concerns when each gives narrower context and independent evidence, even "
-            "if sharing a file or deliverable; keep tightly coupled work and never "
-            "split lifecycle-only phases."
+            "Produce or refine a roadmap of coherent, actionable, and verifiable "
+            "outcomes with sufficient context and specific observable evidence."
         ),
         role_boundary="Plan task structure only. Do not execute requested work or prescribe unsupported implementation details.",
-        success_criteria="One appropriate structural decision succeeds and leaves the roadmap actionable, coherent, and nonredundant.",
+        success_criteria="Every selected planning target is resolved and the roadmap is coherent, actionable, verifiable, and nonredundant.",
         tool_rationale={
-            "task_decompose": "Creates distinct child outcomes when the active task cannot be executed and verified coherently as one unit.",
+            "task_decompose": "Creates coherent, actionable, and verifiable child outcomes with specific observable evidence.",
             "task_update": "Confirms the existing roadmap is sufficient. Use when no useful decomposition remains.",
             "task_create": "Adds a missing child or sibling without recreating completed roadmap history.",
             "task_shrink": "Cancels, supersedes, deletes, or merges invalid local work safely.",
@@ -279,10 +277,8 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
         requires_terminate=True,
         early_stop_tool="task_assessment_decision",
         goal=(
-            "Review roadmap quality: split materially distinct concerns when each "
-            "gives narrower context and independent evidence, even if sharing a file "
-            "or deliverable; keep tightly coupled work and never split lifecycle-only "
-            "phases."
+            "Review whether every roadmap task is coherent, actionable, and verifiable "
+            "from specific observable evidence."
         ),
         role_boundary="Planning judgment only; never execute work or impose unsupported implementation choices.",
         success_criteria="task_assessment_decision called with ready or task-bound blocking findings on unfinished tasks.",

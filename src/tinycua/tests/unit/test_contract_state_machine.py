@@ -186,7 +186,7 @@ class TestGoalInjectionInSystemMessage:
         assert "## Alternative Commit Tools" in content
         assert "choose one" in content.lower()
         assert "task_decompose" in content
-        assert "Creates distinct child outcomes" in content
+        assert "Creates coherent, actionable, and verifiable child outcomes" in content
 
 
 class TestProgressBlockInContinuation:
@@ -268,7 +268,7 @@ class TestRecoveryMessagesAreGoalOriented:
         # The last message is the directive — should contain the goal.
         directive = messages[-1].get("content", "")
         assert "## Node Goal" in directive
-        assert "Produce or refine an actionable roadmap" in directive
+        assert "coherent, actionable, and verifiable outcomes" in directive
 
     def test_recovery_message_contains_why_missing(self):
         loop = TinyCUALoop()
@@ -303,7 +303,9 @@ class TestRecoveryMessagesAreGoalOriented:
         )
         directive = messages[-1].get("content", "")
         assert "## Why task_decompose Is Required" in directive
-        assert "Creates distinct child outcomes" in directive
+        assert (
+            "Creates coherent, actionable, and verifiable child outcomes" in directive
+        )
 
 
 class TestContractGoalFields:
@@ -311,8 +313,8 @@ class TestContractGoalFields:
 
     def test_analyzer_contract_has_goal(self):
         contract = get_node_contract("task_analyzer")
-        assert "actionable roadmap" in contract.goal
-        assert "appropriate structural decision" in contract.success_criteria
+        assert "coherent, actionable, and verifiable outcomes" in contract.goal
+        assert "Every selected planning target is resolved" in contract.success_criteria
         assert "task_decompose" in contract.tool_rationale
         assert len(contract.tool_rationale["task_decompose"]) > 10
 

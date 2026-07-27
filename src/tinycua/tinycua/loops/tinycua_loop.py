@@ -796,7 +796,7 @@ class TinyCUALoop(
             if artifact_path:
                 tool_result["artifact_path"] = artifact_path
             record(tool_result)
-            if name in commit_tools:
+            if name in commit_tools and self._should_stop_commit_batch(node):
                 break
         return results
 
