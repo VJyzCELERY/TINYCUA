@@ -9,6 +9,7 @@ from tinycua.loops.node import DecisionResult
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.loops.response_node import ResponseNode
+from tinycua.loops.task_nodes import TinyCUATaskExecutorNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.loops.worker import TinyCUAWorkerNode
 from tinycua.loops.worker_runtime import WorkerRuntimeController
@@ -199,6 +200,34 @@ def test_no_review_runtime_completes_retries_then_replans_without_reviewer_nodes
     controller.schedule_after_execution(queue, active.task_id)
     assert active.status == TaskStatus.COMPLETED
     assert [node.node_id for node in queue.items] == ["task_executor"]
+
+
+def test_no_review_executor_completion_advances_before_scheduling_retry_or_next_task() -> (
+    None
+):
+    """No-review executor completion never leaves a duplicate executor queued."""
+    session = Session(session_config=SessionConfig(review_enabled=False))
+    store = session.task_store
+    root = store.create_task("Root")
+    active = store.create_task("Active", parent_id=root.task_id)
+    store.create_task("Next", parent_id=root.task_id)
+
+    for result in (
+        TaskResult(content="failed", success=False),
+        TaskResult(content="done", success=True),
+    ):
+        store.record_result(active.task_id, result)
+        executor = TinyCUATaskExecutorNode(
+            "task_executor", create_node_config("task_executor")
+        )
+        executor.ensure_session(session)
+        queue = NodeQueue(items=[executor])
+
+        executor.on_complete(queue, LLMResult())
+
+        assert queue.current is not executor
+        assert [node.node_id for node in queue.items] == ["task_executor"]
+        assert all(node.node_id != "result_reviewer" for node in queue.items)
 
 
 def test_state_snapshot_records_ablation_configuration() -> None:
