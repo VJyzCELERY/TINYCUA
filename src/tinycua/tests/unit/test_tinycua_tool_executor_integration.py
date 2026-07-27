@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from tinycua.config.types import Tool, ValidationResult
+from tinycua.config.types import LLMResult, Tool, ValidationResult
 from tinycua.config.node_config import create_node_config
+from tinycua.loops.node_contract import LifecyclePhase
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.task_nodes import TinyCUATaskAnalyzerNode, TinyCUATaskAssessorNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
@@ -274,3 +275,243 @@ async def test_analyzer_structural_change_resolves_selected_local_subtree() -> N
     assert target.metadata["planning_resolution"]["summary"].startswith(
         "task_decompose"
     )
+
+
+@pytest.mark.asyncio
+async def test_analyzer_executes_commits_for_all_selected_targets() -> None:
+    """One analyzer tool batch resolves every assessor-selected target."""
+    loop = TinyCUALoop()
+    store = loop.root_session.task_store
+    root = store.create_task("Root")
+    targets = [
+        store.create_task("First target", parent_id=root.task_id),
+        store.create_task("Second target", parent_id=root.task_id),
+    ]
+    findings = []
+    for index, target in enumerate(targets, start=1):
+        finding = {
+            "task_id": target.task_id,
+            "finding": "Split this mixed outcome.",
+            "assessment_id": f"assessment-{index}",
+        }
+        target.metadata["planning_finding"] = finding
+        findings.append(finding)
+    analyzer = TinyCUATaskAnalyzerNode(
+        node_id="task_analyzer",
+        config=create_node_config("task_analyzer", mode="effort_loop_decomposition"),
+    )
+    loop.queue = NodeQueue([analyzer])
+    handoff = NodeHandoff(
+        source_node="task_assessor",
+        target_node="task_analyzer",
+        instruction="Resolve every selected target.",
+        payload={
+            "decision": "analyze",
+            "selected_task_ids": [target.task_id for target in targets],
+            "findings": findings,
+        },
+    )
+    loop.queue.set_input(analyzer, handoff)
+    decompose = TaskDecomposeTool()
+    decompose.bind_task_store(store)
+    calls = [
+        {
+            "function": {
+                "name": "task_decompose",
+                "arguments": {
+                    "task_id": target.task_id,
+                    "subtasks": [
+                        {
+                            "title": f"{target.title} child",
+                            "description": "A bounded outcome with evidence.",
+                        }
+                    ],
+                },
+            }
+        }
+        for target in targets
+    ]
+
+    results = await loop._execute_tool_calls(
+        Agent(llm_model=LanguageModel()), calls, [decompose], analyzer
+    )
+    analyzer.progress.mark_tool_called("task_decompose", success=True)
+
+    assert len(results) == 2
+    assert all(result["output"]["success"] for result in results)
+    assert set(handoff.payload["_resolved_task_ids"]) == {
+        target.task_id for target in targets
+    }
+    assert loop._can_terminate(analyzer) is True
+
+
+@pytest.mark.asyncio
+async def test_analyzer_validation_rejects_unresolved_selected_target() -> None:
+    """One successful mutation cannot complete a multi-target analyzer handoff."""
+    loop = TinyCUALoop()
+    store = loop.root_session.task_store
+    root = store.create_task("Root")
+    first = store.create_task("First", parent_id=root.task_id)
+    second = store.create_task("Second", parent_id=root.task_id)
+    findings = [
+        {
+            "task_id": target.task_id,
+            "finding": "Split this mixed outcome.",
+            "assessment_id": f"assessment-{index}",
+        }
+        for index, target in enumerate((first, second), start=1)
+    ]
+    for target, finding in zip((first, second), findings, strict=True):
+        target.metadata["planning_finding"] = finding
+    analyzer = TinyCUATaskAnalyzerNode(
+        node_id="task_analyzer",
+        config=create_node_config("task_analyzer", mode="effort_loop_decomposition"),
+    )
+    loop.queue = NodeQueue([analyzer])
+    loop.queue.set_input(
+        analyzer,
+        NodeHandoff(
+            source_node="task_assessor",
+            target_node="task_analyzer",
+            instruction="Resolve every selected target.",
+            payload={
+                "decision": "analyze",
+                "selected_task_ids": [first.task_id, second.task_id],
+                "findings": findings,
+            },
+        ),
+    )
+    decompose = TaskDecomposeTool()
+    decompose.bind_task_store(store)
+    tool_results = await loop._execute_tool_calls(
+        Agent(llm_model=LanguageModel()),
+        [
+            {
+                "function": {
+                    "name": "task_decompose",
+                    "arguments": {
+                        "task_id": first.task_id,
+                        "subtasks": ["First child"],
+                    },
+                }
+            }
+        ],
+        [decompose],
+        analyzer,
+    )
+    analyzer.progress.mark_tool_called("task_decompose", success=True)
+
+    validation = loop._validate_node_result(
+        analyzer,
+        LLMResult(metadata={"tool_results": tool_results}),
+    )
+
+    assert validation.is_valid is False
+    assert any("every assessor-selected task" in error for error in validation.errors)
+
+
+@pytest.mark.asyncio
+async def test_analyzer_multi_commit_freezes_numeric_task_references() -> None:
+    """Numbered targets retain their original identity across a mutation batch."""
+    loop = TinyCUALoop()
+    store = loop.root_session.task_store
+    root = store.create_task("Root")
+    first = store.create_task("First", parent_id=root.task_id)
+    second = store.create_task("Second", parent_id=root.task_id)
+    findings = [
+        {
+            "task_id": target.task_id,
+            "finding": "Split this mixed outcome.",
+            "assessment_id": f"assessment-{index}",
+        }
+        for index, target in enumerate((first, second), start=1)
+    ]
+    for target, finding in zip((first, second), findings, strict=True):
+        target.metadata["planning_finding"] = finding
+    analyzer = TinyCUATaskAnalyzerNode(
+        node_id="task_analyzer",
+        config=create_node_config("task_analyzer", mode="effort_loop_decomposition"),
+    )
+    loop.queue = NodeQueue([analyzer])
+    loop.queue.set_input(
+        analyzer,
+        NodeHandoff(
+            source_node="task_assessor",
+            target_node="task_analyzer",
+            instruction="Resolve every selected target.",
+            payload={
+                "decision": "analyze",
+                "selected_task_ids": [first.task_id, second.task_id],
+                "findings": findings,
+            },
+        ),
+    )
+    decompose = TaskDecomposeTool()
+    decompose.bind_task_store(store)
+
+    results = await loop._execute_tool_calls(
+        Agent(llm_model=LanguageModel()),
+        [
+            {
+                "function": {
+                    "name": "task_decompose",
+                    "arguments": {"task_id": "1", "subtasks": ["First child"]},
+                }
+            },
+            {
+                "function": {
+                    "name": "task_decompose",
+                    "arguments": {"task_id": "2", "subtasks": ["Second child"]},
+                }
+            },
+        ],
+        [decompose],
+        analyzer,
+    )
+
+    assert [result["output"]["task_id"] for result in results] == [
+        first.task_id,
+        second.task_id,
+    ]
+    assert [store.get_task(task_id).title for task_id in first.children] == [
+        "First child"
+    ]
+    assert [store.get_task(task_id).title for task_id in second.children] == [
+        "Second child"
+    ]
+
+
+def test_analyzer_commit_directive_requires_all_selected_targets() -> None:
+    """An unresolved assessor handoff permits commits beyond the first call."""
+    loop = TinyCUALoop()
+    store = loop.root_session.task_store
+    root = store.create_task("Root")
+    targets = [
+        store.create_task("First", parent_id=root.task_id),
+        store.create_task("Second", parent_id=root.task_id),
+    ]
+    analyzer = TinyCUATaskAnalyzerNode(
+        node_id="task_analyzer",
+        config=create_node_config("task_analyzer", mode="effort_loop_decomposition"),
+    )
+    analyzer.progress.advance_lifecycle(LifecyclePhase.COMMIT)
+    loop.queue = NodeQueue([analyzer])
+    loop.queue.set_input(
+        analyzer,
+        NodeHandoff(
+            source_node="task_assessor",
+            target_node="task_analyzer",
+            instruction="Resolve every selected target.",
+            payload={
+                "decision": "analyze",
+                "selected_task_ids": [target.task_id for target in targets],
+                "findings": [],
+            },
+        ),
+    )
+
+    directive = loop._lifecycle_phase_directive(analyzer)
+
+    assert "all assessor-selected targets" in directive
+    assert "exactly one" not in directive
+    assert "no further tool calls" not in directive
