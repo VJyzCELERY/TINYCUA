@@ -116,7 +116,12 @@ def test_worker_runtime_skips_cancelled_active_leaf() -> None:
     root = store.create_task("Root")
     impossible = store.create_task("Impossible", parent_id=root.task_id)
     remaining = store.create_task("Remaining", parent_id=root.task_id)
-    store.cancel_task(impossible.task_id, "source lacks benchmark data")
+    request = store.request_task_cancellation(
+        impossible.task_id, "source lacks benchmark data"
+    )
+    store.assess_task_cancellation(
+        request["request_id"], approved=True, rationale="The task is unnecessary."
+    )
     queue = NodeQueue()
 
     WorkerRuntimeController(store).schedule_next(queue)

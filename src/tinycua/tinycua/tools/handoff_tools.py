@@ -123,6 +123,7 @@ class TaskAssessmentDecisionTool(Tool):
         self._handoff_store: list[NodeHandoff] | None = None
         self._source_node = "unknown"
         self._assessment_mode = "upfront_decomposition"
+        self._cancellation_request_id = ""
 
     def bind_task_store(self, store: TaskStateStore) -> None:
         """Bind the active session's task state."""
@@ -139,6 +140,81 @@ class TaskAssessmentDecisionTool(Tool):
     def bind_assessment_mode(self, mode: str) -> None:
         """Bind upfront, local, or final assessment behavior."""
         self._assessment_mode = mode
+
+    def bind_cancellation_request_id(self, request_id: str) -> None:
+        """Bind the cancellation request that this Assessor instance must decide."""
+        self._cancellation_request_id = request_id
+
+    def _record_cancellation_assessment(
+        self,
+        decision: str,
+        findings: list[dict[str, str]],
+        advisories: list[dict[str, str]],
+        rationale: str,
+    ) -> dict[str, Any]:
+        """Approve or reject one runtime-bound cancellation request."""
+        if not self._cancellation_request_id:
+            return {"success": False, "error": "Cancellation request is not bound."}
+        pending = {
+            request["request_id"]: request
+            for request in self._task_store.pending_cancellation_requests()
+        }
+        request = pending.get(self._cancellation_request_id)
+        if request is None:
+            return {"success": False, "error": "Cancellation request is not pending."}
+        canonical_findings, error = self._canonical_records(
+            findings, "finding", unique_targets=True
+        )
+        if error:
+            return {"success": False, "error": error}
+        canonical_advisories, error = self._canonical_records(advisories, "advisory")
+        if error:
+            return {"success": False, "error": error}
+        target_id = request["task_id"]
+        if decision == "ready" and canonical_findings:
+            return {"success": False, "error": "ready requires no blocking findings."}
+        if decision == "analyze" and (
+            len(canonical_findings) != 1
+            or canonical_findings[0]["task_id"] != target_id
+        ):
+            return {
+                "success": False,
+                "error": "analyze requires one blocking finding for the cancellation target.",
+            }
+        approved = decision == "ready"
+        try:
+            task = self._task_store.assess_task_cancellation(
+                self._cancellation_request_id,
+                approved=approved,
+                rationale=rationale,
+            )
+        except ValueError as exc:
+            return {"success": False, "error": str(exc)}
+        if not approved:
+            self._task_store.update_task(
+                task.task_id,
+                metadata={
+                    "planning_finding": canonical_findings[0],
+                    "planning_note": "",
+                },
+            )
+        payload = {
+            "decision": decision,
+            "selected_task_ids": [] if approved else [target_id],
+            "findings": canonical_findings,
+            "advisories": canonical_advisories,
+            "rationale": rationale.strip(),
+            "cancellation_request_id": self._cancellation_request_id,
+        }
+        handoff = NodeHandoff(
+            source_node=self._source_node,
+            target_node="task_analyzer",
+            instruction=rationale.strip(),
+            payload=payload,
+        )
+        if self._handoff_store is not None:
+            self._handoff_store.append(handoff)
+        return {"success": True, **payload, "handoff": handoff.to_dict()}
 
     def _canonical_records(
         self,
@@ -186,18 +262,14 @@ class TaskAssessmentDecisionTool(Tool):
                 return [], "Use at most one blocking finding per task."
         return canonical, None
 
-    def __call__(
+    def _record_roadmap_assessment(
         self,
         decision: str,
         findings: list[dict[str, str]],
         advisories: list[dict[str, str]],
         rationale: str,
     ) -> dict[str, Any]:
-        """Validate the assessment and emit its canonical analyzer handoff."""
-        if decision not in {"ready", "analyze"}:
-            return {"success": False, "error": "decision must be ready or analyze."}
-        if not isinstance(rationale, str) or not rationale.strip():
-            return {"success": False, "error": "rationale is required."}
+        """Persist normal roadmap assessment findings and analyzer handoff."""
         canonical_findings, error = self._canonical_records(
             findings, "finding", unique_targets=True
         )
@@ -275,3 +347,23 @@ class TaskAssessmentDecisionTool(Tool):
         if self._handoff_store is not None:
             self._handoff_store.append(handoff)
         return {"success": True, **payload, "handoff": handoff.to_dict()}
+
+    def __call__(
+        self,
+        decision: str,
+        findings: list[dict[str, str]],
+        advisories: list[dict[str, str]],
+        rationale: str,
+    ) -> dict[str, Any]:
+        """Validate the assessment and emit its canonical analyzer handoff."""
+        if decision not in {"ready", "analyze"}:
+            return {"success": False, "error": "decision must be ready or analyze."}
+        if not isinstance(rationale, str) or not rationale.strip():
+            return {"success": False, "error": "rationale is required."}
+        if self._assessment_mode == "cancellation_review":
+            return self._record_cancellation_assessment(
+                decision, findings, advisories, rationale
+            )
+        return self._record_roadmap_assessment(
+            decision, findings, advisories, rationale
+        )
