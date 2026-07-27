@@ -1,0 +1,35 @@
+{
+  "experiment": 2,
+  "source": "Epoch AI benchmarks June 2026",
+  "questeval_hash": "QuestEval_version=0.2.4_task=text2text_lang=en_preproc=None_consist=False_scores=('answerability', 'f1')W_hash=None_hyp_QA_hash=ThomasNLG/t5-qa_squad2neg-en_ref_QA_hash=ThomasNLG/t5-qa_squad2neg-en_src_QA_hash=ThomasNLG/t5-qa_squad2neg-en_hyp_QG_hash=ThomasNLG/t5-qg_squad1-en_ref_QG_hash=ThomasNLG/t5-qg_squad1-en_src_QG_hash=ThomasNLG/t5-qg_squad1-en",
+  "harnesses": {
+    "tinycua": {
+      "corpus_score": 0.3157,
+      "ex_level_scores": [
+        0.3157
+      ],
+      "hypothesis_chars": 19880
+    },
+    "hermes": {
+      "corpus_score": 0.0767,
+      "ex_level_scores": [
+        0.0767
+      ],
+      "hypothesis_chars": 15029
+    },
+    "opencode": {
+      "corpus_score": 0.0167,
+      "ex_level_scores": [
+        0.0167
+      ],
+      "hypothesis_chars": 6356
+    },
+    "openclaw": {
+      "corpus_score": 0.0317,
+      "ex_level_scores": [
+        0.0317
+      ],
+      "hypothesis_chars": 4542
+    }
+  }
+}
