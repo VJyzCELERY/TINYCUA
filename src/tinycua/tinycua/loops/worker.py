@@ -100,6 +100,8 @@ class TinyCUAWorkerNode(DecisionNode):
         """Return only worker routes that are valid for current task state."""
         if not self._has_root_task:
             return ["task_creation"]
+        if self.session is not None and self.session.task_store.all_done():
+            return ["task_recreation", "passthrough"]
         return [
             "task_recreation",
             "task_reanalysis",
@@ -170,6 +172,131 @@ class TinyCUAWorkerNode(DecisionNode):
                 idempotent_by_identity=True,
             )
 
+    @staticmethod
+    def _digest_overlay(digest: DigestedInformation) -> dict[str, object]:
+        """Return the one current-turn context overlay derived from a fresh digest."""
+        return {
+            "original_query": digest.original_query,
+            "context_summary": digest.context_summary,
+            "key_points": list(digest.key_points),
+            "advisory_instructions": list(digest.advisory_instructions),
+            "constraints": list(digest.constraints),
+            "known_gaps": list(digest.known_gaps),
+        }
+
+    def _replace_context_overlay(self, digest: DigestedInformation | None) -> None:
+        """Replace the mutable root's latest context overlay, never append one."""
+        if (
+            digest is None
+            or self.session is None
+            or self.session.task_store.root_task_id is None
+        ):
+            return
+        root_id = self.session.task_store.root_task_id
+        self.session.task_store.update_task(
+            root_id,
+            metadata={"current_context_overlay": self._digest_overlay(digest)},
+        )
+
+    def _archive_and_reset_task_tree(self) -> None:
+        """Preserve the old tree as retrieval context before starting a new root."""
+        if self.session is None or self.session.task_store.root_task_id is None:
+            return
+        from tinycua.models.session_context_entry import append_output_entry
+
+        append_output_entry(
+            self.session,
+            {
+                "archive_type": "task_tree",
+                "reason": "task_recreation",
+                "task_tree": self.session.task_store.snapshot(),
+            },
+            self.node_id,
+        )
+        self.session.task_store.reset()
+        self.session.task = None
+
+    def _spawn_task_creation(
+        self,
+        queue: NodeQueue,
+        digest: DigestedInformation | None,
+    ) -> None:
+        """Schedule fresh root creation and hand the full digest to TaskCreate."""
+        spawned = [
+            TinyCUATaskCreateNode(
+                node_id="task_create",
+                config=create_node_config("task_create", self.config),
+            ),
+            TinyCUATaskAnalyzerNode(
+                node_id="task_analyzer",
+                config=create_node_config(
+                    "task_analyzer", self.config, mode="initial_analysis"
+                ),
+            ),
+            TinyCUAAnalysisEffortNode(
+                node_id="analysis_effort",
+                config=create_node_config("analysis_effort", self.config),
+            ),
+            TinyCUATaskExecutorNode(
+                node_id="task_executor",
+                config=create_node_config("task_executor", self.config),
+            ),
+            TinyCUAResultReviewerNode(
+                node_id="result_reviewer",
+                config=create_node_config("result_reviewer", self.config),
+            ),
+        ]
+        queue.spawn_after_current(spawned)
+        if digest is not None:
+            queue.set_input(
+                spawned[0],
+                NodeHandoff(
+                    source_node=self.node_id,
+                    target_node=spawned[0].node_id,
+                    instruction="Use the digested request to create the roadmap.",
+                    payload={"digested_information": digest},
+                ),
+            )
+
+    def _spawn_reanalysis(
+        self,
+        queue: NodeQueue,
+        route_label: str,
+        digest: DigestedInformation | None,
+    ) -> None:
+        """Schedule Analyzer work and hand it the current full digest."""
+        analyzer = TinyCUATaskAnalyzerNode(
+            node_id="task_analyzer",
+            config=create_node_config("task_analyzer", self.config, mode=route_label),
+        )
+        queue.spawn_after_current(
+            [
+                analyzer,
+                TinyCUAAnalysisEffortNode(
+                    node_id="analysis_effort",
+                    config=create_node_config("analysis_effort", self.config),
+                ),
+                TinyCUATaskExecutorNode(
+                    node_id="task_executor",
+                    config=create_node_config("task_executor", self.config),
+                ),
+                TinyCUAResultReviewerNode(
+                    node_id="result_reviewer",
+                    config=create_node_config("result_reviewer", self.config),
+                ),
+            ]
+        )
+        if digest is not None:
+            queue.set_input(
+                analyzer,
+                NodeHandoff(
+                    source_node=self.node_id,
+                    target_node=analyzer.node_id,
+                    instruction="Use the fresh digested context to revise the roadmap.",
+                    payload={"digested_information": digest},
+                ),
+            )
+
     def on_complete(
         self, queue: NodeQueue, response: LLMResult | DecisionResult
     ) -> None:
@@ -191,69 +318,15 @@ class TinyCUAWorkerNode(DecisionNode):
             response.route_label if isinstance(response, DecisionResult) else ""
         )
         if route_label == "task_creation":
-            spawned = [
-                TinyCUATaskCreateNode(
-                    node_id="task_create",
-                    config=create_node_config("task_create", self.config),
-                ),
-                TinyCUATaskAnalyzerNode(
-                    node_id="task_analyzer",
-                    config=create_node_config(
-                        "task_analyzer",
-                        self.config,
-                        mode="initial_analysis",
-                    ),
-                ),
-                TinyCUAAnalysisEffortNode(
-                    node_id="analysis_effort",
-                    config=create_node_config("analysis_effort", self.config),
-                ),
-                TinyCUATaskExecutorNode(
-                    node_id="task_executor",
-                    config=create_node_config("task_executor", self.config),
-                ),
-                TinyCUAResultReviewerNode(
-                    node_id="result_reviewer",
-                    config=create_node_config("result_reviewer", self.config),
-                ),
-            ]
-            queue.spawn_after_current(spawned)
-            if digest is not None:
-                queue.set_input(
-                    spawned[0],
-                    NodeHandoff(
-                        source_node=self.node_id,
-                        target_node=spawned[0].node_id,
-                        instruction="Use the digested request to create the roadmap.",
-                        payload={"digested_information": digest},
-                    ),
-                )
-        elif route_label in {"task_recreation", "task_reanalysis"}:
-            queue.spawn_after_current(
-                [
-                    TinyCUATaskAnalyzerNode(
-                        node_id="task_analyzer",
-                        config=create_node_config(
-                            "task_analyzer",
-                            self.config,
-                            mode=route_label,
-                        ),
-                    ),
-                    TinyCUAAnalysisEffortNode(
-                        node_id="analysis_effort",
-                        config=create_node_config("analysis_effort", self.config),
-                    ),
-                    TinyCUATaskExecutorNode(
-                        node_id="task_executor",
-                        config=create_node_config("task_executor", self.config),
-                    ),
-                    TinyCUAResultReviewerNode(
-                        node_id="result_reviewer",
-                        config=create_node_config("result_reviewer", self.config),
-                    ),
-                ]
-            )
+            self._spawn_task_creation(queue, digest)
+        elif route_label == "task_recreation":
+            self._archive_and_reset_task_tree()
+            self._spawn_task_creation(queue, digest)
+        elif route_label == "task_reanalysis":
+            self._replace_context_overlay(digest)
+            self._spawn_reanalysis(queue, route_label, digest)
         elif route_label == "proceed_execution":
+            self._replace_context_overlay(digest)
             queue.spawn_after_current(
                 [
                     TinyCUATaskExecutorNode(
