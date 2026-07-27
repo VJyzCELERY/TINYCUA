@@ -21,6 +21,7 @@ from tinycua.loops.node_contract import (
 )
 from tinycua.loops.route_classifier import RouteClassifier
 from tinycua.agent.tools.native.output_persist import persist_if_oversized
+from tinycua.models.node_handoff import NodeHandoff
 
 if TYPE_CHECKING:
     from tinycua.loops.node import Node
@@ -35,6 +36,114 @@ class ValidationRetryMixin:
 
     # FR-061: derived from _NODE_CONTRACTS (single source of truth).
     _TERMINATED_NODE_IDS = TERMINATED_NODE_IDS
+
+    def _can_terminate(self, node: Node) -> bool:
+        """Return whether the node's real commit state permits termination."""
+        if not node.contract.is_satisfied(node.progress.satisfied_requirements):
+            return False
+        store = self.root_session.task_store
+        if node.node_id == "task_create":
+            return store.root_task_id is not None
+        if node.node_id == "task_executor":
+            active = store.get_active_task()
+            return active is not None and active.result is not None
+        if node.node_id == "result_reviewer":
+            return store.active_task_id in store._staged_reviewer_decisions
+        if node.node_id == "task_assessor":
+            return any(
+                handoff.source_node == node.node_id
+                for handoff in self._pending_handoffs
+            )
+        if node.node_id == "task_analyzer":
+            handoff = self._current_analyzer_handoff(node)
+            if handoff is not None and handoff.payload.get("decision") == "analyze":
+                selected = set(handoff.payload.get("selected_task_ids", []))
+                resolved = set(handoff.payload.get("_resolved_task_ids", []))
+                return bool(selected) and selected.issubset(resolved)
+        return True
+
+    def _current_analyzer_handoff(self, node: Node) -> NodeHandoff | None:
+        """Return the assessor handoff assigned to the current analyzer."""
+        if self.queue.current is not node:
+            return None
+        node_input = self.queue.input_for_current()
+        return node_input if isinstance(node_input, NodeHandoff) else None
+
+    def _task_is_in_subtree(self, task_id: str, target_id: str) -> bool:
+        """Return whether a retained task belongs to a selected local subtree."""
+        current = task_id
+        while current in self.root_session.task_store.tasks:
+            if current == target_id:
+                return True
+            parent_id = self.root_session.task_store.tasks[current].parent_id
+            if parent_id is None:
+                break
+            current = parent_id
+        return task_id == target_id
+
+    def _record_analyzer_planning_resolution(
+        self,
+        node: Node | None,
+        tool_name: str,
+        output: Any,
+    ) -> None:
+        """Acknowledge only selected targets changed in their local subtree."""
+        if (
+            node is None
+            or node.node_id != "task_analyzer"
+            or not isinstance(output, dict)
+        ):
+            return
+        handoff = self._current_analyzer_handoff(node)
+        if handoff is None or handoff.payload.get("decision") != "analyze":
+            return
+        candidates = [
+            output.get("task_id"),
+            output.get("parent_id"),
+            output.get("replacement_task_id"),
+        ]
+        candidates = [item for item in candidates if isinstance(item, str)]
+        findings = handoff.payload.get("findings", [])
+        for finding in findings:
+            if not isinstance(finding, dict):
+                continue
+            target_id = finding.get("task_id")
+            if not isinstance(target_id, str):
+                continue
+            structural = tool_name in {"task_create", "task_decompose", "task_shrink"}
+            impacted = structural and any(
+                self._task_is_in_subtree(candidate, target_id)
+                for candidate in candidates
+            )
+            task = self.root_session.task_store.tasks.get(target_id)
+            planning_note = (
+                str(task.metadata.get("planning_note", "")).strip() if task else ""
+            )
+            if tool_name == "task_update" and output.get("task_id") == target_id:
+                impacted = bool(planning_note)
+            if not impacted:
+                continue
+            resolved = handoff.payload.setdefault("_resolved_task_ids", [])
+            if target_id not in resolved:
+                resolved.append(target_id)
+            rationale = (
+                planning_note
+                or str(
+                    output.get("rationale") or node.progress.action_summary or ""
+                ).strip()
+            )
+            resolution = {
+                "assessment_id": finding.get("assessment_id"),
+                "summary": (
+                    "Retained with a planning note."
+                    if planning_note
+                    else f"{tool_name} changed the selected local subtree."
+                ),
+                "rationale": rationale[:2000],
+            }
+            if task is not None:
+                task.metadata["planning_resolution"] = resolution
+                self.root_session.task_store._bump_version()
 
     def _retry_message_for_validation(
         self,
@@ -878,6 +987,12 @@ class ValidationRetryMixin:
         """
         if node.node_id != "task_analyzer" or self.queue.current is not node:
             return False
+        handoff = self._current_analyzer_handoff(node)
+        if handoff is not None and handoff.payload.get("decision") == "analyze":
+            selected = set(handoff.payload.get("selected_task_ids", []))
+            resolved = set(handoff.payload.get("_resolved_task_ids", []))
+            if selected and not selected.issubset(resolved):
+                return False
         root_id = self.root_session.task_store.root_task_id
         if root_id is None or root_id not in self.root_session.task_store.tasks:
             return False
@@ -1195,8 +1310,8 @@ class ValidationRetryMixin:
             "task_shrink": "Call task_shrink with a safe action and rationale.",
             "task_update": "Call task_update with the task_id and updated description.",
             "task_assessment_decision": (
-                "Call task_assessment_decision with ready and no task IDs, or "
-                "analyze with canonical unfinished task IDs, plus a rationale."
+                "Call task_assessment_decision with task-bound findings and "
+                "advisories. Analyze needs a blocking finding; ready has none."
             ),
             "task_init": "Call task_init with a root task title derived from the request.",
         }

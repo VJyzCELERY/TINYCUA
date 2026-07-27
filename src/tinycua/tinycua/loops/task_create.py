@@ -19,7 +19,8 @@ logger = logging.getLogger(__name__)
 _TASK_CREATE_INSTRUCTION = (
     "You are TaskCreate. Initialize exactly one root roadmap from the user "
     "request and digested context. Do not research, write files, execute work, "
-    "or decompose tasks."
+    "or decompose tasks. Acceptance clauses must be direct paraphrases of explicit "
+    "user requirements; never add requirements and never override requirements."
 )
 
 _TASK_CREATE_CONTINUATION = (

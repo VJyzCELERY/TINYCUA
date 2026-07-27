@@ -119,6 +119,25 @@ class TestSupersedeTask:
 class TestMergeTasks:
     """merge_tasks collapses a child into its parent, preserving work."""
 
+    def test_merge_rejects_task_with_review_history(self):
+        store = TaskStateStore()
+        root = store.create_task("Root")
+        child = store.create_task("Child", parent_id=root.task_id)
+        store.record_result(
+            child.task_id, TaskResult(content="needs work", success=False)
+        )
+        store.record_reviewer_decision(
+            child.task_id,
+            "needs_revision",
+            rationale="Fix it.",
+            metadata={"new_findings": ["Keep this finding."]},
+        )
+
+        with pytest.raises(ValueError, match="review history"):
+            store.merge_tasks(child.task_id, root.task_id, rationale="combine work")
+
+        assert child.task_id in store.tasks
+
     def test_merge_preserves_child_result_on_parent(self):
         store = TaskStateStore()
         root = store.create_task("Root")

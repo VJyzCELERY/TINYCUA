@@ -56,19 +56,19 @@ def shrink_threshold_for_effort(effort: str) -> int:
 
 
 _TASK_ANALYZER_INSTRUCTION = (
-    "You are the TaskAnalyzer. Your responsibility is to produce or refine an "
-    "actionable roadmap. Do not execute requested work. Use available tools "
-    "(web_search, fetch_url, read_file, list_files, search_files, run_shell) to "
-    "understand the request, roadmap, current state, explicit constraints, "
-    "dependencies, and material uncertainty before changing the plan. Use no more "
-    "tasks than needed for distinct outcomes. Each task must own one coherent "
-    "outcome that can be executed and verified independently, with enough context "
-    "to act while leaving unsupported implementation choices open. Preserve "
-    "explicit constraints; do not invent architecture, outputs, tools, or steps. "
-    "Treat named outputs as required, not exhaustive, unless the request makes "
-    "them exclusive. Avoid overlap and keep work governed by one acceptance "
-    "criterion together. Once the roadmap is sufficiently understood, commit one "
-    "appropriate structural decision."
+    "You are the TaskAnalyzer. Produce or refine an actionable roadmap; do not "
+    "execute requested work. Use available tools (web_search, fetch_url, read_file, "
+    "list_files, search_files, run_shell) only to understand the request, state, "
+    "constraints, dependencies, and material uncertainty. Use no more tasks than "
+    "needed. Each task must own one "
+    "coherent outcome that can be executed and verified independently, with enough "
+    "context to act while leaving unsupported implementation choices open. Preserve "
+    "explicit constraints and "
+    "treat named outputs as required, not exhaustive. Avoid overlap and keep work "
+    "governed by one acceptance criterion together. Split materially distinct "
+    "concerns when each gives narrower context and independent evidence, even if "
+    "sharing a file or deliverable. Keep tightly coupled work; never split "
+    "lifecycle-only phases. Commit one appropriate structural decision."
 )
 _TASK_ANALYZER_CONTINUATION = (
     "Evaluate the current roadmap against the planning criteria above. Remove or "
@@ -95,7 +95,10 @@ _TASK_ASSESSOR_UPFRONT_INSTRUCTION = (
     "implementation choices open. Select tasks that are vague, redundant, "
     "fragmented, too broad to execute or verify meaningfully, materially overlapping, "
     "or prematurely prescriptive. Do not impose architecture, output layout, tool "
-    "choice, a fixed task count, or decomposition merely because a task is large."
+    "choice, a fixed task count, or decomposition merely because a task is large. "
+    "Split materially distinct concerns when each gives narrower context and "
+    "independent evidence, even if sharing a file or deliverable. Keep tightly "
+    "coupled work; never split lifecycle-only phases."
 )
 _TASK_ASSESSOR_UPFRONT_CONTINUATION = (
     "Review roadmap quality against the criteria above. Decide ready only when the "
@@ -112,7 +115,10 @@ _TASK_ASSESSOR_LOCAL_REPLAN_INSTRUCTION = (
     "verifiable, preserve explicit constraints, and avoid material overlap or "
     "unsupported implementation choices. Select only tasks needing planning "
     "refinement. Do not impose architecture, output layout, tool choice, task count, "
-    "or decomposition depth, and do not reassess the whole roadmap."
+    "or decomposition depth, and do not reassess the whole roadmap. Split materially "
+    "distinct concerns when each gives narrower context and independent evidence, "
+    "even if sharing a file or deliverable. Keep tightly coupled work; never split "
+    "lifecycle-only phases."
 )
 _TASK_ASSESSOR_LOCAL_REPLAN_CONTINUATION = (
     "Review the active local region against the criteria above. Decide ready with "
@@ -122,26 +128,25 @@ _TASK_ASSESSOR_LOCAL_REPLAN_CONTINUATION = (
 )
 
 _TASK_EXECUTOR_INSTRUCTION = (
-    "You are the TaskExecutor. You execute the active task; you do not "
-    "review, decompose, or curate other tasks. Explore the workspace and "
-    "task state first (read_file, list_files, search_files, web_search, "
-    "fetch_url) before making changes — plan and analyze before you act. "
-    "You MUST use tools for workspace changes, inspection, commands, "
-    "Python, research, or verification. Preserve explicit user constraints "
-    "from the work order. Do not write a plan. Do not describe what you will "
-    "do — "
-    "use the tools and return a concise action summary. Report only the active "
-    "task's outcome as the task result. Work may incidentally satisfy pending "
-    "outcomes; include those effects and their evidence, but do not claim pending "
-    "tasks are complete. If the active outcome already exists, verify it and report "
-    "a no-change success instead of duplicating work."
+    "You are the TaskExecutor. Execute only the active task; do not review, decompose, "
+    "or curate others. Inspect workspace and task state before changes. You MUST use tools for "
+    "inspection, changes, commands, research, and verification. Preserve explicit user "
+    "constraints. Do not write a plan. Do not describe what you will do; act, then "
+    "summarize concisely. "
+    "Report only the active task's outcome. Do not intentionally implement pending "
+    "sibling outcomes. Work may incidentally satisfy pending outcomes; report the "
+    "effect, why it was required, evidence, and whether it appears partially or fully "
+    "satisfied, but do not claim pending tasks are complete. Substantial sibling work "
+    "is a scope mismatch for reviewer replanning. If the active outcome already exists, "
+    "verify it and report no-change success."
 )
 _TASK_EXECUTOR_CONTINUATION = (
     "Based on the active task above, explore the current state (read_file/"
     "list_files/search_files/web_search) before making changes. Then use "
     "tools to complete it. Summarize what changed, was found, or blocked; do "
     "not keep repeating read/list inspection. Include verified incidental effects "
-    "on pending outcomes without marking those tasks complete."
+    "on pending outcomes without marking those tasks complete; report substantial "
+    "sibling work as a scope mismatch."
 )
 
 _RESULT_REVIEWER_INSTRUCTION = (
@@ -232,6 +237,11 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
                     "current plan addresses it. Do not change tasks merely because "
                     "they are recommended."
                 )
+            guidance += (
+                " Resolve every selected blocking target on that task or its local "
+                "subtree. If retaining a target unchanged, call task_update on it "
+                "with a non-empty planning_note. Unrelated changes do not resolve it."
+            )
             if (
                 "task_update" in commit_tools
                 and self.config.metadata.get("task_analyzer_mode") == "local_replan"
@@ -285,7 +295,6 @@ def _local_task_region(session: Session) -> dict:
             "description": active.description,
             "metadata": active.metadata,
             "result": active.result.summary if active.result else None,
-            "reviewer_decisions": active.reviewer_decisions,
         },
         "children": [
             {
@@ -301,11 +310,36 @@ def _local_task_region(session: Session) -> dict:
                 "task_id": task.task_id,
                 "title": task.title,
                 "status": task.status.value,
-                "result": task.result.summary if task.result else None,
             }
             for task in siblings
         ],
     }
+
+
+def _render_prior_planning_resolutions(session: Session) -> str:
+    """Render bounded same-task finding/resolution pairs for reassessment."""
+    lines = []
+    for task in session.task_store.tasks.values():
+        finding = task.metadata.get("planning_finding")
+        resolution = task.metadata.get("planning_resolution")
+        if not isinstance(finding, dict) or not isinstance(resolution, dict):
+            continue
+        if finding.get("assessment_id") != resolution.get("assessment_id"):
+            continue
+        finding_text = str(finding.get("finding", "")).strip()[:240]
+        resolution_text = str(
+            resolution.get("rationale") or resolution.get("summary") or ""
+        ).strip()[:240]
+        if finding_text and resolution_text:
+            lines.append(
+                f"- {task.task_id} ({task.title}): finding={finding_text}; "
+                f"resolution={resolution_text}"
+            )
+        if len(lines) == 8:
+            break
+    if not lines:
+        return ""
+    return "Prior same-task planning findings and resolutions:\n" + "\n".join(lines)
 
 
 def _task_context_snapshot(session: Session) -> dict:
@@ -332,7 +366,7 @@ def _task_context_snapshot_from_store(store) -> dict:
     return snapshot
 
 
-def _render_task_tree_markdown(snapshot: dict) -> str:
+def _render_task_tree_markdown(snapshot: dict, *, include_results: bool = True) -> str:
     """Render task tree snapshot as a numbered post-order list for the LLM.
 
     Execution starts at the DFS left-most leaf and works up/right
@@ -376,9 +410,8 @@ def _render_task_tree_markdown(snapshot: dict) -> str:
         marker = " ✓" if status == "completed" else ""
         lines.append(f"{counter}. [{status}] {title} (id={task_id}){marker}")
         result = task.get("result")
-        if isinstance(result, dict) and result.get("summary"):
-            summary = str(result["summary"])
-            lines.append(f"   Result: {summary}")
+        if include_results and isinstance(result, dict) and result.get("summary"):
+            lines.append(f"   Result: {result['summary']}")
 
     # Post-order traversal from root; root itself is not emitted as a list row.
     if root_id:
@@ -427,35 +460,32 @@ def _render_local_region_markdown(region: dict) -> str:
     return "\n".join(lines) if lines else str(region)
 
 
-def _render_completed_sibling_results(store: TaskStateStore, active: Task) -> list[str]:
-    """Render completed sibling result summaries for the executor context.
-
-    Returns the lines for the 'Completed Sibling Results' section, or an
-    empty list if the active task has no completed siblings.
-    """
-    if not active.parent_id or active.parent_id not in store.tasks:
+def _render_review_journal(store: TaskStateStore, task: Task) -> list[str]:
+    """Render one task's bounded review digest without full rationales."""
+    digest = store.review_journal_digest(task.task_id)
+    if not digest:
         return []
-    parent = store.tasks[active.parent_id]
-    completed_siblings = []
-    for child_id in parent.children:
-        if child_id == active.task_id:
-            continue
-        child = store.tasks.get(child_id)
-        if child and child.status == TaskStatus.COMPLETED and child.result:
-            completed_siblings.append(child)
-    if not completed_siblings:
-        return []
-    lines = ["", "## Completed Sibling Results"]
-    lines.append(
-        "Previous tasks under the same parent completed with these "
-        "findings. Use this context — do not re-research what was "
-        "already found."
+    lines = ["", "## Execution Review Journal"]
+    sections = (
+        ("open_findings", "Open findings"),
+        ("deferred_findings", "Deferred findings"),
+        ("recently_addressed_findings", "Recently addressed findings"),
     )
-    for sib in completed_siblings:
-        summary = sib.result.summary or sib.result.content
-        lines.append(f"### {sib.title}")
-        lines.append(summary.strip() if summary else "(no summary)")
-        lines.append("")
+    for key, title in sections:
+        findings = digest.get(key, [])
+        if findings:
+            lines.append(f"{title}:")
+            lines.extend(
+                f"- {finding['finding_id']} [{finding['status']}]: {finding['summary']}"
+                for finding in findings
+            )
+    events = digest.get("recent_events", [])
+    if events:
+        lines.append("Recent review events:")
+        lines.extend(
+            f"- {event['event_id']} [{event['decision']}]: {event['review_summary']}"
+            for event in events
+        )
     return lines
 
 
@@ -490,18 +520,17 @@ def _render_active_task_work_order(session: Session) -> str:
     if clauses:
         lines.extend(["", "## Acceptance Criteria (context)"])
         lines.extend(f"- {clause['text']}" for clause in clauses)
-    if active.reviewer_decisions:
-        lines.append("")
-        lines.append("## Past Review Feedback")
-        for decision in active.reviewer_decisions[-3:]:
-            lines.append(
-                f"- {decision.get('decision', 'unknown')}: "
-                f"{decision.get('rationale', '')}"
-            )
-    # Completed Sibling Results (Milestone 8 Stream A): surface full result
-    # summaries of completed direct siblings so the executor sees what
-    # previous tasks found.
-    lines.extend(_render_completed_sibling_results(store, active))
+    advisories = active.metadata.get("planning_advisories", [])
+    if isinstance(advisories, list):
+        rendered_advisories = [
+            str(advisory.get("advisory", "")).strip()
+            for advisory in advisories[-5:]
+            if isinstance(advisory, dict) and str(advisory.get("advisory", "")).strip()
+        ]
+        if rendered_advisories:
+            lines.extend(["", "## Planning advisories"])
+            lines.extend(f"- {advisory}" for advisory in rendered_advisories)
+    lines.extend(_render_review_journal(store, active))
     context = str(active.metadata.get("context", "")).strip()
     if context:
         lines.extend(["", "## Useful Prior Context", context])
@@ -555,7 +584,11 @@ def _render_request_contract(session: Session) -> str:
         constraints = list(content.constraints)
     if not original and not constraints:
         return ""
-    lines = ["## Original user request"]
+    lines = [
+        "## Original user request",
+        "The original request and hard constraints control if generated task text, "
+        "acceptance clauses, roadmap descriptions, or model assumptions conflict.",
+    ]
     if original:
         lines.append(original)
     if constraints:
@@ -601,6 +634,8 @@ def _render_mission_block(session: Session) -> str:
         "## Current Mission — Context Only",
         "This is the overall workflow objective, not your assigned task. Use it "
         "only to understand the context for your delegated role.",
+        "The original request and hard constraints control if generated task text, "
+        "acceptance clauses, roadmap descriptions, or model assumptions conflict.",
     ]
     if mission_context:
         lines.append(mission_context)
@@ -634,6 +669,12 @@ class TinyCUATaskAssessorNode(ProcessNode):
                 if mode == "local_replan"
                 else _TASK_ASSESSOR_UPFRONT_INSTRUCTION
             )
+            if mode == "final_assessment":
+                instruction += (
+                    " This is the final assessment after the analysis budget. Ready "
+                    "proceeds; analyze records remaining findings as exhausted "
+                    "task-local advisories and also proceeds without another analyzer."
+                )
         continuation = (
             _TASK_ASSESSOR_LOCAL_REPLAN_CONTINUATION
             if mode == "local_replan"
@@ -657,12 +698,18 @@ class TinyCUATaskAssessorNode(ProcessNode):
         )
         mission = _render_mission_block(session)
         prefix = f"{mission}\n\n" if mission else ""
+        prior = _render_prior_planning_resolutions(session)
+        prior_prefix = f"{prior}\n\n" if prior else ""
         if mode == "local_replan":
             return (
-                f"{prefix}Local roadmap region for reviewer-requested replan:\n"
+                f"{prefix}{prior_prefix}Local roadmap region for "
+                "reviewer-requested replan:\n"
                 f"{_render_local_region_markdown(_local_task_region(session))}\n\n{base}"
             )
-        return f"{prefix}Roadmap:\n{session.task_store.render_markdown()}\n\n{base}"
+        return (
+            f"{prefix}{prior_prefix}Roadmap:\n"
+            f"{session.task_store.render_markdown()}\n\n{base}"
+        )
 
     def build_tool_system_prompt(self, resolved_tools: list[Any] | None = None) -> str:
         """Behavioral guidance keyed on present assessor tools (FR-005)."""
@@ -671,9 +718,10 @@ class TinyCUATaskAssessorNode(ProcessNode):
             return "Tool guidance: Call terminate now."
         if "task_assessment_decision" in names:
             return (
-                "Tool guidance: Commit task_assessment_decision with decision='analyze', "
-                "nonempty selected_task_ids, and rationale; or decision='ready', "
-                "selected_task_ids=[], and rationale."
+                "Tool guidance: Commit task_assessment_decision with task-bound "
+                "findings and advisories. Analyze requires a blocking finding; ready "
+                "has no blocking findings but may include advisories. Include a "
+                "concise rationale."
             )
         if not names.intersection(
             {"task_inspect", "web_search", "fetch_url", "read_file", "run_shell"}
@@ -757,7 +805,9 @@ class TinyCUATaskExecutorNode(ProcessNode):
             "Shell discipline: commands run under /bin/sh; do not rely on "
             "shell-specific brace expansion such as 'mkdir -p {a,b}'. Use "
             "explicit POSIX-safe paths/commands instead.\n"
-            f"\n## Roadmap\n{session.task_store.render_markdown()}\n\n{base}"
+            f"\n## Roadmap\n"
+            f"{_render_task_tree_markdown(_task_context_snapshot(session), include_results=False)}"
+            f"\n\n{base}"
         )
 
     def _artifacts_from_tool_results(self, tool_results: list[dict]) -> list[dict]:
@@ -884,7 +934,9 @@ class TinyCUAResultReviewerNode(ProcessNode):
                 "children.\n\n"
                 "Child tasks (direct children only):\n" + "\n".join(child_lines) + "\n"
             )
-        return f"{child_gate}{failure_note}{curation_block}"
+        journal = "\n".join(_render_review_journal(session.task_store, task))
+        journal_block = f"{journal}\n" if journal else ""
+        return f"{child_gate}{journal_block}{failure_note}{curation_block}"
 
     def _failsafe_result_content(self, task: Task, session: Session) -> str:
         """Failsafe transcript when the executor left no result report."""
@@ -958,6 +1010,7 @@ class TinyCUAResultReviewerNode(ProcessNode):
             if task.task_id == session.task_store.root_task_id:
                 clause_block = (
                     "Root acceptance criteria (final review gates):\n"
+                    "These generated restatements never override the original request. "
                     "Before approval, verify every applicable criterion with "
                     f"matching evidence.\n{criteria}"
                 )
@@ -975,7 +1028,8 @@ class TinyCUAResultReviewerNode(ProcessNode):
             f"Task status: {task.status.value}\n"
             f"Outcome report: {result_content}\n"
             f"{_render_request_contract(session)}\n"
-            f"Unified task context:\n{session.task_store.render_markdown()}\n"
+            "Unified task context:\n"
+            f"{_render_task_tree_markdown(_task_context_snapshot(session), include_results=False)}\n"
             f"{context_blocks}\n{evidence_block}\n{clause_block}\n{base}"
         )
 
@@ -1289,6 +1343,16 @@ class TinyCUAAnalysisEffortNode(ProcessNode):
                 f"Scheduled analysis effort pass {self.pass_count + 1} of {pass_limit}."
             )
         else:
+            queue.spawn_after_current(
+                [
+                    TinyCUATaskAssessorNode(
+                        node_id="task_assessor",
+                        config=create_node_config(
+                            "task_assessor", self.config, mode="final_assessment"
+                        ),
+                    )
+                ]
+            )
             content = f"Analysis effort complete after {pass_limit} pass(es)."
 
         return LLMResult(content=content, role="assistant")

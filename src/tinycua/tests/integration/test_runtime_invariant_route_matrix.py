@@ -252,7 +252,7 @@ class _RouteMatrixScript:
                         "function": {
                             "name": "task_assessment_decision",
                             "arguments": (
-                                '{"decision":"ready","selected_task_ids":[],'
+                                '{"decision":"ready","findings":[],"advisories":[],'
                                 '"rationale":"The roadmap is executable."}'
                             ),
                         }

@@ -258,8 +258,13 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
         ),
         requires_terminate=True,
         early_stop_tool=None,
-        goal="Produce or refine an actionable roadmap of distinct outcomes grounded in available evidence.",
-        role_boundary="Plan task structure only; never execute requested work or prescribe unsupported implementation details.",
+        goal=(
+            "Produce or refine an actionable roadmap: split materially distinct "
+            "concerns when each gives narrower context and independent evidence, even "
+            "if sharing a file or deliverable; keep tightly coupled work and never "
+            "split lifecycle-only phases."
+        ),
+        role_boundary="Plan task structure only. Do not execute requested work or prescribe unsupported implementation details.",
         success_criteria="One appropriate structural decision succeeds and leaves the roadmap actionable, coherent, and nonredundant.",
         tool_rationale={
             "task_decompose": "Creates distinct child outcomes when the active task cannot be executed and verified coherently as one unit.",
@@ -273,9 +278,14 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
         required_tools=frozenset({"task_assessment_decision"}),
         requires_terminate=True,
         early_stop_tool="task_assessment_decision",
-        goal="Review roadmap quality: unfinished outcomes must be coherent, actionable, independently verifiable, and appropriately scoped.",
-        role_boundary="Read-only planning judgment; never mutate the roadmap, execute work, or impose unsupported implementation choices.",
-        success_criteria="task_assessment_decision called with ready or only unfinished task IDs that have a material planning defect.",
+        goal=(
+            "Review roadmap quality: split materially distinct concerns when each "
+            "gives narrower context and independent evidence, even if sharing a file "
+            "or deliverable; keep tightly coupled work and never split lifecycle-only "
+            "phases."
+        ),
+        role_boundary="Planning judgment only; never execute work or impose unsupported implementation choices.",
+        success_criteria="task_assessment_decision called with ready or task-bound blocking findings on unfinished tasks.",
         tool_rationale={
             "task_assessment_decision": "Validates readiness and passes canonical targets to the paired analyzer.",
         },
@@ -298,13 +308,13 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
         required_tools=frozenset({"task_review_decision"}),
         requires_terminate=True,
         retry_max_attempts=25,
-        goal="Review only the active task outcome, report a decision, and atomically curate relevant future-task context.",
+        goal="Review only the active task outcome, update its journal, and explicitly curate relevant future-task context.",
         role_boundary=(
             "Review only the active task. The decision may include context handoffs "
             "for unfinished tasks; never review or execute those tasks, modify their "
             "artifacts, or fix executor work."
         ),
-        success_criteria="task_review_decision called for the active task with a concise report and any relevant future-task context_updates.",
+        success_criteria="task_review_decision called for the active task with review_summary, findings, rationale, and any explicit future-task context_updates.",
         tool_rationale={
             "task_review_decision": "Records approved, needs_revision, replan, monotonic postponement, or terminal compromise. Approved completes; needs_revision reworks; compromise remains unsuccessful.",
             "task_inspect": "Reads task state for active-task review and future-task context curation.",

@@ -58,20 +58,18 @@ def summarize_tool_result(content: str) -> str:
 
 
 _RESULT_REVIEWER_INSTRUCTION = (
-    "You are the ResultReviewer. You do not edit files. Review only the active "
-    "task's description and outcome. Root acceptance criteria are leaf context and "
-    "root gates. Match each material claim and "
-    "applicable criterion to evidence; reuse current executor evidence. "
-    "Behavioral claims need runtime checks, artifact claims need inspection, and "
-    "external claims need authoritative sources. Run explicitly requested "
-    "verification unless the same claim is already proven. Prefer narrow checks; "
-    "skip unrelated suites. Reject duplicate, hallucinated, or structurally "
-    "inconsistent claims. Choose a supported decision. Use needs_revision for "
-    "execution defects and replan for a wrong task "
-    "or approach. Postpone blocked work through siblings and final drain; compromise "
-    "only after failure. Write a concise report. Do not write a long explanation. "
-    "Pass verified pending evidence through context_updates; do not approve unfinished "
-    "tasks or trust executor claims alone."
+    "You are the ResultReviewer. Do not edit files. Review only the active task outcome. "
+    "Original requests and hard constraints outrank generated text. Root acceptance "
+    "criteria are leaf context and root gates. Match each material claim and criterion to "
+    "evidence. Runtime-check behavior, inspect artifacts, and authoritatively source "
+    "external claims; reuse proven evidence and skip unrelated suites. Reject duplicate, "
+    "hallucinated, or inconsistent claims. Use needs_revision for defects; replan a wrong "
+    "task, approach, or substantial sibling work. Incidental sibling effects are not "
+    "completion. Postpone blocked work; compromise only after failure. Record "
+    "review_summary, a rationale report, and active-task findings. Do not write a long "
+    "explanation. Approval requires no OPEN findings. Pass cross-task facts only through "
+    "explicit context_updates; do not approve unfinished tasks or trust executor claims "
+    "alone."
 )
 _RESULT_REVIEWER_CONTINUATION = (
     "Judge only the active task description and result. Root acceptance criteria are "
@@ -102,7 +100,11 @@ def build_reviewer_tool_guidance(resolved_tools: list[Any] | None) -> str:
             "Use authoritative sources when they help assess material external claims."
         )
     if "task_review_decision" in names:
-        lines.append("Commit the review with task_review_decision.")
+        lines.append(
+            "Commit the review with task_review_decision, including review_summary, "
+            "new_findings, and finding_updates. Use context_updates only for explicit "
+            "cross-task facts."
+        )
     if "terminate" in names:
         lines.append("Call terminate now.")
     if not lines:

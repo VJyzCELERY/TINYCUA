@@ -18,7 +18,7 @@ This is distinct from the [Task Assessor](task-assessor.md), which runs during u
 Its primary responsibilities are:
 
 1. review completion against success criteria;
-2. determine what context should update future tasks;
+2. explicitly identify any useful context that should update a named future task;
 3. decide whether to approve, send back for revision, or replan.
 
 ---
@@ -42,13 +42,15 @@ The Result Reviewer should be hybrid:
 - Bounded executor evidence — tool names, command/path/URL/query identifiers, outcomes,
   and audit references from the Task Executor. Full tool output bodies are not replayed.
 - `shallow_task_list` — task IDs and names from the Task Tree for scope awareness (no full task details).
+- The active task's bounded review digest: open/deferred/recently addressed findings and recent event summaries. Full event rationale is loaded only through `task_inspect(event_id=...)`.
 
-The Result Reviewer should not receive a broad accumulated context dump by default. Accumulation happens by updating relevant future task contexts after accepted results.
+The Result Reviewer should not receive a broad accumulated context dump by default. Cross-task context changes happen only through explicit validated `context_updates`.
 
 Root acceptance criteria are context during leaf review and semantic gates when the root
 task itself is reviewed. Behavioral claims require behavioral checks, artifact claims
 require artifact inspection, and external claims require authoritative evidence. Existing
 exact evidence may be reused; unrelated suites are not run merely because tools exist.
+Generated criteria never override the original user request or immutable constraints.
 
 **Output:**
 
@@ -64,7 +66,7 @@ flowchart TD
     CHECK["Validate required result fields\n(sanity-checker, FR-056)"]
     REVIEW["Review result against task and\nacceptance context"]
     APPROVED{"Approved?"}
-    PROP["Consolidate unfinished/upcoming task contexts"]
+    PROP["Commit explicit named context updates"]
     REVISE{"Needs revision?"}
     REPLAN{"Roadmap revision or exploration needed?"}
     OUT{{"Reviewer Decision"}}
@@ -90,9 +92,9 @@ flowchart TD
 
 ## Context Propagation
 
-After approving a task, the Result Reviewer decides which unfinished or upcoming tasks need context updates.
+Review events and findings stay on the active task across retry, replan, postponement, and resume. They never enter sibling prompts automatically. Approval is rejected while that task owns unresolved `OPEN` findings.
 
-This avoids dumping every previous task result into every future task. Context updates may modify task context — they can replace or add to existing content. The architecture does not prescribe a specific consolidation strategy.
+Cross-task transfer occurs only through validated `task_review_decision.context_updates` targeting an existing unfinished task. Approved results, review events, findings, and copied context metadata are not otherwise propagated.
 
 ---
 
@@ -100,7 +102,7 @@ This avoids dumping every previous task result into every future task. Context u
 
 | Status | Orchestration Action |
 |--------|----------------------|
-| `approved` | Consolidate context for unfinished/upcoming tasks. Aggregate Worker Result when no tasks remain. |
+| `approved` | Commit only explicit validated context updates. Aggregate Worker Result when no tasks remain. |
 | `needs_revision` | Send the task back to the Task Executor with failure information recorded in the task context. Stored legacy `rejected` decisions parse as the same behavior but are no longer model-facing. |
 | `replan` | Call the [Task Analyzer](task-analysis.md) to decompose the current task into sub-tasks. |
 | `postpone_siblings` | Defer a non-root task until normal sibling work is terminal or also sibling-postponed. |

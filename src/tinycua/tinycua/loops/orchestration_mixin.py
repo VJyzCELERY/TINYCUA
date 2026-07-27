@@ -662,6 +662,16 @@ class OrchestrationMixin:
         next_node = self.queue.items[1] if len(self.queue.items) > 1 else None
         if next_node is None:
             return None
+        if (
+            node.node_id == "task_assessor"
+            and node.config.metadata.get("task_assessor_mode") == "final_assessment"
+        ):
+            self._pending_handoffs[:] = [
+                handoff
+                for handoff in self._pending_handoffs
+                if handoff.source_node != node.node_id
+            ]
+            return None
         for index, handoff in enumerate(self._pending_handoffs):
             if handoff.source_node != node.node_id:
                 continue
