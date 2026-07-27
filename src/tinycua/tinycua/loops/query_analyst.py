@@ -116,16 +116,22 @@ class TinyCUAQueryAnalystNode(DecisionNode):
             config=create_node_config("worker", self.config),
         )
 
-        # Create InformationDigesterNode
-        digester = TinyCUAInformationDigesterNode(
-            node_id="digester",
-            config=create_node_config("information_digester", self.config),
+        digest_enabled = getattr(
+            self.config.metadata.get("session_config"), "digest_enabled", True
         )
-
-        queue.spawn_after_current([digester, worker_node])
-        ceq = self._original_query_input(input_data, target_node="digester")
+        if digest_enabled:
+            digester = TinyCUAInformationDigesterNode(
+                node_id="digester",
+                config=create_node_config("information_digester", self.config),
+            )
+            queue.spawn_after_current([digester, worker_node])
+            target = digester
+        else:
+            queue.spawn_after_current([worker_node])
+            target = worker_node
+        ceq = self._original_query_input(input_data, target_node=target.node_id)
         if ceq is not None:
-            queue.set_input(digester, ceq)
+            queue.set_input(target, ceq)
 
     def _original_query_input(
         self,
