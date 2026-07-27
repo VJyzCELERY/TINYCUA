@@ -6,7 +6,6 @@ import shutil
 import stat
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 import pytest
@@ -239,58 +238,15 @@ def test_research_evaluator_accepts_model_name_variants(
     assert 0 <= score("exact-hyphen")["metrics"]["bleu"] <= 100
 
 
-def test_experiment_four_wrapper_runs_filename_neutral_app_with_uv_and_prints_pid(
-    tmp_path: Path,
-) -> None:
-    """The supplied wrapper exposes the live background app PID."""
+def test_experiment_four_leaves_startup_and_dependencies_to_the_submission() -> None:
+    """The free-form fixture provides no implementation-specific launcher."""
     fixture = FIXTURES / "experiment-4"
-    run_script = tmp_path / "run.sh"
-    shutil.copy(fixture / "workdir" / "run.sh", run_script)
-    shutil.copy(fixture / "workdir" / "pyproject.toml", tmp_path / "pyproject.toml")
-    (tmp_path / "server.py").write_text("import time\ntime.sleep(60)\n")
-    run_script.write_text(
-        run_script.read_text().replace(
-            "  # AGENT_START_COMMAND_BEGIN\n"
-            "  printf '%s\\n' 'Replace this section with the app start command.' >&2\n"
-            "  return 1\n"
-            "  # AGENT_START_COMMAND_END",
-            "  # AGENT_START_COMMAND_BEGIN\n"
-            "  exec uv run python server.py --port \"$PORT\"\n"
-            "  # AGENT_START_COMMAND_END",
-        )
-    )
-    uv = tmp_path / "uv"
-    uv.write_text(
-        '#!/bin/sh\nif [ "$1" = sync ]; then exit 0; fi\n'
-        'shift\nshift\nexec python "$@"\n'
-    )
-    uv.chmod(uv.stat().st_mode | stat.S_IXUSR)
-    process = subprocess.Popen(
-        ["sh", "run.sh"],
-        cwd=tmp_path,
-        env=os.environ | {"PATH": f"{tmp_path}:{os.environ['PATH']}"},
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    assert process.stdout is not None
-    pid_text = process.stdout.readline().strip()
+    task = (fixture / "workdir" / "TASK.md").read_text()
 
-    try:
-        app_pid = int(pid_text)
-        os.kill(app_pid, 0)
-    finally:
-        process.terminate()
-        process.wait(timeout=5)
-
-    for _ in range(20):
-        try:
-            os.kill(app_pid, 0)
-        except ProcessLookupError:
-            break
-        time.sleep(0.05)
-    else:
-        pytest.fail("run.sh did not terminate its background app")
+    assert not (fixture / "workdir" / "run.sh").exists()
+    assert not (fixture / "workdir" / "pyproject.toml").exists()
+    assert "root `start.sh`" in task
+    assert "`start.sh` owns dependency installation" in task
 
 
 @pytest.mark.parametrize(

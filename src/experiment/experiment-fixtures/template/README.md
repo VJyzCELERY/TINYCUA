@@ -69,8 +69,8 @@ checks here.
 
 If an evaluator expects a fixed path such as `app.py`, `src/app.py`, or
 `frontend/index.html`, name that exact layout in `TASK.md`. If the task is
-intentionally free-form, make the evaluator discover the submitted entrypoint
-instead of assuming an undocumented path.
+intentionally free-form, document one entrypoint for the evaluator to invoke
+instead of assuming undocumented files.
 
 Set `outcome_group` to `coding`, `research`, or `conversation`; controlled run
 summaries keep these groups separate and never compute a cross-task average.
@@ -99,7 +99,15 @@ submission_dependency_files:
   - packages/client/pyproject.toml
 ```
 
-The runner always installs the top-level submission manifests when present.
+The runner always installs the top-level submission manifests when present. A
+free-form entrypoint may instead own dependency installation and nested layouts:
+
+```yaml
+entrypoint_manages_dependencies: true
+```
+
+This skips submission-manifest installation and nested-manifest validation; it
+does not skip evaluator dependencies.
 
 ## Submission Dockerfile
 
