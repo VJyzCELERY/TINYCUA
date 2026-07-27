@@ -36,6 +36,7 @@ from tinycua.models.task import (
     TaskResult,
     TaskStatus,
 )
+from tinycua.tools.task_tools import TaskInitTool
 from tinycua_sdk import Agent, LanguageModel
 
 
@@ -46,6 +47,18 @@ _LIFECYCLE_NODE_TYPES = (
     ("task_executor", TinyCUATaskExecutorNode),
     ("result_reviewer", TinyCUAResultReviewerNode),
 )
+
+
+def test_task_create_keeps_user_request_authoritative() -> None:
+    """Root generation may paraphrase but never invent or override requirements."""
+    node = TinyCUATaskCreateNode(
+        node_id="task_create", config=create_node_config("task_create")
+    )
+    guidance = f"{node._instruction} {TaskInitTool().description}".lower()
+
+    assert "direct paraphrase" in guidance
+    assert "never add" in guidance
+    assert "never override" in guidance
 
 
 def test_build_node_messages_filters_blank_messages_and_preserves_roles() -> None:
@@ -1007,14 +1020,8 @@ def test_task_analyzer_local_replan_prompt_does_not_replan_root() -> None:
     assert "Task snapshot:" not in rendered
 
 
-def test_local_replan_region_shows_sibling_and_child_results() -> None:
-    """Local replan region (analyzer + assessor) renders full result summaries.
-
-    Both the active task and its siblings/children carry their result summary
-    in the rendered region so the assessor/analyzer can see exactly what was
-    found and decide whether the region needs refinement — not just titles +
-    statuses.
-    """
+def test_local_replan_region_keeps_sibling_results_private() -> None:
+    """Local replan sees sibling title/status but only the active result."""
     from tinycua.loops.task_nodes import (
         _local_task_region,
         _render_local_region_markdown,
@@ -1055,16 +1062,12 @@ def test_local_replan_region_shows_sibling_and_child_results() -> None:
     # Active task result is rendered (full summary, no truncation).
     assert "Active: Fetch Kaggle dataset" in rendered
     assert "Kaggle: GPT-5.5 scores 89% MMLU" in rendered
-    # Completed sibling result is rendered.
+    # Completed sibling remains visible as roadmap awareness without its result.
     assert "Fetch Vellum data" in rendered
-    assert "Vellum: Claude Opus 4.8 #1" in rendered
+    assert "Vellum: Claude Opus 4.8 #1" not in rendered
     # Pending sibling shows title + status, no result line (it has none).
     assert "Fetch AlphaCorp article" in rendered
-    # The region dict carries results for children + siblings (for any caller
-    # that wants the structured form, not just the markdown render).
-    assert any(
-        s.get("result") == "Vellum: Claude Opus 4.8 #1" for s in region["siblings"]
-    )
+    assert all("result" not in sibling for sibling in region["siblings"])
     assert region["active_task"]["result"] == "Kaggle: GPT-5.5 scores 89% MMLU"
 
 

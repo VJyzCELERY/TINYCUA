@@ -104,7 +104,8 @@ def test_task_assessor_commit_guidance_names_only_decision_tool() -> None:
 
     assert "task_assessment_decision" in guidance
     assert "task_inspect" not in guidance
-    assert "selected_task_ids" in guidance
+    assert "findings" in guidance
+    assert "advisories" in guidance
     assert "rationale" in guidance
 
 

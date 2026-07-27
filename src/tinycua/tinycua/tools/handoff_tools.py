@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 from tinycua.config.types import Tool
@@ -78,9 +79,8 @@ class TaskAssessmentDecisionTool(Tool):
         super().__init__(
             name="task_assessment_decision",
             description=(
-                "Commit TaskAssessor's roadmap decision. Use ready only with no "
-                "selected tasks; use analyze with one or more unfinished task IDs. "
-                "Task numbers are accepted and converted to canonical IDs."
+                "Commit ready or analyze with task-bound blocking findings and "
+                "nonblocking advisories. Task numbers become canonical IDs."
             ),
             parameters={
                 "type": "object",
@@ -89,19 +89,40 @@ class TaskAssessmentDecisionTool(Tool):
                         "type": "string",
                         "enum": ["ready", "analyze"],
                     },
-                    "selected_task_ids": {
+                    "findings": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "task_id": {"type": "string"},
+                                "finding": {"type": "string", "maxLength": 240},
+                            },
+                            "required": ["task_id", "finding"],
+                            "additionalProperties": False,
+                        },
+                    },
+                    "advisories": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "task_id": {"type": "string"},
+                                "advisory": {"type": "string", "maxLength": 240},
+                            },
+                            "required": ["task_id", "advisory"],
+                            "additionalProperties": False,
+                        },
                     },
                     "rationale": {"type": "string"},
                 },
-                "required": ["decision", "selected_task_ids", "rationale"],
+                "required": ["decision", "findings", "advisories", "rationale"],
                 "additionalProperties": False,
             },
         )
         self._task_store = TaskStateStore()
         self._handoff_store: list[NodeHandoff] | None = None
         self._source_node = "unknown"
+        self._assessment_mode = "upfront_decomposition"
 
     def bind_task_store(self, store: TaskStateStore) -> None:
         """Bind the active session's task state."""
@@ -115,37 +136,40 @@ class TaskAssessmentDecisionTool(Tool):
         """Bind the source node ID for the handoff."""
         self._source_node = source_node
 
-    def __call__(
-        self,
-        decision: str,
-        selected_task_ids: list[str],
-        rationale: str,
-    ) -> dict[str, Any]:
-        """Validate the assessment and emit its canonical analyzer handoff."""
-        if decision not in {"ready", "analyze"}:
-            return {"success": False, "error": "decision must be ready or analyze."}
-        if not isinstance(rationale, str) or not rationale.strip():
-            return {"success": False, "error": "rationale is required."}
-        if not isinstance(selected_task_ids, list) or any(
-            not isinstance(task_id, str) for task_id in selected_task_ids
-        ):
-            return {
-                "success": False,
-                "error": "selected_task_ids must be an array of task IDs.",
-            }
-        if decision == "ready" and selected_task_ids:
-            return {
-                "success": False,
-                "error": "ready requires an empty selected_task_ids array.",
-            }
-        if decision == "analyze" and not selected_task_ids:
-            return {
-                "success": False,
-                "error": "analyze requires a nonempty selected_task_ids array.",
-            }
+    def bind_assessment_mode(self, mode: str) -> None:
+        """Bind upfront, local, or final assessment behavior."""
+        self._assessment_mode = mode
 
-        canonical_ids: list[str] = []
-        for task_ref in selected_task_ids:
+    def _canonical_records(
+        self,
+        records: list[dict[str, str]],
+        text_field: str,
+        *,
+        unique_targets: bool = False,
+    ) -> tuple[list[dict[str, str]], str | None]:
+        """Validate task-bound records without mutating task state."""
+        if not isinstance(records, list):
+            return [], f"{text_field}s must be an array."
+        canonical = []
+        for record in records:
+            if not isinstance(record, dict):
+                return (
+                    [],
+                    f"Every {text_field} must identify a valid unfinished task.",
+                )
+            task_ref = record.get("task_id")
+            text = record.get(text_field)
+            if (
+                not isinstance(task_ref, str)
+                or not isinstance(text, str)
+                or not text.strip()
+            ):
+                return (
+                    [],
+                    f"Every {text_field} must identify a valid unfinished task.",
+                )
+            if len(text.strip()) > 240:
+                return [], f"Every {text_field} must be at most 240 characters."
             task_id = self._task_store.resolve_task_id(task_ref)
             task = self._task_store.tasks.get(task_id or "")
             if task is None or task.status in {
@@ -154,18 +178,94 @@ class TaskAssessmentDecisionTool(Tool):
                 TaskStatus.SUPERSEDED,
                 TaskStatus.COMPROMISED,
             }:
-                return {
-                    "success": False,
-                    "error": f"Task {task_ref} must identify a valid unfinished task.",
+                return [], f"Task {task_ref} must identify a valid unfinished task."
+            canonical.append({"task_id": task_id, text_field: text.strip()})
+        if unique_targets:
+            task_ids = [record["task_id"] for record in canonical]
+            if len(task_ids) != len(set(task_ids)):
+                return [], "Use at most one blocking finding per task."
+        return canonical, None
+
+    def __call__(
+        self,
+        decision: str,
+        findings: list[dict[str, str]],
+        advisories: list[dict[str, str]],
+        rationale: str,
+    ) -> dict[str, Any]:
+        """Validate the assessment and emit its canonical analyzer handoff."""
+        if decision not in {"ready", "analyze"}:
+            return {"success": False, "error": "decision must be ready or analyze."}
+        if not isinstance(rationale, str) or not rationale.strip():
+            return {"success": False, "error": "rationale is required."}
+        canonical_findings, error = self._canonical_records(
+            findings, "finding", unique_targets=True
+        )
+        if error:
+            return {"success": False, "error": error}
+        canonical_advisories, error = self._canonical_records(advisories, "advisory")
+        if error:
+            return {"success": False, "error": error}
+        if decision == "ready" and canonical_findings:
+            return {
+                "success": False,
+                "error": "ready requires no blocking findings.",
+            }
+        if decision == "analyze" and not canonical_findings:
+            return {
+                "success": False,
+                "error": "analyze requires at least one blocking finding.",
+            }
+
+        assessment_id = uuid.uuid4().hex
+        for record in [*canonical_findings, *canonical_advisories]:
+            record["assessment_id"] = assessment_id
+        exhausted = self._assessment_mode == "final_assessment"
+        if exhausted:
+            canonical_advisories.extend(
+                {
+                    "task_id": record["task_id"],
+                    "advisory": record["finding"],
+                    "assessment_id": assessment_id,
+                    "analysis_budget_exhausted": True,
                 }
-            if task_id not in canonical_ids:
-                canonical_ids.append(task_id)
+                for record in canonical_findings
+            )
+
+        metadata_updates: dict[str, dict[str, Any]] = {}
+        if not exhausted:
+            for record in canonical_findings:
+                task = self._task_store.tasks[record["task_id"]]
+                task.metadata.pop("planning_resolution", None)
+                metadata_updates.setdefault(record["task_id"], {}).update(
+                    {"planning_finding": record, "planning_note": ""}
+                )
+        for record in canonical_advisories:
+            task = self._task_store.tasks[record["task_id"]]
+            updates = metadata_updates.setdefault(record["task_id"], {})
+            current = list(
+                updates.get(
+                    "planning_advisories",
+                    task.metadata.get("planning_advisories", []),
+                )
+            )
+            updates["planning_advisories"] = [*current, record][-5:]
+        for task_id, metadata in metadata_updates.items():
+            self._task_store.update_task(task_id, metadata=metadata)
+
+        canonical_ids = list(
+            dict.fromkeys(item["task_id"] for item in canonical_findings)
+        )
 
         payload = {
             "decision": decision,
             "selected_task_ids": canonical_ids,
+            "findings": canonical_findings,
+            "advisories": canonical_advisories,
             "rationale": rationale.strip(),
         }
+        if exhausted:
+            payload["analysis_budget_exhausted"] = True
         handoff = NodeHandoff(
             source_node=self._source_node,
             target_node="task_analyzer",

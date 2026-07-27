@@ -104,6 +104,7 @@ class Task:
     active_child_id: str | None = None
     result: TaskResult | None = None
     reviewer_decisions: list[dict[str, Any]] = field(default_factory=list)
+    review_findings: list[dict[str, str]] = field(default_factory=list)
     artifacts: list[dict[str, Any]] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -202,6 +203,12 @@ class TaskStateStore:
         TaskStatus.CANCELLED,
         TaskStatus.SUPERSEDED,
         TaskStatus.COMPROMISED,
+    }
+    _REVIEW_FINDING_STATUSES: ClassVar[set[str]] = {
+        "OPEN",
+        "ADDRESSED",
+        "INVALID",
+        "DEFERRED",
     }
 
     def _bump_version(self) -> None:
@@ -375,27 +382,37 @@ class TaskStateStore:
             if isinstance(item, dict) or (isinstance(item, str) and item.strip())
         ]
         if not definitions:
-            return list(task.children)
+            msg = "Decomposition requires at least one valid subtask."
+            raise ValueError(msg)
         sibling_titles = {
             _normalized_task_title(self.tasks[child_id].title)
             for child_id in task.children
         }
-        titled_definitions: list[tuple[dict[str, Any], str]] = []
+        titled_definitions: list[tuple[str, str]] = []
         for definition in definitions:
-            title = str(definition.get("title", "")).strip()
-            if not title:
+            raw_title = definition.get("title")
+            if not isinstance(raw_title, str) or not raw_title.strip():
                 continue
+            title = raw_title.strip()
             title_key = _normalized_task_title(title)
             if title_key in sibling_titles:
                 msg = "Task duplicates an existing sibling title."
                 raise ValueError(msg)
             sibling_titles.add(title_key)
-            titled_definitions.append((definition, title))
-        for _definition, title in titled_definitions:
-            child = Task(title=title, parent_id=task_id)
+            description = definition.get("description", "")
+            titled_definitions.append(
+                (title, description if isinstance(description, str) else "")
+            )
+        if not titled_definitions:
+            msg = "Decomposition requires at least one valid subtask."
+            raise ValueError(msg)
+        for title, description in titled_definitions:
+            child = Task(title=title, parent_id=task_id, description=description)
             self.tasks[child.task_id] = child
             task.children.append(child.task_id)
-        self._finalize_mutation("decompose_task", task_id, child_count=len(definitions))
+        self._finalize_mutation(
+            "decompose_task", task_id, child_count=len(titled_definitions)
+        )
         return list(task.children)
 
     def update_task(
@@ -576,6 +593,9 @@ class TaskStateStore:
         ):
             msg = "Cannot merge a task with unfinished descendants."
             raise ValueError(msg)
+        if child.reviewer_decisions or child.review_findings:
+            msg = "Cannot merge a task with review history."
+            raise ValueError(msg)
         # Preserve work: child's result → parent's result if parent has none.
         if child.result is not None:
             if parent.result is None:
@@ -744,13 +764,16 @@ class TaskStateStore:
         rationale: str = "",
         metadata: dict[str, Any] | None = None,
     ) -> Task:
-        """Append a reviewer decision and its validated context updates."""
+        """Atomically append a task-local review event and validated updates."""
         task = self.get_task(task_id)
         self._require_mutable(task)
         reviewer_decision = ReviewerDecision(decision)
         self._validate_deferred_decision(task, reviewer_decision, rationale)
         context_updates = self._validated_reviewer_context_updates(
             task_id, (metadata or {}).get("context_updates", [])
+        )
+        event, new_findings, finding_updates = self._validated_review_event(
+            task, reviewer_decision, rationale, metadata or {}
         )
         if (
             reviewer_decision == ReviewerDecision.APPROVED
@@ -760,13 +783,15 @@ class TaskStateStore:
                 self.transition(task_id, TaskStatus.IN_PROGRESS)
             msg = "Approval requires a successful non-empty executor report."
             raise ValueError(msg)
-        task.reviewer_decisions.append(
-            {
-                "decision": reviewer_decision.value,
-                "rationale": rationale,
-                "metadata": metadata or {},
-            }
-        )
+        task.reviewer_decisions.append(event)
+        task.review_findings.extend(new_findings)
+        findings_by_id = {
+            finding["finding_id"]: finding for finding in task.review_findings
+        }
+        for update in finding_updates:
+            finding = findings_by_id[update["finding_id"]]
+            finding["status"] = update["status"]
+            finding["updated_event_id"] = event["event_id"]
         if reviewer_decision in {
             ReviewerDecision.NEEDS_REVISION,
             ReviewerDecision.REJECTED,
@@ -790,7 +815,6 @@ class TaskStateStore:
                 self.transition(task_id, TaskStatus.IN_PROGRESS)
             self.transition(task_id, TaskStatus.COMPLETED)
             self._complete_ready_parents()
-            self._propagate_result_to_next_sibling(task)
             self._refresh_active_task()
             self._bump_version()
         for target, context in context_updates:
@@ -873,6 +897,122 @@ class TaskStateStore:
             validated.append((target, context))
         return validated
 
+    def _validated_review_event(
+        self,
+        task: Task,
+        decision: ReviewerDecision,
+        rationale: str,
+        metadata: dict[str, Any],
+    ) -> tuple[dict[str, Any], list[dict[str, str]], list[dict[str, str]]]:
+        """Validate one prospective task-local journal event without mutation."""
+        raw_summary = metadata.get("review_summary", "")
+        if not isinstance(raw_summary, str):
+            raise ValueError("review_summary must be a string.")
+        review_summary = raw_summary.strip()
+        if len(review_summary) > 240:
+            raise ValueError("review_summary must be at most 240 characters.")
+        if not review_summary:
+            review_summary = rationale.strip()[:240] or decision.value
+
+        raw_findings = metadata.get("new_findings", [])
+        if not isinstance(raw_findings, list):
+            raise ValueError("new_findings must be a list.")
+        raw_updates = metadata.get("finding_updates", [])
+        if not isinstance(raw_updates, list):
+            raise ValueError("finding_updates must be a list.")
+
+        event_id = self._next_task_local_id(
+            task.reviewer_decisions, "event_id", "review"
+        )
+        next_finding_id = self._next_task_local_id(
+            task.review_findings, "finding_id", "finding"
+        )
+        next_finding_number = int(next_finding_id.removeprefix("finding-"))
+        new_findings: list[dict[str, str]] = []
+        for offset, summary in enumerate(raw_findings):
+            if not isinstance(summary, str) or not summary.strip():
+                raise ValueError("Each new finding must be a non-empty string.")
+            if len(summary.strip()) > 240:
+                raise ValueError("Each new finding must be at most 240 characters.")
+            new_findings.append(
+                {
+                    "finding_id": f"finding-{next_finding_number + offset}",
+                    "summary": summary.strip(),
+                    "status": "OPEN",
+                    "created_event_id": event_id,
+                    "updated_event_id": event_id,
+                }
+            )
+
+        existing = {
+            finding.get("finding_id"): finding for finding in task.review_findings
+        }
+        finding_updates: list[dict[str, str]] = []
+        updated_ids: set[str] = set()
+        for update in raw_updates:
+            if not isinstance(update, dict):
+                raise ValueError("Each finding update must be an object.")
+            finding_id = update.get("finding_id")
+            status = update.get("status")
+            if not isinstance(finding_id, str) or finding_id not in existing:
+                raise ValueError(
+                    "Finding updates must target an existing task finding."
+                )
+            if status not in self._REVIEW_FINDING_STATUSES:
+                raise ValueError("Finding update status is invalid.")
+            if finding_id in updated_ids:
+                raise ValueError("A finding may be updated only once per review event.")
+            updated_ids.add(finding_id)
+            finding_updates.append({"finding_id": finding_id, "status": status})
+
+        if decision == ReviewerDecision.APPROVED and self._has_open_findings_after(
+            task, new_findings, finding_updates
+        ):
+            raise ValueError(
+                "Approval requires all active-task OPEN findings resolved."
+            )
+
+        event = {
+            "event_id": event_id,
+            "review_summary": review_summary,
+            "decision": decision.value,
+            "rationale": rationale,
+            "new_findings": [item["finding_id"] for item in new_findings],
+            "finding_updates": finding_updates,
+            "metadata": {
+                "context_updates": metadata.get("context_updates", []),
+            },
+        }
+        return event, new_findings, finding_updates
+
+    @staticmethod
+    def _has_open_findings_after(
+        task: Task,
+        new_findings: list[dict[str, str]],
+        finding_updates: list[dict[str, str]],
+    ) -> bool:
+        """Return whether prospective task-local finding state remains open."""
+        statuses = {
+            finding["finding_id"]: finding["status"]
+            for finding in [*task.review_findings, *new_findings]
+        }
+        statuses.update(
+            (update["finding_id"], update["status"]) for update in finding_updates
+        )
+        return "OPEN" in statuses.values()
+
+    @staticmethod
+    def _next_task_local_id(
+        records: list[dict[str, Any]], key: str, prefix: str
+    ) -> str:
+        """Return the next stable sequence ID in one task-owned record list."""
+        numbers = [
+            int(value)
+            for record in records
+            if (value := str(record.get(key, "")).removeprefix(f"{prefix}-")).isdigit()
+        ]
+        return f"{prefix}-{max(numbers, default=0) + 1}"
+
     def stage_reviewer_decision(
         self,
         task_id: str,
@@ -889,6 +1029,7 @@ class TaskStateStore:
         self._validated_reviewer_context_updates(
             task_id, (metadata or {}).get("context_updates", [])
         )
+        self._validated_review_event(task, reviewer_decision, rationale, metadata or {})
         if (
             reviewer_decision == ReviewerDecision.APPROVED
             and not self._has_successful_task_report(task.result)
@@ -1012,7 +1153,7 @@ class TaskStateStore:
     def compact_task_detail(self, task_id: str) -> dict[str, Any] | None:
         """Return one task with compacted detail (FR-012), or None if not found.
 
-        - ``reviewer_decisions`` truncated to the last 2.
+        - Review history reduced to a bounded task-local digest.
         - ``result.content``/``result.summary`` truncated to 200 chars.
         - Empty ``metadata``/``artifacts``/``children`` omitted.
         """
@@ -1039,13 +1180,64 @@ class TaskStateStore:
             }
             if result.artifacts:
                 detail["result"]["artifacts"] = result.artifacts
-        if task.reviewer_decisions:
-            detail["reviewer_decisions"] = list(task.reviewer_decisions[-2:])
+        review_journal = self.review_journal_digest(task_id)
+        if review_journal:
+            detail["review_journal"] = review_journal
         if task.artifacts:
             detail["artifacts"] = task.artifacts
         if task.metadata:
             detail["metadata"] = task.metadata
         return self._json_safe(detail)
+
+    def review_journal_digest(self, task_id: str) -> dict[str, Any]:
+        """Return bounded findings and event summaries for one task."""
+        task = self.get_task(task_id)
+        digest: dict[str, Any] = {}
+        groups = {
+            "open_findings": ("OPEN", 8),
+            "deferred_findings": ("DEFERRED", 4),
+        }
+        for key, (status, limit) in groups.items():
+            findings = [
+                dict(finding)
+                for finding in task.review_findings
+                if finding.get("status") == status
+            ][-limit:]
+            if findings:
+                digest[key] = findings
+        addressed = [
+            dict(finding)
+            for finding in task.review_findings
+            if finding.get("status") in {"ADDRESSED", "INVALID"}
+        ][-4:]
+        if addressed:
+            digest["recently_addressed_findings"] = addressed
+        events = [
+            {
+                "event_id": event["event_id"],
+                "review_summary": event.get("review_summary")
+                or str(event.get("rationale", ""))[:240],
+                "decision": event.get("decision", "unknown"),
+            }
+            for event in task.reviewer_decisions
+            if event.get("event_id")
+        ][-3:]
+        if events:
+            digest["recent_events"] = events
+        return digest
+
+    def review_event_detail(self, task_id: str, event_id: str) -> dict[str, Any] | None:
+        """Return one full task-local review event by stable ID."""
+        task = self.get_task(task_id)
+        event = next(
+            (
+                item
+                for item in task.reviewer_decisions
+                if item.get("event_id") == event_id
+            ),
+            None,
+        )
+        return self._json_safe(event) if event is not None else None
 
     def _refresh_active_task(self) -> None:
         """Refresh active_task_id to the first unfinished leaf."""
@@ -1089,42 +1281,6 @@ class TaskStateStore:
                 if task.status == TaskStatus.PENDING:
                     task.status = TaskStatus.IN_PROGRESS
                     self._bump_version()
-
-    def _propagate_result_to_next_sibling(self, task: Task) -> None:
-        """Propagate an approved task's result summary to the next pending sibling.
-
-        When a task is approved, its result summary is appended to the
-        ``metadata["context"]`` of the next pending sibling under the same
-        parent. This ensures the downstream task sees the approved result
-        in its "Useful Prior Context" section (Milestone 8 Stream A).
-        """
-        if task.parent_id is None or task.parent_id not in self.tasks:
-            return
-        if not self._has_successful_task_report(task.result):
-            return
-        parent = self.tasks[task.parent_id]
-        # Find the next pending sibling (in children order, after this task).
-        found_self = False
-        for child_id in parent.children:
-            if child_id == task.task_id:
-                found_self = True
-                continue
-            if not found_self:
-                continue
-            child = self.tasks.get(child_id)
-            if child and child.status == TaskStatus.PENDING:
-                summary = task.result.summary or task.result.content
-                existing = child.metadata.setdefault("context", "")
-                if existing:
-                    child.metadata["context"] = (
-                        f"{existing}\n\n[From completed sibling '{task.title}']: "
-                        f"{summary}"
-                    )
-                else:
-                    child.metadata["context"] = (
-                        f"[From completed sibling '{task.title}']: {summary}"
-                    )
-                break
 
     def _json_safe(self, value: Any) -> Any:
         """Convert dataclass fields to JSON-compatible primitives."""

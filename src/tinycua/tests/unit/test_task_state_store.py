@@ -27,13 +27,8 @@ def test_task_store_advances_after_reviewer_approval() -> None:
     assert store.get_active_task() is second
 
 
-def test_approved_result_propagates_context_to_next_sibling() -> None:
-    """Reviewer approval propagates result summary to the next pending sibling.
-
-    Milestone 8 Stream A: when a task is approved, its result summary is
-    appended to the next pending sibling's metadata["context"] so the
-    downstream task sees the approved result in its "Useful Prior Context".
-    """
+def test_approved_result_does_not_propagate_context_to_next_sibling() -> None:
+    """Reviewer approval keeps result context on the reviewed task."""
     store = TaskStateStore()
     root = store.create_task("Build app")
     scaffold = store.create_task("Create project scaffold", parent_id=root.task_id)
@@ -46,10 +41,7 @@ def test_approved_result_propagates_context_to_next_sibling() -> None:
     store.record_reviewer_decision(scaffold.task_id, ReviewerDecision.APPROVED)
 
     assert scaffold.status == TaskStatus.COMPLETED
-    # Context IS propagated to the next pending sibling (Milestone 8)
-    assert "context" in module.metadata
-    assert "Create project scaffold" in module.metadata["context"]
-    assert "backend/app.py" in module.metadata["context"]
+    assert module.metadata == {}
 
 
 @pytest.mark.parametrize(
@@ -261,6 +253,27 @@ def test_decomposition_rejects_duplicate_sibling_titles() -> None:
     assert len(root.children) == 1
 
 
+def test_decomposition_preserves_child_descriptions_and_rejects_no_op() -> None:
+    """Structured decomposition keeps context and cannot silently do nothing."""
+    store = TaskStateStore()
+    root = store.create_task("Root")
+
+    child_ids = store.decompose_task(
+        root.task_id,
+        [{"title": "Inspect API", "description": "Confirm the response contract."}],
+    )
+
+    child = store.get_task(child_ids[0])
+    assert child.title == "Inspect API"
+    assert child.description == "Confirm the response contract."
+    with pytest.raises(ValueError, match="valid subtask"):
+        store.decompose_task(root.task_id, [])
+    with pytest.raises(ValueError, match="valid subtask"):
+        store.decompose_task(root.task_id, [{"description": "Missing title"}])
+    with pytest.raises(ValueError, match="valid subtask"):
+        store.decompose_task(root.task_id, [{"title": None}])
+
+
 def test_only_first_in_progress_leaf_remains_active() -> None:
     """Conflicting planning updates retain the first executable task only."""
     store = TaskStateStore()
@@ -287,7 +300,15 @@ def test_reviewer_decision_is_replaceable_until_committed() -> None:
     assert task.status == TaskStatus.IN_PROGRESS
     assert task.reviewer_decisions == []
     assert store.commit_staged_reviewer_decision(task.task_id).reviewer_decisions == [
-        {"decision": "needs_revision", "rationale": "", "metadata": {}}
+        {
+            "event_id": "review-1",
+            "review_summary": "needs_revision",
+            "decision": "needs_revision",
+            "rationale": "",
+            "new_findings": [],
+            "finding_updates": [],
+            "metadata": {"context_updates": []},
+        }
     ]
 
 

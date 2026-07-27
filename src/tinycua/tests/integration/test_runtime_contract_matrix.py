@@ -243,7 +243,7 @@ class RuntimeContractScript:
                     {
                         "function": {
                             "name": "task_assessment_decision",
-                            "arguments": '{"decision":"ready","selected_task_ids":[],"rationale":"The roadmap is executable."}',
+                            "arguments": '{"decision":"ready","findings":[],"advisories":[],"rationale":"The roadmap is executable."}',
                         }
                     }
                 ],

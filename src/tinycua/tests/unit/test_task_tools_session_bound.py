@@ -213,6 +213,16 @@ def test_task_decompose_preserves_all_analyzer_subtasks() -> None:
     ]
 
 
+def test_task_decompose_schema_accepts_structured_children_and_strings() -> None:
+    """The model can provide child context without breaking string callers."""
+    schema = TaskDecomposeTool().parameters["properties"]["subtasks"]["items"]
+
+    assert schema["oneOf"][0] == {"type": "string"}
+    child_schema = schema["oneOf"][1]
+    assert child_schema["required"] == ["title", "description"]
+    assert set(child_schema["properties"]) == {"title", "description"}
+
+
 def test_task_decompose_does_not_collapse_app_web_ui_to_vertical_slice() -> None:
     """App/web-ui subtasks are preserved, not collapsed to one vertical slice.
 
