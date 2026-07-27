@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from tinycua.config.node_config import create_node_config
 from tinycua.loops.task_create import TinyCUATaskCreateNode
+from tinycua.loops.task_nodes import _render_mission_block
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.digested_information import DigestedInformation
 from tinycua.models.session import Session
@@ -134,6 +135,29 @@ def test_mission_not_populated_for_non_task_create_node() -> None:
 
     root = loop.root_session.task_store.tasks[loop.root_session.task_store.root_task_id]
     assert "mission" not in root.metadata
+
+
+def test_mission_block_renders_only_the_current_context_overlay() -> None:
+    """Downstream nodes receive the compact latest-turn overlay, not history."""
+    session = Session()
+    root = session.task_store.create_task("Root")
+    root.metadata.update(
+        {
+            "mission": "Original objective.",
+            "current_context_overlay": {
+                "context_summary": "Latest request context.",
+                "key_points": ["Latest fact."],
+                "known_gaps": ["Latest gap."],
+            },
+        }
+    )
+
+    rendered = _render_mission_block(session)
+
+    assert "Original objective." in rendered
+    assert "Latest request context." in rendered
+    assert "Latest fact." in rendered
+    assert "Latest gap." in rendered
 
 
 def test_task_decompose_propagates_inherited_constraints() -> None:
