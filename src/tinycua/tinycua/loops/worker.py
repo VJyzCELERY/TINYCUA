@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING, ClassVar
 
 from tinycua.loops.node import DecisionNode, DecisionResult
@@ -15,6 +16,7 @@ from tinycua.loops.task_nodes import (
 )
 from tinycua.models.digested_information import DigestedInformation
 from tinycua.models.node_handoff import NodeHandoff
+from tinycua.models.node_input import NodeInput
 from tinycua.loops.session_context_query import find_latest_entry
 from tinycua.tools.routing import WorkerRouteSelectionTool
 
@@ -22,6 +24,7 @@ if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
     from tinycua.config.types import LLMResult
     from tinycua.loops.node_queue import NodeQueue
+    from tinycua.loops.node import Node
     from tinycua.models.node_input import NodeInputLike
     from tinycua.models.session import Session
 
@@ -91,6 +94,7 @@ class TinyCUAWorkerNode(DecisionNode):
             is_terminal=is_terminal,
         )
         self._current_digest: DigestedInformation | None = None
+        self._current_ceq: NodeInput | None = None
         # ponytail: cache the route-selection tool per label-set so identical
         # valid-route sets reuse the same tool object and keep the tools-prefix
         # byte-stable for prompt caching (FR-018).
@@ -140,7 +144,46 @@ class TinyCUAWorkerNode(DecisionNode):
             digest = input.payload.get("digested_information")
             if isinstance(digest, DigestedInformation):
                 self._current_digest = digest
+        elif isinstance(input, NodeInput) and input.input_type == "context_enhanced_query":
+            self._current_ceq = input
         return super().build_messages(session, input, resolved_tools)
+
+    def _digest_enabled(self) -> bool:
+        """Return whether this Worker should consume a fresh digest."""
+        return bool(
+            getattr(self.config.metadata.get("session_config"), "digest_enabled", True)
+        )
+
+    def _review_enabled(self) -> bool:
+        """Return whether this Worker should schedule a ResultReviewer."""
+        return bool(
+            getattr(self.config.metadata.get("session_config"), "review_enabled", True)
+        )
+
+    def _set_downstream_input(
+        self,
+        queue: NodeQueue,
+        node: Node,
+        digest: DigestedInformation | None,
+        instruction: str,
+    ) -> None:
+        """Pass a fresh digest or direct CEQ to the immediate downstream node."""
+        node_id = node.node_id
+        if digest is not None:
+            queue.set_input(
+                node,
+                NodeHandoff(
+                    source_node=self.node_id,
+                    target_node=node_id,
+                    instruction=instruction,
+                    payload={"digested_information": digest},
+                ),
+            )
+        elif self._current_ceq is not None:
+            queue.set_input(
+                node,
+                replace(self._current_ceq, target_node=node_id),
+            )
 
     def _get_digested_input(self) -> DigestedInformation | None:
         """Retrieve DigestedInformation from session_context.
@@ -241,22 +284,18 @@ class TinyCUAWorkerNode(DecisionNode):
                 node_id="task_executor",
                 config=create_node_config("task_executor", self.config),
             ),
-            TinyCUAResultReviewerNode(
-                node_id="result_reviewer",
-                config=create_node_config("result_reviewer", self.config),
-            ),
         ]
-        queue.spawn_after_current(spawned)
-        if digest is not None:
-            queue.set_input(
-                spawned[0],
-                NodeHandoff(
-                    source_node=self.node_id,
-                    target_node=spawned[0].node_id,
-                    instruction="Use the digested request to create the roadmap.",
-                    payload={"digested_information": digest},
-                ),
+        if self._review_enabled():
+            spawned.append(
+                TinyCUAResultReviewerNode(
+                    node_id="result_reviewer",
+                    config=create_node_config("result_reviewer", self.config),
+                )
             )
+        queue.spawn_after_current(spawned)
+        self._set_downstream_input(
+            queue, spawned[0], digest, "Use the digested request to create the roadmap."
+        )
 
     def _spawn_reanalysis(
         self,
@@ -280,22 +319,19 @@ class TinyCUAWorkerNode(DecisionNode):
                     node_id="task_executor",
                     config=create_node_config("task_executor", self.config),
                 ),
+            ]
+        )
+        if self._review_enabled():
+            queue.items.insert(
+                queue.items.index(analyzer) + 3,
                 TinyCUAResultReviewerNode(
                     node_id="result_reviewer",
                     config=create_node_config("result_reviewer", self.config),
                 ),
-            ]
-        )
-        if digest is not None:
-            queue.set_input(
-                analyzer,
-                NodeHandoff(
-                    source_node=self.node_id,
-                    target_node=analyzer.node_id,
-                    instruction="Use the fresh digested context to revise the roadmap.",
-                    payload={"digested_information": digest},
-                ),
             )
+        self._set_downstream_input(
+            queue, analyzer, digest, "Use the fresh digested context to revise the roadmap."
+        )
 
     def on_complete(
         self, queue: NodeQueue, response: LLMResult | DecisionResult
@@ -310,7 +346,11 @@ class TinyCUAWorkerNode(DecisionNode):
             queue: The node queue that can be mutated.
             response: The final LLM response (DecisionResult).
         """
-        digest = self._current_digest or self._get_digested_input()
+        digest = (
+            self._current_digest or self._get_digested_input()
+            if self._digest_enabled()
+            else None
+        )
         if digest is not None:
             self._current_digest = digest
 
@@ -327,17 +367,21 @@ class TinyCUAWorkerNode(DecisionNode):
             self._spawn_reanalysis(queue, route_label, digest)
         elif route_label == "proceed_execution":
             self._replace_context_overlay(digest)
-            queue.spawn_after_current(
-                [
-                    TinyCUATaskExecutorNode(
-                        node_id="task_executor",
-                        config=create_node_config("task_executor", self.config),
-                    ),
+            executor = TinyCUATaskExecutorNode(
+                node_id="task_executor",
+                config=create_node_config("task_executor", self.config),
+            )
+            spawned = [executor]
+            if self._review_enabled():
+                spawned.append(
                     TinyCUAResultReviewerNode(
                         node_id="result_reviewer",
                         config=create_node_config("result_reviewer", self.config),
-                    ),
-                ]
+                    )
+                )
+            queue.spawn_after_current(spawned)
+            self._set_downstream_input(
+                queue, executor, digest, "Use the fresh digested context to execute."
             )
 
         super().on_complete(queue, response)

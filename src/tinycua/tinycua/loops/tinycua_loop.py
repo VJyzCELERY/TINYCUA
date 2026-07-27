@@ -291,6 +291,7 @@ class TinyCUALoop(
             "todo": list(self.root_session.todo),
             "workspace_dir": str(self.workspace_dir) if self.workspace_dir else None,
             "artifact_dir": str(self.artifact_dir) if self.artifact_dir else None,
+            "run_metadata": self._run_metadata(),
         }
 
     def get_active_task(self):

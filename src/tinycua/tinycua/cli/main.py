@@ -136,6 +136,16 @@ def _add_run_arguments(parser: argparse.ArgumentParser) -> None:
         "when you want trace/transcript but not tool-call audit spam).",
     )
     parser.add_argument(
+        "--no-digest",
+        action="store_true",
+        help="Disable Information Digester for this run.",
+    )
+    parser.add_argument(
+        "--no-review",
+        action="store_true",
+        help="Disable Result Reviewer for this run.",
+    )
+    parser.add_argument(
         "--allow-open-question",
         dest="allow_open_question",
         action="store_true",
@@ -264,6 +274,8 @@ def main() -> None:
             task_tree=args.task_tree,
             save_artifacts=args.save_artifacts,
             no_tool_audit=args.no_tool_audit,
+            no_digest=args.no_digest,
+            no_review=args.no_review,
             allow_open_question=args.allow_open_question,
             replan_threshold=args.replan_threshold,
             max_context=args.max_context,
