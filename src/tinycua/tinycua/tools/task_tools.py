@@ -404,10 +404,10 @@ class TaskDecomposeTool(SessionTaskToolMixin, Tool):
             self,
             name="task_decompose",
             description=(
-                "Split materially distinct concerns into coherent outcomes when each "
-                "gives narrower context and independent evidence, even if sharing a "
-                "file or deliverable. Keep tightly coupled work; never split "
-                "lifecycle-only phases."
+                "Split a task into coherent, actionable, and verifiable outcomes with "
+                "enough context for execution and observable evidence. Keep tightly "
+                "coupled work together; avoid command-level, lifecycle-only, or "
+                "fixed-count plans."
             ),
             parameters={
                 "type": "object",

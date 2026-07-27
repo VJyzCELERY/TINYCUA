@@ -6,13 +6,17 @@
 ## Role
 
 `TinyCUATaskAnalyzerNode` is a concrete `ProcessNode` that produces or refines an
-actionable roadmap. It grounds planning decisions in available evidence and commits one
-appropriate structural decision per pass.
+actionable roadmap. It grounds planning decisions in available evidence and commits the
+structural refinement required for its assigned region.
 
-Tasks represent distinct, coherent outcomes with enough context to execute and verify
-independently. The analyzer uses no more tasks than needed, avoids overlap, preserves
-explicit constraints, and leaves unsupported architecture and implementation choices
-open. Named outputs are required but not exhaustive unless the request says otherwise.
+Every task represents one coherent, actionable, and verifiable outcome. Once declared
+dependencies are met, an actionable task has enough objective, boundary, constraint,
+and context information for focused execution without hidden replanning or intentional
+sibling work. A verifiable task has specific observable evidence from which a reviewer
+can decide completion. The roadmap collectively covers explicit workflows and hard
+constraints. The analyzer makes evidence-supported decisions needed for execution,
+avoids overlap and command-level or lifecycle-only tasks, keeps tightly coupled work
+together, and never imposes a fixed task count.
 
 ## Non-Responsibilities
 
@@ -27,8 +31,9 @@ open. Named outputs are required but not exhaustive unless the request says othe
 
 ## Outputs / State Produced
 
-- One appropriate structural decision according to the current mode: decompose, create,
-  update without structural change, or safely shrink work.
+- Structural decisions according to the current mode: decompose, create, update without
+  structural change, or safely shrink work. An assessor-directed pass resolves every
+  selected target before completion; initial analysis remains one root-level decision.
 - Final response is treated as a summary of task changes/actions.
 - After completion, the task tree must not be `None`.
 

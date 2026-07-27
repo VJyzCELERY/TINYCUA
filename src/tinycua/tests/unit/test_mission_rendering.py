@@ -69,7 +69,7 @@ def test_task_assessor_renders_mission_block() -> None:
 
 
 def test_planning_boundaries_share_the_granularity_rubric() -> None:
-    """Analyzer, assessor, tool, and contract teach one neutral split rule."""
+    """Every planning boundary teaches one actionable and verifiable task rule."""
     analyzer = TinyCUATaskAnalyzerNode(
         node_id="task_analyzer", config=create_node_config("task_analyzer")
     )
@@ -86,11 +86,28 @@ def test_planning_boundaries_share_the_granularity_rubric() -> None:
 
     for text in texts:
         normalized = text.lower()
-        assert "materially distinct concerns" in normalized
-        assert "narrower context" in normalized
-        assert "independent evidence" in normalized
-        assert "tightly coupled" in normalized
-        assert "lifecycle-only phases" in normalized
+        assert "coherent" in normalized
+        assert "actionable" in normalized
+        assert "verifiable" in normalized
+        assert "observable evidence" in normalized
+
+
+def test_planning_agents_define_bounded_outcome_readiness() -> None:
+    """Analyzer and assessor reject hidden replanning without forcing task shapes."""
+    analyzer = TinyCUATaskAnalyzerNode(
+        node_id="task_analyzer", config=create_node_config("task_analyzer")
+    )
+    assessor = TinyCUATaskAssessorNode(
+        node_id="task_assessor", config=create_node_config("task_assessor")
+    )
+
+    for instruction in (analyzer._instruction, assessor._instruction):
+        normalized = instruction.lower()
+        assert "explicit workflows and hard constraints" in normalized
+        assert "hidden replanning" in normalized
+        assert "intentional sibling work" in normalized
+        assert "command-level" in normalized
+        assert "fixed task count" in normalized
 
 
 def test_task_executor_renders_mission_block() -> None:

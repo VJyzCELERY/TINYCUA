@@ -27,6 +27,7 @@ from tinycua.loops.prompt_protocol_mixin import PromptProtocolMixin
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.loops.recovery_stages_mixin import RecoveryGuardMixin, RecoveryStagesMixin
 from tinycua.loops.task_tree_rendering import render_task_tree
+from tinycua.loops.tool_call_normalization_mixin import ToolCallNormalizationMixin
 from tinycua.loops.trace_state_mixin import TraceStateMixin
 from tinycua.loops.trace_state_mixin import normalize_tool_outcome
 from tinycua.loops.validation_retry_mixin import ValidationRetryMixin
@@ -152,6 +153,7 @@ def _detect_repetition(content: str, min_block: int = 50, threshold: int = 3) ->
 class TinyCUALoop(
     OrchestrationMixin,
     NodeRetryMixin,
+    ToolCallNormalizationMixin,
     ValidationRetryMixin,
     LazyRetryMixin,
     RecoveryStagesMixin,
@@ -573,13 +575,20 @@ class TinyCUALoop(
             return True
         return False
 
-    @staticmethod
     def _lifecycle_phase_directive(
+        self,
         node: Node,
         resolved_tools: list[Tool] | None = None,
     ) -> str:
         """Return explicit guidance for the node's newly entered phase."""
         if node.progress.lifecycle_phase == LifecyclePhase.COMMIT:
+            if self._unresolved_analyzer_target_ids(node):
+                return (
+                    "COMMIT PHASE — resolve all assessor-selected targets before "
+                    "completion. Call the appropriate structural commit tools as many "
+                    "times as needed for the current selected targets. Do not terminate "
+                    "or stop after the first successful commit."
+                )
             if resolved_tools is None:
                 names = set(node.contract.required_tools)
                 for group in node.contract.any_of_tools:
@@ -714,6 +723,7 @@ class TinyCUALoop(
             commit_tools.update(node.contract.required_tools)
             for group in node.contract.any_of_tools:
                 commit_tools.update(group)
+        analyzer_task_refs = self._analyzer_batch_task_references(node)
         results: list[dict[str, Any]] = []
         terminate_seen = False
         for tool_call in tool_calls:
@@ -766,6 +776,9 @@ class TinyCUALoop(
             arguments = self._normalize_tool_call_arguments(
                 allowed_tools[name], arguments
             )
+            arguments = self._freeze_analyzer_task_references(
+                arguments, analyzer_task_refs
+            )
             self._log_tool_call_args(name, arguments)
             # ponytail: per-tool rate limit for shared backends. See
             # _TOOL_RATE_LIMITS. Async sleep so the event loop stays free.
@@ -796,7 +809,7 @@ class TinyCUALoop(
             if artifact_path:
                 tool_result["artifact_path"] = artifact_path
             record(tool_result)
-            if name in commit_tools:
+            if name in commit_tools and self._should_stop_commit_batch(node):
                 break
         return results
 
@@ -839,23 +852,6 @@ class TinyCUALoop(
             except Exception:
                 preview = str(arguments)[:200]
             logger.debug("tool=%s args=%s", name, preview)
-
-    def _normalize_tool_call_arguments(
-        self,
-        tool: Tool,
-        arguments: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Normalize provider-emitted argument wrappers without hiding schema data."""
-        nested = arguments.get("arguments")
-        if set(arguments) != {"arguments"} or not isinstance(nested, dict):
-            return arguments
-        parameters = getattr(tool, "parameters", {})
-        properties = (
-            parameters.get("properties", {}) if isinstance(parameters, dict) else {}
-        )
-        if isinstance(properties, dict) and "arguments" in properties:
-            return arguments
-        return nested
 
     def _write_tool_audit_artifact(
         self,
