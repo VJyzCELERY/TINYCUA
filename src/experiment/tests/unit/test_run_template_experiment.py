@@ -260,6 +260,54 @@ def test_evaluator_installs_submission_and_evaluator_dependencies(
     assert command[-3:] == ["python", "/eval/check.py", "/submission"]
 
 
+def test_fixture_can_delegate_dependency_setup_to_its_entrypoint(
+    tmp_path: Path,
+) -> None:
+    """A free-form fixture can let its start script install its dependencies."""
+    fixture = make_fixture(tmp_path / "fixtures")
+    (fixture / "manifest.yaml").write_text(
+        "prompt: Add a greeting.\n"
+        "eval_image: python:3.12-alpine\n"
+        "eval_command: [python, /eval/check.py, /submission]\n"
+        "entrypoint_manages_dependencies: true\n"
+    )
+    submission = fixture / "workdir"
+    evaluator = fixture / "eval"
+    (submission / "requirements.txt").write_text("requests==2.32.3\n")
+    (evaluator / "requirements.txt").write_text("sacrebleu==2.5.1\n")
+
+    discovered = discover_fixtures(tmp_path / "fixtures", "add-greeting")[0]
+    command = build_evaluator_command(
+        discovered.eval_image,
+        discovered.eval_command,
+        submission,
+        evaluator,
+        "evaluator",
+        install_submission_dependencies=not discovered.entrypoint_manages_dependencies,
+    )
+
+    assert discovered.entrypoint_manages_dependencies
+    assert "/submission/requirements.txt" not in command[-5]
+    assert "/eval/requirements.txt" in command[-5]
+
+
+@pytest.mark.parametrize("value", ('"yes"', '"false"', "1", "[]"))
+def test_fixture_rejects_non_boolean_entrypoint_dependency_mode(
+    tmp_path: Path, value: str
+) -> None:
+    """Entrypoint dependency ownership is an explicit boolean contract."""
+    fixture = make_fixture(tmp_path / "fixtures")
+    (fixture / "manifest.yaml").write_text(
+        "prompt: Add a greeting.\n"
+        "eval_image: python:3.12-alpine\n"
+        "eval_command: [python, /eval/check.py, /submission]\n"
+        f"entrypoint_manages_dependencies: {value}\n"
+    )
+
+    with pytest.raises(ValueError, match="entrypoint_manages_dependencies"):
+        discover_fixtures(tmp_path / "fixtures", "add-greeting")
+
+
 def test_fixture_declares_safe_nested_submission_dependencies(tmp_path: Path) -> None:
     """Fixtures explicitly allow only sorted nested dependency manifests."""
     fixture = make_fixture(tmp_path / "fixtures")
