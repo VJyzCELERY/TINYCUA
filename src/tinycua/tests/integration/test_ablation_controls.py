@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
 from tinycua.config.node_config import NodeConfigBase, create_node_config
-from tinycua.config.session_config import SessionConfig
+from tinycua.config.session_config import InteractionPolicy, SessionConfig
 from tinycua.config.types import LLMResult
+from tinycua.factory import create_tinycua_agent
 from tinycua.loops.node import DecisionResult
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
@@ -16,7 +21,9 @@ from tinycua.loops.worker_runtime import WorkerRuntimeController
 from tinycua.models.node_input import NodeInput
 from tinycua.models.digested_information import DigestedInformation
 from tinycua.models.session import Session
+from tinycua.models.session_context_entry import append_output_entry, entry_content
 from tinycua.models.task import TaskResult, TaskStateStore, TaskStatus
+from tests.integration.test_runtime_invariant_route_matrix import _RouteMatrixScript
 
 
 def _decision(route: str) -> DecisionResult:
@@ -39,6 +46,71 @@ def _no_digest_worker(session: Session) -> TinyCUAWorkerNode:
         metadata={"original_query": "Latest"},
     )
     return worker
+
+
+class _LLMCallTrace:
+    """Record the runtime's concrete node-to-LLM dispatches."""
+
+    def __init__(self) -> None:
+        self.node_ids: list[str] = []
+        self.messages_by_node: dict[str, list[list[dict]]] = {}
+
+    def on_before_node_call(
+        self,
+        node_id: str,
+        _session_id: str,
+        _attempt: int,
+        _messages: list[dict],
+        _resolved_tools: list,
+    ) -> None:
+        self.node_ids.append(node_id)
+        self.messages_by_node.setdefault(node_id, []).append(_messages)
+
+    def on_after_node_call(
+        self,
+        _node_id: str,
+        _session_id: str,
+        _attempt: int,
+        _result: LLMResult,
+        _validation: object,
+    ) -> None:
+        return None
+
+
+def _scripted_agent(
+    tmp_path: Path,
+    *,
+    digest_enabled: bool,
+    review_enabled: bool,
+    route: str = "worker",
+    worker_route: str = "task_creation",
+    interaction_policy: InteractionPolicy | None = None,
+    session: Session | None = None,
+):
+    """Build a full loop backed by the deterministic route-matrix script."""
+    config = SessionConfig(
+        workspace_dir=tmp_path,
+        digest_enabled=digest_enabled,
+        review_enabled=review_enabled,
+        interaction_policy=interaction_policy or InteractionPolicy(),
+    )
+    session = session or Session(session_config=config)
+    session.session_config = config
+    script = _RouteMatrixScript(route=route, worker_route=worker_route)
+    agent = create_tinycua_agent(
+        session=session,
+        session_config=config,
+        enable_native_tools=True,
+    )
+    agent._call_llm = script  # type: ignore[method-assign]
+    llm_calls = _LLMCallTrace()
+    agent.loop.agent_monitor = llm_calls
+    return agent, script, llm_calls
+
+
+def _trace_node_ids(agent: object) -> list[str]:
+    """Return started node ids from a completed scripted runtime."""
+    return [entry["node_id"] for entry in agent.loop.get_execution_trace()]  # type: ignore[attr-defined]
 
 
 def test_ablation_controls_default_enabled_and_cli_flags_are_independent() -> None:
@@ -244,3 +316,139 @@ def test_state_snapshot_records_ablation_configuration() -> None:
         "worker_effort": "medium",
         "replan_threshold": 5,
     }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("digest_enabled", "review_enabled"),
+    [(True, True), (False, True), (True, False), (False, False)],
+)
+async def test_ablation_trace_runs_all_four_component_combinations(
+    tmp_path: Path, digest_enabled: bool, review_enabled: bool
+) -> None:
+    """Each condition starts and calls exactly its enabled optional nodes."""
+    agent, _script, llm_calls = _scripted_agent(
+        tmp_path,
+        digest_enabled=digest_enabled,
+        review_enabled=review_enabled,
+    )
+
+    await agent.run("Build a note-taking app")
+
+    node_ids = _trace_node_ids(agent)
+    assert ("digester" in node_ids) is digest_enabled
+    assert ("digester" in llm_calls.node_ids) is digest_enabled
+    assert ("result_reviewer" in node_ids) is review_enabled
+    assert ("result_reviewer" in llm_calls.node_ids) is review_enabled
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("route", "interaction_policy", "prior_digest"),
+    [
+        ("worker", InteractionPolicy(), False),
+        ("uncertain", InteractionPolicy(uncertain_strategy="route_worker"), False),
+        ("worker", InteractionPolicy(), True),
+    ],
+    ids=["worker", "uncertain-worker", "redigestion"],
+)
+async def test_ablation_trace_no_digest_query_entries_never_start_or_call_digester(
+    tmp_path: Path,
+    route: str,
+    interaction_policy: InteractionPolicy,
+    prior_digest: bool,
+) -> None:
+    """Normal, uncertain, and redigestion entries bypass the digester."""
+    config = SessionConfig(digest_enabled=False, review_enabled=False)
+    session = Session(session_config=config)
+    if prior_digest:
+        append_output_entry(
+            session, DigestedInformation(original_query="Old"), "digester"
+        )
+    agent, _script, llm_calls = _scripted_agent(
+        tmp_path,
+        digest_enabled=False,
+        review_enabled=False,
+        route=route,
+        interaction_policy=interaction_policy,
+        session=session,
+    )
+
+    await agent.run("Latest request")
+
+    assert "worker" in _trace_node_ids(agent)
+    assert "digester" not in _trace_node_ids(agent)
+    assert "digester" not in llm_calls.node_ids
+    assert sum(
+        isinstance(entry_content(entry), DigestedInformation)
+        for entry in session.session_context
+    ) == int(prior_digest)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("worker_route", "target_node"),
+    [
+        ("task_creation", "task_create"),
+        ("task_recreation", "task_create"),
+        ("task_reanalysis", "task_analyzer"),
+        ("proceed_execution", "task_executor"),
+    ],
+)
+@pytest.mark.parametrize("digest_enabled", [True, False])
+async def test_ablation_trace_worker_routes_preserve_component_boundary(
+    tmp_path: Path,
+    digest_enabled: bool,
+    worker_route: str,
+    target_node: str,
+) -> None:
+    """Worker routes retain their target while disabled digestion starts no node."""
+    config = SessionConfig(digest_enabled=digest_enabled, review_enabled=False)
+    session = Session(session_config=config)
+    if worker_route == "task_recreation":
+        session.task_store.create_task(
+            "Completed prior task"
+        ).status = TaskStatus.COMPLETED
+    elif worker_route in {"task_reanalysis", "proceed_execution"}:
+        root = session.task_store.create_task("Existing task")
+        session.task_store.create_task("Active task", parent_id=root.task_id)
+        root.metadata["current_context_overlay"] = {"context_summary": "Earlier"}
+    agent, _script, llm_calls = _scripted_agent(
+        tmp_path,
+        digest_enabled=digest_enabled,
+        review_enabled=False,
+        worker_route=worker_route,
+        session=session,
+    )
+
+    await agent.run("Latest request")
+
+    node_ids = _trace_node_ids(agent)
+    worker_index = node_ids.index("worker")
+    assert node_ids[worker_index + 1] == target_node
+    assert ("digester" in node_ids) is digest_enabled
+    assert ("digester" in llm_calls.node_ids) is digest_enabled
+    if not digest_enabled:
+        assert "Latest request" in str(llm_calls.messages_by_node[target_node])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("digest_enabled", [True, False])
+async def test_ablation_trace_response_require_digest_respects_control(
+    tmp_path: Path, digest_enabled: bool
+) -> None:
+    """A require-digest response suspends only in the full-control condition."""
+    agent, _script, llm_calls = _scripted_agent(
+        tmp_path,
+        digest_enabled=digest_enabled,
+        review_enabled=False,
+        route="passthrough",
+    )
+    response = agent.loop.queue.items[-1]
+    response.config.metadata["require_digest"] = True
+    agent.loop.queue_factory = None
+
+    await agent.run("Answer directly")
+
+    assert ("digester" in _trace_node_ids(agent)) is digest_enabled
+    assert ("digester" in llm_calls.node_ids) is digest_enabled
