@@ -456,12 +456,12 @@ class TaskStateStore:
         self._finalize_mutation("update_task", task_id)
         return task
 
-    def _cancellation_subtree_ids(self, task_id: str) -> list[str]:
-        """Return unfinished descendants that an approved request would retire."""
+    def _unfinished_subtree_ids(self, task_id: str) -> list[str]:
+        """Return unfinished descendants plus the selected mutable task."""
         task = self.get_task(task_id)
         task_ids = []
         for child_id in task.children:
-            task_ids.extend(self._cancellation_subtree_ids(child_id))
+            task_ids.extend(self._unfinished_subtree_ids(child_id))
         if task.status not in self._TERMINAL_STATUSES:
             task_ids.append(task_id)
         return task_ids
@@ -500,7 +500,7 @@ class TaskStateStore:
             raise ValueError("Task already has a pending cancellation request.")
         if self.pending_cancellation_requests():
             raise ValueError("Only one pending cancellation request is allowed.")
-        affected_task_ids = self._cancellation_subtree_ids(task_id)
+        affected_task_ids = self._unfinished_subtree_ids(task_id)
         if any(
             self._task_has_execution_history(self.tasks[affected_id])
             for affected_id in affected_task_ids
@@ -548,7 +548,7 @@ class TaskStateStore:
             )
             return task
         affected_task_ids = request.get("affected_task_ids", [])
-        if affected_task_ids != self._cancellation_subtree_ids(task.task_id):
+        if affected_task_ids != self._unfinished_subtree_ids(task.task_id):
             raise ValueError("Cancellation subtree changed; request a new assessment.")
         if any(
             self._task_has_execution_history(self.tasks[affected_id])
@@ -589,6 +589,9 @@ class TaskStateStore:
         self._require_mutable(task)
         if not rationale.strip() or not replacement_title.strip():
             msg = "Supersession requires a rationale and replacement title."
+            raise ValueError(msg)
+        if len(self._unfinished_subtree_ids(task_id)) > 1:
+            msg = "Cannot supersede a task with unfinished descendants."
             raise ValueError(msg)
         parent = self.tasks[task.parent_id] if task.parent_id else None
         if parent is None:

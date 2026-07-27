@@ -69,7 +69,7 @@ flowchart TD
 
 ## Relationship to Task Creation
 
-The Task Assessor is invoked between passes of the Task Creation loop. It reviews the current task list and selects which tasks deserve further decomposition. During execution-time replanning, the same assessor evaluates only the active task or local region before a local analyzer pass.
+The Task Assessor is invoked between passes of the Task Creation loop. It reviews the current task list and selects which tasks deserve further decomposition. During execution-time replanning, it receives the stable reviewed task ID, title, status, local children, siblings, and replan reason; it does not switch targets if active selection later changes.
 
 See [task-creation.md](task-creation.md) for the full Task Creation flow and effort-controlled pass limits.
 

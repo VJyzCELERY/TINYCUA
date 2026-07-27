@@ -971,10 +971,11 @@ def test_task_assessor_local_replan_prompt_is_active_region_only() -> None:
     )
     loop.root_session.task_store.create_task("Create frontend", parent_id=root.task_id)
     loop.root_session.task_store.active_task_id = active.task_id
-    assessor = TinyCUATaskAssessorNode(
-        node_id="task_assessor",
-        config=create_node_config("task_assessor", mode="local_replan"),
+    config = create_node_config("task_assessor", mode="local_replan")
+    config.metadata["replan_reason"] = (
+        "The original approach cannot satisfy the request."
     )
+    assessor = TinyCUATaskAssessorNode(node_id="task_assessor", config=config)
 
     messages, tools = loop._prepare_node(assessor, [])
     rendered = "\n".join(str(message.get("content", "")) for message in messages)
@@ -986,6 +987,7 @@ def test_task_assessor_local_replan_prompt_is_active_region_only() -> None:
     assert "local replan" in rendered.lower()
     assert "active task" in rendered.lower()
     assert "Create backend" in rendered
+    assert "The original approach cannot satisfy the request." in rendered
     assert "one coherent outcome" in rendered.lower()
     assert "do not reassess the whole roadmap" in rendered.lower()
     assert "task_result_update" not in combined
@@ -1016,8 +1018,27 @@ def test_task_analyzer_local_replan_prompt_does_not_replan_root() -> None:
 
     assert "Local task region for replan" in rendered
     assert "Create frontend files" in rendered
+    assert active.task_id in rendered
     assert "Do not decompose the root roadmap" in rendered
     assert "Task snapshot:" not in rendered
+
+
+def test_local_replan_uses_bound_target_after_active_task_changes() -> None:
+    """Queued local replans retain the reviewed task rather than a later active leaf."""
+    loop = TinyCUALoop()
+    root = loop.root_session.task_store.create_task("ROOT")
+    target = loop.root_session.task_store.create_task("Target", parent_id=root.task_id)
+    other = loop.root_session.task_store.create_task("Other", parent_id=root.task_id)
+    loop.root_session.task_store.active_task_id = other.task_id
+    config = create_node_config("task_analyzer", mode="local_replan")
+    config.metadata["replan_task_id"] = target.task_id
+    analyzer = TinyCUATaskAnalyzerNode(node_id="task_analyzer", config=config)
+
+    messages, _ = loop._prepare_node(analyzer, [])
+    rendered = "\n".join(str(message.get("content", "")) for message in messages)
+
+    assert f"Active: Target (id={target.task_id})" in rendered
+    assert f"Active: Other (id={other.task_id})" not in rendered
 
 
 def test_local_replan_region_keeps_sibling_results_private() -> None:
@@ -1060,7 +1081,7 @@ def test_local_replan_region_keeps_sibling_results_private() -> None:
     rendered = _render_local_region_markdown(region)
 
     # Active task result is rendered (full summary, no truncation).
-    assert "Active: Fetch Kaggle dataset" in rendered
+    assert f"Active: Fetch Kaggle dataset (id={active.task_id})" in rendered
     assert "Kaggle: GPT-5.5 scores 89% MMLU" in rendered
     # Completed sibling remains visible as roadmap awareness without its result.
     assert "Fetch Vellum data" in rendered
