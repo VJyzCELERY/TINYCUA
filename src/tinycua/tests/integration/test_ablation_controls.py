@@ -70,7 +70,11 @@ def test_no_digest_query_analyst_hands_unchanged_ceq_to_worker() -> None:
 
     query._route_worker()
 
-    assert [node.node_id for node in queue.items] == ["query_analyst", "worker", "response"]
+    assert [node.node_id for node in queue.items] == [
+        "query_analyst",
+        "worker",
+        "response",
+    ]
     handoff = queue._inputs["worker"]  # noqa: SLF001 - queue contract.
     assert handoff.input_type == "context_enhanced_query"
     assert handoff.target_node == "worker"
@@ -151,7 +155,10 @@ def test_no_digest_response_node_does_not_suspend() -> None:
     """A disabled digester bypasses optional final-response suspension."""
     response = ResponseNode(
         config=NodeConfigBase(
-            metadata={"require_digest": True, "session_config": SessionConfig(digest_enabled=False)}
+            metadata={
+                "require_digest": True,
+                "session_config": SessionConfig(digest_enabled=False),
+            }
         )
     )
     response.ensure_session(Session())
@@ -162,20 +169,26 @@ def test_no_digest_response_node_does_not_suspend() -> None:
     assert [node.node_id for node in queue.items] == ["response"]
 
 
-def test_no_review_runtime_completes_retries_then_replans_without_reviewer_nodes() -> None:
+def test_no_review_runtime_completes_retries_then_replans_without_reviewer_nodes() -> (
+    None
+):
     """Validated executor reports schedule deterministic no-review outcomes."""
     store = TaskStateStore()
     root = store.create_task("Root")
     active = store.create_task("Active", parent_id=root.task_id)
     store.record_result(active.task_id, TaskResult(content="failed", success=False))
-    controller = WorkerRuntimeController(store, review_enabled=False, replan_threshold=2)
+    controller = WorkerRuntimeController(
+        store, review_enabled=False, replan_threshold=2
+    )
     queue = NodeQueue()
 
     controller.schedule_after_execution(queue, active.task_id)
 
     assert [node.node_id for node in queue.items] == ["task_executor"]
     assert active.metadata["no_review_failures"] == 1
-    store.record_result(active.task_id, TaskResult(content="failed again", success=False))
+    store.record_result(
+        active.task_id, TaskResult(content="failed again", success=False)
+    )
     queue = NodeQueue()
     controller.schedule_after_execution(queue, active.task_id)
     assert [node.node_id for node in queue.items] == ["task_analyzer", "task_executor"]
@@ -190,7 +203,9 @@ def test_no_review_runtime_completes_retries_then_replans_without_reviewer_nodes
 
 def test_state_snapshot_records_ablation_configuration() -> None:
     """Runtime exports retain the effective experimental condition."""
-    loop = TinyCUALoop(session_config=SessionConfig(digest_enabled=False, review_enabled=True))
+    loop = TinyCUALoop(
+        session_config=SessionConfig(digest_enabled=False, review_enabled=True)
+    )
 
     metadata = loop.get_state_snapshot()["run_metadata"]
     assert metadata["digest_enabled"] is False
