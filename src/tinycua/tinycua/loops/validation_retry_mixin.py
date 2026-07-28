@@ -102,23 +102,20 @@ class ValidationRetryMixin:
         node: Node | None,
         tool_name: str,
         output: Any,
+        impacted_target_ids: set[str],
     ) -> None:
-        """Acknowledge only selected targets changed in their local subtree."""
+        """Acknowledge selected targets changed by a successful mutation."""
         if (
             node is None
             or node.node_id != "task_analyzer"
             or not isinstance(output, dict)
+            or output.get("success") is not True
+            or not impacted_target_ids
         ):
             return
         handoff = self._current_analyzer_handoff(node)
         if handoff is None or handoff.payload.get("decision") != "analyze":
             return
-        candidates = [
-            output.get("task_id"),
-            output.get("parent_id"),
-            output.get("replacement_task_id"),
-        ]
-        candidates = [item for item in candidates if isinstance(item, str)]
         findings = handoff.payload.get("findings", [])
         for finding in findings:
             if not isinstance(finding, dict):
@@ -126,19 +123,12 @@ class ValidationRetryMixin:
             target_id = finding.get("task_id")
             if not isinstance(target_id, str):
                 continue
-            structural = tool_name in {"task_create", "task_decompose", "task_shrink"}
-            impacted = structural and any(
-                self._task_is_in_subtree(candidate, target_id)
-                for candidate in candidates
-            )
+            if target_id not in impacted_target_ids:
+                continue
             task = self.root_session.task_store.tasks.get(target_id)
             planning_note = (
                 str(task.metadata.get("planning_note", "")).strip() if task else ""
             )
-            if tool_name == "task_update" and output.get("task_id") == target_id:
-                impacted = bool(planning_note)
-            if not impacted:
-                continue
             resolved = handoff.payload.setdefault("_resolved_task_ids", [])
             if target_id not in resolved:
                 resolved.append(target_id)
@@ -1010,44 +1000,59 @@ class ValidationRetryMixin:
         node: Node,
         validation: ValidationResult,
     ) -> bool:
-        """Skip an optional analyzer pass only when the tree can already execute.
-
-        Generic, content-free recovery: if the root task already has children,
-        the analyzer missed its tool call but the task tree is executable, so
-        record the miss and continue. If the root has NO children, the analyzer
-        must not be short-circuited — fail closed so the node can retry its
-        required contract. The runtime must never fabricate tasks, prompt-class
-        decompositions, or hardcoded titles here (spec FR-015/FR-018).
-        """
+        """Continue autonomously with retained work after planning exhaustion."""
         if node.node_id != "task_analyzer" or self.queue.current is not node:
             return False
-        handoff = self._current_analyzer_handoff(node)
-        if handoff is not None and handoff.payload.get("decision") == "analyze":
-            selected = set(handoff.payload.get("selected_task_ids", []))
-            resolved = set(handoff.payload.get("_resolved_task_ids", []))
-            if selected and not selected.issubset(resolved):
-                return False
         root_id = self.root_session.task_store.root_task_id
         if root_id is None or root_id not in self.root_session.task_store.tasks:
             return False
+        store = self.root_session.task_store
         root = self.root_session.task_store.tasks[root_id]
-        if not root.children:
-            # No decomposition exists; the analyzer must satisfy its own
-            # contract. Do not fabricate a vertical slice or any task content.
-            return False
-        root.metadata["analyzer_recovery"] = {
+        handoff = self._current_analyzer_handoff(node)
+        unresolved = sorted(self._unresolved_analyzer_target_ids(node))
+        if handoff is not None:
+            for finding in handoff.payload.get("findings", []):
+                if not isinstance(finding, dict):
+                    continue
+                task_id = finding.get("task_id")
+                task = store.tasks.get(str(task_id))
+                if task is None or task_id not in unresolved:
+                    continue
+                advisory = {
+                    "task_id": task_id,
+                    "advisory": str(finding.get("finding", "")).strip(),
+                    "assessment_id": finding.get("assessment_id"),
+                    "analysis_budget_exhausted": True,
+                }
+                advisories = list(task.metadata.get("planning_advisories", []))
+                next_advisories = (
+                    advisories
+                    if advisory in advisories
+                    else [*advisories, advisory][-5:]
+                )
+                changed = task.metadata.pop("planning_finding", None) is not None
+                if task.metadata.get("planning_advisories") != next_advisories:
+                    task.metadata["planning_advisories"] = next_advisories
+                    changed = True
+                if changed:
+                    store._bump_version()
+        recovery = {
             "source_node_id": node.node_id,
             "errors": list(validation.errors),
-            "recovery": "skip_analyzer",
+            "recovery": "continue_execution",
+            "mode": str(node.config.metadata.get("task_analyzer_mode", "")),
+            "unresolved_task_ids": unresolved,
             "reason": (
-                "Analyzer did not record additional decomposition or metadata; "
-                "continuing with the existing roadmap."
+                "Analyzer exhausted bounded planning attempts; continuing with "
+                "retained executable work and planning advisories."
             ),
         }
+        if root.metadata.get("analyzer_recovery") != recovery:
+            store.update_task(root.task_id, metadata={"analyzer_recovery": recovery})
         self._record_node_content_transcript(
             node,
-            "TaskAnalyzer did not record additional task-state changes; "
-            "continuing with the existing roadmap.",
+            "TaskAnalyzer exhausted bounded planning attempts; continuing "
+            "autonomously with retained executable work.",
         )
         return True
 

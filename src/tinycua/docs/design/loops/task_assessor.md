@@ -15,7 +15,10 @@ task with a material planning defect and operates in two modes depending on the 
 
 The assessor does not impose unsupported architecture, output layout, tool choice, a
 fixed task count, command-level work, or decomposition depth. It splits materially
-distinct outcomes while keeping tightly coupled work together.
+distinct outcomes while keeping tightly coupled work together. Executor-local file,
+command, library, and implementation decisions are not planning defects. One shared
+defect is reported on its narrowest useful task rather than duplicated across ancestors
+and descendants.
 
 ## Non-Responsibilities
 

@@ -243,6 +243,7 @@ class NodeRetryMixin:
             all_tool_results: list[dict[str, Any]] = []
             continuation_rounds = 0
             while continuation_rounds < _MAX_TOOL_CONTINUATIONS:
+                unresolved_before = self._unresolved_analyzer_target_ids(node)
                 tool_results = await self._execute_tool_calls(
                     agent,
                     last_result.tool_calls,
@@ -276,6 +277,21 @@ class NodeRetryMixin:
                         item.get("name") == "terminate"
                         and isinstance(item.get("output"), dict)
                         and item["output"].get("success") is True
+                        for item in tool_results
+                    )
+                ):
+                    break
+                analyzer_commit_names = {
+                    "task_create",
+                    "task_decompose",
+                    "task_shrink",
+                    "task_update",
+                }
+                if (
+                    unresolved_before
+                    and unresolved_before == self._unresolved_analyzer_target_ids(node)
+                    and any(
+                        item.get("name") in analyzer_commit_names
                         for item in tool_results
                     )
                 ):

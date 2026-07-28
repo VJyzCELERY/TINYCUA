@@ -57,17 +57,17 @@ def shrink_threshold_for_effort(effort: str) -> int:
 
 
 _TASK_ANALYZER_INSTRUCTION = (
-    "You are the TaskAnalyzer. Produce or refine an actionable roadmap; do not "
-    "execute work. Use read_file or web_search only when needed to understand requirements, state, "
-    "dependencies, and uncertainty. Every task must be one coherent, actionable, and "
-    "verifiable outcome. Actionable means that, once declared dependencies are met, "
-    "its objective, boundaries, constraints, and context support focused execution without "
-    "hidden replanning or intentional sibling work. Verifiable means a reviewer can "
-    "decide completion from observable evidence. The roadmap must collectively cover "
-    "explicit workflows and hard constraints. Make evidence-supported decisions needed "
-    "for execution; leave genuinely unsupported choices open. Split materially distinct "
-    "outcomes and keep tightly coupled work together. Avoid overlap, command-level or "
-    "lifecycle-only tasks, and any fixed task count. Resolve the assigned roadmap region."
+    "You are the TaskAnalyzer. Produce or refine an actionable roadmap; do not execute "
+    "work. Use read_file or web_search only to resolve material uncertainty. Each task "
+    "must be one coherent, actionable, and verifiable outcome: its objective, boundaries, "
+    "constraints, and context support focused execution without hidden replanning or "
+    "intentional sibling work; observable evidence lets a reviewer decide completion. "
+    "Cover explicit workflows and hard constraints. Make "
+    "evidence-supported execution decisions but leave genuinely unsupported choices open. Split "
+    "distinct outcomes, keep tightly coupled work together, and avoid overlap, "
+    "command-level or lifecycle-only tasks, and any fixed task count. Do not require "
+    "files, commands, libraries, or steps the executor can safely decide. Resolve the "
+    "assigned roadmap region."
 )
 _TASK_ANALYZER_CONTINUATION = (
     "Evaluate the current roadmap against the planning criteria above. Remove or "
@@ -94,7 +94,9 @@ _TASK_ASSESSOR_UPFRONT_INSTRUCTION = (
     "hard constraints. Select tasks that are vague, redundant, materially mixed, "
     "overlapping, missing needed context or decisions, or lacking clear evidence. Split "
     "materially distinct outcomes and keep tightly coupled work together. Do not require "
-    "command-level or lifecycle-only tasks, unsupported choices, or a fixed task count."
+    "files, commands, libraries, implementation steps, command-level or lifecycle-only "
+    "tasks, unsupported choices, or a fixed task count. Do not report the same defect "
+    "on both an ancestor and descendant unless each has a distinct blocking defect."
 )
 _TASK_ASSESSOR_UPFRONT_CONTINUATION = (
     "Review roadmap quality against the criteria above. Decide ready only when every "
@@ -223,7 +225,10 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
             return f"{reason_prefix}Local task region for replan:\n{_render_local_region_markdown(region)}\n\n{base}"
         mission = _render_mission_block(session)
         prefix = f"{mission}\n\n" if mission else ""
-        return f"{prefix}Roadmap:\n{session.task_store.render_markdown()}\n\n{base}"
+        roadmap = _render_task_tree_markdown(
+            _task_context_snapshot(session), include_descriptions=True
+        )
+        return f"{prefix}Roadmap:\n{roadmap}\n\n{base}"
 
     def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
         """Insert one cancellation assessment before execution can continue."""
@@ -347,6 +352,7 @@ def _local_task_region(session: Session, task_id: str | None = None) -> dict:
                 "task_id": task.task_id,
                 "title": task.title,
                 "status": task.status.value,
+                "description": task.description,
                 "result": task.result.summary if task.result else None,
             }
             for task in children
@@ -356,6 +362,7 @@ def _local_task_region(session: Session, task_id: str | None = None) -> dict:
                 "task_id": task.task_id,
                 "title": task.title,
                 "status": task.status.value,
+                "description": task.description,
             }
             for task in siblings
         ],
@@ -412,7 +419,12 @@ def _task_context_snapshot_from_store(store) -> dict:
     return snapshot
 
 
-def _render_task_tree_markdown(snapshot: dict, *, include_results: bool = True) -> str:
+def _render_task_tree_markdown(
+    snapshot: dict,
+    *,
+    include_results: bool = True,
+    include_descriptions: bool = False,
+) -> str:
     """Render task tree snapshot as a numbered post-order list for the LLM.
 
     Execution starts at the DFS left-most leaf and works up/right
@@ -432,6 +444,9 @@ def _render_task_tree_markdown(snapshot: dict, *, include_results: bool = True) 
         root = tasks.get(root_id, {})
         # Root is the goal, not a work item — no status marker on it.
         lines.append(f"Root (goal): {root.get('title', root_id)} (id={root_id})")
+        root_description = str(root.get("description", "")).strip()
+        if include_descriptions and root_description:
+            lines.append(f"Root description: {root_description}")
     if active_id and active_id != root_id:
         active = tasks.get(active_id, {})
         lines.append(f"Active: {active.get('title', active_id)} (id={active_id})")
@@ -455,6 +470,9 @@ def _render_task_tree_markdown(snapshot: dict, *, include_results: bool = True) 
         title = task.get("title", task_id)
         marker = " ✓" if status == "completed" else ""
         lines.append(f"{counter}. [{status}] {title} (id={task_id}){marker}")
+        description = str(task.get("description", "")).strip()
+        if include_descriptions and description:
+            lines.append(f"   Description: {description}")
         result = task.get("result")
         if include_results and isinstance(result, dict) and result.get("summary"):
             lines.append(f"   Result: {result['summary']}")
@@ -483,6 +501,9 @@ def _render_local_region_markdown(region: dict) -> str:
             f"Active: {active.get('title', 'unknown')} "
             f"(id={active.get('task_id', '?')}) [{active.get('status', '?')}]"
         )
+        active_description = str(active.get("description", "")).strip()
+        if active_description:
+            lines.append(f"  Description: {active_description}")
         active_result = active.get("result")
         if active_result:
             lines.append(f"  Result: {active_result}")
@@ -491,6 +512,9 @@ def _render_local_region_markdown(region: dict) -> str:
         lines.append("Subtasks:")
         for child in children:
             line = f"  - [{child.get('status', '?')}] {child.get('title', '?')}"
+            child_description = str(child.get("description", "")).strip()
+            if child_description:
+                line += f" — {child_description}"
             child_result = child.get("result")
             if child_result:
                 line += f" — {child_result}"
@@ -500,6 +524,9 @@ def _render_local_region_markdown(region: dict) -> str:
         lines.append("Sibling tasks:")
         for sib in siblings:
             line = f"  - [{sib.get('status', '?')}] {sib.get('title', '?')}"
+            sibling_description = str(sib.get("description", "")).strip()
+            if sibling_description:
+                line += f" — {sibling_description}"
             sib_result = sib.get("result")
             if sib_result:
                 line += f" — {sib_result}"
@@ -747,10 +774,10 @@ class TinyCUATaskAssessorNode(ProcessNode):
                 "reviewer-requested replan:\n"
                 f"{_render_local_region_markdown(_local_task_region(session, self.config.metadata.get('replan_task_id')))}\n\n{base}"
             )
-        return (
-            f"{prefix}{prior_prefix}Roadmap:\n"
-            f"{session.task_store.render_markdown()}\n\n{base}"
+        roadmap = _render_task_tree_markdown(
+            _task_context_snapshot(session), include_descriptions=True
         )
+        return f"{prefix}{prior_prefix}Roadmap:\n{roadmap}\n\n{base}"
 
     def build_tool_system_prompt(self, resolved_tools: list[Any] | None = None) -> str:
         """Behavioral guidance keyed on present assessor tools (FR-005)."""

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from tinycua.config.types import LLMResult, Tool, ValidationResult
+from tinycua.config.types import LLMResult, Tool
 from tinycua.config.node_config import create_node_config
 from tinycua.loops.node_contract import LifecyclePhase
 from tinycua.loops.node_queue import NodeQueue
@@ -12,7 +12,12 @@ from tinycua.loops.task_nodes import TinyCUATaskAnalyzerNode, TinyCUATaskAssesso
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.node_handoff import NodeHandoff
 from tinycua.models.task import TaskStateStore
-from tinycua.tools.task_tools import TaskDecomposeTool, TaskUpdateTool
+from tinycua.tools.task_tools import (
+    TaskCreateTool,
+    TaskDecomposeTool,
+    TaskShrinkTool,
+    TaskUpdateTool,
+)
 from tinycua_sdk import Agent, LanguageModel
 
 
@@ -178,14 +183,6 @@ async def test_analyzer_must_resolve_each_selected_target_locally() -> None:
     analyzer.progress.mark_tool_called("task_update", success=True)
 
     assert loop._can_terminate(analyzer) is False
-    assert (
-        loop._recover_task_analyzer_validation_failure(
-            analyzer,
-            ValidationResult(is_valid=False, errors=["selected target unresolved"]),
-        )
-        is False
-    )
-
     await loop._execute_tool_calls(
         agent,
         [
@@ -275,6 +272,353 @@ async def test_analyzer_structural_change_resolves_selected_local_subtree() -> N
     assert target.metadata["planning_resolution"]["summary"].startswith(
         "task_decompose"
     )
+
+
+@pytest.mark.asyncio
+async def test_analyzer_direct_description_update_resolves_selected_target() -> None:
+    """A meaningful direct edit resolves a finding without a planning note."""
+    loop = TinyCUALoop()
+    store = loop.root_session.task_store
+    root = store.create_task("Root")
+    target = store.create_task("Backend", parent_id=root.task_id)
+    finding = {
+        "task_id": target.task_id,
+        "finding": "The persistence boundary is missing.",
+        "assessment_id": "assessment-update",
+    }
+    target.metadata["planning_finding"] = finding
+    analyzer = TinyCUATaskAnalyzerNode(
+        node_id="task_analyzer",
+        config=create_node_config("task_analyzer", mode="effort_loop_decomposition"),
+    )
+    handoff = NodeHandoff(
+        source_node="task_assessor",
+        target_node="task_analyzer",
+        instruction="Clarify the selected target.",
+        payload={
+            "decision": "analyze",
+            "selected_task_ids": [target.task_id],
+            "findings": [finding],
+        },
+    )
+    loop.queue = NodeQueue([analyzer])
+    loop.queue.set_input(analyzer, handoff)
+    update = TaskUpdateTool()
+    update.bind_task_store(store)
+    update.bind_source_node("task_analyzer")
+
+    results = await loop._execute_tool_calls(
+        Agent(llm_model=LanguageModel()),
+        [
+            {
+                "function": {
+                    "name": "task_update",
+                    "arguments": {
+                        "task_id": target.task_id,
+                        "description": "Persist blocks in SQLite across restarts.",
+                    },
+                }
+            }
+        ],
+        [update],
+        analyzer,
+    )
+    analyzer.progress.mark_tool_called("task_update", success=True)
+
+    assert results[0]["output"]["success"] is True
+    assert handoff.payload["_resolved_task_ids"] == [target.task_id]
+    assert loop._can_terminate(analyzer) is True
+
+
+@pytest.mark.asyncio
+async def test_analyzer_delete_resolves_selected_ancestor_from_pre_mutation_tree() -> (
+    None
+):
+    """Deleting a redundant descendant resolves its selected ancestor finding."""
+    loop = TinyCUALoop()
+    store = loop.root_session.task_store
+    root = store.create_task("Root")
+    target = store.create_task("Frontend", parent_id=root.task_id)
+    redundant = store.create_task("Duplicate styling", parent_id=target.task_id)
+    finding = {
+        "task_id": target.task_id,
+        "finding": "The subtree contains duplicate work.",
+        "assessment_id": "assessment-delete",
+    }
+    target.metadata["planning_finding"] = finding
+    analyzer = TinyCUATaskAnalyzerNode(
+        node_id="task_analyzer",
+        config=create_node_config("task_analyzer", mode="effort_loop_decomposition"),
+    )
+    handoff = NodeHandoff(
+        source_node="task_assessor",
+        target_node="task_analyzer",
+        instruction="Remove the duplicate work.",
+        payload={
+            "decision": "analyze",
+            "selected_task_ids": [target.task_id],
+            "findings": [finding],
+        },
+    )
+    loop.queue = NodeQueue([analyzer])
+    loop.queue.set_input(analyzer, handoff)
+    shrink = TaskShrinkTool()
+    shrink.bind_task_store(store)
+
+    results = await loop._execute_tool_calls(
+        Agent(llm_model=LanguageModel()),
+        [
+            {
+                "function": {
+                    "name": "task_shrink",
+                    "arguments": {
+                        "action": "delete",
+                        "task_id": redundant.task_id,
+                        "rationale": "This duplicates the parent outcome.",
+                    },
+                }
+            }
+        ],
+        [shrink],
+        analyzer,
+    )
+    analyzer.progress.mark_tool_called("task_shrink", success=True)
+
+    assert results[0]["output"]["success"] is True
+    assert redundant.task_id not in store.tasks
+    assert handoff.payload["_resolved_task_ids"] == [target.task_id]
+    assert loop._can_terminate(analyzer) is True
+
+
+@pytest.mark.asyncio
+async def test_analyzer_unrelated_create_does_not_resolve_active_target() -> None:
+    """Creating under another parent cannot resolve the active selected task."""
+    loop = TinyCUALoop()
+    store = loop.root_session.task_store
+    root = store.create_task("Root")
+    target = store.create_task("Selected", parent_id=root.task_id)
+    other = store.create_task("Other", parent_id=root.task_id)
+    store.active_task_id = target.task_id
+    finding = {
+        "task_id": target.task_id,
+        "finding": "Clarify the selected outcome.",
+        "assessment_id": "assessment-create",
+    }
+    analyzer = TinyCUATaskAnalyzerNode(
+        "task_analyzer",
+        create_node_config("task_analyzer", mode="effort_loop_decomposition"),
+    )
+    handoff = NodeHandoff(
+        source_node="task_assessor",
+        target_node="task_analyzer",
+        instruction="Resolve the selected target.",
+        payload={
+            "decision": "analyze",
+            "selected_task_ids": [target.task_id],
+            "findings": [finding],
+        },
+    )
+    loop.queue = NodeQueue([analyzer])
+    loop.queue.set_input(analyzer, handoff)
+    create = TaskCreateTool()
+    create.bind_task_store(store)
+
+    results = await loop._execute_tool_calls(
+        Agent(llm_model=LanguageModel()),
+        [
+            {
+                "function": {
+                    "name": "task_create",
+                    "arguments": {
+                        "title": "Other child",
+                        "parent_id": other.task_id,
+                    },
+                }
+            }
+        ],
+        [create],
+        analyzer,
+    )
+
+    assert results[0]["output"]["success"] is True
+    assert handoff.payload.get("_resolved_task_ids", []) == []
+
+
+@pytest.mark.asyncio
+async def test_analyzer_malformed_task_reference_returns_tool_error() -> None:
+    """Impact capture leaves malformed arguments to structured tool validation."""
+    loop = TinyCUALoop()
+    store = loop.root_session.task_store
+    root = store.create_task("Root")
+    target = store.create_task("Selected", parent_id=root.task_id)
+    finding = {
+        "task_id": target.task_id,
+        "finding": "Split this task.",
+        "assessment_id": "assessment-malformed",
+    }
+    analyzer = TinyCUATaskAnalyzerNode(
+        "task_analyzer",
+        create_node_config("task_analyzer", mode="effort_loop_decomposition"),
+    )
+    loop.queue = NodeQueue([analyzer])
+    loop.queue.set_input(
+        analyzer,
+        NodeHandoff(
+            source_node="task_assessor",
+            target_node="task_analyzer",
+            instruction="Resolve the selected target.",
+            payload={
+                "decision": "analyze",
+                "selected_task_ids": [target.task_id],
+                "findings": [finding],
+            },
+        ),
+    )
+    decompose = TaskDecomposeTool()
+    decompose.bind_task_store(store)
+
+    results = await loop._execute_tool_calls(
+        Agent(llm_model=LanguageModel()),
+        [
+            {
+                "function": {
+                    "name": "task_decompose",
+                    "arguments": {"task_id": {"bad": "reference"}, "subtasks": []},
+                }
+            }
+        ],
+        [decompose],
+        analyzer,
+    )
+
+    assert "error" in results[0]
+
+
+@pytest.mark.asyncio
+async def test_analyzer_null_task_reference_resolves_active_target() -> None:
+    """An explicit null update target retains active-task semantics."""
+    loop = TinyCUALoop()
+    store = loop.root_session.task_store
+    root = store.create_task("Root")
+    target = store.create_task("Selected", parent_id=root.task_id)
+    store.active_task_id = target.task_id
+    finding = {
+        "task_id": target.task_id,
+        "finding": "Clarify the selected outcome.",
+        "assessment_id": "assessment-null",
+    }
+    analyzer = TinyCUATaskAnalyzerNode(
+        "task_analyzer",
+        create_node_config("task_analyzer", mode="effort_loop_decomposition"),
+    )
+    handoff = NodeHandoff(
+        source_node="task_assessor",
+        target_node="task_analyzer",
+        instruction="Resolve the selected target.",
+        payload={
+            "decision": "analyze",
+            "selected_task_ids": [target.task_id],
+            "findings": [finding],
+        },
+    )
+    loop.queue = NodeQueue([analyzer])
+    loop.queue.set_input(analyzer, handoff)
+    update = TaskUpdateTool()
+    update.bind_task_store(store)
+    update.bind_source_node("task_analyzer")
+
+    results = await loop._execute_tool_calls(
+        Agent(llm_model=LanguageModel()),
+        [
+            {
+                "function": {
+                    "name": "task_update",
+                    "arguments": {
+                        "task_id": None,
+                        "description": "A focused outcome with observable evidence.",
+                    },
+                }
+            }
+        ],
+        [update],
+        analyzer,
+    )
+
+    assert results[0]["output"]["success"] is True
+    assert handoff.payload["_resolved_task_ids"] == [target.task_id]
+
+
+@pytest.mark.asyncio
+async def test_analyzer_stops_continuation_when_commit_makes_no_target_progress() -> (
+    None
+):
+    """An unrelated commit cannot trigger six more analyzer model calls."""
+    loop = TinyCUALoop()
+    store = loop.root_session.task_store
+    root = store.create_task("Root")
+    target = store.create_task("Target", parent_id=root.task_id)
+    unrelated = store.create_task("Unrelated", parent_id=root.task_id)
+    finding = {
+        "task_id": target.task_id,
+        "finding": "Clarify this target.",
+        "assessment_id": "assessment-no-progress",
+    }
+    target.metadata["planning_finding"] = finding
+    config = create_node_config("task_analyzer", mode="effort_loop_decomposition")
+    config.retry_policy.max_attempts = 1
+    analyzer = TinyCUATaskAnalyzerNode("task_analyzer", config)
+    analyzer.ensure_session(loop.root_session)
+    loop.queue = NodeQueue([analyzer])
+    loop.queue.set_input(
+        analyzer,
+        NodeHandoff(
+            source_node="task_assessor",
+            target_node="task_analyzer",
+            instruction="Resolve the target.",
+            payload={
+                "decision": "analyze",
+                "selected_task_ids": [target.task_id],
+                "findings": [finding],
+            },
+        ),
+    )
+    update = TaskUpdateTool()
+    update.bind_task_store(store)
+    update.bind_source_node("task_analyzer")
+    agent = Agent(llm_model=LanguageModel())
+    calls = 0
+
+    async def call_llm(messages, tools, stream=False):  # noqa: ANN001, ARG001
+        nonlocal calls
+        calls += 1
+        return {
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": f"call-{calls}",
+                    "type": "function",
+                    "function": {
+                        "name": "task_update",
+                        "arguments": {
+                            "task_id": unrelated.task_id,
+                            "planning_note": "Unrelated context.",
+                        },
+                    },
+                }
+            ],
+        }
+
+    agent._call_llm = call_llm  # type: ignore[method-assign]
+
+    _result, _attempt, validation = await loop._call_node_with_retry(
+        analyzer,
+        agent,
+        [{"role": "user", "content": "Refine the roadmap."}],
+        [update],
+    )
+
+    assert validation.is_valid is False
+    assert calls == 1
 
 
 @pytest.mark.asyncio
