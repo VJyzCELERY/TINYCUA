@@ -53,7 +53,7 @@ A Task Executor agent receives a benchmark task (e.g., "read the file at /data/i
 
 - **FR-001**: System MUST provide a `run_shell` tool that executes a shell command with configurable timeout, returning `{stdout, stderr, exit_code}`.
 - **FR-002**: System MUST provide a `read_file` tool that reads a file at a given path and returns its contents as a string. Large files must be truncated with a clear indicator.
-- **FR-003**: System MUST provide a `write_file` tool that creates or overwrites a file at a given path, creating parent directories if needed. Returns `{success, path, chars_written}`.
+- **FR-003**: System MUST provide a `write_file` tool that creates or overwrites a file at a given path when its parent directory exists. A missing parent returns a structured error without creating directories. Returns `{success, path, chars_written}`.
 - **FR-004**: System MUST provide an `edit_file` tool that replaces lines in an existing file starting at a given line number. Supports an optional `offset` to limit how many lines are replaced. Returns `{success, path, start_line, lines_replaced, bytes_written}`. The file must already exist.
 - **FR-005**: System MUST provide a `list_files` tool that lists files matching a glob pattern in a directory, returning a list of matching paths.
 - **FR-006**: System MUST provide a `fetch_url` tool that performs an HTTP request (GET by default, configurable method and headers) and returns the response body. Large responses must be truncated.
@@ -78,7 +78,7 @@ A Task Executor agent receives a benchmark task (e.g., "read the file at /data/i
 - [ ] **Errors are handled gracefully**: File not found, timeout, invalid URL, syntax error, invalid start line — all return structured error results, not exceptions.
 - [ ] **Timeouts are enforced**: Shell and Python execution respect the configured timeout.
 - [ ] **Large outputs are truncated**: Files and HTTP responses over a reasonable limit are truncated with an indicator.
-- [ ] **Parent directories are created**: `write_file` creates missing parent directories automatically.
+- [ ] **Missing parents fail safely**: `write_file` returns a structured error and creates no directories when the parent is missing.
 
 ---
 
