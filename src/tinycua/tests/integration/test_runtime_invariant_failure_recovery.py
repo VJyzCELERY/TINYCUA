@@ -19,7 +19,6 @@ import pytest
 
 from tinycua.config.session_config import SessionConfig
 from tinycua.factory import create_tinycua_agent
-from tinycua.loops.node import NodeExecutionError
 
 # Reuse the proven scripted-LLM pattern from the route matrix tests. We import
 # the script class to keep a single source of truth for worker-path responses.
@@ -103,15 +102,15 @@ async def test_bad_once_task_analyzer_does_not_skip_to_response(tmp_path: Path) 
 
 
 @pytest.mark.asyncio
-async def test_bad_forever_contract_node_fails_closed_without_illegal_route(
+async def test_bad_forever_analyzer_recovers_without_illegal_route(
     tmp_path: Path,
 ) -> None:
     """Spec: ./spec.md:187, ./spec.md:218-219, ./spec.md:273.
 
     Source: tinycua_loop.md:36-38, tinycua_loop.md:86-94, node.md:216-220.
-    A node that never emits its required contract must exhaust retries and
-    fail closed. It must NOT escape by skipping to response or an unrelated
-    downstream node.
+    An analyzer that never emits its required contract must exhaust retries,
+    retain the root task, and continue through the executor rather than skip
+    directly to response.
     """
     script = _RouteMatrixScript(
         route="worker",
@@ -131,13 +130,16 @@ async def test_bad_forever_contract_node_fails_closed_without_illegal_route(
     )
     agent._call_llm = script  # type: ignore[method-assign]
 
-    with pytest.raises(NodeExecutionError):
-        await agent.run("Build a plan")
+    await agent.run("Build a plan")
 
     node_ids = _trace_node_ids(agent)
-    # task_analyzer was attempted and never produced a contract...
     assert "task_analyzer" in node_ids
-    # ...and the run never reached response (fail-closed, not skip-to-response).
-    assert "response" not in node_ids, (
-        f"bad-forever task_analyzer escaped to response: {node_ids}"
+    assert "task_executor" in node_ids
+    assert not any(
+        node_ids[index : index + 2] == ["task_analyzer", "response"]
+        for index in range(len(node_ids) - 1)
     )
+    root_id = agent.loop.root_session.task_store.root_task_id
+    assert root_id is not None
+    root = agent.loop.root_session.task_store.tasks[root_id]
+    assert root.metadata["analyzer_recovery"]["recovery"] == "continue_execution"

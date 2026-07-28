@@ -701,16 +701,16 @@ def test_reviewer_replan_keeps_task_tree_unfinished() -> None:
     assert store.all_done() is False
 
 
-def test_analyzer_failure_does_not_fabricate_app_vertical_slice() -> None:
-    """Analyzer recovery must not fabricate a vertical-slice task.
+def test_initial_analyzer_exhaustion_continues_root_without_fabrication() -> None:
+    """Analyzer exhaustion autonomously executes the root without fabrication.
 
     Spec: ./specs/tinycua-runtime-invariants/spec.md:29-42, 218-219, 261.
     Source: src/tinycua/docs/design/loops/tinycua_loop.md:67-84,
             src/tinycua/docs/design/loops/task_analyzer.md:23-31.
     When the analyzer misses its tool call and the root has no children, the
-    recovery must NOT fabricate a hardcoded app/web-ui task. The runtime may
-    only continue when the tree already has children; otherwise it must fail
-    closed so the node retries its own contract.
+    recovery must NOT fabricate a hardcoded app/web-ui task. The runtime keeps
+    the root as the executable fallback instead of failing or waiting for a
+    human planning decision.
     """
     analyzer = TinyCUATaskAnalyzerNode(
         node_id="task_analyzer",
@@ -725,8 +725,9 @@ def test_analyzer_failure_does_not_fabricate_app_vertical_slice() -> None:
     )
 
     # No children exist, so recovery must NOT fabricate a vertical slice.
-    assert recovered is False
+    assert recovered is True
     assert root.children == []
+    assert root.metadata["analyzer_recovery"]["recovery"] == "continue_execution"
     assert not any(
         "vertical-slice" in str(t).lower()
         for t in [child.title for child in loop.root_session.task_store.tasks.values()]
@@ -1387,12 +1388,123 @@ def test_optional_task_analyzer_validation_failure_skips_pass() -> None:
     )
 
     assert recovered is True
-    assert root.metadata["analyzer_recovery"]["recovery"] == "skip_analyzer"
+    assert root.metadata["analyzer_recovery"]["recovery"] == "continue_execution"
     assert [node.node_id for node in loop.queue.items] == [
         "task_analyzer",
         "task_executor",
         "response",
     ]
+
+
+def test_selected_analyzer_exhaustion_preserves_findings_as_advisories() -> None:
+    """Unresolved planning findings degrade to visible execution advisories."""
+    analyzer = TinyCUATaskAnalyzerNode(
+        node_id="task_analyzer",
+        config=create_node_config("task_analyzer", mode="effort_loop_decomposition"),
+    )
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    loop = TinyCUALoop(queue=NodeQueue(items=[analyzer, executor, ResponseNode()]))
+    root = loop.root_session.task_store.create_task("Root")
+    target = loop.root_session.task_store.create_task(
+        "Implement backend", parent_id=root.task_id
+    )
+    finding = {
+        "task_id": target.task_id,
+        "finding": "The task could use more planning context.",
+        "assessment_id": "assessment-exhausted",
+    }
+    target.metadata["planning_finding"] = finding
+    loop.queue.set_input(
+        analyzer,
+        NodeHandoff(
+            source_node="task_assessor",
+            target_node="task_analyzer",
+            instruction="Refine the target.",
+            payload={
+                "decision": "analyze",
+                "selected_task_ids": [target.task_id],
+                "findings": [finding],
+            },
+        ),
+    )
+
+    recovered = loop._recover_task_analyzer_validation_failure(
+        analyzer,
+        ValidationResult(is_valid=False, errors=["selected target unresolved"]),
+    )
+
+    assert recovered is True
+    assert target.metadata.get("planning_finding") is None
+    assert target.metadata["planning_advisories"][-1] == {
+        "task_id": target.task_id,
+        "advisory": finding["finding"],
+        "assessment_id": finding["assessment_id"],
+        "analysis_budget_exhausted": True,
+    }
+    assert root.metadata["analyzer_recovery"]["unresolved_task_ids"] == [target.task_id]
+
+
+def test_analyzer_exhaustion_is_idempotent_with_capped_advisories() -> None:
+    """Repeated exhausted findings cannot break autonomous continuation."""
+    analyzer = TinyCUATaskAnalyzerNode(
+        node_id="task_analyzer",
+        config=create_node_config("task_analyzer", mode="effort_loop_decomposition"),
+    )
+    loop = TinyCUALoop(queue=NodeQueue(items=[analyzer, ResponseNode()]))
+    root = loop.root_session.task_store.create_task("Root")
+    target = loop.root_session.task_store.create_task("Target", parent_id=root.task_id)
+    finding = {
+        "task_id": target.task_id,
+        "finding": "Clarify the target.",
+        "assessment_id": "assessment-repeat",
+    }
+    advisory = {
+        "task_id": target.task_id,
+        "advisory": finding["finding"],
+        "assessment_id": finding["assessment_id"],
+        "analysis_budget_exhausted": True,
+    }
+    target.metadata.update(
+        {"planning_finding": finding, "planning_advisories": [advisory] * 5}
+    )
+    loop.queue.set_input(
+        analyzer,
+        NodeHandoff(
+            source_node="task_assessor",
+            target_node="task_analyzer",
+            instruction="Refine the target.",
+            payload={
+                "decision": "analyze",
+                "selected_task_ids": [target.task_id],
+                "findings": [finding],
+            },
+        ),
+    )
+    before = loop.root_session.task_store.version
+
+    recovered = loop._recover_task_analyzer_validation_failure(
+        analyzer,
+        ValidationResult(is_valid=False, errors=["selected target unresolved"]),
+    )
+
+    assert recovered is True
+    assert target.metadata.get("planning_finding") is None
+    assert target.metadata["planning_advisories"] == [advisory] * 5
+    assert loop.root_session.task_store.version > before
+    assert root.metadata["analyzer_recovery"]["recovery"] == "continue_execution"
+    after = loop.root_session.task_store.version
+
+    assert (
+        loop._recover_task_analyzer_validation_failure(
+            analyzer,
+            ValidationResult(is_valid=False, errors=["selected target unresolved"]),
+        )
+        is True
+    )
+    assert loop.root_session.task_store.version == after
 
 
 def test_task_executor_exposes_result_update_in_action_and_commit() -> None:

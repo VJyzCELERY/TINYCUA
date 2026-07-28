@@ -16,7 +16,9 @@ sibling work. A verifiable task has specific observable evidence from which a re
 can decide completion. The roadmap collectively covers explicit workflows and hard
 constraints. The analyzer makes evidence-supported decisions needed for execution,
 avoids overlap and command-level or lifecycle-only tasks, keeps tightly coupled work
-together, and never imposes a fixed task count.
+together, and never imposes a fixed task count. Executor-local choices such as files,
+commands, libraries, and implementation steps are not planning defects unless the
+mission requires them.
 
 ## Non-Responsibilities
 
@@ -79,8 +81,9 @@ TaskAnalyzerNode completes:
 ## Failure / Retry Behavior
 
 Retry according to `NodeRetryPolicy`. Recovery preserves the same structural alternatives
-rather than preferring decomposition. If task tree is `None` after completion, that is a
-contract violation.
+rather than preferring decomposition. When bounded planning cannot resolve a finding, the
+runtime records it as an exhausted advisory and continues autonomously with retained work.
+A missing or corrupt root task remains a contract violation.
 
 ## Related Config
 

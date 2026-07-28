@@ -152,6 +152,24 @@ def test_update_task_invalidates_render_and_records_auditable_event() -> None:
     assert task.metadata["source"] == "review"
 
 
+def test_update_task_rejects_effective_noop_without_bumping_version() -> None:
+    """Repeated values are not accepted as artificial planning progress."""
+    store = TaskStateStore()
+    task = store.create_task("Current title", description="Current description")
+    store.update_task(task.task_id, metadata={"planning_note": "Keep this task."})
+    before = store.version
+
+    with pytest.raises(ValueError, match="must change task state"):
+        store.update_task(
+            task.task_id,
+            title="Current title",
+            description="Current description",
+            metadata={"planning_note": "Keep this task."},
+        )
+
+    assert store.version == before
+
+
 def test_cancel_and_supersede_terminal_tasks_advance_selection_and_preserve_lineage() -> (
     None
 ):

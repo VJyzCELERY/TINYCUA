@@ -527,9 +527,7 @@ async def test_runtime_fails_closed_when_route_node_never_calls_required_tool(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "node_id", ["task_create", "task_analyzer", "task_executor", "result_reviewer"]
-)
+@pytest.mark.parametrize("node_id", ["task_create", "task_executor", "result_reviewer"])
 async def test_runtime_fails_without_fabricating_task_state_when_task_node_never_calls_tool(
     tmp_path: Path, node_id: str
 ) -> None:
@@ -541,3 +539,22 @@ async def test_runtime_fails_without_fabricating_task_state_when_task_node_never
         await agent.run("Build me a note-taking app.")
 
     assert script.calls_by_node.get(node_id, 0) > 0, f"{node_id} was never called"
+
+
+@pytest.mark.asyncio
+async def test_runtime_recovers_when_task_analyzer_never_calls_tool(
+    tmp_path: Path,
+) -> None:
+    """Analyzer exhaustion retains the root and proceeds autonomously."""
+    script = RuntimeContractScript(bad_forever_nodes=frozenset({"task_analyzer"}))
+    agent = _make_agent(tmp_path, script)
+
+    await agent.run("Build me a note-taking app.")
+
+    root_id = agent.loop.root_session.task_store.root_task_id
+    assert root_id is not None
+    root = agent.loop.root_session.task_store.tasks[root_id]
+    assert root.metadata["analyzer_recovery"]["recovery"] == "continue_execution"
+    assert "task_executor" in [
+        entry["node_id"] for entry in agent.loop.get_execution_trace()
+    ]

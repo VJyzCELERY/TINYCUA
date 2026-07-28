@@ -1005,7 +1005,11 @@ def test_task_assessor_prompt_reviews_whole_tree_plan_quality() -> None:
     """Assessor reviews generic plan quality, not implementation choices."""
     loop = TinyCUALoop()
     root = loop.root_session.task_store.create_task("Build application")
-    loop.root_session.task_store.create_task("Create backend", parent_id=root.task_id)
+    loop.root_session.task_store.create_task(
+        "Create backend",
+        parent_id=root.task_id,
+        description="Provide the persistence-backed application API.",
+    )
     loop.root_session.task_store.create_task("Create frontend", parent_id=root.task_id)
     assessor = TinyCUATaskAssessorNode(
         node_id="task_assessor",
@@ -1026,12 +1030,39 @@ def test_task_assessor_prompt_reviews_whole_tree_plan_quality() -> None:
     assert "materially mixed" in rendered.lower()
     assert "missing needed context or decisions" in rendered.lower()
     assert "impose unsupported implementation choices" in rendered.lower()
+    assert "Provide the persistence-backed application API." in rendered
+    assert "files, commands, libraries" in rendered
+    assert "ancestor and descendant" in rendered
     assert "task_result_update" not in combined
     assert "task_update" not in combined
     assert "task_assessment_decision" in rendered
     assert "complete" not in combined.lower()
     assert "fail executed work" not in combined.lower()
     assert "execution evidence" not in combined.lower()
+
+
+def test_task_analyzer_planning_snapshot_includes_descriptions() -> None:
+    """Analyzer sees the context already stored on each planning task."""
+    loop = TinyCUALoop()
+    root = loop.root_session.task_store.create_task(
+        "Build application",
+        description="Deliver the complete application requested by the user.",
+    )
+    loop.root_session.task_store.create_task(
+        "Implement persistence",
+        parent_id=root.task_id,
+        description="Store text blocks in SQLite and preserve them across restarts.",
+    )
+    analyzer = TinyCUATaskAnalyzerNode(
+        node_id="task_analyzer",
+        config=create_node_config("task_analyzer", mode="effort_loop_decomposition"),
+    )
+
+    messages, _ = loop._prepare_node(analyzer, [])
+    rendered = "\n".join(str(message.get("content", "")) for message in messages)
+
+    assert "Store text blocks in SQLite and preserve them across restarts." in rendered
+    assert "Deliver the complete application requested by the user." in rendered
 
 
 def test_task_assessor_local_replan_prompt_is_active_region_only() -> None:
@@ -1041,8 +1072,13 @@ def test_task_assessor_local_replan_prompt_is_active_region_only() -> None:
     active = loop.root_session.task_store.create_task(
         "Create backend",
         parent_id=root.task_id,
+        description="Expose the application API.",
     )
-    loop.root_session.task_store.create_task("Create frontend", parent_id=root.task_id)
+    loop.root_session.task_store.create_task(
+        "Create frontend",
+        parent_id=root.task_id,
+        description="Render the browser interface.",
+    )
     loop.root_session.task_store.active_task_id = active.task_id
     config = create_node_config("task_assessor", mode="local_replan")
     config.metadata["replan_reason"] = (
@@ -1060,6 +1096,8 @@ def test_task_assessor_local_replan_prompt_is_active_region_only() -> None:
     assert "local replan" in rendered.lower()
     assert "active task" in rendered.lower()
     assert "Create backend" in rendered
+    assert "Expose the application API." in rendered
+    assert "Render the browser interface." in rendered
     assert "The original approach cannot satisfy the request." in rendered
     assert "coherent, actionable, and verifiable outcome" in rendered.lower()
     assert "do not reassess the whole roadmap" in rendered.lower()
