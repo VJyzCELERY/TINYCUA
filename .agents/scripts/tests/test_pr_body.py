@@ -1,6 +1,7 @@
 """Tests for PR body template validation."""
 
 import sys
+import importlib.util
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -10,10 +11,11 @@ TEMPLATE_PATH = Path(__file__).parents[3] / ".agents" / "templates" / "PR-body.m
 
 class TestValidatePrBody:
     def _validate(self, body: str) -> list[str]:
-        from importlib import reload
-        import gh
-        reload(gh)
-        return list(gh.validate_pr_body(body))
+        path = Path(__file__).parent.parent / "preflight-pr-body.py"
+        spec = importlib.util.spec_from_file_location("preflight_pr_body", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return list(module.validate_pr_body(body))
 
     def test_rejects_empty_body(self):
         errors = self._validate("")

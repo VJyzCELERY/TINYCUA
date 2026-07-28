@@ -12,7 +12,7 @@ Focused entrypoint only; it consolidates posted feedback without owning baseline
 Read root `AGENTS.md`, skills `review-pr`, `review-core`, and `gh`, plus both common modules and the review template. Set `PR_INPUT=${1:-}`, normalize and acquire it through the review context, then run existing-report preflight from the returned worktree when `$REVIEW_FILE` exists; stale/behind/diverged state blocks remote writes. Fetch active feedback only:
 
 ```bash
-uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER" --output ./tmp/active-pr-feedback.md
+Fetch complete active feedback through `_common-pr-feedback.md` into `./tmp/active-pr-feedback.md`.
 ```
 
 Merge active remote and local findings by root issue/location, revalidate applicability, and write one canonical report. Preserve active human discussions. Reply/resolve superseded inline threads and minimize superseded review bodies via `_common-pr-feedback.md`, then execute `review-post.md` and record its returned URLs.

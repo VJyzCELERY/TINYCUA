@@ -57,6 +57,20 @@ def issue_target() -> dict:
     }
 
 
+def test_native_gh_timeout_fails_closed(monkeypatch, tmp_path):
+    module = resolver()
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            subprocess.TimeoutExpired(["gh"], 30)
+        ),
+    )
+
+    with pytest.raises(module.TargetError, match="timed out"):
+        module._gh(tmp_path, "api", "user")
+
+
 def linked_pr(number: int = 7, body: str = "Closes #7") -> dict:
     """Return an open PR that closes one issue."""
     return {
@@ -75,7 +89,7 @@ def test_classify_prefers_an_open_pr_over_same_number_issue():
     module = resolver()
 
     def gh(*args: str) -> str:
-        assert args[:3] == ("cmd", "--format", "json")
+        assert args[:3] == ("pr", "view", "7")
         return json.dumps(
             {
                 "number": 7,
@@ -97,9 +111,9 @@ def test_classify_uses_an_open_issue_when_no_pr_exists():
     module = resolver()
 
     def gh(*args: str) -> str:
-        if args[:5] == ("cmd", "--format", "json", "pr", "view"):
+        if args[:2] == ("pr", "view"):
             raise module.TargetError("PR not found")
-        if args[:5] == ("cmd", "--format", "json", "pr", "list"):
+        if args[:2] == ("pr", "list"):
             return "[]"
         return json.dumps(
             {
@@ -124,12 +138,12 @@ def test_classify_uses_an_open_issue_when_github_reports_missing_pr():
     module = resolver()
 
     def gh(*args: str) -> str:
-        if args[:5] == ("cmd", "--format", "json", "pr", "view"):
+        if args[:2] == ("pr", "view"):
             raise module.TargetError(
                 "[FAIL] gh pr view 7 failed: GraphQL: Could not resolve to a "
                 "PullRequest with the number of 7. (repository.pullRequest)"
             )
-        if args[:5] == ("cmd", "--format", "json", "pr", "list"):
+        if args[:2] == ("pr", "list"):
             return "[]"
         return json.dumps(
             {
@@ -157,11 +171,11 @@ def test_classify_issue_uses_unique_open_linked_pr():
     module = resolver()
 
     def gh(*args: str) -> str:
-        if args[:5] == ("cmd", "--format", "json", "pr", "view"):
+        if args[:2] == ("pr", "view"):
             raise module.TargetError("PR not found")
-        if args[:2] == ("fetch", "issue"):
+        if args[:2] == ("issue", "view"):
             return json.dumps(issue_target())
-        assert args[:5] == ("cmd", "--format", "json", "pr", "list")
+        assert args[:2] == ("pr", "list")
         fields = args[args.index("--json") + 1]
         assert "body" in fields.split(",")
         assert "closingIssuesReferences" not in fields.split(",")
@@ -174,9 +188,9 @@ def test_classify_issue_ignores_cross_repository_closing_reference():
     module = resolver()
 
     def gh(*args: str) -> str:
-        if args[:5] == ("cmd", "--format", "json", "pr", "view"):
+        if args[:2] == ("pr", "view"):
             raise module.TargetError("PR not found")
-        if args[:2] == ("fetch", "issue"):
+        if args[:2] == ("issue", "view"):
             return json.dumps(issue_target())
         return json.dumps([linked_pr(body="Fixes other/repo#7")])
 
@@ -187,9 +201,9 @@ def test_classify_issue_rejects_multiple_open_linked_prs():
     module = resolver()
 
     def gh(*args: str) -> str:
-        if args[:5] == ("cmd", "--format", "json", "pr", "view"):
+        if args[:2] == ("pr", "view"):
             raise module.TargetError("PR not found")
-        if args[:2] == ("fetch", "issue"):
+        if args[:2] == ("issue", "view"):
             return json.dumps(issue_target())
         return json.dumps([linked_pr(), linked_pr(8)])
 

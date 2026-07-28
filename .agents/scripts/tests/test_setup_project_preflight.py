@@ -75,20 +75,12 @@ def test_preflight_prints_agents_guide_and_canonical_wiki_url(
     assert not clone_dir.exists()
     assert commands == [
         [
-            sys.executable,
-            str(ROOT / ".agents" / "scripts" / "gh.py"),
-            "cmd",
-            "--format",
-            "json",
+            "gh",
             "api",
             "repos/VJyzCELERY/MAIN-PROJECT-TEMPLATE",
         ],
         [
-            sys.executable,
-            str(ROOT / ".agents" / "scripts" / "gh.py"),
-            "cmd",
-            "--format",
-            "raw",
+            "gh",
             "repo",
             "clone",
             "VJyzCELERY/MAIN-PROJECT-TEMPLATE.wiki",
@@ -108,6 +100,21 @@ def test_preflight_reports_missing_cli(
         setup_project_preflight.subprocess,
         "run",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(FileNotFoundError()),
+    )
+
+    assert setup_project_preflight.main([]) != 0
+    assert ACCESS_ERROR in capsys.readouterr().err
+
+
+def test_native_gh_timeout_fails_closed(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(
+        setup_project_preflight.subprocess,
+        "run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            subprocess.TimeoutExpired(["gh"], 30)
+        ),
     )
 
     assert setup_project_preflight.main([]) != 0
@@ -270,11 +277,7 @@ def test_preflight_rejects_symlinked_tmp_without_touching_external_path(
     assert ACCESS_ERROR in capsys.readouterr().err
     assert commands == [
         [
-            sys.executable,
-            str(ROOT / ".agents" / "scripts" / "gh.py"),
-            "cmd",
-            "--format",
-            "json",
+            "gh",
             "api",
             "repos/VJyzCELERY/MAIN-PROJECT-TEMPLATE",
         ]
@@ -323,4 +326,4 @@ def test_setup_project_command_uses_one_line_preflight() -> None:
     assert command.index(preflight) < command.index("Preview through the version-driven updater")
     assert 'uv run python .agents/scripts/setup_project.py preview . "$TEMPLATE_URL"' in command
     assert "uv run python .agents/scripts/setup_project.py apply . --confirm" in command
-    assert ".agents/scripts/gh.py cmd" not in command
+    assert "gh repo clone" not in command

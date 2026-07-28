@@ -39,9 +39,9 @@ For PR metadata consumed by automation:
 
 ```bash
 PR_NUMBER=$(uv run python .agents/scripts/preflight-pr.py)
-uv run python .agents/scripts/gh.py fetch pr "$PR_NUMBER" --json number,title,body,baseRefName,headRefName,headRefOid --format json
-uv run python .agents/scripts/gh.py fetch review-state "$PR_NUMBER"
-uv run python .agents/scripts/gh.py cmd --format raw pr diff "$PR_NUMBER"
+gh pr view "$PR_NUMBER" --repo OWNER/REPO --json number,title,body,baseRefName,headRefName,headRefOid
+uv run python .agents/scripts/review_workflow.py --json remote-plan <report> --repository <url> --pull-request <url> --remote-head <sha>
+gh pr diff "$PR_NUMBER" --repo OWNER/REPO
 ```
 
 Review files under `./reviews/` are local-only and must never be staged, committed, or pushed.

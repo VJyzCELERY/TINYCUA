@@ -1,0 +1,42 @@
+name: Close linked Specs issue
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  issues: write
+
+jobs:
+  close-linked-specs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            if (!pr.body) return;
+            const references = [...pr.body.matchAll(
+              /^- \*\*Specs Issue\*\*: `Specs: #(\d+)`\s*$/gm,
+            )];
+            if (references.length !== 1) return;
+            const issue_number = Number(references[0][1]);
+            const spec = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number,
+            });
+            if (
+              spec.data.pull_request ||
+              spec.data.state !== "open" ||
+              !spec.data.labels.some((label) => label.name === "spec") ||
+              !spec.data.body
+            ) return;
+            const marker = `Delivery PR: ${pr.html_url}`;
+            if (spec.data.body.split(/\r?\n/).filter((line) => line.trim() === marker).length !== 1) return;
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number,
+              state: "closed",
+            });

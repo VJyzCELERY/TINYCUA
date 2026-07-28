@@ -43,9 +43,9 @@ Load rules before acting, not during general exploration:
 
 Before implementing a feature:
 
-1. Select or create exactly one open, implementation-ready, non-roadmap GitHub issue with `/issue`; the issue is the durable public source of scope and objective.
-2. Resume that issue with `/goal`, or invoke its primitive commands directly. Resolve the issue from an explicit `OWNER/REPO#NUMBER` or one unambiguous active state under `.agents/local/state/goals/`.
-3. In the default remote profile, publish paired `spec.md` and `design.md` plus implementation artifacts to the primary issue's Specs issue using the matching templates; the explicit ignored local profile retains local artifacts for template development. Resolve all `[NEEDS CLARIFICATION]` markers before implementation.
+1. Select or create exactly one implementation-ready, non-roadmap GitHub issue or ignored local-first bundle with `/issue`; a local bundle is promoted to the durable public issue before any push or PR delivery.
+2. Resume that target with `/goal`, or invoke its primitive commands directly. Resolve a remote issue from an explicit `OWNER/REPO#NUMBER` or one unambiguous active state under `.agents/local/state/goals/`; resolve a local target as `local:<lower-kebab-id>`.
+3. A valid local bundle may plan, implement, test, commit, and review locally. Before push or PR delivery, promote it to a verified primary issue and indexed Specs issue. Remote-first targets continue to publish paired `spec.md` and `design.md` plus implementation artifacts to the primary issue's Specs issue using the matching templates. Resolve all `[NEEDS CLARIFICATION]` markers before implementation or promotion.
 4. Write a failing test before source code, then implement the minimum change that passes it.
 5. Stop only at a clean, verified, issue-linked PR ready for human review; commit, push, and remote-write permissions remain fresh and separate.
 
@@ -56,7 +56,7 @@ Before generating any document, use the matching `.agents/templates/` file. PR b
 - Run repository-owned Python scripts from the root as `uv run python .agents/scripts/<script>.py`.
 - Run Python subproject commands from their subproject root, for example `cd src/<subproject> && uv run pytest`. Never invoke bare `python` or `pytest`.
 - Run a command's documented preflight first. If it fails, inspect that script's `<EOF_DESC>` guidance before proceeding.
-- Use `.agents/scripts/gh.py` for every GitHub operation; use its `cmd` subcommand for operations without a dedicated wrapper.
+- Load the `gh` skill for every GitHub operation and use native `gh` with explicit repository context.
 - Discover public commands only through `.agents/commands/README.md`; command files own their exact behavior.
 - Review files under `./reviews/` are local-only and must never be committed or pushed.
 

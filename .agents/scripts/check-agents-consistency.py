@@ -4,8 +4,7 @@
 Checks:
   1. Stale command references — mentions of /cmds or .agents/commands/ files
      that don't exist
-  2. Raw ``gh`` CLI usage — lines that invoke the ``gh`` binary directly
-     instead of ``gh.py``
+  2. GitHub safety — stale wrapper references and unsafe generated bodies
   3. Bare ``python`` / ``pytest`` — invocations not preceded by ``uv run``
   4. ``git push --force`` — bare force push without ``--with-lease``
   5. ``metadata.source`` path validation — YAML frontmatter entries pointing
@@ -132,94 +131,85 @@ def check_command_references(md_files, commands_dir):
 # Check 2: raw ``gh`` usage
 # ---------------------------------------------------------------------------
 
-GH_INLINE_PATTERN = re.compile(r"`gh (?!py\b)(\w+)")
-
-
 def check_raw_gh(md_files, py_files):
-    """Report lines that invoke raw ``gh`` CLI (not ``gh.py``)."""
+    """Report stale wrappers and unsafe native GitHub commands."""
     findings: list[Finding] = []
+    for fp in [*md_files, *py_files]:
+        for lineno, line in _read_lines(fp):
+            if "gh" + ".py" in line:
+                findings.append((
+                    SEV_ERR, str(fp), lineno,
+                    "References deleted GitHub wrapper",
+                ))
 
     for fp in md_files:
         for lineno, line in _read_lines(fp):
-            for m in GH_INLINE_PATTERN.finditer(line):
-                cmd = m.group(1)
+            if re.search(r'["\']gh["\']\s*,\s*\*', line):
                 findings.append((
                     SEV_ERR, str(fp), lineno,
-                    f"Raw 'gh {cmd}' — use 'gh.py cmd {cmd}' instead",
+                    "General-purpose GitHub command proxies are prohibited",
                 ))
-
-    subprocess_methods = {"call", "check_call", "check_output", "Popen", "run"}
-    for fp in py_files:
-        if fp.name == "gh.py":
-            continue
-        try:
-            tree = ast.parse(fp.read_text(encoding="utf-8", errors="replace"))
-        except OSError as exc:
-            findings.append((SEV_ERR, str(fp), None, f"Cannot read file: {exc}"))
-            continue
-        except SyntaxError:
-            continue
-
-        module_names = {"subprocess"}
-        method_names: set[str] = set()
-        process_wrapper_names = {"run_process"}
-        cli_common_names = {"cli_common"}
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                module_names.update(
-                    alias.asname or alias.name
-                    for alias in node.names
-                    if alias.name == "subprocess"
-                )
-                cli_common_names.update(
-                    alias.asname or alias.name
-                    for alias in node.names
-                    if alias.name == "cli_common"
-                )
-            elif isinstance(node, ast.ImportFrom) and node.module == "subprocess":
-                method_names.update(
-                    alias.asname or alias.name
-                    for alias in node.names
-                    if alias.name in subprocess_methods
-                )
-            elif isinstance(node, ast.ImportFrom) and node.module == "cli_common":
-                process_wrapper_names.update(
-                    alias.asname or alias.name
-                    for alias in node.names
-                    if alias.name == "run_process"
-                )
-
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call) or not node.args:
-                continue
-            func = node.func
-            is_subprocess = (
-                isinstance(func, ast.Attribute)
-                and isinstance(func.value, ast.Name)
-                and func.value.id in module_names
-                and func.attr in subprocess_methods
-            ) or (isinstance(func, ast.Name) and func.id in method_names)
-            is_process_wrapper = (
-                isinstance(func, ast.Name) and func.id in process_wrapper_names
-            ) or (
-                isinstance(func, ast.Attribute)
-                and isinstance(func.value, ast.Name)
-                and func.value.id in cli_common_names
-                and func.attr == "run_process"
-            )
-            args = node.args[0]
-            if (
-                (is_subprocess or is_process_wrapper)
-                and isinstance(args, (ast.List, ast.Tuple))
-                and args.elts
-                and isinstance(args.elts[0], ast.Constant)
-                and args.elts[0].value == "gh"
-            ):
-                findings.append((
-                    SEV_ERR, str(fp), node.lineno,
-                    "Raw 'gh' subprocess invocation — use gh.py instead",
-                ))
+            commands = re.findall(r"`([^`]+)`", line)
+            if line.strip().startswith(("gh ", "$ gh ")):
+                commands.append(line.strip())
+            for command in commands:
+                tokens = _command_tokens(command)
+                if len(tokens) < 3 or _NON_EXECUTABLE_CONTEXT.search(line):
+                    continue
+                message = _unsafe_gh_command(tokens)
+                if message:
+                    findings.append((SEV_ERR, str(fp), lineno, message))
     return findings
+
+
+def _unsafe_gh_command(tokens):
+    """Return the violated native GitHub contract for one command."""
+    if not tokens or tokens[0] != "gh":
+        return None
+    if len(tokens) < 2 or tokens[1] == "<dynamic>":
+        return "General-purpose GitHub command proxies are prohibited"
+    if len(tokens) > 2 and tokens[1:3] == ["pr", "edit"]:
+        return "PR edits must use repository-scoped file-backed REST"
+    if tokens[1] in {"issue", "pr"}:
+        if "--repo" not in tokens:
+            return "GitHub repository operations require explicit --repo context"
+        if len(tokens) > 2 and tokens[2] == "list" and "--limit" not in tokens:
+            return "GitHub collection reads require an exhaustive --limit"
+        if "--body" in tokens or "-b" in tokens or any(
+            token.startswith("--body=") for token in tokens
+        ):
+            return "Generated GitHub body must use --body-file"
+    if tokens[1] != "api":
+        return None
+    method = "GET"
+    if "--method" in tokens and tokens.index("--method") + 1 < len(tokens):
+        method = tokens[tokens.index("--method") + 1]
+    endpoint = next((token for token in tokens[2:] if token.startswith("repos/")), "")
+    if any(token.startswith(("issues/", "pulls/")) for token in tokens[2:]):
+        return "GitHub API routes require explicit owner/repository context"
+    if endpoint and endpoint.count("/") < 2:
+        return "GitHub API routes require explicit owner/repository context"
+    if "--slurp" in tokens:
+        return "GitHub CLI 2.45 does not support --slurp"
+    if (
+        method == "GET"
+        and re.search(r"/(?:comments|reviews|issues|pulls)(?:\?|$)", endpoint)
+        and (
+            "--paginate" not in tokens
+            or "--jq" not in tokens
+            or tokens.index("--jq") + 1 == len(tokens)
+            or tokens[tokens.index("--jq") + 1] != ".[]"
+        )
+    ):
+        return "GitHub API collection reads require paginated NDJSON via --jq '.[]'"
+    if any(
+        token in {"-f", "--field", "-F", "--raw-field"}
+        and index + 1 < len(tokens)
+        and tokens[index + 1].startswith("body=")
+        for index, token in enumerate(tokens)
+    ):
+        return "Generated GitHub API bodies must use --input"
+    return None
 
 
 # ---------------------------------------------------------------------------

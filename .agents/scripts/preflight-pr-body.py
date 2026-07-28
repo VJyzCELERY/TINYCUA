@@ -25,6 +25,34 @@ from pathlib import Path
 import repo_guard
 from cli_common import EXIT_EXTERNAL, EXIT_FAILURE, ExternalCommandError, run_process
 
+REQUIRED_PR_SECTIONS = (
+    "## Summary",
+    "## How to Test",
+    "## Review Notes",
+    "## Related Issues",
+)
+TEMPLATE_PLACEHOLDER_RE = re.compile(
+    r"\[(?:Describe|Item|Map to|What|Additional|File|List|Fill|Explain|Add|"
+    r"Document|Review|Example|Update|Note|Specify|Reason|Expected).*?\]",
+    re.IGNORECASE,
+)
+
+
+def validate_pr_body(body: str) -> list[str]:
+    """Return PR template validation errors."""
+    if not body.strip():
+        return ["PR body is empty."]
+    errors = [
+        f"Missing required section: {section}"
+        for section in REQUIRED_PR_SECTIONS
+        if section not in body
+    ]
+    errors.extend(
+        f"Unfilled placeholder found: {placeholder}"
+        for placeholder in TEMPLATE_PLACEHOLDER_RE.findall(body)[:5]
+    )
+    return errors
+
 
 def get_repo_root() -> Path:
     root = run_process(["git", "rev-parse", "--show-toplevel"])

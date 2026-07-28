@@ -11,6 +11,7 @@ local process fails. GitHub lookup failures are reported as unavailable.
 import argparse
 import json
 import platform
+import re
 import sys
 from pathlib import Path
 
@@ -84,19 +85,22 @@ def _git_info(root: Path) -> dict[str, str | int | None]:
 
 
 def _pr_number(root: Path, branch: str) -> int | None:
-    """Return the current branch's open PR number through gh.py."""
-    gh_script = repo_guard.assert_inside_repo(
-        repo_guard.repo_root() / ".agents" / "scripts" / "gh.py"
+    """Return the current branch's open PR number through native gh."""
+    origin = run_process(["git", "remote", "get-url", "origin"], cwd=root)
+    match = re.fullmatch(
+        r"(?:https://github\.com/|git@github\.com:)([^/]+/[^/]+?)(?:\.git)?/?",
+        origin,
     )
+    if not match:
+        raise ExternalCommandError(["git", "remote", "get-url", "origin"], "Invalid GitHub origin")
+    repository = match.group(1)
     output = run_process(
         [
-            sys.executable,
-            str(gh_script),
-            "cmd",
-            "--format",
-            "json",
+            "gh",
             "pr",
             "list",
+            "--repo",
+            repository,
             "--head",
             branch,
             "--state",
@@ -112,8 +116,8 @@ def _pr_number(root: Path, branch: str) -> int | None:
         prs = json.loads(output)
     except json.JSONDecodeError as error:
         raise ExternalCommandError(
-            [sys.executable, str(gh_script)],
-            f"gh.py returned invalid JSON: {error}",
+            ["gh", "pr", "list", "--repo", repository],
+            f"gh returned invalid JSON: {error}",
             stdout=output,
         ) from error
     if not isinstance(prs, list) or (
@@ -121,8 +125,8 @@ def _pr_number(root: Path, branch: str) -> int | None:
         and (not isinstance(prs[0], dict) or not isinstance(prs[0].get("number"), int))
     ):
         raise ExternalCommandError(
-            [sys.executable, str(gh_script)],
-            "gh.py returned invalid JSON: expected PR records",
+            ["gh", "pr", "list", "--repo", repository],
+            "gh returned invalid JSON: expected PR records",
             stdout=output,
         )
     return prs[0].get("number") if prs else None

@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 import repo_guard
+from cli_common import DEFAULT_TIMEOUT
 
 
 _CLOSING_REFERENCE = re.compile(
@@ -60,9 +61,9 @@ def _record(payload: str, kind: str) -> dict:
     try:
         data = json.loads(payload)
     except json.JSONDecodeError as error:
-        raise TargetError(f"gh.py returned malformed {kind} JSON") from error
+        raise TargetError(f"gh returned malformed {kind} JSON") from error
     if not isinstance(data, dict):
-        raise TargetError(f"gh.py returned malformed {kind} JSON")
+        raise TargetError(f"gh returned malformed {kind} JSON")
     return data
 
 
@@ -70,9 +71,9 @@ def _records(payload: str, kind: str) -> list[dict]:
     try:
         data = json.loads(payload)
     except json.JSONDecodeError as error:
-        raise TargetError(f"gh.py returned malformed {kind} JSON") from error
+        raise TargetError(f"gh returned malformed {kind} JSON") from error
     if not isinstance(data, list) or not all(isinstance(item, dict) for item in data):
-        raise TargetError(f"gh.py returned malformed {kind} JSON")
+        raise TargetError(f"gh returned malformed {kind} JSON")
     return data
 
 
@@ -97,7 +98,7 @@ def _pr_target(data: dict, number: int | None = None) -> dict:
         or (number is not None and expected_number != number)
         or any(not isinstance(data.get(field), str) or not data[field] for field in fields)
     ):
-        raise TargetError("gh.py returned malformed PR JSON")
+        raise TargetError("gh returned malformed PR JSON")
     if data["state"] != "OPEN":
         raise TargetError("PR is not open")
     _git_branch(data["headRefName"])
@@ -129,9 +130,6 @@ def _closes_issue(body: str, issue: dict) -> bool:
 
 def _linked_open_prs(issue: dict, gh: callable) -> list[dict]:
     payload = gh(
-        "cmd",
-        "--format",
-        "json",
         "pr",
         "list",
         "--repo",
@@ -147,7 +145,7 @@ def _linked_open_prs(issue: dict, gh: callable) -> list[dict]:
     for data in _records(payload, "PR list"):
         body = data.get("body")
         if body is not None and not isinstance(body, str):
-            raise TargetError("gh.py returned malformed PR list JSON")
+            raise TargetError("gh returned malformed PR list JSON")
         if body and _closes_issue(body, issue):
             matches.append(_pr_target(data))
     return matches
@@ -159,9 +157,6 @@ def classify_target(value: str, gh: callable) -> dict:
     if "/issues/" in value:
         return _classify_issue(value, number, gh)
     pr_args = (
-        "cmd",
-        "--format",
-        "json",
         "pr",
         "view",
         value,
@@ -183,13 +178,11 @@ def classify_target(value: str, gh: callable) -> dict:
 
 def _classify_issue(value: str, number: str, gh: callable) -> dict:
     issue_args = (
-        "fetch",
         "issue",
+        "view",
         value,
         "--json",
         "number,url,title,state",
-        "--format",
-        "json",
     )
     try:
         data = _record(gh(*issue_args), "issue")
@@ -201,7 +194,7 @@ def _classify_issue(value: str, number: str, gh: callable) -> dict:
         or not data["title"]
         or data.get("state") != "OPEN"
     ):
-        raise TargetError("gh.py returned malformed or closed issue JSON")
+        raise TargetError("gh returned malformed or closed issue JSON")
     issue = {
         "kind": "issue",
         "repository": _repository(data.get("url"), "issues"),
@@ -401,10 +394,22 @@ def acquire_target(root: Path, target: dict) -> dict:
 
 
 def _gh(root: Path, *args: str) -> str:
-    script = root / ".agents" / "scripts" / "gh.py"
-    result = _run([sys.executable, str(script), *args], root)
+    command = ["gh", *args]
+    if args and args[0] in {"issue", "pr"} and "--repo" not in args:
+        command.extend(["--repo", _origin_repository(root)])
+    try:
+        result = subprocess.run(
+            command,
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=DEFAULT_TIMEOUT,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise TargetError("gh target lookup timed out") from error
     if result.returncode:
-        raise TargetError(result.stderr.strip() or "gh.py target lookup failed")
+        raise TargetError(result.stderr.strip() or "gh target lookup failed")
     return result.stdout.strip()
 
 

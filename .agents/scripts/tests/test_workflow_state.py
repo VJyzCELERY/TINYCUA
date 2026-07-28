@@ -614,6 +614,107 @@ def test_set_specs_rejects_foreign_or_incomplete_references(tmp_path):
     assert "specs" in error
 
 
+def test_set_pr_accepts_implemented_phase(tmp_path):
+    initialized(tmp_path)
+    for phase in workflow_state.PHASES[1:5]:
+        advance(tmp_path, phase)
+
+    code, output, error = run(
+        tmp_path,
+        "set-pr",
+        ISSUE,
+        "123",
+        "--url",
+        "https://github.com/Owner/Repo/pull/123",
+        "--head",
+        "feature/state",
+        "--base",
+        "main",
+        "--format",
+        "json",
+    )
+
+    assert (code, error) == (0, "")
+    assert json.loads(output)["phase"] == "implemented"
+
+
+@pytest.mark.parametrize("phase", workflow_state.PHASES)
+def test_set_specs_preserves_every_phase_while_advancing_revision(tmp_path, phase):
+    initialized(tmp_path)
+    base = "https://github.com/Owner/Repo/issues/77"
+    specs = (
+        "--number",
+        "77",
+        "--url",
+        base,
+        "--index-url",
+        base,
+        "--spec-url",
+        f"{base}#issuecomment-1",
+        "--design-url",
+        f"{base}#issuecomment-2",
+        "--plan-url",
+        f"{base}#issuecomment-3",
+        "--task-url",
+        f"{base}#issuecomment-4",
+    )
+    if phase == "issue":
+        assert run(tmp_path, "set-specs", ISSUE, "--revision", "1", *specs)[0] == 0
+    else:
+        advance(tmp_path, "branched")
+        assert run(tmp_path, "set-specs", ISSUE, "--revision", "1", *specs)[0] == 0
+        for next_phase in workflow_state.PHASES[
+            workflow_state.PHASES.index("planned") : workflow_state.PHASES.index(phase)
+            + 1
+        ]:
+            advance(tmp_path, next_phase)
+
+    before = json.loads(run(tmp_path, "show", ISSUE, "--format", "json")[1])
+    code, output, error = run(
+        tmp_path, "set-specs", ISSUE, "--revision", "2", *specs, "--format", "json"
+    )
+
+    assert (code, error) == (0, "")
+    after = json.loads(output)
+    assert after["phase"] == before["phase"]
+    assert after["status"] == before["status"]
+    assert after["pending_action"] == before["pending_action"]
+    assert after["prs"] == before["prs"]
+    assert after["review"] == before["review"]
+    assert after["specs"]["revision"] == 2
+
+
+def test_set_specs_rejects_non_advancing_revision(tmp_path):
+    initialized(tmp_path)
+    base = "https://github.com/Owner/Repo/issues/77"
+    args = (
+        "set-specs",
+        ISSUE,
+        "--number",
+        "77",
+        "--url",
+        base,
+        "--index-url",
+        base,
+        "--revision",
+        "1",
+        "--spec-url",
+        f"{base}#issuecomment-1",
+        "--design-url",
+        f"{base}#issuecomment-2",
+        "--plan-url",
+        f"{base}#issuecomment-3",
+        "--task-url",
+        f"{base}#issuecomment-4",
+    )
+
+    assert run(tmp_path, *args)[0] == 0
+    code, _, error = run(tmp_path, *args)
+
+    assert code == 1
+    assert "advance" in error
+
+
 def test_set_pr_keeps_ordered_per_branch_collection_and_updates_in_place(tmp_path):
     initialized(tmp_path)
     for phase in workflow_state.PHASES[1:7]:
@@ -658,7 +759,7 @@ def test_set_pr_keeps_ordered_per_branch_collection_and_updates_in_place(tmp_pat
     assert [pr["number"] for pr in state["prs"]] == [10, 11]
 
 
-def test_set_pr_refreshes_head_while_reviewing(tmp_path):
+def test_review_cycle_pr_refresh_preserves_reviewing_phase(tmp_path):
     initialized(tmp_path)
     for phase in workflow_state.PHASES[1:7]:
         advance(tmp_path, phase)
@@ -678,7 +779,19 @@ def test_set_pr_refreshes_head_while_reviewing(tmp_path):
         == 0
     )
     advance(tmp_path, "pr_open")
-    advance(tmp_path, "reviewing")
+    assert (
+        run(
+            tmp_path,
+            "transition",
+            ISSUE,
+            "reviewing",
+            "--status",
+            "blocked",
+            "--pending-action",
+            "refresh remediation PR",
+        )[0]
+        == 0
+    )
 
     assert (
         run(
@@ -695,8 +808,24 @@ def test_set_pr_refreshes_head_while_reviewing(tmp_path):
         )[0]
         == 0
     )
+    assert (
+        run(
+            tmp_path,
+            "transition",
+            ISSUE,
+            "reviewing",
+            "--status",
+            "active",
+            "--clear-pending-action",
+        )[0]
+        == 0
+    )
+    assert run(tmp_path, "transition", ISSUE, "pr_open")[0] == 1
 
     state = json.loads(run(tmp_path, "show", ISSUE, "--format", "json")[1])
+    assert state["phase"] == "reviewing"
+    assert state["status"] == "active"
+    assert state["pending_action"] is None
     assert state["prs"] == [
         {
             "number": 10,
@@ -875,7 +1004,7 @@ def test_paths_and_stored_schema_are_strict(tmp_path):
                 "--base",
                 "main",
             ),
-            {"awaiting_push", "pr_open", "reviewing"},
+            {"implemented", "awaiting_push", "pr_open", "reviewing"},
         ),
         (
             "set-review",

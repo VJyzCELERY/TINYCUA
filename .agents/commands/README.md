@@ -41,9 +41,9 @@ collects one complete run authorization when `--auto` is absent; use
 
 ### Issue Delivery
 
-`/issue` → `/goal`
+`/issue`, then `/goal` when ready
 
-`/goal` acquires the issue worktree and directly dispatches sibling planning, implementation, PR delivery, and review phases until the PR is verified merge-ready. Invoke primitive commands directly when only one phase is needed.
+`/issue` selects one remote issue or creates one ignored local bundle and stops. Run `/goal <target>` separately when delivery should begin. Local bundles can plan, implement, test, commit, and review before promotion. `/create-pr` validates and promotes the bundle to a remote issue and indexed Specs before any push or PR write; remote-first targets retain the existing workflow.
 
 ### Large Branch Delivery
 

@@ -10,9 +10,9 @@ from pathlib import Path
 from typing import Sequence
 
 import repo_guard
+from cli_common import DEFAULT_TIMEOUT
 
 
-GH_SCRIPT = Path(__file__).with_name("gh.py")
 REPOSITORY_ROUTE = "repos/VJyzCELERY/MAIN-PROJECT-TEMPLATE"
 REPOSITORY_FULL_NAME = "VJyzCELERY/MAIN-PROJECT-TEMPLATE"
 REPOSITORY_URL = "https://github.com/VJyzCELERY/MAIN-PROJECT-TEMPLATE"
@@ -27,20 +27,14 @@ ACCESS_ERROR = (
 
 
 def _run_gh(output_format: str, *args: str) -> subprocess.CompletedProcess[str]:
-    """Run the repository GitHub wrapper without exposing its output."""
+    """Run native gh without exposing its output."""
     return subprocess.run(
-        [
-            sys.executable,
-            str(GH_SCRIPT),
-            "cmd",
-            "--format",
-            output_format,
-            *args,
-        ],
+        ["gh", *args],
         capture_output=True,
         check=False,
         cwd=repo_guard.repo_root(),
         text=True,
+        timeout=DEFAULT_TIMEOUT,
     )
 
 
@@ -72,7 +66,7 @@ def main(args: Sequence[str] | None = None) -> int:
 
     try:
         result = _run_gh("json", "api", REPOSITORY_ROUTE)
-    except OSError:
+    except (OSError, subprocess.TimeoutExpired):
         print(ACCESS_ERROR, file=sys.stderr)
         return 1
 
@@ -117,7 +111,7 @@ def main(args: Sequence[str] | None = None) -> int:
             agents_guide = clone_dir / AGENTS_FILE_NAME
             if not agents_guide.is_symlink() and agents_guide.is_file():
                 guide = repo_guard.assert_inside_repo(agents_guide).read_text(encoding="utf-8")
-    except (OSError, UnicodeError, ValueError):
+    except (OSError, subprocess.TimeoutExpired, UnicodeError, ValueError):
         guide = None
     finally:
         if clone_dir is not None:

@@ -219,7 +219,15 @@ def test_resolve_filters_search_results_to_exact_debt_id(tmp_path, monkeypatch):
             },
         ]
     )
-    monkeypatch.setattr(debt, "run_process", lambda *_args, **_kwargs: response)
+    monkeypatch.setattr(
+        debt,
+        "run_process",
+        lambda command, **_kwargs: (
+            "https://github.com/acme/widgets.git"
+            if command[:3] == ["git", "remote", "get-url"]
+            else response
+        ),
+    )
 
     assert debt.resolve_debt_issues("DEBT-A1B2C3D4", root) == [
         {

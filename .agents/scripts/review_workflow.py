@@ -13,9 +13,11 @@ from urllib.parse import urlsplit
 
 import review_common
 import repo_guard
+from cli_common import DEFAULT_TIMEOUT, EXIT_EXTERNAL
 
 
-GH_SCRIPT = Path(__file__).with_name("gh.py")
+THREAD_QUERY = """query($owner:String!,$repo:String!,$number:Int!,$endCursor:String){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviewThreads(first:100,after:$endCursor){nodes{id isResolved comments(first:100){nodes{databaseId isMinimized body url author{login __typename}} pageInfo{hasNextPage}}} pageInfo{hasNextPage endCursor}}}}}"""
+REVIEW_QUERY = """query($owner:String!,$repo:String!,$number:Int!,$endCursor:String){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviews(first:100,after:$endCursor){nodes{id isMinimized body url author{login __typename}} pageInfo{hasNextPage endCursor}}}}}"""
 
 
 def _github_url(value: str, kind: str) -> tuple[str, str, str | None]:
@@ -103,6 +105,9 @@ def build_remote_plan(
             command = "minimize"
         else:
             raise ValueError("feedback URL is not a review discussion")
+        node_id = authoritative.get("node_id")
+        if not isinstance(node_id, str) or not node_id:
+            raise ValueError("authoritative feedback node identity is missing")
         marker_key = hashlib.sha256(
             f"{remote_head}:{item['url']}".encode()
         ).hexdigest()[:20]
@@ -111,6 +116,7 @@ def build_remote_plan(
             {
                 "command": command,
                 "url": item["url"],
+                "node_id": node_id,
                 "reply": item.get("reply", ""),
                 "reply_marker": marker,
                 "reply_present": marker in "\n".join(authoritative.get("bodies", [])),
@@ -126,48 +132,127 @@ def build_remote_plan(
 
 
 def _inspect_remote(pull_request: str) -> dict:
-    pr_number = _github_url(pull_request, "pull_request")[2]
-    result = subprocess.run(
-        [sys.executable, str(GH_SCRIPT), "fetch", "review-state", pr_number],
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    if result.returncode:
-        raise RuntimeError(
-            result.stderr.strip() or "authoritative review inspection failed"
-        )
+    owner, repo, pr_number = _github_url(pull_request, "pull_request")
+    repository = f"{owner}/{repo}"
+    actor = _gh_json(["gh", "api", "user", "--jq", ".login"], scalar=True)
+    pr = _gh_json([
+        "gh", "pr", "view", pr_number, "--repo", repository,
+        "--json", "url,headRefOid",
+    ])
+    items = []
+    for connection in _graphql_pages(THREAD_QUERY, owner, repo, pr_number, "reviewThreads"):
+        for thread in connection["nodes"]:
+            comments = thread["comments"]
+            if comments["pageInfo"].get("hasNextPage"):
+                raise RuntimeError("review thread comments exceed complete observation")
+            nodes = comments["nodes"]
+            if not nodes:
+                continue
+            root = nodes[0]
+            active = not thread["isResolved"] and not root["isMinimized"]
+            items.append({
+                "url": root["url"],
+                "node_id": thread["id"],
+                "author": root.get("author", {}).get("login"),
+                "author_type": root.get("author", {}).get("__typename"),
+                "active_human": active and any(
+                    node.get("author", {}).get("__typename") == "User"
+                    and node.get("author", {}).get("login") != actor
+                    for node in nodes
+                ),
+                "bodies": [node.get("body", "") for node in nodes],
+                "active": active,
+            })
+    for connection in _graphql_pages(REVIEW_QUERY, owner, repo, pr_number, "reviews"):
+        for review in connection["nodes"]:
+            if not review.get("body", "").strip():
+                continue
+            author = review.get("author") or {}
+            items.append({
+                "url": review["url"],
+                "node_id": review["id"],
+                "author": author.get("login"),
+                "author_type": author.get("__typename"),
+                "active_human": not review["isMinimized"]
+                and author.get("__typename") == "User"
+                and author.get("login") != actor,
+                "bodies": [review["body"]],
+                "active": not review["isMinimized"],
+            })
+    return {
+        "repository": f"https://github.com/{repository}",
+        "pull_request": pr["url"],
+        "head": pr["headRefOid"],
+        "actor": actor,
+        "items": items,
+    }
+
+
+def _gh_json(command: list[str], scalar: bool = False, ndjson: bool = False):
     try:
+        result = subprocess.run(
+            command,
+            text=True,
+            capture_output=True,
+            timeout=DEFAULT_TIMEOUT,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise RuntimeError("GitHub inspection timed out") from error
+    if result.returncode:
+        raise RuntimeError(result.stderr.strip() or "GitHub inspection failed")
+    if scalar:
+        if not result.stdout.strip():
+            raise RuntimeError("GitHub returned an empty scalar")
+        return result.stdout.strip()
+    try:
+        if ndjson:
+            pages = [
+                json.loads(line)
+                for line in result.stdout.splitlines()
+                if line.strip()
+            ]
+            if not pages:
+                raise RuntimeError("GitHub returned empty paginated GraphQL JSON")
+            return pages
         return json.loads(result.stdout)
     except json.JSONDecodeError as error:
-        raise RuntimeError(
-            "authoritative review inspection returned malformed JSON"
-        ) from error
+        message = "malformed paginated GraphQL JSON" if ndjson else "malformed JSON"
+        raise RuntimeError(f"GitHub returned {message}") from error
+
+
+def _graphql_pages(query: str, owner: str, repo: str, number: str, key: str):
+    data = _gh_json(
+        [
+            "gh", "api", "graphql", "--paginate",
+            "-f", f"query={query}", "-F", f"owner={owner}", "-F", f"repo={repo}",
+            "-F", f"number={number}", "--jq", f".data.repository.pullRequest.{key}",
+        ],
+        ndjson=True,
+    )
+    if any(
+        not isinstance(connection, dict)
+        or not isinstance(connection.get("nodes"), list)
+        for connection in data
+    ):
+        raise RuntimeError("GitHub returned malformed review state JSON")
+    return data
 
 
 def _run_gh(arguments: list[str]) -> int:
-    return subprocess.run([sys.executable, *arguments], check=False).returncode
+    try:
+        return subprocess.run(
+            arguments, timeout=DEFAULT_TIMEOUT, check=False
+        ).returncode
+    except subprocess.TimeoutExpired:
+        return EXIT_EXTERNAL
 
 
 def _completed_remote_urls(plan: dict) -> list[str]:
-    pr_number = _github_url(plan["pull_request"], "pull_request")[2]
-    result = subprocess.run(
-        [
-            sys.executable,
-            str(GH_SCRIPT),
-            "fetch",
-            "comments",
-            pr_number,
-            "--urls-only",
-        ],
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    if result.returncode:
-        raise RuntimeError(result.stderr.strip() or "remote verification failed")
     active = {
-        json.loads(line)["url"] for line in result.stdout.splitlines() if line.strip()
+        item["url"]
+        for item in _inspect_remote(plan["pull_request"])["items"]
+        if item.get("active")
     }
     return [action["url"] for action in plan["actions"] if action["url"] not in active]
 
@@ -182,7 +267,7 @@ def apply_remote_feedback(
     verify=None,
     inspect=None,
 ) -> dict:
-    """Apply linked cleanup through gh.py, preserving the report on failure."""
+    """Apply linked cleanup through native gh, preserving the report on failure."""
     if not sync_remote:
         raise ValueError("remote cleanup requires explicit --sync-remote")
     plan = build_remote_plan(
@@ -197,7 +282,8 @@ def apply_remote_feedback(
         if action["url"] in completed:
             continue
         commands = []
-        reply_path = None
+        temp_paths = []
+        owner, repo, pr_number = _github_url(plan["pull_request"], "pull_request")
         if action["command"] == "resolve":
             if not action["reply"].strip():
                 raise ValueError("inline cleanup requires a reply before resolve")
@@ -205,32 +291,27 @@ def apply_remote_feedback(
                 with tempfile.NamedTemporaryFile(
                     "w", encoding="utf-8", dir=tmp_dir, delete=False
                 ) as stream:
-                    stream.write(
-                        f"{action['reply'].rstrip()}\n\n{action['reply_marker']}\n"
-                    )
+                    json.dump({"body": f"{action['reply'].rstrip()}\n\n{action['reply_marker']}\n"}, stream)
                     reply_path = repo_guard.assert_inside_repo(stream.name)
+                temp_paths.append(reply_path)
+                comment_id = action["url"].rsplit("discussion_r", 1)[-1]
                 commands.append(
                     [
-                        str(GH_SCRIPT),
-                        "interact",
-                        "reply",
-                        action["url"],
-                        str(reply_path),
+                        "gh", "api", "--method", "POST",
+                        f"repos/{owner}/{repo}/pulls/{pr_number}/comments/{comment_id}/replies",
+                        "--input", str(reply_path),
                     ]
                 )
-        commands.append(
-            [
-                str(GH_SCRIPT),
-                "interact",
-                action["command"],
-                action["url"],
-                *(
-                    ["--classifier", "OUTDATED"]
-                    if action["command"] == "minimize"
-                    else []
-                ),
-            ]
+        mutation = (
+            "mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{id isResolved}}}"
+            if action["command"] == "resolve"
+            else "mutation($id:ID!){minimizeComment(input:{subjectId:$id,classifier:OUTDATED}){minimizedComment{isMinimized}}}"
         )
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=tmp_dir, delete=False) as stream:
+            json.dump({"query": mutation, "variables": {"id": action["node_id"]}}, stream)
+            mutation_path = repo_guard.assert_inside_repo(stream.name)
+        temp_paths.append(mutation_path)
+        commands.append(["gh", "api", "graphql", "--input", str(mutation_path)])
         try:
             for command in commands:
                 if run_gh(command):
@@ -239,8 +320,8 @@ def apply_remote_feedback(
                     )
                 writes = True
         finally:
-            if reply_path:
-                reply_path.unlink(missing_ok=True)
+            for path in temp_paths:
+                path.unlink(missing_ok=True)
     remaining = {
         action["url"]
         for action in plan["actions"]

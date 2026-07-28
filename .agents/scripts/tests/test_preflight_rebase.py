@@ -123,20 +123,18 @@ def test_main_returns_external_exit_for_subprocess_failure(capsys):
     assert "[FAIL] Command timed out after 30s: git branch" in capsys.readouterr().err
 
 
-def test_check_pr_base_uses_gh_wrapper():
+def test_check_pr_base_uses_native_gh_with_explicit_repository():
     module = load_script()
 
     with patch.object(module, "run_process", return_value="main") as runner:
-        assert module.check_pr_base("feature") == "main"
+        assert module.check_pr_base("feature", "acme/widgets") == "main"
 
     assert runner.call_args.args[0] == [
-        sys.executable,
-        str(Path(module.__file__).with_name("gh.py")),
-        "cmd",
-        "--format",
-        "raw",
+        "gh",
         "pr",
         "list",
+        "--repo",
+        "acme/widgets",
         "--head",
         "feature",
         "--state",

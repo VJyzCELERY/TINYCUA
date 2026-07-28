@@ -5,9 +5,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import sys
+import uuid
 from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
 
@@ -18,6 +20,7 @@ MARKER = Path(".agents/template-version.json")
 CLONE_NAME = "setup-project-template"
 PREVIEW_NAME = ".setup-project-preview.json"
 ALIASES = (".opencode", ".codex", ".claude", ".hermes")
+SEMVER_RE = re.compile(r"[1-9][0-9]*\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\Z")
 
 
 class UpdateError(RuntimeError):
@@ -28,7 +31,7 @@ class UpdateError(RuntimeError):
 class Release:
     """A validated template release identity."""
 
-    version: int
+    version: tuple[int, int, int]
     tag: str
 
 
@@ -40,6 +43,9 @@ class Action:
     kind: str
     incoming_hash: str | None
     local_hash: str | None
+    base_hash: str | None
+    merged_hash: str | None
+    context: str | None
 
 
 @dataclass(frozen=True)
@@ -109,8 +115,30 @@ def _hash(content: bytes | None) -> str | None:
     return hashlib.sha256(content).hexdigest() if content is not None else None
 
 
+def _conflict_context(
+    reason: str, base: bytes | None, local: bytes | None, incoming: bytes | None
+) -> str:
+    """Render all conflict sides in one reviewable, deterministic text artifact."""
+
+    def side(name: str, content: bytes | None) -> str:
+        if content is None:
+            return f"--- {name}: absent"
+        try:
+            rendered = (
+                content.decode("utf-8") if b"\0" not in content else repr(content)
+            )
+        except UnicodeDecodeError:
+            rendered = repr(content)
+        return f"--- {name}: sha256={_hash(content)} bytes={len(content)}\n{rendered}"
+
+    return f"{reason}\n\n" + "\n\n".join(
+        side(name, content)
+        for name, content in (("base", base), ("local", local), ("incoming", incoming))
+    )
+
+
 def _read_release(content: bytes, description: str) -> Release:
-    """Validate a release marker's positive integer version and matching tag."""
+    """Validate a legacy integer or semantic version marker and matching tag."""
     try:
         value = json.loads(content)
     except (TypeError, json.JSONDecodeError) as error:
@@ -119,11 +147,15 @@ def _read_release(content: bytes, description: str) -> Release:
         raise UpdateError(f"Invalid {description} version marker")
     version = value.get("version")
     tag = value.get("tag")
-    if isinstance(version, bool) or not isinstance(version, int) or version < 1:
+    if isinstance(version, int) and not isinstance(version, bool) and version > 0:
+        parsed = (version, 0, 0)
+    elif isinstance(version, str) and SEMVER_RE.fullmatch(version):
+        parsed = tuple(map(int, version.split(".")))
+    else:
         raise UpdateError(f"Invalid {description} version marker")
     if tag != f"template-v{version}":
         raise UpdateError(f"Invalid {description} version marker")
-    return Release(version, tag)
+    return Release(parsed, tag)
 
 
 def _installed_release(root: Path) -> Release | None:
@@ -189,12 +221,91 @@ def _baseline_files(clone_dir: Path, release: Release) -> dict[str, bytes]:
     return files
 
 
+def _merge_text(
+    base: bytes | None, local: bytes | None, incoming: bytes | None, clone_dir: Path
+) -> tuple[bytes | None, str]:
+    """Return a clean Git merge or review context for a non-clean divergence."""
+    if base is None or local is None or incoming is None:
+        return None, _conflict_context(
+            "A three-way text merge requires base, local, and incoming files.",
+            base,
+            local,
+            incoming,
+        )
+    if any(b"\0" in content for content in (base, local, incoming)):
+        return None, _conflict_context(
+            "A three-way text merge cannot safely process binary content.",
+            base,
+            local,
+            incoming,
+        )
+    try:
+        for content in (base, local, incoming):
+            content.decode("utf-8")
+    except UnicodeDecodeError:
+        return None, _conflict_context(
+            "A three-way text merge requires UTF-8 text content.", base, local, incoming
+        )
+
+    merge_dir = clone_dir / ".setup-project-merge"
+    if merge_dir.is_symlink():
+        return None, "The temporary merge directory is a symlink."
+    merge_dir.mkdir(exist_ok=True)
+    paths = (merge_dir / "local", merge_dir / "base", merge_dir / "incoming")
+    try:
+        for path, content in zip(paths, (local, base, incoming), strict=True):
+            path.write_bytes(content)
+        result = subprocess.run(
+            ["git", "merge-file", "-p", "--diff3", *(str(path) for path in paths)],
+            cwd=repo_guard.assert_inside_repo(clone_dir),
+            capture_output=True,
+            check=False,
+        )
+    except OSError as error:
+        return None, _conflict_context(
+            f"Git merge-file could not run: {error}", base, local, incoming
+        )
+    finally:
+        shutil.rmtree(merge_dir, ignore_errors=True)
+    if result.returncode == 0:
+        return result.stdout, ""
+    if result.returncode == 1:
+        return None, result.stdout.decode(errors="replace")
+    detail = result.stderr.decode(errors="replace").strip()
+    return None, _conflict_context(
+        f"Git merge-file failed: {detail or result.returncode}", base, local, incoming
+    )
+
+
+def _action(
+    path: str,
+    kind: str,
+    base: bytes | None,
+    local: bytes | None,
+    incoming: bytes | None,
+    merged: bytes | None = None,
+    context: str | None = None,
+) -> Action:
+    """Create an action retaining every input identity required by apply."""
+    return Action(
+        path,
+        kind,
+        _hash(incoming),
+        _hash(local),
+        _hash(base),
+        _hash(merged),
+        context,
+    )
+
+
 def _classify(
-    baseline: dict[str, bytes], local: dict[str, bytes], incoming: dict[str, bytes]
+    baseline: dict[str, bytes],
+    local: dict[str, bytes],
+    incoming: dict[str, bytes],
+    clone_dir: Path,
 ) -> tuple[tuple[Action, ...], tuple[str, ...]]:
-    """Classify safe three-way changes without similarity heuristics."""
+    """Classify safe three-way changes as direct, merged, or stashed actions."""
     actions: list[Action] = []
-    conflicts: list[str] = []
     for path in sorted(set(baseline) | set(local) | set(incoming)):
         base, project, updated = baseline.get(path), local.get(path), incoming.get(path)
         if project == base:
@@ -203,23 +314,21 @@ def _classify(
             kind = "add" if base is None else ("remove" if updated is None else "replace")
         elif updated == base or updated == project:
             continue
-        elif base is None and project is None:
-            kind = "add"
-        elif base is None and updated is None:
-            continue
-        elif updated is None:
-            continue
         else:
-            kind = "conflict"
-            conflicts.append(path)
-        actions.append(Action(path, kind, _hash(updated), _hash(project)))
-    return tuple(actions), tuple(conflicts)
+            merged, context = _merge_text(base, project, updated, clone_dir)
+            if merged is None:
+                actions.append(_action(path, "stash", base, project, updated, context=context))
+            else:
+                actions.append(_action(path, "merge", base, project, updated, merged))
+            continue
+        actions.append(_action(path, kind, base, project, updated))
+    return tuple(actions), ()
 
 
 def _legacy_actions(local: dict[str, bytes], incoming: dict[str, bytes]) -> tuple[Action, ...]:
     """Return the conservative markerless migration additions only."""
     return tuple(
-        Action(path, "add", _hash(content), None)
+        _action(path, "add", None, None, content)
         for path, content in sorted(incoming.items())
         if path not in local
     )
@@ -262,7 +371,7 @@ def prepare_update(source: str) -> Preview:
         if installed_release is None:
             return Preview("legacy", incoming_release, _legacy_actions(local, incoming), (), clone_dir)
         baseline = _baseline_files(clone_dir, installed_release)
-        actions, conflicts = _classify(baseline, local, incoming)
+        actions, conflicts = _classify(baseline, local, incoming, clone_dir)
         return Preview("upgrade", incoming_release, actions, conflicts, clone_dir)
     except Exception:
         _remove_clone()
@@ -286,6 +395,79 @@ def _target_path(root: Path, path: str) -> Path:
     return destination
 
 
+def _stash_directory(root: Path) -> Path:
+    """Create the ignored stash root without following symlinked components."""
+    current = root
+    for part in (".agents", "local", "template-stash"):
+        current /= part
+        if current.is_symlink() or (current.exists() and not current.is_dir()):
+            raise UpdateError(f"Unsafe template stash directory: {current}")
+        current.mkdir(exist_ok=True)
+    return repo_guard.assert_inside_repo(current)
+
+
+def _snapshot_entry(
+    stash: Path, category: str, path: str, content: bytes | None
+) -> dict[str, str | bool | None]:
+    """Write one optional snapshot and return its manifest metadata."""
+    entry: dict[str, str | bool | None] = {"present": content is not None, "sha256": _hash(content)}
+    if content is None:
+        entry["snapshot"] = None
+        return entry
+    snapshot = stash / category / _validate_relative(path)
+    snapshot.parent.mkdir(parents=True, exist_ok=True)
+    if snapshot.is_symlink():
+        raise UpdateError(f"Unsafe template stash path: {snapshot}")
+    snapshot.write_bytes(content)
+    entry["snapshot"] = snapshot.relative_to(stash).as_posix()
+    return entry
+
+
+def _write_stash(
+    root: Path,
+    actions: tuple[Action, ...],
+    baseline: dict[str, bytes],
+    local: dict[str, bytes],
+    incoming: dict[str, bytes],
+) -> Path:
+    """Materialize complete provenance for stashed paths before target writes."""
+    stash_root = _stash_directory(root)
+    for _ in range(10):
+        stash = stash_root / uuid.uuid4().hex
+        try:
+            stash.mkdir()
+        except FileExistsError:
+            continue
+        break
+    else:
+        raise UpdateError("Could not allocate a unique template stash directory")
+
+    entries: dict[str, object] = {}
+    try:
+        for action in actions:
+            if action.kind != "stash":
+                continue
+            path = _validate_relative(action.path)
+            entry = {
+                "base": _snapshot_entry(stash, "base", path, baseline.get(path)),
+                "local": _snapshot_entry(stash, "local", path, local.get(path)),
+                "incoming": _snapshot_entry(stash, "incoming", path, incoming.get(path)),
+            }
+            context = stash / "context" / f"{path}.txt"
+            context.parent.mkdir(parents=True, exist_ok=True)
+            context.write_text(action.context or "Non-clean divergence.", encoding="utf-8")
+            entry["context"] = context.relative_to(stash).as_posix()
+            entries[path] = entry
+        manifest = stash / "manifest.json"
+        manifest.write_text(
+            json.dumps({"update_id": stash.name, "paths": entries}, indent=2) + "\n",
+            encoding="utf-8",
+        )
+    except OSError as error:
+        raise UpdateError(f"Could not write template stash: {error}") from error
+    return stash
+
+
 def _validate_preview(preview: Preview) -> None:
     """Reject a stale or tampered retained CLI preview before any mutation."""
     root = repo_guard.repo_root()
@@ -305,7 +487,7 @@ def _validate_preview(preview: Preview) -> None:
         if installed is None:
             raise UpdateError("Prepared upgrade preview is stale")
         expected_actions, expected_conflicts = _classify(
-            _baseline_files(preview.clone_dir, installed), local, incoming
+            _baseline_files(preview.clone_dir, installed), local, incoming, preview.clone_dir
         )
     if (preview.actions, preview.conflicts) != (expected_actions, expected_conflicts):
         raise UpdateError("Prepared preview is stale or tampered")
@@ -332,33 +514,42 @@ def run_preflight() -> None:
         raise UpdateError(f"Preflight failed: {result.stderr.strip() or result.stdout.strip()}")
 
 
-def apply_update(preview: Preview, *, confirmed: bool) -> None:
-    """Apply a prepared non-conflicting preview and write its marker last."""
+def apply_update(preview: Preview, *, confirmed: bool) -> Path | None:
+    """Apply a prepared preview and return a created conflict stash, if any."""
     if not confirmed:
         raise UpdateError("Explicit confirmation is required before apply")
     if preview.status == "current":
-        return
-    if preview.conflicts:
-        _remove_clone()
-        raise UpdateError("Update has conflicts and requires manual resolution")
+        return None
     root = repo_guard.repo_root()
     if preview.clone_dir != _clone_dir() or not preview.clone_dir.is_dir():
         raise UpdateError("Prepared preview is unavailable")
     try:
         _validate_preview(preview)
         source = _files_from_tree(preview.clone_dir / ".agents", "prepared incoming")
+        local = _files_from_tree(root / ".agents", "local")
+        installed = _installed_release(root)
+        baseline = {} if preview.status == "legacy" else _baseline_files(preview.clone_dir, installed)
+        stash_actions = any(action.kind == "stash" for action in preview.actions)
+        stash = _write_stash(root, preview.actions, baseline, local, source) if stash_actions else None
         for action in preview.actions:
             destination = _target_path(root, action.path)
             current = destination.read_bytes() if destination.exists() else None
             if _hash(current) != action.local_hash:
                 raise UpdateError(f"Prepared preview is stale for {action.path}")
-            if action.kind == "remove":
+            if action.kind == "remove" or (action.kind == "stash" and action.incoming_hash is None):
                 if destination.exists():
                     destination.unlink()
                 continue
             content = source.get(action.path)
+            if action.kind == "merge":
+                content, _ = _merge_text(
+                    baseline.get(action.path), current, content, preview.clone_dir
+                )
+                if content is None or _hash(content) != action.merged_hash:
+                    raise UpdateError(f"Prepared merge is stale for {action.path}")
             if content is None or _hash(content) != action.incoming_hash:
-                raise UpdateError(f"Prepared preview is stale for incoming {action.path}")
+                if action.kind != "merge" or content is None:
+                    raise UpdateError(f"Prepared preview is stale for incoming {action.path}")
             destination.write_bytes(content)
         _ensure_aliases(root)
         run_preflight()
@@ -367,6 +558,7 @@ def apply_update(preview: Preview, *, confirmed: bool) -> None:
             raise UpdateError("Local version marker is a symlink")
         marker.parent.mkdir(parents=True, exist_ok=True)
         marker.write_bytes((preview.clone_dir / MARKER).read_bytes())
+        return stash
     finally:
         _remove_clone()
 
@@ -387,7 +579,17 @@ def _load_preview() -> Preview:
     clone_dir = _clone_dir()
     try:
         payload = json.loads((clone_dir / PREVIEW_NAME).read_text(encoding="utf-8"))
-        incoming = Release(**payload["incoming"])
+        incoming_data = payload["incoming"]
+        version = incoming_data["version"]
+        tag = incoming_data["tag"]
+        if (
+            not isinstance(version, list)
+            or len(version) != 3
+            or any(isinstance(part, bool) or not isinstance(part, int) for part in version)
+            or not isinstance(tag, str)
+        ):
+            raise TypeError("invalid incoming release")
+        incoming = Release(tuple(version), tag)
         actions = tuple(Action(**action) for action in payload["actions"])
         conflicts = tuple(payload["conflicts"])
         status = payload["status"]
@@ -407,7 +609,7 @@ def _require_root(target: str) -> None:
 def _print_preview(preview: Preview) -> None:
     """Print an exact human-readable preview for command orchestration."""
     print(f"STATUS={preview.status}")
-    print(f"INCOMING_VERSION={preview.incoming.version}")
+    print(f"INCOMING_VERSION={preview.incoming.tag.removeprefix('template-v')}")
     for action in preview.actions:
         print(f"{action.kind.upper()} {action.path}")
     for path in preview.conflicts:
@@ -433,8 +635,10 @@ def main(argv: list[str] | None = None) -> int:
                 _save_preview(preview)
             _print_preview(preview)
         else:
-            apply_update(_load_preview(), confirmed=args.confirm)
+            stash = apply_update(_load_preview(), confirmed=args.confirm)
             print("STATUS=applied")
+            if stash is not None:
+                print(f"STASH={stash}")
     except UpdateError as error:
         print(f"[FAIL] {error}", file=sys.stderr)
         return 1

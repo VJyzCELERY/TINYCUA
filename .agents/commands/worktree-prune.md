@@ -11,7 +11,7 @@ Read root `AGENTS.md`; load `worktree` and `gh`. List worktrees and skip the mai
 
 ```bash
 git worktree list --porcelain
-uv run python .agents/scripts/gh.py cmd --format json pr list --head "$BRANCH" --state all --json number,state,title,baseRefName
+gh pr list --repo OWNER/REPO --head "$BRANCH" --state all --limit 1000 --json number,state,title,baseRefName
 ```
 
 Keep OPEN PR worktrees. Propose removal for merged, closed, or no-PR branches, including dirty/unpushed status. After per-worktree confirmation, run `git worktree remove <path>` and delete the local branch only when safe. Remote branch deletion is optional and requires separate fresh permission immediately before `git push origin --delete <branch>`.

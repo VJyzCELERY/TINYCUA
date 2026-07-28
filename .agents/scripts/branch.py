@@ -398,22 +398,29 @@ def _pr_observations(args: argparse.Namespace, root: Path, manifest: dict[str, A
         return _validate_pr_observations(value, manifest)
     if not _has_remote(root):
         return {item["branch"]: [] for item in manifest["slices"]}
+    origin = git("remote", "get-url", "origin", cwd=root)
+    match = re.fullmatch(
+        r"(?:https://github\.com/|git@github\.com:)([^/]+/[^/]+?)(?:\.git)?/?",
+        origin,
+    )
+    if not match:
+        raise ValueError("origin is not a GitHub repository")
+    repository = match.group(1)
     observations = {}
-    helper = Path(__file__).with_name("gh.py")
     for item in manifest["slices"]:
         output = cli_common.run_process(
             [
-                sys.executable,
-                str(helper),
-                "cmd",
-                "--format",
-                "json",
+                "gh",
                 "pr",
                 "list",
+                "--repo",
+                repository,
                 "--head",
                 item["branch"],
                 "--state",
                 "all",
+                "--limit",
+                "1000",
                 "--json",
                 "number,state,headRefName,baseRefName",
             ],
@@ -422,7 +429,7 @@ def _pr_observations(args: argparse.Namespace, root: Path, manifest: dict[str, A
         try:
             observations[item["branch"]] = json.loads(output)
         except json.JSONDecodeError as error:
-            raise ValueError("gh.py returned malformed PR observations") from error
+            raise ValueError("gh returned malformed PR observations") from error
     return _validate_pr_observations(observations, manifest)
 
 

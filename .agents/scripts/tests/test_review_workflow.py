@@ -1,4 +1,6 @@
 import importlib.util
+import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -13,6 +15,81 @@ SPEC = importlib.util.spec_from_file_location(
 review_workflow = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader
 SPEC.loader.exec_module(review_workflow)
+
+
+def test_native_gh_timeout_fails_closed(monkeypatch):
+    monkeypatch.setattr(
+        review_workflow.subprocess,
+        "run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            subprocess.TimeoutExpired(["gh"], 30)
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="timed out"):
+        review_workflow._gh_json(["gh", "api", "user"])
+
+
+def test_inspect_remote_consumes_every_paginated_ndjson_page(monkeypatch):
+    calls = []
+    thread = {
+        "id": "THREAD",
+        "isResolved": False,
+        "comments": {
+            "nodes": [
+                {
+                    "url": "https://github.com/acme/widgets/pull/7#discussion_r9",
+                    "body": "feedback",
+                    "isMinimized": False,
+                    "author": {"login": "bot", "__typename": "Bot"},
+                }
+            ],
+            "pageInfo": {"hasNextPage": False},
+        },
+    }
+
+    def run(command, **_kwargs):
+        calls.append(command)
+        if command[:3] == ["gh", "api", "user"]:
+            output = "agent\n"
+        elif command[:3] == ["gh", "pr", "view"]:
+            output = json.dumps(
+                {
+                    "url": "https://github.com/acme/widgets/pull/7",
+                    "headRefOid": "b" * 40,
+                }
+            )
+        elif "reviewThreads" in command[command.index("-f") + 1]:
+            output = "\n".join(
+                json.dumps({"nodes": nodes}) for nodes in ([thread], [thread])
+            )
+        else:
+            output = json.dumps({"nodes": []})
+        return subprocess.CompletedProcess(command, 0, stdout=output, stderr="")
+
+    monkeypatch.setattr(review_workflow.subprocess, "run", run)
+
+    state = review_workflow._inspect_remote("https://github.com/acme/widgets/pull/7")
+
+    api_calls = [call for call in calls if call[:3] == ["gh", "api", "graphql"]]
+    assert len(state["items"]) == 2
+    assert all("--paginate" in call and "--slurp" not in call for call in api_calls)
+    assert all("--jq" in call for call in api_calls)
+
+
+def test_inspect_remote_rejects_malformed_paginated_ndjson(monkeypatch):
+    result = subprocess.CompletedProcess(
+        ["gh", "api", "graphql"],
+        0,
+        stdout='{"nodes": []}\nnot-json\n',
+        stderr="",
+    )
+    monkeypatch.setattr(
+        review_workflow.subprocess, "run", lambda *_args, **_kwargs: result
+    )
+
+    with pytest.raises(RuntimeError, match="malformed paginated GraphQL JSON"):
+        review_workflow._graphql_pages("query", "acme", "widgets", "7", "reviews")
 
 
 def report(head="b" * 40, items=None):
@@ -119,6 +196,8 @@ def test_finalize_rejects_archive_symlink_escape_and_preserves_report(
 
 
 def authoritative(items):
+    for item in items:
+        item.setdefault("node_id", "NODE_ID")
     return {
         "repository": "https://github.com/acme/widgets",
         "pull_request": "https://github.com/acme/widgets/pull/7",
@@ -316,9 +395,9 @@ def test_remote_apply_replies_before_resolve_and_is_idempotent(tmp_path):
         ),
     )
 
-    assert [call[1:3] for call in calls] == [
-        ["interact", "reply"],
-        ["interact", "resolve"],
+    assert [call[:3] for call in calls] == [
+        ["gh", "api", "--method"],
+        ["gh", "api", "graphql"],
     ]
     assert result["state"] == "REMOTE_APPLIED"
     assert result["writes_performed"] is True
@@ -449,4 +528,4 @@ def test_remote_apply_marker_skips_duplicate_reply_after_partial_failure(tmp_pat
         ),
     )
 
-    assert [call[2] for call in calls] == ["resolve"]
+    assert [call[:3] for call in calls] == [["gh", "api", "graphql"]]

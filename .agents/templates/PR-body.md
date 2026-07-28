@@ -35,5 +35,5 @@
 
 ## Related Issues
 
-- Standalone or final stack PR: `Closes #N`
-- Earlier stack PR: `Refs #N`
+- Standalone or final stack PR: `Closes #N` (primary issue) and `Closes #N` (Specs issue)
+- Earlier stack PR: `Refs #N` (primary issue) and `Refs #N` (Specs issue)

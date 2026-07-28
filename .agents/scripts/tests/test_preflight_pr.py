@@ -19,6 +19,7 @@ def load_script():
 def run_for_branch(module, output=None, error=None):
     with (
         patch.object(sys, "argv", ["preflight-pr.py", "--branch", "feature"]),
+        patch.object(module, "_repository", return_value="acme/widgets"),
         patch.object(module, "run_process", return_value=output, side_effect=error),
         pytest.raises(SystemExit) as exit_info,
     ):
@@ -56,23 +57,19 @@ def test_external_failure_is_distinguishable_from_no_pr(capsys):
     assert no_pr_code == 1
 
 
-def test_find_pr_routes_github_operation_through_gh_py():
+def test_find_pr_uses_native_gh_with_explicit_repository():
     module = load_script()
 
     with patch.object(module, "run_process", return_value="[]") as run:
-        module.find_pr("feature")
+        module.find_pr("feature", "acme/widgets")
 
     command = run.call_args.args[0]
-    assert command[:5] == [
-        sys.executable,
-        str(Path(module.__file__).parent / "gh.py"),
-        "cmd",
-        "--format",
-        "raw",
-    ]
-    assert command[5:] == [
+    assert command == [
+        "gh",
         "pr",
         "list",
+        "--repo",
+        "acme/widgets",
         "--head",
         "feature",
         "--state",
@@ -82,21 +79,19 @@ def test_find_pr_routes_github_operation_through_gh_py():
     ]
 
 
-def test_validate_pr_routes_github_operation_through_gh_py():
+def test_validate_pr_uses_native_gh_with_explicit_repository():
     module = load_script()
 
     with patch.object(module, "run_process", return_value='{"number": 7}') as run:
-        assert module.validate_pr("7") == {"number": 7}
+        assert module.validate_pr("7", "acme/widgets") == {"number": 7}
 
     assert run.call_args.args[0] == [
-        sys.executable,
-        str(Path(module.__file__).parent / "gh.py"),
-        "cmd",
-        "--format",
-        "raw",
+        "gh",
         "pr",
         "view",
         "7",
+        "--repo",
+        "acme/widgets",
         "--json",
         "number,headRefName,baseRefName,title,state",
     ]

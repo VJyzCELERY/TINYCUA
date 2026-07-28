@@ -613,8 +613,8 @@ def _mutate(args: argparse.Namespace, root: Path, state: dict) -> None:
     allowed_phases = {
         "set-branch": {"issue", "branched"},
         "set-artifacts": {"branched", "planned"},
-        "set-specs": {"branched", "planned"},
-        "set-pr": {"awaiting_push", "pr_open", "reviewing"},
+        "set-specs": set(PHASES),
+        "set-pr": {"implemented", "awaiting_push", "pr_open", "reviewing"},
         "set-review": {"pr_open", "reviewing", "goal_delivered"},
     }
     if (
@@ -653,7 +653,7 @@ def _mutate(args: argparse.Namespace, root: Path, state: dict) -> None:
             }
         )
     elif args.action == "set-specs":
-        state["specs"] = _specs(
+        specs = _specs(
             {
                 "number": args.number,
                 "url": args.url,
@@ -665,6 +665,22 @@ def _mutate(args: argparse.Namespace, root: Path, state: dict) -> None:
             },
             state["repository"],
         )
+        if state["specs"] is not None:
+            if specs["revision"] <= state["specs"]["revision"]:
+                raise StateError("specs revision must advance")
+            if {
+                "number": specs["number"],
+                "url": specs["url"],
+                "index_url": specs["index_url"],
+                "documents": specs["documents"],
+            } != {
+                "number": state["specs"]["number"],
+                "url": state["specs"]["url"],
+                "index_url": state["specs"]["index_url"],
+                "documents": state["specs"]["documents"],
+            }:
+                raise StateError("specs revision must retain canonical references")
+        state["specs"] = specs
     elif args.action == "set-pr":
         if args.number < 1:
             raise StateError("pr.number must be a positive integer")

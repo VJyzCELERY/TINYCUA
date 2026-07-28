@@ -1,6 +1,7 @@
 """Regression tests for preflight-review.py."""
 
 import importlib.util
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -46,6 +47,8 @@ def test_autodetect_reports_malformed_review_as_invalid(capsys):
     reviews_dir.glob.return_value = [Path("reviews/REVIEW_bad.md")]
 
     def command_output(command):
+        if command == ["git", "remote", "get-url", "origin"]:
+            return "https://github.com/acme/widgets.git"
         if command[:3] == ["git", "branch", "--show-current"]:
             return "feature"
         if command[:3] == ["git", "rev-parse", "HEAD"]:
@@ -68,11 +71,11 @@ def test_autodetect_reports_malformed_review_as_invalid(capsys):
 @pytest.mark.parametrize(
     ("process_kwargs", "diagnostic"),
     [
-        ({"side_effect": subprocess.TimeoutExpired(["gh.py"], 30)}, "timed out"),
+        ({"side_effect": subprocess.TimeoutExpired(["gh"], 30)}, "timed out"),
         (
             {
                 "return_value": subprocess.CompletedProcess(
-                    ["gh.py"], 1, stdout="", stderr="authentication failed"
+                    ["gh"], 1, stdout="", stderr="authentication failed"
                 )
             },
             "authentication failed",
@@ -85,6 +88,8 @@ def test_nested_gh_failure_exits_external_without_writing(
     module = load_script()
 
     def command_output(command):
+        if command == ["git", "remote", "get-url", "origin"]:
+            return "https://github.com/acme/widgets.git"
         if command[:3] == ["git", "branch", "--show-current"]:
             return "feature"
         if command[:3] == ["git", "rev-parse", "HEAD"]:
@@ -106,6 +111,137 @@ def test_nested_gh_failure_exits_external_without_writing(
     assert exit_info.value.code == 3
     assert diagnostic in (captured.out + captured.err).lower()
     write_text.assert_not_called()
+
+
+def test_implement_preflight_emits_runnable_complete_fetch_commands(capsys):
+    module = load_script()
+    review_connections = [
+        {"nodes": []},
+        {
+            "nodes": [
+                {
+                    "body": "Active body",
+                    "url": "https://github.com/acme/widgets/pull/42#pullrequestreview-1",
+                    "isMinimized": False,
+                },
+                {
+                    "body": "Hidden body",
+                    "url": "https://github.com/acme/widgets/pull/42#pullrequestreview-2",
+                    "isMinimized": True,
+                },
+            ]
+        }
+    ]
+    thread_connections = [
+        {"nodes": []},
+        {
+            "nodes": [
+                {
+                    "isResolved": False,
+                    "comments": {
+                        "nodes": [
+                            {
+                                "url": "https://github.com/acme/widgets/pull/42#discussion_r3",
+                                "isMinimized": False,
+                            }
+                        ]
+                    },
+                },
+                {
+                    "isResolved": True,
+                    "comments": {
+                        "nodes": [
+                            {
+                                "url": "https://github.com/acme/widgets/pull/42#discussion_r4",
+                                "isMinimized": False,
+                            }
+                        ]
+                    },
+                },
+            ]
+        }
+    ]
+    api_commands = []
+
+    def api_output(command):
+        api_commands.append(command)
+        connections = review_connections if len(api_commands) == 1 else thread_connections
+        return "\n".join(json.dumps(connection) for connection in connections)
+
+    def command_output(command):
+        if command == ["git", "remote", "get-url", "origin"]:
+            return "https://github.com/acme/widgets.git"
+        if command == ["git", "branch", "--show-current"]:
+            return "feature"
+        if command == ["git", "rev-parse", "HEAD"]:
+            return "bbb"
+        if command[:3] == ["gh", "pr", "list"]:
+            return '[{"number":42}]'
+        return ""
+
+    reviews_dir = MagicMock()
+    reviews_dir.exists.return_value = False
+    with (
+        patch.object(module, "Path", return_value=reviews_dir),
+        patch.object(module, "run", side_effect=command_output),
+        patch.object(module, "run_process", side_effect=api_output),
+    ):
+        assert module.implement_preflight_autodetect() == 0
+
+    assert all("--paginate" in command for command in api_commands)
+    assert all("--slurp" not in command for command in api_commands)
+    assert [command[-1] for command in api_commands] == [
+        ".data.repository.pullRequest.reviews",
+        ".data.repository.pullRequest.reviewThreads",
+    ]
+
+    output = capsys.readouterr().out
+    assert "Fetch: `gh api repos/acme/widgets/pulls/42/reviews/1`" in output
+    assert "Fetch: `gh api repos/acme/widgets/pulls/comments/3`" in output
+    assert (
+        'gh api --paginate "repos/acme/widgets/pulls/42/reviews?per_page=100" '
+        "--jq '.[]'"
+        in output
+    )
+    assert (
+        'gh api --paginate "repos/acme/widgets/pulls/42/comments?per_page=100" '
+        "--jq '.[]'"
+        in output
+    )
+    assert "gh api graphql --paginate" in output
+    assert "reviewThreads(first:100,after:$endCursor)" in output
+    assert (
+        "--jq '.data.repository.pullRequest.reviewThreads.nodes[]'" in output
+    )
+    assert "--slurp" not in output
+    assert "gh api https://github.com" not in output
+    assert "pullrequestreview-2" not in output
+    assert "discussion_r4" not in output
+
+
+def test_implement_preflight_rejects_malformed_paginated_ndjson():
+    module = load_script()
+
+    def command_output(command):
+        if command == ["git", "remote", "get-url", "origin"]:
+            return "https://github.com/acme/widgets.git"
+        if command == ["git", "branch", "--show-current"]:
+            return "feature"
+        if command == ["git", "rev-parse", "HEAD"]:
+            return "bbb"
+        if command[:3] == ["gh", "pr", "list"]:
+            return '[{"number":42}]'
+        return ""
+
+    reviews_dir = MagicMock()
+    reviews_dir.exists.return_value = False
+    with (
+        patch.object(module, "Path", return_value=reviews_dir),
+        patch.object(module, "run", side_effect=command_output),
+        patch.object(module, "run_process", return_value='{"nodes":[]}\ninvalid'),
+        pytest.raises(module.ExternalCommandError, match="invalid review JSON"),
+    ):
+        module.implement_preflight_autodetect()
 
 
 def test_init_review_rejects_unsafe_directory_before_file_activity():
@@ -140,12 +276,14 @@ def test_run_preserves_external_command_failure():
         module.run(["git", "status"])
 
 
-def test_scope_pr_routes_gh_commands_through_wrapper():
+def test_scope_pr_uses_native_gh_with_explicit_repository():
     module = load_script()
     commands = []
 
     def command_output(command):
         commands.append(command)
+        if command == ["git", "remote", "get-url", "origin"]:
+            return "https://github.com/acme/widgets.git"
         if command == ["git", "branch", "--show-current"]:
             return "feature"
         if "pr" in command and "list" in command:
@@ -159,12 +297,12 @@ def test_scope_pr_routes_gh_commands_through_wrapper():
     with patch.object(module, "run", side_effect=command_output):
         output = module.scope_pr()
 
-    gh_commands = [command for command in commands if "gh.py" in " ".join(command)]
-    assert [command[2:5] for command in gh_commands] == [
-        ["cmd", "--format", "json"],
-        ["cmd", "--format", "raw"],
+    gh_commands = [command for command in commands if command and command[0] == "gh"]
+    assert [command[:3] for command in gh_commands] == [
+        ["gh", "pr", "list"],
+        ["gh", "pr", "diff"],
     ]
-    assert all(command[0] != "gh" for command in commands)
+    assert all("--repo" in command for command in gh_commands)
     assert "[INFO] PR #42: Test" in output
 
 

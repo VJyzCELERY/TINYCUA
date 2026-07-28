@@ -23,10 +23,10 @@ def test_debt_command_resolves_before_confirmed_issue_creation_without_rewrite()
         "do not create a duplicate",
         "technical_debt.yml",
         "_common-github-ownership.md",
-        "gh.py claim",
+        "_common-github-ownership.md",
         "authenticated login",
         "confirmation",
-        "create-issue",
+        "gh issue create",
         "Never rewrite the source marker",
     ):
         assert text in content, text

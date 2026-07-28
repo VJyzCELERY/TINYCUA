@@ -44,7 +44,19 @@ check_branch_health = _mod.check_branch_health
 
 
 _commit_base = None
-GH_SCRIPT = Path(__file__).with_name("gh.py")
+_REVIEWS_QUERY = """query($owner:String!,$repo:String!,$number:Int!,$endCursor:String){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviews(first:100,after:$endCursor){nodes{body url isMinimized} pageInfo{hasNextPage endCursor}}}}}"""
+_THREADS_QUERY = """query($owner:String!,$repo:String!,$number:Int!,$endCursor:String){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviewThreads(first:100,after:$endCursor){nodes{isResolved comments(first:1){nodes{url isMinimized}}} pageInfo{hasNextPage endCursor}}}}}"""
+
+
+def _repository() -> str:
+    origin = run(["git", "remote", "get-url", "origin"])
+    match = re.fullmatch(
+        r"(?:https://github\.com/|git@github\.com:)([^/]+/[^/]+?)(?:\.git)?/?",
+        origin,
+    )
+    if not match:
+        raise ValueError("origin is not a GitHub repository")
+    return match.group(1)
 
 
 def resolve_review_name(name: str | None = None) -> str:
@@ -126,16 +138,15 @@ def scope_pr() -> list[str]:
     global _commit_base
     info = []
     branch = run(["git", "branch", "--show-current"])
+    repository = _repository()
     info.append(f"[INFO] Current branch: {branch}")
 
     pr_data = run([
-        sys.executable,
-        str(GH_SCRIPT),
-        "cmd",
-        "--format",
-        "json",
+        "gh",
         "pr",
         "list",
+        "--repo",
+        repository,
         "--head",
         branch,
         "--state",
@@ -158,14 +169,12 @@ def scope_pr() -> list[str]:
         info.append(f"[INFO] PR head: {pr['headRefName']}")
 
         files_out = run([
-            sys.executable,
-            str(GH_SCRIPT),
-            "cmd",
-            "--format",
-            "raw",
+            "gh",
             "pr",
             "diff",
             str(pr["number"]),
+            "--repo",
+            repository,
             "--name-only",
         ])
         if files_out:
@@ -305,7 +314,8 @@ def parse_review_header(review_file: str) -> dict | None:
 
 
 def format_implement_output(local_reviews: list[dict], pr_reviews: list[dict],
-                             has_remote: bool, pr_number: str = "") -> str:
+                             has_remote: bool, pr_number: str = "",
+                             repository: str = "") -> str:
     """Format implement preflight output.
 
     Only shows sections that have content. If nothing found, returns None.
@@ -333,7 +343,23 @@ def format_implement_output(local_reviews: list[dict], pr_reviews: list[dict],
             lines.append(f"  {pr['url']}")
             lines.append(f"  Fetch: `{pr['fetch_cmd']}`")
         lines.append("")
-        lines.append(f"  To fetch all active: `uv run python .agents/scripts/gh.py fetch comments {pr_number}`")
+        owner, repo = repository.split("/", 1)
+        lines.append(
+            "  Fetch all review bodies: "
+            f"`gh api --paginate \"repos/{repository}/pulls/"
+            f"{pr_number}/reviews?per_page=100\" --jq '.[]'`"
+        )
+        lines.append(
+            "  Fetch all inline comments: "
+            f"`gh api --paginate \"repos/{repository}/pulls/"
+            f"{pr_number}/comments?per_page=100\" --jq '.[]'`"
+        )
+        lines.append(
+            "  Fetch all thread state: "
+            f"`gh api graphql --paginate -f 'query={_THREADS_QUERY}' "
+            f"-F owner={owner} -F repo={repo} -F number={pr_number} "
+            "--jq '.data.repository.pullRequest.reviewThreads.nodes[]'`"
+        )
 
     return "\n".join(lines)
 
@@ -346,6 +372,7 @@ def implement_preflight_autodetect() -> int:
     local_reviews = []
     pr_reviews = []
     pr_number = ""
+    repository = ""
 
     # Scan for local review files
     if reviews_dir.exists():
@@ -374,14 +401,13 @@ def implement_preflight_autodetect() -> int:
     # Check for open PR and fetch individual unresolved reviews
     branch = run(["git", "branch", "--show-current"])
     if branch:
+        repository = _repository()
         command = [
-            sys.executable,
-            str(GH_SCRIPT),
-            "cmd",
-            "--format",
-            "json",
+            "gh",
             "pr",
             "list",
+            "--repo",
+            repository,
             "--head",
             branch,
             "--state",
@@ -398,31 +424,70 @@ def implement_preflight_autodetect() -> int:
             except json.JSONDecodeError as error:
                 raise ExternalCommandError(
                     command,
-                    f"gh.py returned invalid JSON: {error}",
+                    f"gh returned invalid JSON: {error}",
                     stdout=pr_data,
                 ) from error
             pr_number = str(prs[0]["number"]) if prs else ""
-            # Delegate to gh.py --urls-only for proper filtered comment list
-            command = [sys.executable, str(GH_SCRIPT), "fetch", "comments", pr_number, "--urls-only"]
-            out = run_process(command) if pr_number else ""
-            if out:
-                for line in out.splitlines():
-                    try:
-                        entry = json.loads(line)
+            owner, repo = repository.split("/", 1)
+            queries = (("reviews", _REVIEWS_QUERY), ("reviewThreads", _THREADS_QUERY))
+            for key, query in queries if pr_number else ():
+                command = [
+                    "gh", "api", "graphql", "--paginate",
+                    "-f", f"query={query}", "-F", f"owner={owner}",
+                    "-F", f"repo={repo}", "-F", f"number={pr_number}",
+                    "--jq", f".data.repository.pullRequest.{key}",
+                ]
+                out = run_process(command) if pr_number else ""
+                try:
+                    connections = [
+                        json.loads(line) for line in out.splitlines() if line.strip()
+                    ]
+                    if any(
+                        not isinstance(connection, dict)
+                        or not isinstance(connection.get("nodes"), list)
+                        for connection in connections
+                    ):
+                        raise TypeError
+                    entries = [entry for connection in connections for entry in connection["nodes"]]
+                    if any(not isinstance(entry, dict) for entry in entries):
+                        raise TypeError
+                except (json.JSONDecodeError, KeyError, TypeError) as error:
+                    raise ExternalCommandError(
+                        command, "gh returned invalid review JSON", stdout=out
+                    ) from error
+                for entry in entries:
+                    if key == "reviews":
+                        active = bool(entry.get("body", "").strip()) and not entry.get("isMinimized")
                         url = entry.get("url", "")
-                        if url:
-                            pr_reviews.append({
-                                "url": url,
-                                "fetch_cmd": f"uv run python .agents/scripts/gh.py fetch url {url}",
-                            })
-                    except json.JSONDecodeError as error:
-                        raise ExternalCommandError(
-                            command,
-                            f"gh.py returned invalid JSON: {error}",
-                            stdout=out,
-                        ) from error
+                    else:
+                        comments = entry.get("comments", {}).get("nodes", [])
+                        root = comments[0] if comments else {}
+                        active = not entry.get("isResolved") and not root.get("isMinimized")
+                        url = root.get("url", "")
+                    if active and url:
+                        fragment = "pullrequestreview-" if key == "reviews" else "discussion_r"
+                        match = re.fullmatch(
+                            rf"https://github\.com/{re.escape(repository)}/pull/"
+                            rf"{re.escape(pr_number)}#{fragment}(\d+)",
+                            url,
+                        )
+                        if not match:
+                            raise ExternalCommandError(
+                                command, "gh returned invalid review URL", stdout=url
+                            )
+                        endpoint = (
+                            f"repos/{repository}/pulls/{pr_number}/reviews/{match[1]}"
+                            if key == "reviews"
+                            else f"repos/{repository}/pulls/comments/{match[1]}"
+                        )
+                        pr_reviews.append({
+                            "url": url,
+                            "fetch_cmd": f"gh api {endpoint}",
+                        })
 
-    output = format_implement_output(local_reviews, pr_reviews, bool(pr_reviews), pr_number)
+    output = format_implement_output(
+        local_reviews, pr_reviews, bool(pr_reviews), pr_number, repository
+    )
     if output is None:
         print("[INFO] NO REVIEW FOUND.")
         return 1

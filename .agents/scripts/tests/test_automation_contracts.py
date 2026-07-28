@@ -50,7 +50,7 @@ def test_goal_supports_one_shot_and_unattended_automation():
     assert "resolve-target-worktree.py" in content
     for command in ("implement.md", "review.md"):
         assert f"@.agents/commands/{command}" in content
-    assert "pr merge <pr-number> --merge" in content
+    assert "pr merge <pr-number> --repo OWNER/REPO --merge" in content
     assert content.index("pr ready <pr-number>") < content.index("pr merge <pr-number>")
 
 

@@ -39,52 +39,79 @@ def test_cli_rejects_nonexistent_dir():
     assert "does not exist" in result.stderr
 
 
-def test_check_raw_gh_detects_subprocess_list_literal(workspace):
+def test_check_raw_gh_allows_native_subprocess_list_literal(workspace):
     source = workspace / "caller.py"
     source.write_text(
-        'import subprocess\nsubprocess.run(["gh", "pr", "view"], check=True)\n'
+        'import subprocess\nsubprocess.run(["gh", "pr", "view", "1", '
+        '"--repo", "acme/widgets"], check=True)\n'
     )
 
     findings = checker.check_raw_gh([], [source])
-
-    assert len(findings) == 1
-    assert findings[0][0] == checker.SEV_ERR
-    assert findings[0][2] == 2
-
-
-def test_check_raw_gh_detects_shared_wrapper_list_literal(workspace):
-    source = workspace / "caller.py"
-    source.write_text(
-        'from cli_common import run_process\nrun_process(["gh", "pr", "view"])\n'
-    )
-
-    findings = checker.check_raw_gh([], [source])
-
-    assert len(findings) == 1
-    assert findings[0][0] == checker.SEV_ERR
-    assert findings[0][2] == 2
-
-
-def test_check_raw_gh_ignores_non_subprocess_literals_and_gh_wrapper(workspace):
-    prose = workspace / "example.py"
-    prose.write_text('example = ["gh", "pr", "view"]\n')
-    wrapper = workspace / "gh.py"
-    wrapper.write_text(
-        'import subprocess\nsubprocess.run(["gh", "pr", "view"], check=True)\n'
-    )
-
-    findings = checker.check_raw_gh([], [prose, wrapper])
 
     assert findings == []
 
 
-def test_check_raw_gh_ignores_fixture_string_containing_wrapper_call(workspace):
-    fixture = workspace / "test_fixture.py"
-    fixture.write_text(
-        'source.write_text(\'run_process(["gh", "pr", "view"])\\n\')\n'
+def test_check_raw_gh_allows_existing_process_runner(workspace):
+    source = workspace / "caller.py"
+    source.write_text(
+        'from cli_common import run_process\nrun_process(["gh", "pr", "view", "1", '
+        '"--repo", "acme/widgets"])\n'
     )
 
-    assert checker.check_raw_gh([], [fixture]) == []
+    findings = checker.check_raw_gh([], [source])
+
+    assert findings == []
+
+
+def test_check_raw_gh_rejects_deleted_wrapper_reference(workspace):
+    prose = workspace / "example.md"
+    prose.write_text(f"Use {'gh' + '.py'} here.\n")
+
+    findings = checker.check_raw_gh([prose], [])
+
+    assert len(findings) == 1
+
+
+def test_check_raw_gh_rejects_inline_generated_body(workspace):
+    fixture = workspace / "instructions.md"
+    fixture.write_text("`gh pr edit 1 --bo" + "dy generated`\n")
+
+    assert checker.check_raw_gh([fixture], [])
+
+
+@pytest.mark.parametrize(
+    ("command", "accepted"),
+    (
+        ("gh issue view 1 --repo acme/widgets --json number", True),
+        ("gh issue view 1 --json number", False),
+        ("gh issue list --repo acme/widgets --limit 1000 --json number", True),
+        ("gh issue list --repo acme/widgets --json number", False),
+        (
+            'gh api --paginate "repos/acme/widgets/issues/1/comments?per_page=100" '
+            "--jq '.[]'",
+            True,
+        ),
+        (
+            'gh api --paginate --slurp '
+            '"repos/acme/widgets/issues/1/comments?per_page=100"',
+            False,
+        ),
+        ("gh api issues/1/comments --paginate --jq '.[]'", False),
+        ("gh api repos/acme/widgets/issues/1/comments", False),
+        ("gh api --method POST repos/acme/widgets/issues --input ./tmp/issue.json", True),
+        ("gh api --method POST repos/acme/widgets/issues -f body=generated", False),
+        ("gh pr edit 1 --repo acme/widgets --title updated", False),
+        ("gh pr edit 1 --repo acme/widgets -b generated", False),
+        ('subprocess.run(["gh", *args])', False),
+    ),
+)
+def test_native_github_safety_contracts(workspace, command, accepted):
+    fixture = workspace / "instructions.md"
+    fixture.write_text(f"`{command}`\n")
+
+    findings = checker.check_raw_gh([fixture], [])
+
+    assert (findings == []) is accepted
 
 
 @pytest.mark.parametrize(

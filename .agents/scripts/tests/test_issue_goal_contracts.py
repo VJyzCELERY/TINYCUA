@@ -26,23 +26,83 @@ def test_issue_contract_guards_selection_and_remote_creation():
         "open",
         "roadmap",
         "confirm",
-        "create-issue",
+        "issue create",
         "unclaimed",
     ):
         assert text in content, text
 
-    for text in ("_common-github-ownership.md", "gh.py claim", "workflow_state.py"):
+    for text in ("_common-github-ownership.md", "--add-assignee"):
         assert text not in content, text
+
+
+def test_issue_selects_a_target_without_dispatching_goal_and_local_delivery_is_gated():
+    issue = command("issue.md")
+    goal = command("goal.md")
+    create_pr = command("create-pr.md")
+
+    assert "local:<lower-kebab-id>" in issue
+    assert "@.agents/commands/goal.md" not in issue
+    assert "local target" in goal
+    assert "--auto-merge" in goal
+    assert "administrator merge authorization" in goal
+    assert "promoted" in create_pr
+    assert "Before any `git push`" in create_pr
+    assert "unpromoted, incomplete, malformed, unreviewed, or conflicting" in create_pr
+    assert "local_issue.py promote <lower-kebab-id>" in create_pr
 
 
 def test_remote_specs_contracts_link_and_exclude_specs_issues():
     assert "`spec`-labelled" in command("issue.md")
     assert "set-specs" in command("plan.md")
-    assert "links the primary issue" in command("plan.md")
+    assert "link the primary issue" in command("plan.md")
     assert "remote references" in command("implement.md")
     assert "Specs: #<number>" in command("create-pr.md")
     assert "spec`-labelled" in command("goal.md")
     assert "Specs Issue" in (ROOT / ".agents/templates/PR-body.md").read_text()
+
+
+def test_specs_delivery_contract_reconciles_before_pr_and_closes_the_exact_specs_issue():
+    goal = command("goal.md")
+    remote_goal = goal.split("For remote targets, use the following phases:", 1)[1]
+    create_pr = command("create-pr.md")
+    template = (ROOT / ".agents/templates/PR-body.md").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github/workflows/close-linked-specs.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "final Specs synchronization" in goal
+    assert "reconcile" in goal
+    assert remote_goal.index("final Specs synchronization") < remote_goal.index(
+        "@.agents/commands/create-pr.md"
+    )
+    assert "every workflow phase" in command("plan.md")
+    assert "without transitioning backward" in command("plan.md")
+    assert "Closes #<Specs number>" in create_pr
+    assert "Delivery PR: <url>" in create_pr
+    assert "verified final PR URL" in create_pr
+    assert "preserve any `Delivery PR: <url>`" in command("plan.md")
+    assert "`Closes #N` (Specs issue)" in template
+    for text in (
+        "pull_request:",
+        "types: [closed]",
+        "issues: write",
+        "context.payload.pull_request",
+        "Delivery PR:",
+        "spec.data.state !== \"open\"",
+        "label.name === \"spec\"",
+        "references.length !== 1",
+        "const marker = `Delivery PR: ${pr.html_url}`",
+    ):
+        assert text in workflow, text
+    assert "pr.merged" not in workflow
+
+
+def test_closed_draft_delivery_pr_is_not_excluded_from_specs_closure():
+    workflow = (ROOT / ".github/workflows/close-linked-specs.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "pr.draft" not in workflow
 
 
 def test_remote_pr_bodies_use_only_validated_current_specs_documents():
@@ -126,8 +186,10 @@ def test_create_pr_contract_owns_single_and_stack_linkage_and_permissions():
         "workflow_state.py set-pr",
         "workflow_state.py resolve-active --format json",
         "--draft",
-        "gh.py claim",
+        "_common-github-ownership.md",
         "preserve",
+        "specs-delivery.json",
+        "repos/OWNER/REPO/issues/<Specs number>",
     ):
         assert text in content, text
 
@@ -157,7 +219,7 @@ def test_goal_contract_is_resumable_autonomous_and_merge_ready():
         "goal_delivered",
         "clean merge-ready PR",
         "workflow_state.py resolve-active --format json",
-        "gh.py claim",
+        "_common-github-ownership.md",
         "issue body",
         "PR body",
     ):
@@ -166,6 +228,53 @@ def test_goal_contract_is_resumable_autonomous_and_merge_ready():
     assert "<type>/<issue-number>-<lower-kebab-slug>" in content
     assert "use the acquired returned worktree" in content
     assert "at most one" not in content
+
+
+def test_goal_keeps_local_targets_local_until_promotion():
+    content = command("goal.md")
+
+    planning = "@.agents/commands/plan.md local:<lower-kebab-id> $2 --auto."
+    implementation = "@.agents/commands/implement.md local:<lower-kebab-id> $2 --auto."
+    review = "@.agents/commands/review.md local:<lower-kebab-id> --auto."
+    promotion = "@.agents/commands/create-pr.md local:<lower-kebab-id> --auto."
+
+    for phase in (planning, implementation, review, promotion):
+        assert phase in content
+    assert content.index(planning) < content.index(implementation)
+    assert content.index(implementation) < content.index(review)
+    assert content.index(review) < content.index(promotion)
+    assert content.index("local_issue.record_promotion") < content.index(
+        "@.agents/commands/create-pr.md OWNER/REPO#NUMBER --auto."
+    )
+
+
+def test_local_review_completes_before_promotion_without_a_pr():
+    goal = command("goal.md")
+    review = command("review.md")
+    local_review = "@.agents/commands/review.md local:<lower-kebab-id> --auto."
+
+    assert local_review in goal
+    assert goal.index(local_review) < goal.index(
+        "local_issue.py transition <lower-kebab-id> reviewed"
+    ) < goal.index("@.agents/commands/create-pr.md local:<lower-kebab-id> --auto.")
+    assert "For `local:<lower-kebab-id>`, validate the recorded local bundle" in review
+    assert "Do not resolve a PR or use `_common-review-context.md`." in review
+
+
+def test_local_target_promotes_before_entering_remote_delivery():
+    plan = command("plan.md")
+    create_pr = command("create-pr.md")
+
+    local_plan = plan.split("For a remote target", 1)[0]
+    assert "workflow_state.py" not in local_plan
+
+    local_delivery = create_pr.split("For `single`", 1)[0]
+    promotion = local_delivery.index("Promotion is the only remote mutation")
+    mapping = local_delivery.index("local_issue.py promote <lower-kebab-id>")
+    remote_state = local_delivery.index("initializes normal remote workflow state")
+    delivery = local_delivery.index("git push")
+
+    assert promotion < mapping < remote_state < delivery
 
 
 def test_goal_contract_retries_only_environment_failures_and_blocks_decisions():
@@ -193,7 +302,7 @@ def test_goal_contract_delivers_each_mechanical_cycle_and_readies_without_mergin
         "until no OPEN findings remain",
         "fresh sibling",
         "PR delivery",
-        "gh.py cmd --format json pr ready <pr-number>",
+        "gh pr ready <pr-number> --repo OWNER/REPO",
         "isDraft",
         "false",
         "administrator-policy override",
@@ -310,7 +419,10 @@ def test_documented_workflow_state_calls_match_required_cli_arguments():
     )
 
 
-def test_commands_document_exact_phase_boundaries_and_complete_plan_artifacts():
+def test_commands_document_phase_sensitive_pr_delivery():
+    create_pr = command("create-pr.md")
+    goal = command("goal.md")
+
     assert (
         "workflow_state.py transition OWNER/REPO#NUMBER branched --status active --clear-pending-action --format json"
         in command("goal.md")
@@ -333,22 +445,45 @@ def test_commands_document_exact_phase_boundaries_and_complete_plan_artifacts():
     )
     assert (
         "workflow_state.py transition OWNER/REPO#NUMBER pr_open --status active --clear-pending-action --format json"
-        in command("create-pr.md")
+        in create_pr
     )
     assert (
         "workflow_state.py transition OWNER/REPO#NUMBER reviewing --status active --clear-pending-action --format json"
-        in command("goal.md")
+        in create_pr
     )
-
-
-def test_create_pr_and_issue_document_exact_gh_write_forms():
-    create_pr = command("create-pr.md")
-    assert "uv run python .agents/scripts/gh.py update title <pr> <title>" in create_pr
     assert (
-        "uv run python .agents/scripts/gh.py update body <pr> <body-file>" in create_pr
+        "workflow_state.py transition OWNER/REPO#NUMBER reviewing --status active --clear-pending-action --format json"
+        in goal
     )
+    assert "preserve `reviewing`" in create_pr
+    assert "preserves `reviewing`" in goal
+
+
+def test_pr_updates_skip_unchanged_metadata_and_use_rest_for_changed_metadata():
+    create_pr = command("create-pr.md")
+
+    assert "skip the write when both are unchanged" in create_pr
+    assert (
+        "gh api --method PATCH repos/OWNER/REPO/pulls/<pr> --input "
+        "./tmp/pr-metadata.json"
+    ) in create_pr
+    assert "gh pr edit" not in create_pr
+
+
+def test_pr_claims_skip_existing_assignees_and_use_rest_when_missing():
+    common = command("_common-github-ownership.md")
+
+    assert "skip the write when `<login>` is already assigned" in common
+    assert (
+        "gh api --method POST repos/OWNER/REPO/issues/<number>/assignees "
+        "--input ./tmp/assignees.json"
+    ) in common
+    assert "gh pr edit" not in common
+
+
+def test_issue_creation_uses_native_cli_without_assignee():
     issue = command("issue.md")
-    assert "create-issue <title> ./tmp/issue-body.md --label <labels> --unclaimed --format json" in issue
+    assert "gh issue create --repo OWNER/REPO" in issue
     assert "--assignee" not in issue
 
 
@@ -359,18 +494,18 @@ def test_ownership_contract_is_shared_by_github_workflows():
     for name in consumers:
         content = command(name)
         assert module in content, name
-        assert "gh.py claim" in content, name
+        assert "_common-github-ownership.md" in content, name
 
     common = command(module)
     assert "preserve existing assignees" in common
-    assert "authenticated GitHub login" in common
-    assert "issue and PR" in common
+    assert "authenticated login" in common
+    assert "issue or PR" in common
 
 
 def test_implement_claims_resolved_issue_and_pr_context_before_source_mutation():
     content = command("implement.md")
 
-    claim = content.index("gh.py claim")
+    claim = content.index("_common-github-ownership.md")
     transition = content.index("workflow_state.py transition")
     assert claim < transition
     assert "issue body" in content
@@ -399,6 +534,7 @@ def test_goal_records_review_evidence_before_delivery():
 
 def test_goal_requires_independent_delegated_phase_ownership():
     content = command("goal.md")
+    remote_goal = content.split("For remote targets, use the following phases:", 1)[1]
 
     required = (
         "orchestration-only",
@@ -419,13 +555,13 @@ def test_goal_requires_independent_delegated_phase_ownership():
         assert text in content, text
 
     assert (
-        content.index("fresh subagent A")
-        < content.index("distinct fresh subagent B")
-        < content.index("distinct fresh subagent C")
-        < content.index("distinct fresh subagent D")
-        < content.index("fresh subagent E")
-        < content.index("directly resumes D by task identity")
-        < content.index("fresh subagent F")
+        remote_goal.index("fresh subagent A")
+        < remote_goal.index("distinct fresh subagent B")
+        < remote_goal.index("distinct fresh subagent C")
+        < remote_goal.index("distinct fresh subagent D")
+        < remote_goal.index("fresh subagent E")
+        < remote_goal.index("directly resumes D by task identity")
+        < remote_goal.index("fresh subagent F")
     )
 
 

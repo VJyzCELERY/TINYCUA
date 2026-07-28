@@ -25,7 +25,9 @@ def successful_process(command, **_kwargs):
         return "feature"
     if command[:4] == ["git", "config", "--local", "--get"]:
         return "main"
-    if command[0] == sys.executable:
+    if command == ["git", "remote", "get-url", "origin"]:
+        return "https://github.com/acme/widgets.git"
+    if command[0] == "gh":
         return '[{"number": 12}]'
     raise AssertionError(f"Unexpected command: {command}")
 
@@ -61,11 +63,9 @@ def test_main_is_read_only_and_uses_verified_root(monkeypatch, capsys):
     assert "is ready" not in output
     assert all(kwargs.get("cwd") == root for _, kwargs in commands)
     assert any(
-        command[:4]
-        == [sys.executable, str(root / ".agents/scripts/gh.py"), "cmd", "--format"]
+        command[:4] == ["gh", "pr", "list", "--repo"]
         for command, _ in commands
     )
-    assert all(command[0] != "gh" for command, _ in commands)
 
 
 def test_main_external_failure_returns_three_with_context(monkeypatch, capsys):
@@ -94,7 +94,7 @@ def test_main_github_failure_reports_pr_unavailable(monkeypatch, capsys):
     monkeypatch.setattr(module.repo_guard, "repo_root", lambda: root)
 
     def failed_github(command, **kwargs):
-        if command[0] == sys.executable:
+        if command[0] == "gh":
             raise module.ExternalCommandError(command, "GitHub unavailable")
         return successful_process(command, **kwargs)
 
@@ -129,7 +129,7 @@ def test_main_malformed_pr_json_reports_unavailable(monkeypatch, capsys, output)
     monkeypatch.setattr(module.repo_guard, "repo_root", lambda: root)
 
     def malformed_pr(command, **kwargs):
-        if command[0] == sys.executable:
+        if command[0] == "gh":
             return output
         return successful_process(command, **kwargs)
 
@@ -148,7 +148,7 @@ def test_main_json_github_failure_keeps_pr_null(monkeypatch, capsys):
     monkeypatch.setattr(module.repo_guard, "repo_root", lambda: root)
 
     def failed_github(command, **kwargs):
-        if command[0] == sys.executable:
+        if command[0] == "gh":
             raise module.ExternalCommandError(command, "GitHub unavailable")
         return successful_process(command, **kwargs)
 

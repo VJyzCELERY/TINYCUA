@@ -22,18 +22,22 @@ repository-local temporary directory `./tmp/setup-project-template`:
 uv run python .agents/scripts/setup_project.py preview . "$TEMPLATE_URL"
 ```
 
-The exact preview reports `current`, rejects downgrades, and classifies only
-version upgrades. Preserve project-specific files, local reviews, `.agents/local/`,
-and conflicting harness aliases. If the preview has no conflicts, confirm it
-immediately before applying the prepared preview:
+The exact preview reports `current`, rejects downgrades, and classifies version
+upgrades as direct updates, `MERGE`, or `STASH`. Preview never writes local stash
+state. Preserve project-specific files, local reviews, `.agents/local/`, and
+conflicting harness aliases. Confirm the prepared preview immediately before
+applying it:
 
 ```bash
 uv run python .agents/scripts/setup_project.py apply . --confirm
 ```
 
-The updater applies only approved upstream changes, creates missing `.opencode`,
-`.codex`, `.claude`, and `.hermes` relative aliases, writes the incoming marker
-last, removes only `./tmp/setup-project-template`, and runs preflight.
+The updater writes clean merges and direct updates, and automatically records
+true conflicts under `.agents/local/template-stash/<update-id>/` before
+installing the incoming state. It reports the created stash path, creates missing
+`.opencode`, `.codex`, `.claude`, and `.hermes` relative aliases, writes the
+incoming marker last, removes only `./tmp/setup-project-template`, and runs
+preflight.
 
 ## Required Context
 
@@ -46,7 +50,8 @@ last, removes only `./tmp/setup-project-template`, and runs preflight.
 ## Confirmation
 
 - Confirm the exact updater preview immediately before `apply . --confirm`.
-  Outside-root targets, conflicts, and downgrades are rejected, not confirmable.
+  Outside-root targets and downgrades are rejected, not confirmable; conflicts
+  are stashed by a confirmed version upgrade.
 
 ## Failure
 

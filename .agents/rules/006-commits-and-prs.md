@@ -17,9 +17,9 @@ alwaysApply: false
 
 - The title follows the commit format.
 - Fill `.agents/templates/PR-body.md`; include summary, verification steps, related issues, and applicable spec/design references.
-- Link the primary issue. A standalone or final stacked PR uses `Closes #N`; every earlier stacked PR uses `Refs #N` and must not close the issue.
+- Link the primary and remote Specs issues. A standalone or final stacked PR closes both; every earlier stacked PR references both and must not close either issue.
 - Keep the PR scoped to one coherent change and target its actual base branch, which is not necessarily `main` for stacked work.
-- Use the `gh` skill and `.agents/scripts/gh.py` for PR operations.
+- Use the `gh` skill and native `gh` for PR operations.
 
 ## Versioning
 

@@ -16,7 +16,7 @@ alwaysApply: false
 
 ## Feature Documents
 
-- Issue-centered planning defaults to the primary issue's remote Specs issue. The explicit ignored `.agents/local/planning-profile.json` local profile uses `.agents/local/state/artifacts/<issue-key>/` only while developing this template; goal state uses `.agents/local/state/goals/`, lifecycle manifests use `.agents/local/state/lifecycles/`, and branch-local state uses `.agents/local/state/branch.json`.
+- Issue-centered planning defaults to the primary issue's remote Specs issue. Local-first bundles use ignored `.agents/local/issues/<lower-kebab-id>/` with `draft.md`, `spec.md`, `design.md`, `implementation-plan.md`, and `task.md`; they must be promoted before push or PR delivery. The explicit ignored `.agents/local/planning-profile.json` local profile uses `.agents/local/state/artifacts/<issue-key>/` only while developing this template; goal state uses `.agents/local/state/goals/`, lifecycle manifests use `.agents/local/state/lifecycles/`, and branch-local state uses `.agents/local/state/branch.json`.
 - Persist project-wide features in `docs/plans/<feature-name>/` only when explicitly requested. Persist single-subproject features in `src/<subproject>/specs/<feature-name>/` only when explicitly requested.
 - Feature directories use `lower-kebab-case` and contain paired `spec.md` and `design.md`; never place those files flat in a `specs/` directory.
 

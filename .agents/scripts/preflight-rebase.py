@@ -17,13 +17,10 @@ Exits 0 if rebase is safe, non-zero with warnings otherwise.
 """
 
 import argparse
+import re
 import sys
-from pathlib import Path
 
 from cli_common import EXIT_EXTERNAL, ExternalCommandError, run_process
-
-
-GH_SCRIPT = Path(__file__).with_name("gh.py")
 
 
 def get_unique_commits(target: str) -> list[str]:
@@ -197,22 +194,31 @@ def get_current_branch() -> str:
     return run_process(["git", "branch", "--show-current"])
 
 
-def check_pr_base(branch: str) -> str | None:
+def _repository() -> str:
+    origin = run_process(["git", "remote", "get-url", "origin"])
+    match = re.fullmatch(
+        r"(?:https://github\.com/|git@github\.com:)([^/]+/[^/]+?)(?:\.git)?/?",
+        origin,
+    )
+    if not match:
+        raise ValueError("origin is not a GitHub repository")
+    return match.group(1)
+
+
+def check_pr_base(branch: str, repository: str) -> str | None:
     """Check if branch has an open PR on GitHub and return its base branch.
 
-    Uses `gh.py cmd --format raw pr list` to find the PR base.
+    Uses native `gh pr list` with explicit repository context.
     Returns the base branch name (e.g. 'main', 'base/refactor-sdk-v2')
     or None if no open PR exists for this branch.
     """
     out = run_process(
         [
-            sys.executable,
-            str(GH_SCRIPT),
-            "cmd",
-            "--format",
-            "raw",
+            "gh",
             "pr",
             "list",
+            "--repo",
+            repository,
             "--head",
             branch,
             "--state",
@@ -242,7 +248,7 @@ def detect_base() -> str:
         return "main"
 
     # Priority 1: Check if branch has an open PR
-    pr_base = check_pr_base(branch)
+    pr_base = check_pr_base(branch, _repository())
     if pr_base:
         return pr_base
 
@@ -304,7 +310,7 @@ def main():
             base = detect_base()
             print(f"branch={branch}")
             print(f"base={base}")
-            pr_base = check_pr_base(branch) if branch else None
+            pr_base = check_pr_base(branch, _repository()) if branch else None
             if pr_base:
                 print(f"source=pr (target of open PR for {branch})")
             elif base not in ("main", "master", "develop", branch):

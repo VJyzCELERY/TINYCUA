@@ -182,22 +182,26 @@ def scan(root: Path) -> tuple[list[dict], list[dict]]:
 
 def resolve_debt_issues(debt_id: str, root: Path) -> list[dict]:
     """Return GitHub issues that contain the exact stable debt ID."""
-    gh_script = Path(__file__).with_name("gh.py")
+    origin = run_process(["git", "remote", "get-url", "origin"], cwd=root)
+    match = re.fullmatch(
+        r"(?:https://github\.com/|git@github\.com:)([^/]+/[^/]+?)(?:\.git)?/?",
+        origin,
+    )
+    if not match:
+        raise ValueError("origin is not a GitHub repository")
     output = run_process(
         [
-            sys.executable,
-            str(gh_script),
-            "cmd",
-            "--format",
-            "json",
+            "gh",
             "issue",
             "list",
+            "--repo",
+            match.group(1),
             "--state",
             "all",
             "--search",
             debt_id,
             "--limit",
-            "100",
+            "1000",
             "--json",
             "number,title,body,state,url",
         ],

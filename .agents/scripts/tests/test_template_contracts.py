@@ -69,7 +69,12 @@ def test_task_template_keeps_consumed_stable_ids_without_other_comments():
 
 
 def test_pr_template_keeps_exact_headings_and_neutral_commands():
-    import gh
+    import importlib.util
+
+    path = ROOT / ".agents/scripts/preflight-pr-body.py"
+    spec = importlib.util.spec_from_file_location("preflight_pr_body", path)
+    validator = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(validator)
 
     body = (TEMPLATES / "PR-body.md").read_text()
     headings = re.findall(r"^## .+$", body, flags=re.MULTILINE)
@@ -82,9 +87,9 @@ def test_pr_template_keeps_exact_headings_and_neutral_commands():
         "## Related Issues",
     ]
     assert not re.search(r"\b(?:uv|pytest|ruff|mypy|npm|cargo)\b", testing)
-    assert any("placeholder" in error.lower() for error in gh.validate_pr_body(body))
+    assert any("placeholder" in error.lower() for error in validator.validate_pr_body(body))
     assert len(re.findall(r"\[[^\]]+\]", body)) == len(
-        gh.TEMPLATE_PLACEHOLDER_RE.findall(body)
+        validator.TEMPLATE_PLACEHOLDER_RE.findall(body)
     )
 
 

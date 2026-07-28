@@ -15,27 +15,33 @@ Exits 0 with PR number on stdout, non-zero otherwise.
 
 import argparse
 import json
+import re
 import sys
-from pathlib import Path
 
 from cli_common import EXIT_EXTERNAL, ExternalCommandError, run_process
-
-GH_SCRIPT = Path(__file__).with_name("gh.py")
-
 
 def get_branch():
     return run_process(["git", "branch", "--show-current"])
 
 
-def find_pr(branch: str) -> dict | None:
+def _repository() -> str:
+    origin = run_process(["git", "remote", "get-url", "origin"])
+    match = re.fullmatch(
+        r"(?:https://github\.com/|git@github\.com:)([^/]+/[^/]+?)(?:\.git)?/?",
+        origin,
+    )
+    if not match:
+        raise ValueError("origin is not a GitHub repository")
+    return match.group(1)
+
+
+def find_pr(branch: str, repository: str) -> dict | None:
     out = run_process([
-        sys.executable,
-        str(GH_SCRIPT),
-        "cmd",
-        "--format",
-        "raw",
+        "gh",
         "pr",
         "list",
+        "--repo",
+        repository,
         "--head",
         branch,
         "--state",
@@ -50,16 +56,14 @@ def find_pr(branch: str) -> dict | None:
     return None
 
 
-def validate_pr(number: str) -> dict | None:
+def validate_pr(number: str, repository: str) -> dict | None:
     out = run_process([
-        sys.executable,
-        str(GH_SCRIPT),
-        "cmd",
-        "--format",
-        "raw",
+        "gh",
         "pr",
         "view",
         number,
+        "--repo",
+        repository,
         "--json",
         "number,headRefName,baseRefName,title,state",
     ])
@@ -79,8 +83,9 @@ def main():
     args.pr = args.pr or args.pr_or_url
 
     try:
+        repository = _repository()
         if args.pr:
-            pr = validate_pr(args.pr)
+            pr = validate_pr(args.pr, repository)
             if pr:
                 print(pr["number"])
                 sys.exit(0)
@@ -92,14 +97,14 @@ def main():
             print("[WARN] Not on a branch and no --branch provided.", file=sys.stderr)
             sys.exit(1)
 
-        pr = find_pr(branch)
+        pr = find_pr(branch, repository)
         if pr:
             print(pr["number"])
             sys.exit(0)
 
         print(f"[WARN] No open PR found for branch '{branch}'.", file=sys.stderr)
         sys.exit(1)
-    except json.JSONDecodeError as error:
+    except (json.JSONDecodeError, ValueError) as error:
         print(f"[FAIL] GitHub returned invalid JSON: {error}", file=sys.stderr)
         sys.exit(EXIT_EXTERNAL)
     except ExternalCommandError as error:

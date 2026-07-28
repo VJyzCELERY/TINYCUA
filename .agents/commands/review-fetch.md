@@ -10,7 +10,7 @@ subtask: true
 Read root `AGENTS.md`, skills `review-pr` and `gh`, `_common-review-context.md`, `_common-pr-feedback.md`, and the review template. Set `PR_INPUT=${1:-}`, normalize it with `preflight-pr.py` (omit the positional argument when empty), and acquire it through the review context before deriving report paths. Fetch all feedback from the returned worktree for reconciliation:
 
 ```bash
-uv run python .agents/scripts/gh.py fetch comments "$PR_NUMBER" --all --output "./reviews/remote/REVIEW_${NORMALIZED_BRANCH}_fetched.md"
+Fetch complete feedback through `_common-pr-feedback.md` and write the validated report to `./reviews/remote/REVIEW_${NORMALIZED_BRANCH}_fetched.md`.
 ```
 
 Merge into `$REVIEW_FILE`, preserving unique local context and remote URLs. Deduplicate by root issue/location; remote-linked findings outrank unlinked duplicates. Before resolving/minimizing older duplicate links, verify the newer authoritative link and preserve active human discussion. Refresh report metadata from `fetch pr --format json`.

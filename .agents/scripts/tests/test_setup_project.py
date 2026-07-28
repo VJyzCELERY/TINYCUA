@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
@@ -22,7 +23,7 @@ def git(path: Path, *args: str) -> None:
     subprocess.run(["git", *args], cwd=path, check=True, capture_output=True, text=True)
 
 
-def write_marker(root: Path, version: int) -> None:
+def write_marker(root: Path, version: int | str) -> None:
     """Write the release marker used by a fixture version."""
     marker = root / ".agents" / "template-version.json"
     marker.parent.mkdir(parents=True, exist_ok=True)
@@ -41,13 +42,17 @@ def template_fixture(tmp_path: Path) -> tuple[Path, Path]:
     git(source, "config", "user.name", "Test User")
     (source / "AGENTS.md").write_text("# Template\n", encoding="utf-8")
     (source / ".agents" / "commands").mkdir(parents=True)
-    (source / ".agents" / "commands" / "example.md").write_text("one\n", encoding="utf-8")
+    (source / ".agents" / "commands" / "example.md").write_text(
+        "first\nsecond\nthird\nfourth\nfifth\n", encoding="utf-8"
+    )
     write_marker(source, 1)
     git(source, "add", ".")
     git(source, "commit", "-m", "version 1")
     git(source, "tag", "template-v1")
 
-    (source / ".agents" / "commands" / "example.md").write_text("two\n", encoding="utf-8")
+    (source / ".agents" / "commands" / "example.md").write_text(
+        "first\nsecond\nthird\nupstream\nfifth\n", encoding="utf-8"
+    )
     (source / ".agents" / "commands" / "added.md").write_text("new\n", encoding="utf-8")
     write_marker(source, 2)
     git(source, "add", ".")
@@ -58,7 +63,9 @@ def template_fixture(tmp_path: Path) -> tuple[Path, Path]:
     git(project, "init")
     (project / "AGENTS.md").write_text("# Project\n", encoding="utf-8")
     (project / ".agents" / "commands").mkdir(parents=True)
-    (project / ".agents" / "commands" / "example.md").write_text("one\n", encoding="utf-8")
+    (project / ".agents" / "commands" / "example.md").write_text(
+        "first\nsecond\nthird\nfourth\nfifth\n", encoding="utf-8"
+    )
     write_marker(project, 1)
     return project, source
 
@@ -81,6 +88,21 @@ def test_preview_current_skips_managed_file_comparison(fixture: tuple[Path, Path
 
     assert preview.status == "current"
     assert preview.actions == ()
+
+
+def test_preview_accepts_matching_semantic_version_markers(
+    fixture: tuple[Path, Path],
+) -> None:
+    """A matching semantic version marker is considered current."""
+    project, source = fixture
+    write_marker(project, "5.1.0")
+    write_marker(source, "5.1.0")
+    git(source, "add", ".agents/template-version.json")
+    git(source, "commit", "-m", "version 5.1.0")
+
+    preview = setup_project.prepare_update(str(source))
+
+    assert preview.status == "current"
 
 
 def test_preview_rejects_downgrade(fixture: tuple[Path, Path]) -> None:
@@ -115,16 +137,16 @@ def test_preview_uses_installed_tag_for_three_way_baseline(
     """The v1 tag distinguishes an upstream change from a local edit."""
     project, source = fixture
     (project / ".agents" / "commands" / "example.md").write_text(
-        "local\n", encoding="utf-8"
+        "first\nsecond\nthird\nlocal\nfifth\n", encoding="utf-8"
     )
 
     preview = setup_project.prepare_update(str(source))
 
     assert preview.status == "upgrade"
-    assert preview.conflicts == ("commands/example.md",)
+    assert preview.conflicts == ()
     assert {action.path: action.kind for action in preview.actions} == {
         "commands/added.md": "add",
-        "commands/example.md": "conflict",
+        "commands/example.md": "stash",
     }
 
 
@@ -138,7 +160,9 @@ def test_apply_updates_only_upstream_changes_and_finalizes_marker(
 
     setup_project.apply_update(preview, confirmed=True)
 
-    assert (project / ".agents" / "commands" / "example.md").read_text() == "two\n"
+    assert (
+        project / ".agents" / "commands" / "example.md"
+    ).read_text() == "first\nsecond\nthird\nupstream\nfifth\n"
     assert (project / ".agents" / "commands" / "added.md").read_text() == "new\n"
     assert json.loads((project / ".agents" / "template-version.json").read_text())["version"] == 2
     assert not (project / "tmp" / "setup-project-template").exists()
@@ -172,20 +196,121 @@ def test_apply_removes_files_unchanged_from_installed_tag(
     assert not (project / ".agents" / "commands" / "example.md").exists()
 
 
-def test_apply_refuses_conflicts_without_advancing_marker(
+def test_apply_stashes_overlapping_edits_and_installs_incoming(
     fixture: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Divergent edits stop before a local file or its marker is replaced."""
+    """True conflicts retain all inputs before the incoming file is installed."""
     project, source = fixture
     local = project / ".agents" / "commands" / "example.md"
-    local.write_text("local\n", encoding="utf-8")
+    local.write_text("first\nsecond\nthird\nlocal\nfifth\n", encoding="utf-8")
     preview = setup_project.prepare_update(str(source))
     monkeypatch.setattr(setup_project, "run_preflight", lambda: None)
 
-    with pytest.raises(setup_project.UpdateError, match="conflict"):
+    setup_project.apply_update(preview, confirmed=True)
+
+    stash = next((project / ".agents" / "local" / "template-stash").iterdir())
+    manifest = json.loads((stash / "manifest.json").read_text(encoding="utf-8"))
+
+    assert local.read_text() == "first\nsecond\nthird\nupstream\nfifth\n"
+    assert manifest["paths"]["commands/example.md"]["base"]["present"]
+    assert manifest["paths"]["commands/example.md"]["local"]["present"]
+    assert manifest["paths"]["commands/example.md"]["incoming"]["present"]
+    assert manifest["paths"]["commands/example.md"]["base"]["sha256"] == hashlib.sha256(
+        b"first\nsecond\nthird\nfourth\nfifth\n"
+    ).hexdigest()
+    assert (stash / manifest["paths"]["commands/example.md"]["context"]).is_file()
+    assert (stash / "base" / "commands" / "example.md").read_text() == "first\nsecond\nthird\nfourth\nfifth\n"
+    assert (stash / "local" / "commands" / "example.md").read_text() == "first\nsecond\nthird\nlocal\nfifth\n"
+    assert (stash / "incoming" / "commands" / "example.md").read_text() == "first\nsecond\nthird\nupstream\nfifth\n"
+    assert json.loads((project / ".agents" / "template-version.json").read_text())["version"] == 2
+
+
+def test_apply_merges_non_overlapping_edits_without_creating_stash(
+    fixture: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Separated edits become one clean merged managed file."""
+    project, source = fixture
+    local = project / ".agents" / "commands" / "example.md"
+    local.write_text("local\nsecond\nthird\nfourth\nfifth\n", encoding="utf-8")
+
+    monkeypatch.chdir(project)
+    assert setup_project.main(["preview", ".", str(source)]) == 0
+    assert "MERGE commands/example.md" in capsys.readouterr().out
+    assert not (project / ".agents" / "local" / "template-stash").exists()
+    monkeypatch.setattr(setup_project, "run_preflight", lambda: None)
+    assert setup_project.main(["apply", ".", "--confirm"]) == 0
+
+    assert local.read_text() == "local\nsecond\nthird\nupstream\nfifth\n"
+    assert not (project / ".agents" / "local" / "template-stash").exists()
+
+
+@pytest.mark.parametrize(
+    ("case", "context"),
+    [
+        ("add-add", "--- base: absent"),
+        ("modify-delete", "--- incoming: absent"),
+        ("delete-modify", "--- local: absent"),
+        ("binary", "b'\\x00local'"),
+        ("non-utf8", "b'\\xfflocal'"),
+    ],
+)
+def test_apply_stashes_non_mergeable_divergence(
+    fixture: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch, case: str, context: str
+) -> None:
+    """Add/add and deletion divergences preserve provenance before updating."""
+    project, source = fixture
+    path = project / ".agents" / "commands" / "example.md"
+    expected = "first\nsecond\nthird\nupstream\nfifth\n"
+    if case == "add-add":
+        path = project / ".agents" / "commands" / "added.md"
+        path.write_text("local\n", encoding="utf-8")
+        expected = "new\n"
+    elif case == "modify-delete":
+        path.write_text("first\nsecond\nthird\nlocal\nfifth\n", encoding="utf-8")
+        (source / ".agents" / "commands" / "example.md").unlink()
+        git(source, "add", "-u")
+        git(source, "commit", "-m", "remove example")
+        expected = ""
+    elif case == "delete-modify":
+        path.unlink()
+    elif case == "binary":
+        path.write_bytes(b"\x00local")
+    else:
+        path.write_bytes(b"\xfflocal")
+
+    preview = setup_project.prepare_update(str(source))
+    monkeypatch.setattr(setup_project, "run_preflight", lambda: None)
+    setup_project.apply_update(preview, confirmed=True)
+
+    stash = next((project / ".agents" / "local" / "template-stash").iterdir())
+    entry = json.loads((stash / "manifest.json").read_text(encoding="utf-8"))["paths"][
+        path.relative_to(project / ".agents").as_posix()
+    ]
+    assert entry["base"]["present"] is (case != "add-add")
+    assert entry["local"]["present"] is (case != "delete-modify")
+    assert entry["incoming"]["present"] is (case != "modify-delete")
+    assert context in (stash / entry["context"]).read_text(encoding="utf-8")
+    assert path.read_text() == expected if expected else not path.exists()
+
+
+def test_apply_stash_write_failure_preserves_managed_file_and_marker(
+    fixture: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed stash write cannot replace the conflicting path or marker."""
+    project, source = fixture
+    local = project / ".agents" / "commands" / "example.md"
+    local.write_text("first\nsecond\nthird\nlocal\nfifth\n", encoding="utf-8")
+    preview = setup_project.prepare_update(str(source))
+
+    def fail_stash(*_args: object, **_kwargs: object) -> Path:
+        raise setup_project.UpdateError("stash write failed")
+
+    monkeypatch.setattr(setup_project, "_write_stash", fail_stash)
+
+    with pytest.raises(setup_project.UpdateError, match="stash write failed"):
         setup_project.apply_update(preview, confirmed=True)
 
-    assert local.read_text() == "local\n"
+    assert local.read_text() == "first\nsecond\nthird\nlocal\nfifth\n"
     assert json.loads((project / ".agents" / "template-version.json").read_text())["version"] == 1
 
 
@@ -275,7 +400,7 @@ def test_setup_project_command_replaces_inline_guide_lookup() -> None:
     )
     lookup = (
         "(\n"
-        "  uv run python .agents/scripts/gh.py cmd --format raw api \\\n"
+        "  gh api \\\n"
         "    repos/VJyzCELERY/MAIN-PROJECT-TEMPLATE/issues/17 --jq .html_url \\\n"
         "    || {\n"
         "      printf '%s\\n' \\\n"
