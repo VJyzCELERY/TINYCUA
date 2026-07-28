@@ -1,0 +1,49 @@
+\documentclass{article}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+\begin{document}
+
+\begin{algorithm}[t]
+\caption{TINYCUA Worker Node}
+\label{alg:worker}
+\begin{algorithmic}[1]
+\Require $\mathit{digestedContext}$, $\mathit{queue}$, $\mathit{existingWorker}$
+\Ensure $\mathit{route}$, $\mathit{queue}$
+
+\Statex \textit{// Deduplication guard}
+\If{$\mathit{existingWorker} \neq \textsc{null}$}
+    \State $\mathit{existingWorker.input} \gets \mathit{digestedContext}$
+    \State \Return
+\EndIf
+
+\Statex \textit{// Check if task exists}
+\State $\mathit{taskExists} \gets \mathit{queue.hasTask()}$
+
+\Statex \textit{// Analysis call}
+\State $\mathit{analysisResult} \gets \textsc{SLMAnalyze}(\mathit{digestedContext}, \mathit{taskExists}, \mathit{queue})$
+
+\Statex \textit{// Verdict call}
+\State $\mathit{route} \gets \textsc{Classify}(\mathit{analysisResult}, \mathit{taskExists}, \mathit{queue.hasWorkerSpawnedNodes()})$
+
+\Statex \textit{// Dispatch via route map}
+\If{$\mathit{route} = \text{task\_creation}$}
+    \State $\mathit{queue} \gets [\textsc{TaskCreate}, \textsc{TaskAnalyzer}, \textsc{AnalysisEffort}, \textsc{TaskExecutor}, \textsc{ResultReviewer}, \textsc{Response}]$
+\ElsIf{$\mathit{route} = \text{task\_recreation}$}
+    \State remove all nodes after Worker from queue
+    \State $\mathit{queue} \gets [\textsc{TaskAnalyzer}(\textsc{TaskInit}), \textsc{AnalysisEffort}, \textsc{TaskExecutor}, \textsc{ResultReviewer}, \textsc{Response}]$
+\ElsIf{$\mathit{route} = \text{task\_reanalysis}$}
+    \State remove all nodes after Worker from queue
+    \State $\mathit{queue} \gets [\textsc{TaskAnalyzer}, \textsc{AnalysisEffort}, \textsc{TaskExecutor}, \textsc{ResultReviewer}, \textsc{Response}]$
+\ElsIf{$\mathit{route} = \text{passthrough}$}
+    \State $\mathit{queue} \gets [\textsc{Response}]$
+\ElsIf{$\mathit{route} = \text{proceed\_execution}$}
+    \State $\mathit{queue} \gets [\textsc{TaskExecutor}, \textsc{ResultReviewer}, \textsc{Response}]$
+\EndIf
+
+\end{algorithmic}
+\end{algorithm}
+
+\end{document}

@@ -1,0 +1,42 @@
+\documentclass{article}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+\begin{document}
+
+\begin{algorithm}[t]
+\caption{Query Analysis}
+\label{alg:query-analyst}
+\begin{algorithmic}[1]
+\Require $\mathit{root\_session}$, $\mathit{user\_query}$, $\mathit{queue}$
+\Ensure $\mathit{route} \in \{\textsc{Worker}, \textsc{Passthrough}\}$
+
+\Statex \textit{// Deduplication guard}
+\If{$\mathit{queue}$ contains active $\mathit{QUERYANALYST}$}
+    \State \Return DROP\_QUERY
+\EndIf
+
+\Statex \textit{// Assemble transient reasoning window}
+\State $\mathit{window} \gets \mathit{root\_session}.\mathit{context} \;\Vert\; \mathit{queue}.\mathit{contexts} \;\Vert\; \mathit{user\_query}$
+
+\Statex \textit{// Two-step classification (LLM + tool)}
+\State $\mathit{route} \gets \textsc{NULL}$; $\mathit{valid} \gets \textsc{FALSE}$
+\While{$\neg\mathit{valid}$}
+    \State $\mathit{analysis} \gets \textsc{SLMANALYZE}(\mathit{window})$
+    \State $\mathit{route} \gets \textsc{CLASSIFY}(\mathit{analysis})$; $\mathit{valid} \gets \mathit{route} \in \{\textsc{Worker}, \textsc{Passthrough}\}$
+\EndWhile
+
+\Statex \textit{// Dispatch via route map}
+\State \textsc{DISPATCH}($\mathit{route}$)
+\If{$\mathit{route} = \textsc{Worker}$}
+    \State spawn \textsc{INFORMATIONDIGESTER}
+\ElsIf{$\mathit{route} = \textsc{Passthrough}$}
+    \State Forward to ResponseNode
+\EndIf
+
+\end{algorithmic}
+\end{algorithm}
+
+\end{document}
