@@ -56,71 +56,62 @@ def shrink_threshold_for_effort(effort: str) -> int:
     return _SHRINK_THRESHOLDS.get(effort, 12)
 
 
+_TASK_REFINEMENT_GUIDANCE = (
+    "Tasks are recursively refinable outcomes, not required atomic steps. At current "
+    "granularity, coherent, actionable, and verifiable work enables a focused execution "
+    "attempt and meaningful review from observable evidence. Decompose only when "
+    "separating responsibilities, dependencies, uncertainty, or evidence materially "
+    "improves execution or review. Children are scoped contributions and may be "
+    "decomposed again; the parent integrates them. Analysis "
+    "effort reassesses granularity but never requires a split, fixed depth, or task count."
+)
 _TASK_ANALYZER_INSTRUCTION = (
-    "You are the TaskAnalyzer. Produce or refine an actionable roadmap; do not execute "
-    "work. Use read_file or web_search only to resolve material uncertainty. Each task "
-    "must be one coherent, actionable, and verifiable outcome: its objective, boundaries, "
-    "constraints, and context support focused execution without hidden replanning or "
-    "intentional sibling work; observable evidence lets a reviewer decide completion. "
-    "Cover explicit workflows and hard constraints. Make "
-    "evidence-supported execution decisions but leave genuinely unsupported choices open. Split "
-    "distinct outcomes, keep tightly coupled work together, and avoid overlap, "
-    "command-level or lifecycle-only tasks, and any fixed task count. Do not require "
-    "files, commands, libraries, or steps the executor can safely decide. Resolve the "
-    "assigned roadmap region."
+    "TaskAnalyzer: Produce or refine an actionable roadmap; do not execute. Use available "
+    "tools like read_file or web_search only for material uncertainty. "
+    f"{_TASK_REFINEMENT_GUIDANCE} Preserve explicit workflows and hard constraints; "
+    "avoid hidden replanning, intentional sibling work, overlapping siblings, and "
+    "command-level or lifecycle-only tasks. Leave genuinely unsupported choices open. "
+    "Resolve the assigned roadmap region."
 )
 _TASK_ANALYZER_CONTINUATION = (
-    "Evaluate the current roadmap against the planning criteria above. Remove or "
-    "merge redundant work and refine every outcome that is not actionable and "
-    "verifiable. If the roadmap is already sound, record no structural change; "
-    "otherwise resolve every assigned planning target before completion."
+    "Decide whether refinement materially improves execution or review. Retain an "
+    "adequate task unchanged; size or the possibility of finer decomposition is not a "
+    "defect. Otherwise make the smallest supported update, decomposition, or shrink that "
+    "resolves every assigned planning target."
 )
 _TASK_ANALYZER_LOCAL_REPLAN_CONTINUATION = (
-    "Refine only the active local region using the same planning criteria. Use "
-    "available tools when evidence is needed. If the region already consists of "
-    "coherent, actionable, and verifiable outcomes, record no structural change; "
-    "otherwise resolve every assigned local planning target. Do not decompose the "
-    "root roadmap or otherwise restructure it from a local replan."
+    "Review only the active local region. Retain an adequate task and record no "
+    "structural change; size or possible finer decomposition is not a defect. Otherwise "
+    "make the smallest supported refinement that resolves every assigned local target. "
+    "Do not decompose the root roadmap or otherwise restructure it from a local replan."
 )
 
 _TASK_ASSESSOR_UPFRONT_INSTRUCTION = (
-    "You are the TaskAssessor. Your responsibility is to review roadmap quality. "
-    "Do not execute or mutate work; use read_file or web_search when evidence is needed. Inspect the "
-    "whole roadmap. Every task must be one coherent, actionable, and verifiable outcome. "
-    "Actionable means that, once declared dependencies are met, its objective, "
-    "boundaries, constraints, and context support focused execution without hidden replanning or "
-    "intentional sibling work. Verifiable means a reviewer can decide completion from "
-    "observable evidence. The roadmap must collectively cover explicit workflows and "
-    "hard constraints. Select tasks that are vague, redundant, materially mixed, "
-    "overlapping, missing needed context or decisions, or lacking clear evidence. Split "
-    "materially distinct outcomes and keep tightly coupled work together. Do not require "
-    "files, commands, libraries, implementation steps, command-level or lifecycle-only "
-    "tasks, unsupported choices, or a fixed task count. Do not report the same defect "
-    "on both an ancestor and descendant unless each has a distinct blocking defect."
+    "TaskAssessor: review the whole roadmap; do not execute or mutate. Use read_file as "
+    "needed. "
+    f"{_TASK_REFINEMENT_GUIDANCE} Select only current blockers to execution or review. "
+    "Judge parents as integrated outcomes; report shared defects on the narrowest useful "
+    "node. Preserve explicit workflows and hard constraints; reject hidden replanning, "
+    "intentional sibling work, overlapping siblings, and command-level or lifecycle-only "
+    "tasks."
 )
 _TASK_ASSESSOR_UPFRONT_CONTINUATION = (
-    "Review roadmap quality against the criteria above. Decide ready only when every "
-    "unfinished task is actionable and verifiable and the roadmap covers the explicit "
-    "request; otherwise select every task ID with a material planning defect and "
-    "explain the defect."
+    "Decide ready when the roadmap is adequate at its current granularity and covers the "
+    "explicit request. Otherwise select only tasks where refinement materially improves "
+    "execution or review. A task being large or further decomposable is not sufficient reason."
 )
 _TASK_ASSESSOR_LOCAL_REPLAN_INSTRUCTION = (
-    "You are the TaskAssessor. Your responsibility is to review the active task's "
-    "local roadmap region for a local replan. Do not execute work or mutate task state. Use available "
-    "tools (read_file, search_files, run_shell) when evidence is needed. Each "
-    "unfinished local task must be a coherent, actionable, and verifiable outcome, "
-    "with enough context for focused execution without hidden replanning or "
-    "intentional sibling work and with specific observable evidence. Preserve explicit "
-    "workflows and hard constraints. Select every local task needing refinement, but "
-    "do not reassess the whole roadmap. Split materially distinct outcomes; keep "
-    "tightly coupled work together. Do not require command-level tasks, lifecycle-only "
-    "phases, unsupported choices, or a fixed task count."
+    "You are the TaskAssessor. Review only the active task's local roadmap for a local "
+    "replan; do not execute or mutate work. "
+    f"{_TASK_REFINEMENT_GUIDANCE} Select only current defects; do not reassess the whole "
+    "roadmap. Preserve explicit workflows and hard constraints; "
+    "reject hidden replanning, intentional sibling work, overlapping siblings, and "
+    "command-level or lifecycle-only tasks. Do not impose unsupported choices."
 )
 _TASK_ASSESSOR_LOCAL_REPLAN_CONTINUATION = (
-    "Review the active local region against the criteria above. Decide ready with "
-    "no selected targets when it is coherent and actionable; otherwise select only "
-    "the unfinished local task IDs needing refinement and explain the material "
-    "planning defect."
+    "Decide ready when the local region is adequate at its current granularity. Otherwise "
+    "select only local tasks where refinement materially improves execution or review. A "
+    "task being large or further decomposable is not sufficient reason."
 )
 _TASK_ASSESSOR_CANCELLATION_INSTRUCTION = (
     "You are the TaskAssessor. Decide whether one newly requested cancellation is "
@@ -709,11 +700,7 @@ class TinyCUATaskAssessorNode(ProcessNode):
                     else _TASK_ASSESSOR_UPFRONT_INSTRUCTION
                 )
             if mode == "final_assessment":
-                instruction += (
-                    " This is the final assessment after the analysis budget. Ready "
-                    "proceeds; analyze records remaining findings as exhausted "
-                    "task-local advisories and also proceeds without another analyzer."
-                )
+                instruction += " Final pass."
         continuation = (
             _TASK_ASSESSOR_CANCELLATION_CONTINUATION
             if mode == "cancellation_review"
@@ -790,6 +777,12 @@ class TinyCUATaskAssessorNode(ProcessNode):
                     "Tool guidance: assess only the bound cancellation request. Use "
                     "ready with no findings to approve it, or analyze with one finding "
                     "on its target to reject it for repair."
+                )
+            if self.config.metadata.get("task_assessor_mode") == "final_assessment":
+                return (
+                    "Tool guidance: commit task_assessment_decision. Both decisions "
+                    "proceed; analyze records findings as exhausted advisories without "
+                    "another analyzer. Include a concise rationale."
                 )
             return (
                 "Tool guidance: Commit task_assessment_decision with task-bound "

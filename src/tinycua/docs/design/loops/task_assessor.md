@@ -5,20 +5,19 @@
 
 ## Role
 
-`TinyCUATaskAssessorNode` is a concrete, read-only planning reviewer. It evaluates whether
-every unfinished task is a coherent, actionable, and verifiable outcome. Once declared
-dependencies are met, an actionable task supports focused execution without hidden
-replanning or intentional sibling work; a verifiable task has specific observable
-evidence from which a reviewer can decide completion. The assessor also checks that the
-roadmap collectively covers explicit workflows and hard constraints. It selects every
-task with a material planning defect and operates in two modes depending on the caller.
+`TinyCUATaskAssessorNode` is a concrete, read-only planning reviewer. It treats tasks as
+recursively refinable outcomes rather than required atomic steps. Current granularity is
+adequate when a task's outcome and boundaries support a focused execution attempt and
+meaningful review from observable evidence. Further decomposition is warranted only when
+separating responsibilities, dependencies, uncertainty, or evidence materially improves
+execution or review.
 
-The assessor does not impose unsupported architecture, output layout, tool choice, a
-fixed task count, command-level work, or decomposition depth. It splits materially
-distinct outcomes while keeping tightly coupled work together. Executor-local file,
-command, library, and implementation decisions are not planning defects. One shared
-defect is reported on its narrowest useful task rather than duplicated across ancestors
-and descendants.
+The assessor evaluates children as scoped contributions and parents as integrated
+outcomes. It selects only material defects, reports a shared defect on its narrowest
+useful node, and preserves explicit workflows and hard constraints. Size, possible finer
+decomposition, executor-local choices, and analysis effort alone are not defects. The
+assessor never imposes architecture, task counts, decomposition depth, command-level
+work, or unsupported implementation choices.
 
 ## Non-Responsibilities
 

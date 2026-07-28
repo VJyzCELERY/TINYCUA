@@ -1025,14 +1025,14 @@ def test_task_assessor_prompt_reviews_whole_tree_plan_quality() -> None:
     combined = f"{rendered}\n{tool_surface}"
 
     assert "whole roadmap" in rendered.lower()
-    assert "coherent, actionable, and verifiable outcome" in rendered.lower()
-    assert "context support focused execution" in rendered.lower()
-    assert "materially mixed" in rendered.lower()
-    assert "missing needed context or decisions" in rendered.lower()
+    assert "recursively refinable outcomes" in rendered.lower()
+    assert "current granularity" in rendered.lower()
+    assert "focused execution attempt and meaningful review" in rendered.lower()
+    assert "materially improves execution or review" in rendered.lower()
+    assert "large or further decomposable is not sufficient reason" in rendered.lower()
     assert "impose unsupported implementation choices" in rendered.lower()
     assert "Provide the persistence-backed application API." in rendered
-    assert "files, commands, libraries" in rendered
-    assert "ancestor and descendant" in rendered
+    assert "narrowest useful node" in rendered
     assert "task_result_update" not in combined
     assert "task_update" not in combined
     assert "task_assessment_decision" in rendered
@@ -1099,7 +1099,8 @@ def test_task_assessor_local_replan_prompt_is_active_region_only() -> None:
     assert "Expose the application API." in rendered
     assert "Render the browser interface." in rendered
     assert "The original approach cannot satisfy the request." in rendered
-    assert "coherent, actionable, and verifiable outcome" in rendered.lower()
+    assert "recursively refinable outcomes" in rendered.lower()
+    assert "current granularity" in rendered.lower()
     assert "do not reassess the whole roadmap" in rendered.lower()
     assert "task_result_update" not in combined
     assert "task_update" not in combined

@@ -6,6 +6,10 @@
 ## Role
 
 Task models represent worker task trees, active tasks, task results, and task sharing.
+Every task is a recursively refinable outcome at its current planning resolution. It may
+remain directly executable or gain children when decomposition later provides a material
+execution or review benefit. Children are scoped contributions rather than replacements;
+after they complete, the parent remains available for integration and verification.
 
 ```text
 Task
