@@ -111,3 +111,14 @@ def test_task_decompose_description_has_no_one_shot_app_forcing() -> None:
             f"task_decompose description contains forbidden prompt-category "
             f"guidance: {pattern!r}"
         )
+
+
+def test_task_decompose_description_requires_material_refinement_benefit() -> None:
+    """The tool presents decomposition as adaptive refinement, not an endpoint."""
+    description = TaskDecomposeTool().description.lower()
+
+    assert "execution context" in description
+    assert "observable evidence for review" in description
+    assert "materially improves execution or review" in description
+    assert "children recurse under parent" in description
+    assert "keep adequate work together" in description

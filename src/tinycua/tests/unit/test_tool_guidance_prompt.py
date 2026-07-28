@@ -109,6 +109,20 @@ def test_task_assessor_commit_guidance_names_only_decision_tool() -> None:
     assert "rationale" in guidance
 
 
+def test_final_assessor_guidance_explains_advisory_proceed_behavior() -> None:
+    """Final findings are preserved without implying another analyzer pass."""
+    node = TinyCUATaskAssessorNode(
+        node_id="task_assessor",
+        config=create_node_config("task_assessor", mode="final_assessment"),
+    )
+
+    guidance = node.build_tool_system_prompt([TaskAssessmentDecisionTool()])
+
+    assert "both decisions proceed" in guidance.lower()
+    assert "exhausted advisories" in guidance.lower()
+    assert "without another analyzer" in guidance.lower()
+
+
 def test_task_analyzer_treats_assessor_recommendations_as_advisory() -> None:
     """Analyzer chooses how to address Assessor recommendations."""
     node = TinyCUATaskAnalyzerNode(

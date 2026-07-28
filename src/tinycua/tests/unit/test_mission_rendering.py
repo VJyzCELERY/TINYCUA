@@ -103,11 +103,49 @@ def test_planning_agents_define_bounded_outcome_readiness() -> None:
 
     for instruction in (analyzer._instruction, assessor._instruction):
         normalized = instruction.lower()
+        assert "recursively refinable outcomes" in normalized
+        assert "not required atomic steps" in normalized
+        assert "current granularity" in normalized
+        assert "children are scoped contributions" in normalized
+        assert "may be decomposed again" in normalized
         assert "explicit workflows and hard constraints" in normalized
         assert "hidden replanning" in normalized
         assert "intentional sibling work" in normalized
         assert "command-level" in normalized
-        assert "fixed task count" in normalized
+        assert "fixed depth" in normalized
+
+
+def test_assessor_requires_material_benefit_before_further_decomposition() -> None:
+    """Potential refinement alone does not make current granularity defective."""
+    assessor = TinyCUATaskAssessorNode(
+        node_id="task_assessor", config=create_node_config("task_assessor")
+    )
+    guidance = f"{assessor._instruction} {assessor._continuation}".lower()
+
+    assert "large or further decomposable is not sufficient reason" in guidance
+    assert "refinement materially improves execution or review" in guidance
+
+
+def test_planning_instructions_remain_concise() -> None:
+    """Progressive refinement guidance stays below the prompt-size guard."""
+    nodes = [
+        TinyCUATaskAnalyzerNode(
+            node_id="task_analyzer", config=create_node_config("task_analyzer")
+        ),
+        TinyCUATaskAssessorNode(
+            node_id="task_assessor", config=create_node_config("task_assessor")
+        ),
+        TinyCUATaskAssessorNode(
+            node_id="task_assessor",
+            config=create_node_config("task_assessor", mode="local_replan"),
+        ),
+        TinyCUATaskAssessorNode(
+            node_id="task_assessor",
+            config=create_node_config("task_assessor", mode="final_assessment"),
+        ),
+    ]
+
+    assert all(len(node._instruction) < 950 for node in nodes)
 
 
 def test_task_executor_renders_mission_block() -> None:
