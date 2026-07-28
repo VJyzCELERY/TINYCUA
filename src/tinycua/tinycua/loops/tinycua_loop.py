@@ -779,6 +779,9 @@ class TinyCUALoop(
             arguments = self._freeze_analyzer_task_references(
                 arguments, analyzer_task_refs
             )
+            impacted_planning_targets = self._analyzer_planning_targets_for_call(
+                node, name, arguments
+            )
             self._log_tool_call_args(name, arguments)
             # ponytail: per-tool rate limit for shared backends. See
             # _TOOL_RATE_LIMITS. Async sleep so the event loop stays free.
@@ -803,7 +806,9 @@ class TinyCUALoop(
                     resolved_id,
                 )
             self._sync_root_task()
-            self._record_analyzer_planning_resolution(node, name, output)
+            self._record_analyzer_planning_resolution(
+                node, name, output, impacted_planning_targets
+            )
             tool_result = {"name": name, "allowed": True, "output": output}
             artifact_path = self._write_tool_audit_artifact(name, arguments, output)
             if artifact_path:

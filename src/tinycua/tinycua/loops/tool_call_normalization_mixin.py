@@ -56,3 +56,46 @@ class ToolCallNormalizationMixin:
             else value
             for key, value in arguments.items()
         }
+
+    def _analyzer_planning_targets_for_call(
+        self,
+        node: Node | None,
+        tool_name: str,
+        arguments: dict[str, Any],
+    ) -> set[str]:
+        """Capture selected targets affected before a task mutation runs."""
+        if node is None or node.node_id != "task_analyzer":
+            return set()
+        unresolved = self._unresolved_analyzer_target_ids(node)
+        if not unresolved:
+            return set()
+        store = self.root_session.task_store
+        refs: list[Any]
+        if tool_name == "task_update":
+            task_ref = arguments.get("task_id")
+            refs = [store.active_task_id if task_ref is None else task_ref]
+        elif tool_name == "task_create":
+            refs = [arguments.get("parent_id")]
+        elif tool_name == "task_decompose":
+            refs = [arguments.get("task_id")]
+        elif tool_name == "task_shrink":
+            refs = [arguments.get("task_id")]
+            if arguments.get("action") == "merge":
+                refs.append(arguments.get("parent_id"))
+        else:
+            return set()
+        candidates = [
+            store.resolve_task_id(ref) for ref in refs if isinstance(ref, str)
+        ]
+        if tool_name == "task_update":
+            return (
+                {candidates[0]} if candidates and candidates[0] in unresolved else set()
+            )
+        return {
+            target_id
+            for target_id in unresolved
+            if any(
+                candidate is not None and self._task_is_in_subtree(candidate, target_id)
+                for candidate in candidates
+            )
+        }

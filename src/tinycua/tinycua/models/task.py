@@ -448,6 +448,17 @@ class TaskStateStore:
         ):
             msg = "Root acceptance clauses are immutable."
             raise ValueError(msg)
+        next_metadata = dict(task.metadata)
+        if metadata:
+            next_metadata.update(metadata)
+        if (
+            (title is None or title == task.title)
+            and (description is None or description == task.description)
+            and next_status == task.status
+            and next_metadata == task.metadata
+        ):
+            msg = "Task update must change task state."
+            raise ValueError(msg)
         task.title = title if title is not None else task.title
         task.description = description if description is not None else task.description
         task.status = next_status
