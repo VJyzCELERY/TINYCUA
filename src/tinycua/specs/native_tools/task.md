@@ -70,7 +70,7 @@ Implementation tasks for Native Benchmark Tools. Check off items as completed.
   - [x] Handle empty files (return empty string)
 - [x] Implement `write_file` in `files.py` <!-- id: 15 -->
   - [x] Resolve path: absolute if starts with `/`, else relative to `os.getcwd()`
-  - [x] Create/overwrite entire file with content, creating parent dirs if needed
+  - [x] Create/overwrite a file only when its parent directory exists
   - [x] Return `{success, path, chars_written, error}`
   - [x] Handle permission denied as error dict
 - [x] Implement `edit_file` in `files.py` <!-- id: 16 -->
@@ -120,7 +120,7 @@ Implementation tasks for Native Benchmark Tools. Check off items as completed.
 - [x] Import all seven tools from `tinycua.agent.tools` and verify `Tool` instances <!-- id: 27 -->
 - [x] Manually test `run_shell("echo hello")` — verify stdout capture <!-- id: 28 -->
 - [x] Manually test `read_file` with a temp file — full read, range read, relative path <!-- id: 29 -->
-- [x] Manually test `write_file` — create, overwrite, parent dir creation <!-- id: 30 -->
+- [x] Manually test `write_file` — create, overwrite, missing-parent failure <!-- id: 30 -->
 - [x] Manually test `edit_file` — single line, multiple lines, replace to end, relative path <!-- id: 31 -->
 - [x] Manually test `fetch_url("https://httpbin.org/get")` — verify response body (via httpx mock) <!-- id: 32 -->
 - [x] Manually test `run_python("print(1+1)")` — verify stdout capture <!-- id: 33 -->

@@ -160,13 +160,13 @@ def read_file(path: str, start: int | None = None, offset: int | None = None) ->
 
 @tool
 def write_file(path: str, content: str) -> dict:
-    """Write content to a file, creating parent directories if needed.
+    """Write content to a file when its parent directory exists.
     
     Paths starting with '/' are treated as absolute. All other paths are resolved
     relative to the agent's current working directory.
     
     If the file already exists, it is overwritten. If it does not exist, the file
-    (and any missing parent directories) are created.
+    is created. Missing parent directories return a structured error.
     
     Args:
         path: Path to the file (absolute or relative to CWD).
