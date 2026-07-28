@@ -9,16 +9,19 @@
 actionable roadmap. It grounds planning decisions in available evidence and commits the
 structural refinement required for its assigned region.
 
-Every task represents one coherent, actionable, and verifiable outcome. Once declared
-dependencies are met, an actionable task has enough objective, boundary, constraint,
-and context information for focused execution without hidden replanning or intentional
-sibling work. A verifiable task has specific observable evidence from which a reviewer
-can decide completion. The roadmap collectively covers explicit workflows and hard
-constraints. The analyzer makes evidence-supported decisions needed for execution,
-avoids overlap and command-level or lifecycle-only tasks, keeps tightly coupled work
-together, and never imposes a fixed task count. Executor-local choices such as files,
-commands, libraries, and implementation steps are not planning defects unless the
-mission requires them.
+Tasks are recursively refinable outcomes, not required atomic steps. A task is adequate
+at its current granularity when its outcome and boundaries support a focused execution
+attempt and meaningful review from observable evidence. The analyzer decomposes only
+when separating responsibilities, dependencies, uncertainty, or evidence materially
+improves execution or review. Children are scoped contributions that collectively advance
+their parent and may be decomposed again; after they finish, the parent integrates and
+verifies them.
+
+Analysis effort creates additional opportunities to reassess granularity but never
+requires a split, fixed depth, or task count. Size or the possibility of finer
+decomposition is not itself a defect. The analyzer preserves explicit workflows and hard
+constraints, avoids hidden replanning, intentional sibling work, overlapping siblings,
+and command-level or lifecycle-only tasks, and leaves genuinely unsupported choices open.
 
 ## Non-Responsibilities
 
@@ -60,7 +63,7 @@ opaque mutation instructions for TinyCUALoop to apply later.
 | `initial_analysis` | First analysis pass after TaskCreateNode creates root task. |
 | `recreation` | Full task tree rebuild/replacement (LLM-assisted). |
 | `reanalysis` | Refine existing task tree without full replacement. |
-| `effort_loop_decomposition` | Decompose tasks selected by TaskAssessor during effort passes. |
+| `effort_loop_decomposition` | Retain or refine tasks selected by TaskAssessor during effort passes. |
 | `local_replan` | Local replan of active task or local region after ResultReviewer replan decision. |
 
 ## Queue Behavior / `on_complete()`

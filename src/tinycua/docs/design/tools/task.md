@@ -27,9 +27,11 @@ Worker routes determine which tools `TaskAnalyzerNode` may use:
 Task replacement/sharing follows session propagation and task sharing rules in
 [`../models/session.md`](../models/session.md).
 
-`task_decompose` creates distinct, coherent child outcomes only when the parent cannot be
-executed and verified independently as one unit. It does not require a fixed number of
-children or a sequential implementation recipe.
+`task_decompose` refines a task only when distinct scoped contributions materially improve
+execution or review. Children collectively advance the retained parent, may themselves be
+decomposed later, and need enough context and observable evidence for their current
+granularity. The tool keeps adequate work together and never requires atomic steps, a
+fixed number of children, depth, or a sequential implementation recipe.
 
 ## Related
 

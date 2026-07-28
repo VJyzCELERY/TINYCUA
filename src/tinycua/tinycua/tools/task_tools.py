@@ -404,10 +404,10 @@ class TaskDecomposeTool(SessionTaskToolMixin, Tool):
             self,
             name="task_decompose",
             description=(
-                "Split a task into coherent, actionable, and verifiable outcomes with "
-                "enough context for execution and observable evidence. Keep tightly "
-                "coupled work together; avoid command-level, lifecycle-only, or "
-                "fixed-count plans."
+                "Plan coherent, actionable, verifiable outcomes with execution context and "
+                "observable evidence for review. Refine if it materially improves "
+                "execution or review. Children recurse under parent; keep adequate work "
+                "together."
             ),
             parameters={
                 "type": "object",
