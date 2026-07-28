@@ -13,6 +13,7 @@ def test_file_tools_resolve_relative_paths_inside_bound_workspace(
 
     workspace = tmp_path / "workspace"
     workspace.mkdir()
+    (workspace / "nested").mkdir()
     outside = tmp_path / "outside.txt"
     outside.write_text("outside", encoding="utf-8")
 

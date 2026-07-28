@@ -200,15 +200,21 @@ def test_write_file_overwrite():
         assert Path(filepath).read_text() == "new content"
 
 
-def test_write_file_creates_parent_dirs():
-    """Missing parent directories are created automatically."""
+def test_write_file_rejects_missing_parent_dirs():
+    """Missing parent directories cause a failure without filesystem changes."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        filepath = os.path.join(tmpdir, "deep/nested/dir/output.txt")
+        parent = Path(tmpdir, "deep/nested/dir")
+        filepath = parent / "output.txt"
         from tinycua.agent.tools.native.files import write_file
 
-        result = write_file(filepath, "deep content")
-        assert result["success"] is True
-        assert Path(filepath).read_text() == "deep content"
+        result = write_file(str(filepath), "deep content")
+
+        assert result["success"] is False
+        assert result["path"] == str(filepath)
+        assert result["chars_written"] == 0
+        assert "parent directory does not exist" in result["error"].lower()
+        assert not parent.exists()
+        assert not filepath.exists()
 
 
 def test_write_file_relative_path():

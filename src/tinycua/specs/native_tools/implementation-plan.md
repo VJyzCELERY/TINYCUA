@@ -253,15 +253,15 @@ def test_write_file_overwrite():
         assert Path(filepath).read_text() == "new content"
 
 
-def test_write_file_creates_parent_dirs():
-    """Missing parent directories are created automatically."""
+def test_write_file_rejects_missing_parent_dirs():
+    """Missing parent directories fail without filesystem changes."""
     with tempfile.TemporaryDirectory() as tmpdir:
         filepath = os.path.join(tmpdir, "deep/nested/dir/output.txt")
         from tinycua.agent.tools.native.files import write_file
 
         result = write_file(filepath, "deep content")
-        assert result["success"] is True
-        assert Path(filepath).read_text() == "deep content"
+        assert result["success"] is False
+        assert not Path(filepath).parent.exists()
 
 
 def test_write_file_relative_path():
@@ -779,7 +779,7 @@ class TestNativeToolsE2E:
 
 #### [NEW] `tinycua/tinycua/agent/tools/native/files.py`
 
-- **Description**: Implements `read_file(path, start=None, offset=None)`, `write_file(path, content)`, `edit_file(path, start, content, offset=None)`, `list_files(path, pattern="*")`. Uses `pathlib` for path resolution (absolute vs relative-to-CWD). `read_file` applies internal 100KB truncation only for full-file reads (start/offset both None). `write_file` creates or overwrites entire files, creating parent dirs if needed. `edit_file` replaces a line range in an existing file using `start`/`offset`. `list_files` uses `pathlib.glob()`.
+- **Description**: Implements `read_file(path, start=None, offset=None)`, `write_file(path, content)`, `edit_file(path, start, content, offset=None)`, `list_files(path, pattern="*")`. Uses `pathlib` for path resolution (absolute vs relative-to-CWD). `read_file` applies internal 100KB truncation only for full-file reads (start/offset both None). `write_file` creates or overwrites files only when the parent directory exists. `edit_file` replaces a line range in an existing file using `start`/`offset`. `list_files` uses `pathlib.glob()`.
 - **Rationale**: File I/O is essential for any agent that reads data, writes results, and explores directories.
 
 #### [NEW] `tinycua/tinycua/agent/tools/native/web.py`

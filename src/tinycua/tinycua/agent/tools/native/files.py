@@ -235,7 +235,7 @@ def read_file(
 
 @tool
 def write_file(path: str, content: str) -> dict[str, Any]:
-    """Write content to a file, creating parent directories if needed.
+    """Write content to a file when its parent directory exists.
 
     Args:
         path: Path to the file. Absolute paths start with '/', relative
@@ -256,16 +256,15 @@ def write_file(path: str, content: str) -> dict[str, Any]:
             "error": str(exc),
         }
 
-    # Create parent directories
-    try:
-        resolved.parent.mkdir(parents=True, exist_ok=True)
-    except PermissionError:
+    if not resolved.parent.exists():
         return {
             "success": False,
             "path": str(resolved),
             "rel_path": to_workspace_relative(resolved),
             "chars_written": 0,
-            "error": f"Permission denied creating directory: {resolved.parent}",
+            "new_file_size": 0,
+            "diff_preview": None,
+            "error": f"Parent directory does not exist: {resolved.parent}",
         }
 
     try:
