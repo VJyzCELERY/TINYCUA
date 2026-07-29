@@ -7,8 +7,10 @@ import stat
 import subprocess
 import sys
 from pathlib import Path
+from uuid import UUID
 
 import pytest
+import run_template_experiment as runner
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -23,6 +25,552 @@ VOLUME_TRANSFER_STUB = (
     "        shutil.copytree(volume_state.read_text(), destination, dirs_exist_ok=True)\n"
     "    sys.exit(0)\n"
 )
+IMAGE_INSPECT_STUB = (
+    "if args[:2] == ['image', 'inspect']:\n"
+    "    print(json.dumps({'Id': 'sha256:' + args[2], 'RepoDigests': []}))\n"
+    "    sys.exit(0)\n"
+)
+
+
+def _run_controlled(
+    output: Path,
+    fixture: str,
+    agents: str,
+    env: dict[str, str],
+    *,
+    cwd: Path = ROOT,
+    overwrite: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    command = [
+        sys.executable,
+        str(ROOT / "run_template_experiment.py"),
+        "--fixtures",
+        fixture,
+        "--agents",
+        agents,
+        "--output-root",
+        str(output),
+    ]
+    if overwrite:
+        command.append("--overwrite")
+    return subprocess.run(
+        command,
+        cwd=cwd,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+
+def test_controlled_campaign_resumes_aggregates_and_keeps_compact_artifacts(
+    tmp_path: Path,
+) -> None:
+    """Disjoint stub-Docker invocations safely extend one durable campaign."""
+    fixture_name = "test-resumable-campaign"
+    fixture = FIXTURES / fixture_name
+    (fixture / "workdir" / ".venv" / "bin").mkdir(parents=True)
+    (fixture / "eval").mkdir()
+    (fixture / "docker").mkdir()
+    (fixture / "workdir" / "app.py").write_text("pass\n")
+    (fixture / "workdir" / ".venv" / "bin" / "python").write_text("generated\n")
+    (fixture / "manifest.yaml").write_text(
+        "prompt: Make the change.\n"
+        "outcome_group: coding\n"
+        "eval_image: busybox:1.36\n"
+        "eval_command: ['true']\n"
+    )
+    (fixture / "docker" / "Dockerfile").write_text(
+        "ARG BASE_IMAGE\nFROM ${BASE_IMAGE}\n"
+    )
+    docker = tmp_path / "docker"
+    calls = tmp_path / "calls.jsonl"
+    images = tmp_path / "images.json"
+    docker.write_text(
+        "#!/usr/bin/env python3\n"
+        "import json, os, shutil, sys\n"
+        "from pathlib import Path\n"
+        "args = sys.argv[1:]\n"
+        "with open(os.environ['DOCKER_CALLS'], 'a') as stream:\n"
+        "    stream.write(json.dumps(args) + '\\n')\n"
+        "image_file = Path(os.environ['DOCKER_IMAGES'])\n"
+        "image_ids = json.loads(image_file.read_text()) if image_file.exists() else {}\n"
+        "if args[:2] == ['image', 'inspect']:\n"
+        "    identity = image_ids.get(args[2])\n"
+        "    if identity:\n"
+        "        print(json.dumps({'Id': identity, 'RepoDigests': []}))\n"
+        "        sys.exit(0)\n"
+        "    sys.exit(1)\n"
+        "if args[:1] == ['build']:\n"
+        "    tag = args[args.index('--tag') + 1]\n"
+        "    if os.environ.get('FAIL_DECORATOR') == '1' and 'test-resumable-campaign-opencode' in tag:\n"
+        "        sys.exit(9)\n"
+        "    image_ids[tag] = 'sha256:' + tag\n"
+        "    image_file.write_text(json.dumps(image_ids))\n"
+        "    print('built ' + tag)\n"
+        "    sys.exit(0)\n"
+        "if args[:1] == ['pull']:\n"
+        "    image_ids[args[1]] = 'sha256:' + args[1]\n"
+        "    image_file.write_text(json.dumps(image_ids))\n"
+        "    sys.exit(0)\n"
+        + VOLUME_TRANSFER_STUB
+        + "if args[:1] == ['run']:\n"
+        "    result_mount = next((arg[:-8] for arg in args if arg.endswith(':/result')), None)\n"
+        "    if result_mount:\n"
+        "        Path(result_mount, 'score.json').write_text(json.dumps({\n"
+        "            'categories': {'check': {'points': 1, 'max_points': 1, 'evidence': ['ok']}},\n"
+        "            'total': 1, 'pass_threshold': 1, 'critical_categories': ['check']}))\n"
+        "    if os.environ.get('FAIL_EVALUATOR') == '1':\n"
+        "        sys.exit(8)\n"
+        "    sys.exit(0)\n"
+        "sys.exit(0)\n"
+    )
+    docker.chmod(docker.stat().st_mode | stat.S_IXUSR)
+    output = tmp_path / "campaign"
+    env = os.environ | {
+        "PATH": f"{tmp_path}:{os.environ['PATH']}",
+        "DOCKER_CALLS": str(calls),
+        "DOCKER_IMAGES": str(images),
+        "DOCKER_VOLUMES": str(tmp_path / "volumes.txt"),
+    }
+    (tmp_path / ".env").write_text(
+        "EXPERIMENT_LLM_BASE_URL=http://model/v1\n"
+        "EXPERIMENT_TINYCUA_RECOVERY_STRATEGY=markdown_synthesis\n"
+        "JUDGE_MODEL=judge-a\n"
+    )
+    try:
+        first = _run_controlled(output, fixture_name, "tinycua", env, cwd=tmp_path)
+        first_calls = [json.loads(line) for line in calls.read_text().splitlines()]
+        second = _run_controlled(output, fixture_name, "opencode", env, cwd=tmp_path)
+        second_calls = [json.loads(line) for line in calls.read_text().splitlines()]
+
+        assert first.returncode == second.returncode == 0
+        metadata = json.loads((output / "run_metadata.json").read_text())
+        assert metadata["schema_version"] == 2
+        UUID(metadata["campaign_id"])
+        assert metadata["selected_agents"] == ["opencode", "tinycua"]
+        assert metadata["pairs"] == [
+            {"fixture": fixture_name, "agent": "opencode"},
+            {"fixture": fixture_name, "agent": "tinycua"},
+        ]
+        assert len(metadata["invocations"]) == 2
+        assert all(
+            set(invocation) >= {"ended_at", "status", "exit_code"}
+            for invocation in metadata["invocations"]
+        )
+        outcomes = json.loads((output / "outcomes.json").read_text())
+        assert set(outcomes["coding"][fixture_name]) == {"opencode", "tinycua"}
+        assert set(path.name for path in output.iterdir()) == {
+            "run_metadata.json",
+            "outcomes.json",
+            "stdout.log",
+            "stderr.log",
+            fixture_name,
+        }
+        for agent in ("opencode", "tinycua"):
+            pair = output / fixture_name / agent
+            assert set(path.name for path in pair.iterdir()) == {
+                "result.json",
+                "stdout.log",
+                "stderr.log",
+                "environment.json",
+                "workdir",
+            }
+            assert (pair / "workdir" / "app.py").is_file()
+            assert not (pair / "workdir" / ".venv").exists()
+
+        tinycua_state = (
+            f"tinycua-template-{metadata['campaign_id']}-"
+            f"{fixture_name.encode().hex()}-{b'tinycua'.hex()}"
+        )
+        assert sum(
+            command == ["volume", "rm", "--force", tinycua_state]
+            for command in first_calls
+        ) == 2
+        assert not any(tinycua_state in command for command in second_calls[len(first_calls) :])
+
+        complete_calls = len(second_calls)
+        skipped = _run_controlled(
+            output, fixture_name, "opencode", env, cwd=tmp_path
+        )
+        assert skipped.returncode == 0
+        assert len(calls.read_text().splitlines()) == complete_calls
+
+        result_path = output / fixture_name / "opencode" / "result.json"
+        old_opencode = result_path.read_bytes()
+        tinycua_result = output / fixture_name / "tinycua" / "result.json"
+        old_tinycua = tinycua_result.read_bytes()
+        replacement = _run_controlled(
+            output,
+            fixture_name,
+            "opencode",
+            env,
+            cwd=tmp_path,
+            overwrite=True,
+        )
+        assert replacement.returncode == 0
+        assert result_path.read_bytes() != old_opencode
+        assert tinycua_result.read_bytes() == old_tinycua
+        assert not list((output / fixture_name).glob(".opencode.*"))
+        complete_calls = len(calls.read_text().splitlines())
+
+        failed_result = json.loads(result_path.read_text())
+        failed_result.update(
+            {
+                "passed": False,
+                "status": "failed",
+                "evaluator_outcome": "failed",
+                "evaluator_exit_code": 1,
+            }
+        )
+        result_path.write_text(json.dumps(failed_result))
+        skipped_failure = _run_controlled(
+            output, fixture_name, "opencode", env, cwd=tmp_path
+        )
+        assert skipped_failure.returncode == 1
+        assert len(calls.read_text().splitlines()) == complete_calls
+
+        result_path.unlink()
+        (result_path.parent / "partial.tmp").write_text("interrupted")
+        rerun = _run_controlled(output, fixture_name, "opencode", env, cwd=tmp_path)
+        assert rerun.returncode == 0
+        rerun_calls = [json.loads(line) for line in calls.read_text().splitlines()][
+            complete_calls:
+        ]
+        assert not any(command[:1] == ["build"] for command in rerun_calls)
+        assert not (result_path.parent / "partial.tmp").exists()
+        assert result_path.is_file()
+        assert [command for command in first_calls if command[:1] == ["pull"]] == [
+            ["pull", "busybox:1.36"]
+        ]
+
+        old_result = result_path.read_bytes()
+        previous = result_path.parent.with_name(".opencode.previous")
+        staging = result_path.parent.with_name(".opencode.staging")
+        tinycua_previous = tinycua_result.parent.with_name(".tinycua.previous")
+        result_path.parent.replace(previous)
+        tinycua_result.parent.replace(tinycua_previous)
+        staging.mkdir()
+        (staging / "partial.tmp").write_text("interrupted replacement")
+        image_ids = json.loads(images.read_text())
+        external_id = image_ids.pop("busybox:1.36")
+        images.write_text(json.dumps(image_ids))
+        before_recovery = len(calls.read_text().splitlines())
+
+        recovered = _run_controlled(
+            output, fixture_name, "opencode", env, cwd=tmp_path
+        )
+
+        recovery_calls = [
+            json.loads(line)
+            for line in calls.read_text().splitlines()[before_recovery:]
+        ]
+        assert recovered.returncode == 0
+        assert result_path.read_bytes() == old_result
+        assert tinycua_result.is_file()
+        assert not previous.exists()
+        assert not tinycua_previous.exists()
+        assert not staging.exists()
+        assert not any(
+            command[:1] == ["compose"] and "run" in command
+            for command in recovery_calls
+        )
+        image_ids["busybox:1.36"] = external_id
+        images.write_text(json.dumps(image_ids))
+
+        before_mismatch = len(calls.read_text().splitlines())
+        (tmp_path / ".env").write_text(
+            "EXPERIMENT_LLM_BASE_URL=http://model/v1\n"
+            "EXPERIMENT_TINYCUA_RECOVERY_STRATEGY=markdown_synthesis\n"
+            "JUDGE_MODEL=judge-b\n"
+        )
+        judge_only = _run_controlled(
+            output, fixture_name, "opencode", env, cwd=tmp_path
+        )
+        assert judge_only.returncode == 0
+        assert len(calls.read_text().splitlines()) == before_mismatch
+
+        (tmp_path / ".env").write_text(
+            "EXPERIMENT_LLM_BASE_URL=http://different-model/v1\n"
+            "EXPERIMENT_TINYCUA_RECOVERY_STRATEGY=markdown_synthesis\n"
+            "JUDGE_MODEL=judge-b\n"
+        )
+        mismatch = _run_controlled(
+            output, fixture_name, "opencode", env, cwd=tmp_path, overwrite=True
+        )
+        assert mismatch.returncode == 2
+        assert "model_settings" in mismatch.stderr
+        assert len(calls.read_text().splitlines()) == before_mismatch
+        assert result_path.is_file()
+
+        (tmp_path / ".env").write_text(
+            "EXPERIMENT_LLM_BASE_URL=http://model/v1\n"
+            "EXPERIMENT_TINYCUA_RECOVERY_STRATEGY=full_replay\n"
+            "JUDGE_MODEL=judge-b\n"
+        )
+        recovery_mismatch = _run_controlled(
+            output, fixture_name, "opencode", env, cwd=tmp_path, overwrite=True
+        )
+        assert recovery_mismatch.returncode == 2
+        assert len(calls.read_text().splitlines()) == before_mismatch
+
+        (tmp_path / ".env").write_text(
+            "EXPERIMENT_LLM_BASE_URL=http://model/v1\n"
+            "EXPERIMENT_TINYCUA_RECOVERY_STRATEGY=markdown_synthesis\n"
+            "JUDGE_MODEL=judge-b\n"
+        )
+        image_ids = json.loads(images.read_text())
+        external_id = image_ids.pop("busybox:1.36")
+        images.write_text(json.dumps(image_ids))
+        old_result_before_image_failure = result_path.read_bytes()
+
+        unavailable_image = _run_controlled(
+            output,
+            fixture_name,
+            "opencode",
+            env,
+            cwd=tmp_path,
+            overwrite=True,
+        )
+
+        assert unavailable_image.returncode == 2
+        assert result_path.read_bytes() == old_result_before_image_failure
+        assert not list((output / fixture_name).glob(".opencode.*"))
+        image_ids["busybox:1.36"] = external_id
+        images.write_text(json.dumps(image_ids))
+
+        old_pair_before_execution_failure = {
+            path.relative_to(result_path.parent): path.read_bytes()
+            for path in result_path.parent.rglob("*")
+            if path.is_file()
+        }
+        execution_failure = _run_controlled(
+            output,
+            fixture_name,
+            "opencode",
+            env | {"FAIL_EVALUATOR": "1"},
+            cwd=tmp_path,
+            overwrite=True,
+        )
+        assert execution_failure.returncode == 1
+        assert old_pair_before_execution_failure == {
+            path.relative_to(result_path.parent): path.read_bytes()
+            for path in result_path.parent.rglob("*")
+            if path.is_file()
+        }
+        assert not list((output / fixture_name).glob(".opencode.*"))
+
+        image_ids.pop(f"tinycua-template-{fixture_name}-opencode")
+        images.write_text(json.dumps(image_ids))
+        old_pair = {
+            path.relative_to(result_path.parent): path.read_bytes()
+            for path in result_path.parent.rglob("*")
+            if path.is_file()
+        }
+
+        overwrite_failure = _run_controlled(
+            output,
+            fixture_name,
+            "opencode",
+            env | {"FAIL_DECORATOR": "1"},
+            cwd=tmp_path,
+            overwrite=True,
+        )
+
+        assert overwrite_failure.returncode == 1
+        assert old_pair == {
+            path.relative_to(result_path.parent): path.read_bytes()
+            for path in result_path.parent.rglob("*")
+            if path.is_file()
+        }
+        assert not list((output / fixture_name).glob(".opencode.*"))
+        final_metadata = json.loads((output / "run_metadata.json").read_text())
+        assert final_metadata["invocations"][-1]["status"] == "failed"
+        assert final_metadata["invocations"][-1]["exit_code"] == 1
+        assert all(
+            set(invocation) >= {"ended_at", "status", "exit_code"}
+            for invocation in final_metadata["invocations"]
+        )
+    finally:
+        shutil.rmtree(fixture)
+
+
+def test_controlled_campaign_upgrades_valid_schema_v1_metadata(tmp_path: Path) -> None:
+    """A real legacy layout is compacted once without rerunning its pair."""
+    fixture_name = "test-campaign-v1"
+    fixture = FIXTURES / fixture_name
+    (fixture / "workdir").mkdir(parents=True)
+    (fixture / "eval").mkdir()
+    (fixture / "manifest.yaml").write_text(
+        "prompt: Reply.\neval_image: busybox:1.36\neval_command: ['true']\n"
+    )
+    output = tmp_path / "campaign"
+    run_root = output / fixture_name / "tinycua"
+    (run_root / "workdir" / ".venv" / "bin").mkdir(parents=True)
+    (run_root / "workdir" / "answer.txt").write_text("done\n")
+    (run_root / "workdir" / ".venv" / "bin" / "python").write_text("cache\n")
+    (run_root / "agent.stdout.log").write_text("legacy answer\n")
+    (run_root / "agent.stderr.log").write_text("legacy agent warning\n")
+    (run_root / "eval.stdout.log").write_text("legacy evaluator output\n")
+    (run_root / "eval.stderr.log").write_text("")
+    (run_root / "workspace-seed.stdout.log").write_text("legacy transfer\n")
+    (run_root / "workspace-seed.stderr.log").write_text("")
+    (run_root / "container_environment.json").write_text(
+        json.dumps({"EXPERIMENT_PROMPT": "Reply."})
+    )
+    (run_root / "evaluator-result").mkdir()
+    score = {
+        "categories": {
+            "check": {"points": 1, "max_points": 1, "evidence": ["ok"]}
+        },
+        "total": 1,
+        "pass_threshold": 1,
+        "critical_categories": ["check"],
+    }
+    (run_root / "evaluator-result" / "score.json").write_text(json.dumps(score))
+    (run_root / "result.json").write_text(
+        json.dumps(
+            {
+                "fixture": fixture_name,
+                "agent": "tinycua",
+                "state_volume": "legacy-state",
+                "started_at": "2026-07-01T00:00:00+00:00",
+                "ended_at": "2026-07-01T00:00:01+00:00",
+                "elapsed_prompt_to_finish_seconds": 1.0,
+                "stdout_path": "agent.stdout.log",
+                "stderr_path": "agent.stderr.log",
+                "agent_exit_code": 0,
+                "sanitized_environment": "container_environment.json",
+                "evaluator_exit_code": 0,
+                "evaluator_outcome": "passed",
+                "passed": True,
+                "score": score,
+            }
+        )
+    )
+    output.mkdir(exist_ok=True)
+    (output / "tinycua-build.stdout.log").write_text("legacy build output\n")
+    (output / "tinycua-build.stderr.log").write_text("")
+    (tmp_path / ".env").write_text("JUDGE_MODEL=ignored\n")
+    _, effective_environment = runner._agent_compose_environments(
+        tmp_path / ".env", ""
+    )
+    (output / "run_metadata.json").write_text(
+        json.dumps(
+            {
+                "result_generation_commit": "legacy-commit",
+                "working_tree_dirty": False,
+                "selected_fixtures": [fixture_name],
+                "selected_agents": ["tinycua"],
+                "agent_configurations": {
+                    "tinycua": {
+                        "service": "tinycua",
+                        "no_digest": False,
+                        "no_review": False,
+                    }
+                },
+                "fixtures": {
+                    fixture_name: {
+                        "outcome_group": "coding",
+                        "fixture_revision": runner.tree_revision(fixture),
+                        "evaluator_revision": runner.tree_revision(fixture / "eval"),
+                    }
+                },
+                "images": {
+                    "harnesses": {},
+                    "evaluators": {},
+                    "candidates": {},
+                },
+                "harness_versions": {},
+                "model_settings": runner._model_settings(effective_environment),
+                "sampling_settings": {
+                    "temperature": None,
+                    "top_p": None,
+                    "seed": None,
+                },
+                "timeout_seconds": 14_400,
+                "trial_policy": runner.TRIAL_POLICY,
+                "overwrite": False,
+                "state_reset_on_overwrite": False,
+            }
+        )
+    )
+    docker = tmp_path / "docker"
+    calls = tmp_path / "calls.jsonl"
+    docker.write_text(
+        "#!/bin/sh\n"
+        f"touch '{calls}'\n"
+        "exit 99\n"
+    )
+    docker.chmod(docker.stat().st_mode | stat.S_IXUSR)
+    env = os.environ | {"PATH": f"{tmp_path}:{os.environ['PATH']}"}
+    try:
+        resumed = _run_controlled(
+            output, fixture_name, "tinycua", env, cwd=tmp_path
+        )
+
+        metadata_path = output / "run_metadata.json"
+        upgraded = json.loads(metadata_path.read_text())
+        pair_result = json.loads((run_root / "result.json").read_text())
+        assert resumed.returncode == 0
+        assert upgraded["schema_version"] == 2
+        UUID(upgraded["campaign_id"])
+        assert upgraded["pairs"] == [{"fixture": fixture_name, "agent": "tinycua"}]
+        assert upgraded["invocations"][-1]["agents"] == ["tinycua"]
+        assert upgraded["invocations"][-1]["status"] == "passed"
+        assert not calls.exists()
+        assert set(path.name for path in output.iterdir()) == {
+            "run_metadata.json",
+            "outcomes.json",
+            "stdout.log",
+            "stderr.log",
+            fixture_name,
+        }
+        assert set(path.name for path in run_root.iterdir()) == {
+            "result.json",
+            "stdout.log",
+            "stderr.log",
+            "environment.json",
+            "workdir",
+        }
+        assert "legacy build output" in (output / "stdout.log").read_text()
+        assert "legacy answer" in (run_root / "stdout.log").read_text()
+        assert "legacy evaluator output" in (run_root / "stdout.log").read_text()
+        assert not (run_root / "workdir" / ".venv").exists()
+        assert pair_result["schema_version"] == 2
+        assert pair_result["stdout_path"] == "stdout.log"
+        assert pair_result["sanitized_environment"] == "environment.json"
+        first_stdout = (run_root / "stdout.log").read_text()
+
+        resumed_again = _run_controlled(
+            output, fixture_name, "tinycua", env, cwd=tmp_path
+        )
+
+        assert resumed_again.returncode == 0
+        assert (run_root / "stdout.log").read_text() == first_stdout
+        assert not calls.exists()
+    finally:
+        shutil.rmtree(fixture)
+
+
+def test_controlled_campaign_rejects_pair_dirs_without_metadata(tmp_path: Path) -> None:
+    """An ambiguous result root fails before invoking Docker."""
+    output = tmp_path / "campaign"
+    (output / "smoke-test" / "tinycua").mkdir(parents=True)
+    docker = tmp_path / "docker"
+    marker = tmp_path / "docker-called"
+    docker.write_text(
+        "#!/bin/sh\n"
+        f"touch '{marker}'\n"
+    )
+    docker.chmod(docker.stat().st_mode | stat.S_IXUSR)
+    env = os.environ | {"PATH": f"{tmp_path}:{os.environ['PATH']}"}
+
+    completed = _run_controlled(output, "smoke-test", "tinycua", env)
+
+    assert completed.returncode == 2
+    assert "run_metadata.json" in completed.stderr
+    assert not marker.exists()
 
 
 def test_experiment_one_evaluator_rejects_seed_and_accepts_correct_submission(
@@ -300,10 +848,14 @@ def test_controlled_runner_records_agent_telemetry_before_delayed_evaluation(
         "from pathlib import Path\n"
         "with open(os.environ['DOCKER_CALLS'], 'a') as stream:\n"
         "    stream.write(json.dumps(sys.argv[1:]) + '\\n')\n"
-        "args = sys.argv[1:]\n" + VOLUME_TRANSFER_STUB + "if args[:1] == ['run']:\n"
+        "args = sys.argv[1:]\n"
+        + IMAGE_INSPECT_STUB
+        + VOLUME_TRANSFER_STUB
+        + "if args[:1] == ['run']:\n"
         "    time.sleep(1)\n"
         "    sys.exit(int(os.environ['EVALUATOR_CODE']))\n"
         "if args[:1] == ['compose']:\n"
+        "    print('agent-only-output')\n"
         "    sys.exit(int(os.environ['AGENT_CODE']))\n"
     )
     docker.chmod(docker.stat().st_mode | stat.S_IXUSR)
@@ -370,6 +922,10 @@ def test_controlled_runner_records_agent_telemetry_before_delayed_evaluation(
     assert evaluator[0] == "run"
     assert any(mount.endswith(":/submission:ro") for mount in evaluator)
     assert any(mount.endswith(":/eval:ro") for mount in evaluator)
+    assert any(
+        mount.endswith("/.agent.stdout.log:/agent-output/agent.stdout.log:ro")
+        for mount in evaluator
+    )
     assert evaluator[-(len(eval_command) + 1) :] == [
         eval_image,
         *eval_command,
@@ -382,9 +938,15 @@ def test_controlled_runner_records_agent_telemetry_before_delayed_evaluation(
         "passed" if evaluator_code == 0 else "failed"
     )
     assert pair_result["passed"] is (evaluator_code == 0)
-    assert pair_result["stdout_path"] == "agent.stdout.log"
-    assert pair_result["stderr_path"] == "agent.stderr.log"
+    assert pair_result["schema_version"] == 2
+    assert pair_result["stdout_path"] == "stdout.log"
+    assert pair_result["stderr_path"] == "stderr.log"
+    assert pair_result["sanitized_environment"] == "environment.json"
     assert (run_root / pair_result["sanitized_environment"]).is_file()
+    assert "=== agent ===\nagent-only-output\n" in (
+        run_root / "stdout.log"
+    ).read_text()
+    assert not (run_root / ".agent.stdout.log").exists()
     assert "--name" in agent
     assert "--name" in evaluator
     metadata = json.loads((output / "run_metadata.json").read_text())
@@ -426,9 +988,10 @@ def test_controlled_runner_records_fixture_image_build_failure(tmp_path: Path) -
     docker = tmp_path / "docker"
     docker.write_text(
         "#!/usr/bin/env python3\n"
-        "import sys\n"
+        "import json, sys\n"
         "args = sys.argv[1:]\n"
-        "if args[:1] == ['build'] and 'tinycua-template-test-fixture-build-failure-opencode' in args:\n"
+        + IMAGE_INSPECT_STUB
+        + "if args[:1] == ['build'] and 'tinycua-template-test-fixture-build-failure-opencode' in args:\n"
         "    sys.exit(7)\n"
     )
     docker.chmod(docker.stat().st_mode | stat.S_IXUSR)
@@ -461,6 +1024,7 @@ def test_controlled_runner_records_fixture_image_build_failure(tmp_path: Path) -
     assert pair_result["agent_exit_code"] == 125
     assert pair_result["evaluator_exit_code"] == 125
     assert pair_result["passed"] is False
+    assert (run_root / "workdir").is_dir()
     assert "fixture image build failed exit_code=7" in completed.stdout
 
 
@@ -477,7 +1041,10 @@ def test_controlled_runner_embeds_valid_evaluator_score(tmp_path: Path) -> None:
         "#!/usr/bin/env python3\n"
         "import json, os, shutil, sys\n"
         "from pathlib import Path\n"
-        "args = sys.argv[1:]\n" + VOLUME_TRANSFER_STUB + "if args[:1] == ['run']:\n"
+        "args = sys.argv[1:]\n"
+        + IMAGE_INSPECT_STUB
+        + VOLUME_TRANSFER_STUB
+        + "if args[:1] == ['run']:\n"
         "    result = next(arg[:-8] for arg in args if arg.endswith(':/result'))\n"
         "    Path(result, 'score.json').write_text(json.dumps({\n"
         "        'categories': {'checks': {'points': 100, 'max_points': 100, 'evidence': ['stub passed']}},\n"
@@ -543,7 +1110,8 @@ def test_controlled_runner_builds_submission_on_host_before_evaluation(
         "import json, os, shutil, sys\n"
         "from pathlib import Path\n"
         "args = sys.argv[1:]\n"
-        "with open(os.environ['DOCKER_CALLS'], 'a') as stream:\n"
+        + IMAGE_INSPECT_STUB
+        + "with open(os.environ['DOCKER_CALLS'], 'a') as stream:\n"
         "    stream.write(json.dumps(args) + '\\n')\n"
         + VOLUME_TRANSFER_STUB
         + "if args[:1] == ['build'] and os.environ['SUBMISSION_DOCKERFILE'] in args:\n"
@@ -595,12 +1163,12 @@ def test_controlled_runner_builds_submission_on_host_before_evaluation(
         if command[:1] == ["build"] and env["SUBMISSION_DOCKERFILE"] in command
     )
     assert submission_build[-1] == str(run_root / "workdir")
-    assert (
-        run_root / "submission-build.stdout.log"
-    ).read_text() == "submission build output\n"
-    assert (
-        run_root / "submission-build.stderr.log"
-    ).read_text() == "submission build error\n"
+    assert "=== submission-build ===\nsubmission build output\n" in (
+        run_root / "stdout.log"
+    ).read_text()
+    assert "=== submission-build ===\nsubmission build error\n" in (
+        run_root / "stderr.log"
+    ).read_text()
     pair_result = json.loads((run_root / "result.json").read_text())
     assert result.returncode == int(build_code != 0)
     assert pair_result["passed"] is (build_code == 0)
@@ -632,7 +1200,8 @@ def test_controlled_runner_rejects_undeclared_nested_submission_dependencies(
         "import json, os, shutil, sys\n"
         "from pathlib import Path\n"
         "args = sys.argv[1:]\n"
-        "with open(os.environ['DOCKER_CALLS'], 'a') as stream:\n"
+        + IMAGE_INSPECT_STUB
+        + "with open(os.environ['DOCKER_CALLS'], 'a') as stream:\n"
         "    stream.write(json.dumps(args) + '\\n')\n" + VOLUME_TRANSFER_STUB
     )
     docker.chmod(docker.stat().st_mode | stat.S_IXUSR)
@@ -670,7 +1239,7 @@ def test_controlled_runner_rejects_undeclared_nested_submission_dependencies(
     assert pair_result["passed"] is False
     assert (
         "undeclared nested submission dependency manifest"
-        in (run_root / "eval.stderr.log").read_text()
+        in (run_root / "stderr.log").read_text()
     )
     commands = [json.loads(line) for line in calls.read_text().splitlines()]
     assert not any(command[:1] == ["run"] for command in commands)
@@ -694,7 +1263,9 @@ def test_controlled_runner_records_agent_and_evaluator_timeouts(
         "import json, os, sys, time\n"
         "with open(os.environ['DOCKER_CALLS'], 'a') as stream:\n"
         "    stream.write(json.dumps(sys.argv[1:]) + '\\n')\n"
-        "mode = os.environ['TIMEOUT_MODE']\n"
+        "args = sys.argv[1:]\n"
+        + IMAGE_INSPECT_STUB
+        + "mode = os.environ['TIMEOUT_MODE']\n"
         "is_agent = sys.argv[1:2] == ['compose']\n"
         "is_evaluator = sys.argv[1:2] == ['run']\n"
         "if (mode == 'agent' and is_agent) or (mode == 'evaluator' and is_evaluator):\n"
@@ -740,12 +1311,9 @@ def test_controlled_runner_records_agent_and_evaluator_timeouts(
     assert result.returncode == int(timed_out == "evaluator")
     assert result_json[f"{timed_out}_exit_code"] == 124
     assert result_json["passed"] is (timed_out == "agent")
-    log_name = "eval" if timed_out == "evaluator" else timed_out
-    assert (
-        "Timed out after 1 seconds" in (run_root / f"{log_name}.stderr.log").read_text()
-    )
-    assert secret not in (run_root / f"{log_name}.stdout.log").read_text()
-    assert secret not in (run_root / f"{log_name}.stderr.log").read_text()
+    assert "Timed out after 1 seconds" in (run_root / "stderr.log").read_text()
+    assert secret not in (run_root / "stdout.log").read_text()
+    assert secret not in (run_root / "stderr.log").read_text()
     commands = [
         json.loads(line)
         for line in (tmp_path / "calls.jsonl").read_text().splitlines()
@@ -764,6 +1332,79 @@ def test_controlled_runner_records_agent_and_evaluator_timeouts(
     if timed_out == "agent":
         assert commands[cleanup_index + 1][:2] == ["container", "ls"]
         assert any(command[0] == "run" for command in commands[cleanup_index + 2 :])
+
+
+def test_evaluator_timeout_cleanup_failure_stops_before_later_pairs(
+    tmp_path: Path,
+) -> None:
+    """Unsafe evaluator cleanup is retained in the result and halts the campaign."""
+    fixture_name = "test-evaluator-cleanup-stop"
+    fixture = FIXTURES / fixture_name
+    (fixture / "workdir").mkdir(parents=True)
+    (fixture / "eval").mkdir()
+    (fixture / "manifest.yaml").write_text(
+        "prompt: Make the change.\neval_image: busybox\neval_command: ['true']\n"
+    )
+    docker = tmp_path / "docker"
+    calls = tmp_path / "calls.jsonl"
+    docker.write_text(
+        "#!/usr/bin/env python3\n"
+        "import json, os, sys, time\n"
+        "with open(os.environ['DOCKER_CALLS'], 'a') as stream:\n"
+        "    stream.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+        "args = sys.argv[1:]\n"
+        "if args[:2] == ['image', 'inspect']:\n"
+        "    print(json.dumps({'Id': 'sha256:' + args[2], 'RepoDigests': []}))\n"
+        "    sys.exit(0)\n"
+        "if args[:1] == ['run']:\n"
+        "    time.sleep(2)\n"
+        "if args[:2] == ['rm', '--force'] and '-evaluator-' in args[2]:\n"
+        "    sys.exit(1)\n"
+        "sys.exit(0)\n"
+    )
+    docker.chmod(docker.stat().st_mode | stat.S_IXUSR)
+    output = tmp_path / "campaign"
+    env = os.environ | {
+        "PATH": f"{tmp_path}:{os.environ['PATH']}",
+        "DOCKER_CALLS": str(calls),
+    }
+    try:
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "run_template_experiment.py"),
+                "--fixtures",
+                fixture_name,
+                "--agents",
+                "opencode,hermes",
+                "--timeout-seconds",
+                "1",
+                "--output-root",
+                str(output),
+            ],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    finally:
+        shutil.rmtree(fixture)
+
+    result = json.loads(
+        (output / fixture_name / "opencode" / "result.json").read_text()
+    )
+    commands = [json.loads(line) for line in calls.read_text().splitlines()]
+    agent_runs = [
+        command
+        for command in commands
+        if command[:1] == ["compose"] and "run" in command
+    ]
+    assert completed.returncode == 1
+    assert result["evaluator_exit_code"] == 124
+    assert result["failure_stage"] == "evaluator_cleanup"
+    assert len(agent_runs) == 1
+    assert agent_runs[0][-1] == "opencode"
 
 
 @pytest.mark.parametrize("cleanup_mode", ("failed", "hung"))
@@ -785,7 +1426,9 @@ def test_controlled_runner_stops_after_failed_or_hung_timeout_cleanup(
         "import json, os, sys, time\n"
         "with open(os.environ['DOCKER_CALLS'], 'a') as stream:\n"
         "    stream.write(json.dumps(sys.argv[1:]) + '\\n')\n"
-        "if sys.argv[1:3] == ['rm', '--force'] and 'workspace-' not in sys.argv[3]:\n"
+        "args = sys.argv[1:]\n"
+        + IMAGE_INSPECT_STUB
+        + "if sys.argv[1:3] == ['rm', '--force'] and 'workspace-' not in sys.argv[3]:\n"
         "    if os.environ['CLEANUP_MODE'] == 'failed':\n"
         "        sys.exit(1)\n"
         "    time.sleep(2)\n"
@@ -830,7 +1473,7 @@ def test_controlled_runner_stops_after_failed_or_hung_timeout_cleanup(
     assert result_json["agent_exit_code"] == 124
     assert result_json["evaluator_exit_code"] == 125
     assert result_json["passed"] is False
-    assert "cleanup" in (run_root / "agent.stderr.log").read_text().lower()
+    assert "cleanup" in (run_root / "stderr.log").read_text().lower()
     assert not any(command[0] == "run" for command in commands)
     assert sum(command[0] == "compose" for command in commands) == 1
 
@@ -854,8 +1497,10 @@ def test_controlled_runner_redacts_configured_secret_from_all_pair_artifacts(
     docker = tmp_path / "docker"
     docker.write_text(
         "#!/usr/bin/env python3\n"
-        "import os, sys\n"
-        "if sys.argv[1:2] in (['compose'], ['run']):\n"
+        "import json, os, sys\n"
+        "args = sys.argv[1:]\n"
+        + IMAGE_INSPECT_STUB
+        + "if sys.argv[1:2] in (['compose'], ['run']):\n"
         "    print(os.environ['STUB_SECRET'])\n"
         "    print(os.environ['STUB_SECRET'], file=sys.stderr)\n"
     )

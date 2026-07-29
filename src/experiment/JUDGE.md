@@ -38,7 +38,10 @@ Semantic mode reads `template-results/<fixture>/<agent>/`, anonymizes every
 completed submission as `A`, `B`, and so on, and writes its verdict to
 `template-results/<fixture>/cross_verdict/`. It sees deterministic evaluator
 outcomes as context, then compares qualitative strengths and weaknesses rather
-than acting as the primary correctness judge.
+than acting as the primary correctness judge. Submission workdir, stdout, and
+environment locations come from `result.json`; schema-v1 artifact names remain
+supported as a fallback. For schema-v2 conversational submissions, only the
+`agent` stage is copied from consolidated `stdout.log`.
 
 Legacy judging remains available only when explicitly requested with `--num`.
 Use `docker compose exec` to run ad-hoc legacy-profile commands:

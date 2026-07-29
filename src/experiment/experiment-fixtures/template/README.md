@@ -119,10 +119,11 @@ submission_dockerfile: Dockerfile
 ```
 
 After the agent finishes, the host runner runs a bounded `docker build` using
-the copied `workdir/` as context. It writes `submission-build.stdout.log` and
-`submission-build.stderr.log` beside `result.json`; a failed build skips the
-evaluator and fails the pair. This remains host-owned even though the agent
-runs in Docker, so neither the agent nor evaluator receives Docker access.
+the copied `workdir/` as context. Its output is stored under a
+`submission-build` header in the pair's `stdout.log` and `stderr.log`; a failed
+build skips the evaluator and fails the pair. This remains host-owned even
+though the agent runs in Docker, so neither the agent nor evaluator receives
+Docker access.
 
 ## `docker/Dockerfile`
 
@@ -145,11 +146,11 @@ From `src/experiment`:
 ```sh
 uv run python run_template_experiment.py \
   --fixtures my-experiment \
-  --agents tinycua \
-  --overwrite
+  --agents tinycua
 ```
 
-Results are written under `template-results/my-experiment/<agent>/`. Read
-`result.json` for the evaluator result and agent timing; logs and the sanitized
-container environment snapshot are stored beside it. The evaluator's optional
-`score.json` remains under `evaluator-result/` beside those artifacts.
+Reusing the same output root resumes complete pairs; `--overwrite` replaces
+only selected pairs. Results contain schema-v2 `result.json`, consolidated
+`stdout.log` and `stderr.log`, `environment.json`, and a cleaned `workdir/`.
+Optional evaluator scores are embedded in `result.json`; evaluator scratch is
+removed.

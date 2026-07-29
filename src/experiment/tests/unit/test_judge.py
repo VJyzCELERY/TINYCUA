@@ -4,6 +4,8 @@ import json
 import subprocess
 from pathlib import Path
 
+import judge
+
 from judge import (
     _copy_workdir,
     _container_path,
@@ -260,7 +262,12 @@ def test_discover_submissions_finds_dynamic_template_pairs(tmp_path: Path) -> No
     """On-disk discovery returns only pairs whose result.json exists."""
     fixture = "experiment-4"
     root = tmp_path / "template-results"
-    for agent, complete in (("opencode", True), ("hermes", False), ("tinycua", True)):
+    for agent, complete in (
+        ("opencode", True),
+        ("hermes", False),
+        ("tinycua", True),
+        (".opencode.previous", True),
+    ):
         run_dir = root / fixture / agent
         run_dir.mkdir(parents=True)
         (run_dir / "workdir").mkdir()
@@ -287,6 +294,67 @@ def test_discover_submissions_finds_dynamic_template_pairs(tmp_path: Path) -> No
     found_agents = {pair["agent"] for pair in found}
     assert found_agents == {"opencode", "tinycua"}
     assert all((root / fixture / pair["agent"] / "result.json").is_file() for pair in found)
+
+
+def test_discover_submissions_uses_result_paths_with_legacy_fallback(
+    tmp_path: Path,
+) -> None:
+    """Semantic discovery follows schema-v2 paths and still reads legacy runs."""
+    fixture = "experiment-4"
+    root = tmp_path / "template-results"
+    modern = root / fixture / "opencode"
+    legacy = root / fixture / "tinycua"
+    for run_dir in (modern, legacy):
+        (run_dir / "workdir").mkdir(parents=True)
+    (modern / "submission").mkdir()
+    (modern / "combined.log").write_text("modern output\n")
+    (modern / "safe-env.json").write_text(
+        json.dumps({"EXPERIMENT_PROMPT": "Modern prompt"})
+    )
+    (modern / "result.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "fixture": fixture,
+                "agent": "opencode",
+                "passed": True,
+                "workdir_path": "submission",
+                "stdout_path": "combined.log",
+                "sanitized_environment": "safe-env.json",
+            }
+        )
+    )
+    (legacy / "agent.stdout.log").write_text("legacy output\n")
+    (legacy / "container_environment.json").write_text(
+        json.dumps({"EXPERIMENT_PROMPT": "Legacy prompt"})
+    )
+    (legacy / "result.json").write_text(
+        json.dumps({"fixture": fixture, "agent": "tinycua", "passed": False})
+    )
+
+    found = {submission["agent"]: submission for submission in discover_submissions(fixture, root)}
+
+    assert found["opencode"]["workdir"] == modern / "submission"
+    assert found["opencode"]["stdout_path"] == modern / "combined.log"
+    assert found["opencode"]["environment_path"] == modern / "safe-env.json"
+    assert found["tinycua"]["workdir"] == legacy / "workdir"
+    assert found["tinycua"]["stdout_path"] == legacy / "agent.stdout.log"
+    assert found["tinycua"]["environment_path"] == legacy / "container_environment.json"
+
+
+def test_semantic_stdout_extracts_only_schema_v2_agent_stage(tmp_path: Path) -> None:
+    """Conversational fallback excludes transfer and evaluator diagnostics."""
+    consolidated = tmp_path / "stdout.log"
+    consolidated.write_text(
+        "=== workspace/seed/create ===\nseed noise\n"
+        "=== agent ===\nagent answer\n"
+        "=== evaluator ===\nevaluator noise\n"
+    )
+
+    assert judge._semantic_stdout(
+        consolidated, {"schema_version": 2}
+    ) == "agent answer\n"
+    assert judge._semantic_stdout(consolidated, {}) == consolidated.read_text()
 
 
 # --- build_semantic_judge_prompt ---

@@ -17,13 +17,11 @@ from run_template_experiment import (
     build_evaluator_command,
     container_name,
     discover_fixtures,
-    evaluator_base_agents,
     parse_agents,
     parse_score,
     parse_args,
     _restart_searxng,
     state_volume_name,
-    write_run_metadata,
     workspace_volume_name,
     write_result,
 )
@@ -113,15 +111,6 @@ def test_tinycua_ablation_aliases_are_selectable_without_changing_defaults() -> 
 
     assert AGENTS == ("opencode", "hermes", "openclaw", "tinycua")
     assert parse_agents(",".join(("tinycua", *aliases))) == ("tinycua", *aliases)
-    fixture = Fixture(
-        "greeting",
-        "Reply.",
-        "busybox",
-        ("true",),
-        Path("fixture"),
-        Path("fixture/docker/Dockerfile"),
-    )
-    assert evaluator_base_agents((fixture,), aliases) == ("tinycua",)
 
 
 @pytest.mark.parametrize(
@@ -152,44 +141,6 @@ def test_tinycua_ablation_aliases_share_service_and_set_flags(
     assert f"EXPERIMENT_TINYCUA_NO_REVIEW={review}" in command
     assert f"{state_volume_name('fixture', agent)}:/state" in command
     assert f"{workspace_volume_name('fixture', agent)}:/workspace" in command
-
-
-def test_run_metadata_records_tinycua_ablation_configuration(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Results preserve the logical variant and its effective runtime controls."""
-    fixture = Fixture(
-        "greeting",
-        "Reply.",
-        "busybox",
-        ("true",),
-        tmp_path,
-        tmp_path / "docker" / "Dockerfile",
-    )
-    (tmp_path / "eval").mkdir()
-    monkeypatch.setattr(runner, "_git_value", lambda *_: "revision")
-    monkeypatch.setattr(
-        runner, "_image_identity", lambda image: {"reference": image}
-    )
-    metadata_path = tmp_path / "run_metadata.json"
-
-    write_run_metadata(
-        metadata_path,
-        (fixture,),
-        ("tinycua", "tinycua-nr", "tinycua-nd", "tinycua-nd-nr"),
-        {"tinycua": "tinycua-template-tinycua-base"},
-        60,
-        False,
-        {},
-    )
-
-    metadata = json.loads(metadata_path.read_text())
-    assert metadata["agent_configurations"] == {
-        "tinycua": {"service": "tinycua", "no_digest": False, "no_review": False},
-        "tinycua-nr": {"service": "tinycua", "no_digest": False, "no_review": True},
-        "tinycua-nd": {"service": "tinycua", "no_digest": True, "no_review": False},
-        "tinycua-nd-nr": {"service": "tinycua", "no_digest": True, "no_review": True},
-    }
 
 
 def test_submission_dependency_scan_ignores_generated_virtualenv(
@@ -226,20 +177,6 @@ def test_workspace_and_state_volumes_isolate_pairs() -> None:
     assert state_volume_name("task_a", "opencode") == state_volume_name(
         "task_a", "opencode"
     )
-
-
-def test_evaluator_base_agents_adds_tinycua_for_local_python_evaluators() -> None:
-    """Local Python evaluators work even when TinyCUA is not selected as an agent."""
-    fixture = Fixture(
-        "report",
-        "Write a report.",
-        "tinycua-template-tinycua-base",
-        ("sh", "/eval/run.sh", "/submission"),
-        Path("fixture"),
-        Path("fixture/docker/Dockerfile"),
-    )
-
-    assert evaluator_base_agents((fixture,), ("opencode",)) == ("opencode", "tinycua")
 
 
 def test_docker_commands_isolate_agent_and_evaluator(tmp_path: Path) -> None:
@@ -505,40 +442,6 @@ def test_run_disconnects_child_stdin(
     assert captured["stdin"] is subprocess.DEVNULL
 
 
-def test_reset_state_volumes_skips_opencode(monkeypatch: pytest.MonkeyPatch) -> None:
-    """OpenCode uses an ephemeral home while other harnesses keep pair state."""
-    calls: list[list[str]] = []
-
-    def fake_run(
-        command: list[str], **_kwargs: object
-    ) -> subprocess.CompletedProcess[str]:
-        calls.append(command)
-        return subprocess.CompletedProcess(command, 0, "", "")
-
-    fixture = Fixture(
-        "greeting",
-        "Reply.",
-        "busybox",
-        ("true",),
-        Path("fixture"),
-        Path("fixture/docker/Dockerfile"),
-    )
-    monkeypatch.setattr(runner.subprocess, "run", fake_run)
-
-    runner._reset_state_volumes((fixture,), ("opencode", "openclaw", "tinycua"), 1)
-
-    assert calls == [
-        [
-            "docker",
-            "volume",
-            "rm",
-            "--force",
-            state_volume_name("greeting", "openclaw"),
-        ],
-        ["docker", "volume", "rm", "--force", state_volume_name("greeting", "tinycua")],
-    ]
-
-
 def test_restart_searxng_restarts_once_and_survives_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -562,8 +465,8 @@ def test_restart_searxng_restarts_once_and_survives_failure(
 def test_write_result_is_portable_and_sanitizes_environment(tmp_path: Path) -> None:
     """The per-pair result contains safe, portable execution evidence."""
     result_path = tmp_path / "result.json"
-    stdout = tmp_path / "agent.stdout.log"
-    stderr = tmp_path / "agent.stderr.log"
+    stdout = tmp_path / "stdout.log"
+    stderr = tmp_path / "stderr.log"
     stdout.write_text("agent output\n")
     stderr.write_text("")
     started_at = datetime(2026, 7, 22, tzinfo=timezone.utc)
@@ -587,9 +490,11 @@ def test_write_result_is_portable_and_sanitizes_environment(tmp_path: Path) -> N
     assert result["started_at"] == "2026-07-22T00:00:00+00:00"
     assert result["ended_at"] == "2026-07-22T00:00:01+00:00"
     assert result["elapsed_prompt_to_finish_seconds"] == 1.25
-    assert result["stdout_path"] == "agent.stdout.log"
-    assert result["stderr_path"] == "agent.stderr.log"
-    assert result["sanitized_environment"] == "container_environment.json"
+    assert result["schema_version"] == 2
+    assert result["stdout_path"] == "stdout.log"
+    assert result["stderr_path"] == "stderr.log"
+    assert result["sanitized_environment"] == "environment.json"
+    assert result["status"] == "passed"
     assert result["agent_exit_code"] == 7
     assert result["evaluator_exit_code"] == 0
     assert result["passed"] is True
@@ -777,3 +682,624 @@ def test_write_result_embeds_optional_score(tmp_path: Path) -> None:
     result = json.loads(result_path.read_text())
     assert result["score"] == score.as_dict()
     assert result["passed"] is True
+
+
+def test_write_result_replaces_json_atomically(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed replacement cannot truncate an existing durable result."""
+    result_path = tmp_path / "result.json"
+    result_path.write_text('{"old": true}\n')
+    stdout = tmp_path / "stdout.log"
+    stderr = tmp_path / "stderr.log"
+    stdout.write_text("")
+    stderr.write_text("")
+
+    def fail_replace(_source: Path, _destination: Path) -> None:
+        raise OSError("replace failed")
+
+    monkeypatch.setattr(runner.os, "replace", fail_replace)
+
+    with pytest.raises(OSError, match="replace failed"):
+        write_result(
+            result_path,
+            "add-greeting",
+            "opencode",
+            "state",
+            datetime(2026, 7, 22, tzinfo=timezone.utc),
+            datetime(2026, 7, 22, 0, 0, 1, tzinfo=timezone.utc),
+            1.0,
+            0,
+            0,
+            stdout,
+            stderr,
+            {},
+        )
+
+    assert result_path.read_text() == '{"old": true}\n'
+    assert not list(tmp_path.glob(".*.tmp"))
+
+
+def test_prune_workdir_removes_only_generated_heavy_directories(tmp_path: Path) -> None:
+    """Submission cleanup preserves deliverables while dropping generated caches."""
+    workdir = tmp_path / "workdir"
+    keep = (
+        "src/app.py",
+        "docs/guide.md",
+        "uv.lock",
+        "data.sqlite3",
+    )
+    remove = (
+        ".venv/bin/python",
+        "venv/bin/python",
+        "node_modules/pkg/index.js",
+        "src/__pycache__/app.pyc",
+        ".pytest_cache/state",
+        ".agent_scripts/tool.py",
+        ".tinycua_context_cache/context.json",
+        ".tinycua-artifacts/log.json",
+    )
+    for relative in (*keep, *remove):
+        path = workdir / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("data")
+
+    runner.prune_workdir(workdir)
+
+    assert all((workdir / relative).is_file() for relative in keep)
+    assert all(not (workdir / relative).exists() for relative in remove)
+
+
+def test_outcomes_summary_replacement_is_atomic(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed outcomes replacement leaves the previous summary readable."""
+    outcomes_path = tmp_path / "outcomes.json"
+    outcomes_path.write_text('{"previous": true}\n')
+    metadata = {
+        "fixtures": {
+            "greeting": {
+                "outcome_group": "coding",
+                "fixture_revision": "fixture",
+                "evaluator_revision": "evaluator",
+            }
+        },
+        "pairs": [],
+    }
+
+    def fail_replace(_source: Path, _destination: Path) -> None:
+        raise OSError("replace failed")
+
+    monkeypatch.setattr(runner.os, "replace", fail_replace)
+
+    with pytest.raises(OSError, match="replace failed"):
+        runner.write_outcomes(outcomes_path, tmp_path, metadata)
+
+    assert outcomes_path.read_text() == '{"previous": true}\n'
+    assert not list(tmp_path.glob(".*.tmp"))
+
+
+def test_model_settings_use_explicit_agent_allowlist() -> None:
+    """Compatibility records effective agent controls but excludes judge config."""
+    environment = {
+        "EXPERIMENT_LLM_BASE_URL": "http://model/v1",
+        "EXPERIMENT_LLM_MODEL": "model",
+        "EXPERIMENT_LLM_PROVIDER": "provider",
+        "EXPERIMENT_OPENCODE_MODEL": "open/model",
+        "EXPERIMENT_HERMES_PROVIDER": "hermes-provider",
+        "EXPERIMENT_HERMES_MAX_TURNS": "90",
+        "EXPERIMENT_HERMES_PROCESS_POLL_TIMEOUT_SECONDS": "600",
+        "EXPERIMENT_OPENCLAW_MODEL": "claw/model",
+        "EXPERIMENT_OPENCLAW_THINKING": "off",
+        "EXPERIMENT_TINYCUA_PROVIDER_TYPE": "openai-chat-completions",
+        "EXPERIMENT_TINYCUA_MAX_CONTEXT": "262144",
+        "EXPERIMENT_TINYCUA_RECOVERY_STRATEGY": "markdown_synthesis",
+        "EXPERIMENT_TIMEOUT_SECONDS": "14400",
+        "EXPERIMENT_SEARXNG_BASE_URL": "http://searxng:8080",
+        "SEARXNG_URL": "http://searxng:8080",
+        "SEARXNG_BASE_URL": "http://searxng:8080",
+        "TINYCUA_SEARXNG_URL": "http://searxng:8080/search",
+        "JUDGE_MODEL": "judge/model",
+        "JUDGE_VARIANT": "high",
+        "UNRELATED_MODEL_CACHE": "ignore",
+    }
+
+    settings = runner._model_settings(environment)
+
+    assert settings == {
+        name: value
+        for name, value in environment.items()
+        if name
+        not in {"JUDGE_MODEL", "JUDGE_VARIANT", "UNRELATED_MODEL_CACHE"}
+    }
+
+
+def test_campaign_resource_names_include_optional_campaign_namespace() -> None:
+    """Production campaign IDs isolate Docker resources across output roots."""
+    first = "00000000-0000-4000-8000-000000000001"
+    second = "00000000-0000-4000-8000-000000000002"
+
+    assert state_volume_name("fixture", "tinycua", first) != state_volume_name(
+        "fixture", "tinycua", second
+    )
+    assert workspace_volume_name(
+        "fixture", "tinycua", first
+    ) != workspace_volume_name("fixture", "tinycua", second)
+    assert container_name("fixture", "tinycua", "agent", first) != container_name(
+        "fixture", "tinycua", "agent", second
+    )
+    assert state_volume_name("fixture", "tinycua") == state_volume_name(
+        "fixture", "tinycua"
+    )
+
+
+def test_atomic_json_fsyncs_file_and_parent_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Atomic JSON publication persists both file contents and directory entry."""
+    calls: list[int] = []
+    real_fsync = runner.os.fsync
+
+    def record_fsync(descriptor: int) -> None:
+        calls.append(descriptor)
+        real_fsync(descriptor)
+
+    monkeypatch.setattr(runner.os, "fsync", record_fsync)
+
+    runner._atomic_write_json(tmp_path / "summary.json", {"ok": True})
+
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize(
+    "change",
+    (
+        {"passed": False},
+        {"status": "failed"},
+        {"evaluator_outcome": "failed"},
+        {
+            "score": {
+                "categories": {
+                    "check": {"points": 2, "max_points": 1, "evidence": ["bad"]}
+                },
+                "total": 2,
+                "pass_threshold": 1,
+                "critical_categories": ["check"],
+            }
+        },
+    ),
+)
+def test_schema_v2_result_rejects_inconsistent_outcomes(
+    tmp_path: Path, change: dict[str, object]
+) -> None:
+    """A schema-v2 terminal marker is complete only when outcome fields agree."""
+    run_root = tmp_path / "fixture" / "opencode"
+    run_root.mkdir(parents=True)
+    stdout = run_root / "stdout.log"
+    stderr = run_root / "stderr.log"
+    stdout.write_text("=== agent ===\nanswer\n")
+    stderr.write_text("")
+    write_result(
+        run_root / "result.json",
+        "fixture",
+        "opencode",
+        "state",
+        datetime(2026, 7, 22, tzinfo=timezone.utc),
+        datetime(2026, 7, 22, 0, 0, 1, tzinfo=timezone.utc),
+        1.0,
+        0,
+        0,
+        stdout,
+        stderr,
+        {},
+    )
+    result_path = run_root / "result.json"
+    result = json.loads(result_path.read_text())
+    result.update(change)
+    result_path.write_text(json.dumps(result))
+
+    assert runner._valid_pair_result(result_path) is None
+
+
+def test_schema_v2_result_requires_retained_workdir(tmp_path: Path) -> None:
+    """A terminal pair is incomplete until its submission directory exists."""
+    run_root = tmp_path / "fixture" / "opencode"
+    run_root.mkdir(parents=True)
+    stdout = run_root / "stdout.log"
+    stderr = run_root / "stderr.log"
+    stdout.write_text("")
+    stderr.write_text("")
+    write_result(
+        run_root / "result.json",
+        "fixture",
+        "opencode",
+        "state",
+        datetime(2026, 7, 22, tzinfo=timezone.utc),
+        datetime(2026, 7, 22, 0, 0, 1, tzinfo=timezone.utc),
+        1.0,
+        0,
+        0,
+        stdout,
+        stderr,
+        {},
+    )
+
+    assert runner._valid_pair_result(run_root / "result.json") is None
+    (run_root / "workdir").mkdir()
+    assert runner._valid_pair_result(run_root / "result.json") is not None
+
+
+def test_campaign_finalizes_invocation_after_unexpected_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Unexpected runner errors still leave terminal invocation provenance."""
+    metadata = {"invocations": [{"started_at": "2026-07-29T00:00:00+00:00"}]}
+    monkeypatch.setattr(runner, "_agent_compose_environments", lambda *_args: ({}, {}))
+    monkeypatch.setattr(
+        runner, "_prepare_campaign_metadata", lambda *_args: metadata
+    )
+
+    def fail(*_args: object) -> int:
+        raise RuntimeError("unexpected")
+
+    monkeypatch.setattr(runner, "_continue_campaign", fail)
+
+    with pytest.raises(RuntimeError, match="unexpected"):
+        runner._run_campaign((), (), tmp_path, False, 1)
+
+    invocation = json.loads((tmp_path / "run_metadata.json").read_text())[
+        "invocations"
+    ][-1]
+    assert invocation["status"] == "failed"
+    assert invocation["exit_code"] == 1
+
+
+def test_campaign_rejects_changed_execution_sources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One campaign cannot aggregate results from different runner code."""
+    metadata = runner._new_metadata(1, {})
+    monkeypatch.setattr(runner, "_execution_revision", lambda: "changed")
+
+    with pytest.raises(ValueError, match="result_generation_revision"):
+        runner._validate_campaign_compatibility(metadata, (), 1, {})
+
+
+def test_external_image_is_restored_from_recorded_digest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A pruned external tag can be restored without accepting new bytes."""
+    recorded_id = "sha256:recorded"
+    digest = "busybox@sha256:digest"
+    records = {
+        "busybox": {
+            "reference": "busybox",
+            "id": recorded_id,
+            "repo_digests": [digest],
+        }
+    }
+    tagged = False
+    commands = []
+
+    def identity(image: str) -> dict[str, object]:
+        identity_id = recorded_id if image == "busybox" and tagged else None
+        return {"reference": image, "id": identity_id, "repo_digests": []}
+
+    def run(command: list[str], *_args: object, **_kwargs: object) -> tuple[int, None]:
+        nonlocal tagged
+        commands.append(command)
+        if command[:3] == ["docker", "image", "tag"]:
+            tagged = True
+        return 0, None
+
+    monkeypatch.setattr(runner, "_image_identity", identity)
+    monkeypatch.setattr(runner, "_run", run)
+
+    code = runner._ensure_external_image(
+        tmp_path / "run_metadata.json",
+        {},
+        records,
+        "busybox",
+        "busybox",
+        {"reference": "busybox", "id": None, "repo_digests": []},
+        recorded_id,
+        tmp_path / "stdout.log",
+        tmp_path / "stderr.log",
+        1,
+        (),
+    )
+
+    assert code == 0
+    assert commands == [
+        ["docker", "pull", digest],
+        ["docker", "image", "tag", digest, "busybox"],
+    ]
+
+
+def test_digest_image_restoration_does_not_tag_a_digest_target(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An immutable digest reference is usable immediately after its pull."""
+    recorded_id = "sha256:recorded"
+    image = "busybox@sha256:digest"
+    pulled = False
+    commands = []
+
+    def identity(reference: str) -> dict[str, object]:
+        identity_id = recorded_id if reference == recorded_id or (reference == image and pulled) else None
+        return {"reference": reference, "id": identity_id, "repo_digests": [image]}
+
+    def run(command: list[str], *_args: object, **_kwargs: object) -> tuple[int, None]:
+        nonlocal pulled
+        commands.append(command)
+        if command[:2] == ["docker", "pull"]:
+            pulled = True
+        return 0, None
+
+    monkeypatch.setattr(runner, "_image_identity", identity)
+    monkeypatch.setattr(runner, "_run", run)
+
+    code = runner._ensure_external_image(
+        tmp_path / "run_metadata.json",
+        {},
+        {image: {"reference": image, "id": recorded_id, "repo_digests": [image]}},
+        image,
+        image,
+        {"reference": image, "id": None, "repo_digests": []},
+        recorded_id,
+        tmp_path / "stdout.log",
+        tmp_path / "stderr.log",
+        1,
+        (),
+    )
+
+    assert code == 0
+    assert commands == [["docker", "pull", image]]
+
+
+def test_evaluator_images_are_recorded_per_fixture(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Fixtures sharing a mutable tag cannot reuse each other's evaluator build."""
+    fixtures = tuple(
+        Fixture(
+            name,
+            "Make a change.",
+            "shared-evaluator",
+            ("true",),
+            tmp_path / name,
+            tmp_path / name / "docker" / "Dockerfile",
+            evaluator_dockerfile=tmp_path / name / "eval" / "Dockerfile",
+        )
+        for name in ("first", "second")
+    )
+    metadata = {
+        "images": {
+            "harnesses": {},
+            "evaluators": {},
+            "decorators": {},
+            "candidates": {},
+        }
+    }
+    evaluator_keys = []
+
+    def ensure(
+        _metadata_path: Path,
+        _metadata: dict[str, object],
+        records: dict[str, object],
+        key: str,
+        image: str,
+        *_args: object,
+    ) -> int:
+        records[key] = {"reference": image, "id": f"sha256:{key}"}
+        if records is metadata["images"]["evaluators"]:
+            evaluator_keys.append(key)
+        return 0
+
+    monkeypatch.setattr(runner, "_ensure_image", ensure)
+
+    for fixture in fixtures:
+        runner._ensure_evaluator_image(
+            fixture,
+            {"tinycua": "tinycua-base"},
+            tmp_path / "run_metadata.json",
+            metadata,
+            tmp_path / "stdout.log",
+            tmp_path / "stderr.log",
+            1,
+            (),
+        )
+
+    assert evaluator_keys == ["first", "second"]
+
+
+def test_schema_v1_failed_setup_can_migrate_without_workdir(tmp_path: Path) -> None:
+    """Legacy pre-execution failures gain the schema-v2 empty workdir artifact."""
+    run_root = tmp_path / "fixture" / "opencode"
+    run_root.mkdir(parents=True)
+    (run_root / "agent.stdout.log").write_text("")
+    (run_root / "agent.stderr.log").write_text("build failed\n")
+    (run_root / "container_environment.json").write_text("{}\n")
+    (run_root / "result.json").write_text(
+        json.dumps(
+            {
+                "fixture": "fixture",
+                "agent": "opencode",
+                "passed": False,
+                "agent_exit_code": 125,
+                "evaluator_exit_code": 125,
+            }
+        )
+    )
+
+    assert runner._valid_pair_result(run_root / "result.json") is not None
+    runner._upgrade_campaign_artifacts(tmp_path, {"schema_version": 1})
+    assert (run_root / "workdir").is_dir()
+    assert runner._valid_pair_result(run_root / "result.json") is not None
+
+
+def test_migrated_campaign_cannot_register_new_pairs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Unknown legacy runner inputs seal migrated evidence against aggregation."""
+    fixture_root = tmp_path / "fixture-source"
+    (fixture_root / "workdir").mkdir(parents=True)
+    fixture = Fixture(
+        "fixture",
+        "Make a change.",
+        "busybox",
+        ("true",),
+        fixture_root,
+        fixture_root / "docker" / "Dockerfile",
+    )
+    metadata = {
+        "campaign_id": "00000000-0000-0000-0000-000000000000",
+        "legacy_results": True,
+        "fixtures": {"fixture": {"outcome_group": "coding"}},
+        "pairs": [{"fixture": "fixture", "agent": "opencode"}],
+    }
+    monkeypatch.setattr(runner, "_load_campaign", lambda _root: (metadata, False))
+    monkeypatch.setattr(runner, "_validate_campaign_compatibility", lambda *_args: None)
+
+    with pytest.raises(ValueError, match="sealed"):
+        runner._prepare_campaign_metadata(
+            tmp_path, (fixture,), ("opencode",), False, 1, {}
+        )
+    assert not (tmp_path / "run_metadata.json").exists()
+
+
+def test_schema_v1_migration_keeps_sources_until_result_is_durable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed migration cannot delete logs still named by the old result."""
+    run_root = tmp_path / "fixture" / "opencode"
+    (run_root / "workdir").mkdir(parents=True)
+    (run_root / "agent.stdout.log").write_text("answer\n")
+    (run_root / "agent.stderr.log").write_text("")
+    (run_root / "container_environment.json").write_text("{}\n")
+    (run_root / "result.json").write_text(
+        json.dumps(
+            {
+                "fixture": "fixture",
+                "agent": "opencode",
+                "passed": True,
+                "agent_exit_code": 0,
+                "evaluator_exit_code": 0,
+                "stdout_path": "agent.stdout.log",
+                "stderr_path": "agent.stderr.log",
+                "sanitized_environment": "container_environment.json",
+            }
+        )
+    )
+    real_write = runner._atomic_write_json
+
+    def fail_result(path: Path, value: object) -> None:
+        if path.name == "result.json":
+            raise OSError("result write failed")
+        real_write(path, value)
+
+    monkeypatch.setattr(runner, "_atomic_write_json", fail_result)
+
+    with pytest.raises(OSError, match="result write failed"):
+        runner._upgrade_campaign_artifacts(tmp_path, {"schema_version": 1})
+
+    assert (run_root / "agent.stdout.log").is_file()
+    assert (run_root / "agent.stderr.log").is_file()
+
+
+def test_pair_cleans_workspace_volume_after_artifact_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Artifact failures cannot bypass final Docker volume cleanup."""
+    fixture_root = tmp_path / "fixture"
+    (fixture_root / "workdir").mkdir(parents=True)
+    fixture = Fixture(
+        "fixture",
+        "Make a change.",
+        "busybox",
+        ("true",),
+        fixture_root,
+        fixture_root / "docker" / "Dockerfile",
+    )
+    removals = []
+
+    monkeypatch.setattr(runner, "_agent_compose_environments", lambda *_args: ({}, {}))
+    monkeypatch.setattr(runner, "_write_override", lambda *_args: None)
+    monkeypatch.setattr(
+        runner,
+        "_remove_workspace_volume",
+        lambda name, _timeout: removals.append(name),
+    )
+    monkeypatch.setattr(runner, "_seed_workspace_volume", lambda *_args: None)
+
+    def run(
+        _command: list[str], stdout: Path, stderr: Path, *_args: object, **_kwargs: object
+    ) -> tuple[int, None]:
+        stdout.write_text("")
+        stderr.write_text("")
+        return 0, None
+
+    monkeypatch.setattr(runner, "_run", run)
+
+    def export(*args: object) -> None:
+        Path(args[3]).mkdir()
+
+    monkeypatch.setattr(runner, "_export_workspace_volume", export)
+    monkeypatch.setattr(
+        runner, "_evaluate_submission", lambda *_args: (0, None, None, None, None)
+    )
+    monkeypatch.setattr(
+        runner,
+        "prune_workdir",
+        lambda _path: (_ for _ in ()).throw(OSError("prune failed")),
+    )
+
+    with pytest.raises(OSError, match="prune failed"):
+        runner._execute_pair(
+            fixture, "opencode", "image", tmp_path / "run", 1, "campaign"
+        )
+
+    assert len(removals) == 2
+
+
+def test_replacement_publication_restores_previous_pair_on_swap_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed staging rename leaves the prior complete pair public."""
+    public = tmp_path / "fixture" / "opencode"
+    staging = public.with_name(".opencode.staging")
+    for run_root, marker in ((public, "old"), (staging, "new")):
+        (run_root / "workdir").mkdir(parents=True)
+        (run_root / "workdir" / "marker.txt").write_text(marker)
+        stdout = run_root / "stdout.log"
+        stderr = run_root / "stderr.log"
+        stdout.write_text("=== agent ===\nanswer\n")
+        stderr.write_text("")
+        write_result(
+            run_root / "result.json",
+            "fixture",
+            "opencode",
+            "state",
+            datetime(2026, 7, 22, tzinfo=timezone.utc),
+            datetime(2026, 7, 22, 0, 0, 1, tzinfo=timezone.utc),
+            1.0,
+            0,
+            0,
+            stdout,
+            stderr,
+            {},
+        )
+    real_replace = Path.replace
+
+    def fail_staging_replace(source: Path, target: Path) -> Path:
+        if source == staging:
+            raise OSError("publication failed")
+        return real_replace(source, target)
+
+    monkeypatch.setattr(Path, "replace", fail_staging_replace)
+
+    with pytest.raises(OSError, match="publication failed"):
+        runner._publish_replacement(public, "fixture", "opencode")
+
+    assert (public / "workdir" / "marker.txt").read_text() == "old"
+    assert runner._valid_pair_result(public / "result.json") is not None

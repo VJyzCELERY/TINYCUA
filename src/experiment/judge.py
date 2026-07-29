@@ -548,24 +548,62 @@ def discover_submissions(
         return []
     submissions: list[dict[str, object]] = []
     for run_dir in sorted(
-        path for path in fixture_root.iterdir() if path.is_dir() and path.name != "cross_verdict"
+        path
+        for path in fixture_root.iterdir()
+        if path.is_dir()
+        and path.name != "cross_verdict"
+        and not path.name.startswith(".")
     ):
         result_path = run_dir / "result.json"
         if not result_path.is_file():
             continue
         result = json.loads(result_path.read_text())
-        workdir = run_dir / "workdir"
-        stdout = run_dir / "agent.stdout.log"
+        workdir = _result_artifact(run_dir, result, "workdir_path", "workdir")
+        stdout = _result_artifact(
+            run_dir, result, "stdout_path", "agent.stdout.log"
+        )
+        environment = _result_artifact(
+            run_dir,
+            result,
+            "sanitized_environment",
+            "container_environment.json",
+        )
         submissions.append(
             {
                 "agent": result.get("agent", run_dir.name),
                 "run_dir": run_dir,
                 "workdir": workdir,
                 "stdout_path": stdout,
+                "environment_path": environment,
                 "result": result,
             }
         )
     return submissions
+
+
+def _result_artifact(
+    run_dir: Path, result: dict[str, object], field: str, legacy_name: str
+) -> Path:
+    """Resolve one safe pair-relative artifact path with a legacy fallback."""
+    value = result.get(field)
+    if isinstance(value, str):
+        relative = Path(value)
+        if not relative.is_absolute() and ".." not in relative.parts:
+            return run_dir / relative
+    return run_dir / legacy_name
+
+
+def _semantic_stdout(path: Path, result: dict[str, object]) -> str:
+    """Return agent-only output for schema-v2, or the unchanged legacy stream."""
+    text = path.read_text()
+    if result.get("schema_version") != 2:
+        return text
+    match = re.search(
+        r"^=== agent ===\n(.*?)(?=^=== [^\n]+ ===\n|\Z)",
+        text,
+        re.DOTALL | re.MULTILINE,
+    )
+    return match.group(1) if match else ""
 
 
 def build_semantic_judge_prompt(
@@ -698,7 +736,9 @@ def semantic_judge_fixture(
         submission_dir.mkdir(parents=True)
         has_files = _copy_workdir(workdir, submission_dir) if workdir.is_dir() else False
         if not has_files and sub["stdout_path"].is_file():
-            shutil.copy2(sub["stdout_path"], submission_dir / "stdout.log")
+            (submission_dir / "stdout.log").write_text(
+                _semantic_stdout(sub["stdout_path"], sub["result"])
+            )
 
         labelled_submissions.append(
             {
@@ -772,23 +812,21 @@ def semantic_judge_fixture(
 def _load_fixture_task(first_submission: dict[str, object]) -> tuple[str, str]:
     """Recover the (task prompt, TASK.md text) for a fixture, best-effort.
 
-    Reads the first discovered submission's ``container_environment.json``
+    Reads the first discovered submission's recorded environment artifact
     for ``EXPERIMENT_PROMPT`` (the runner preserves it sanitized per-pair)
     and the submission's exported ``workdir/TASK.md``. Anything missing is
     returned empty.
     """
     task_prompt = ""
-    run_dir = first_submission.get("run_dir")
-    if isinstance(run_dir, Path):
-        env_snapshot = run_dir / "container_environment.json"
-        if env_snapshot.is_file():
-            try:
-                env = json.loads(env_snapshot.read_text())
-                prompt = env.get("EXPERIMENT_PROMPT")
-                if isinstance(prompt, str) and prompt:
-                    task_prompt = prompt
-            except (json.JSONDecodeError, OSError):
-                pass
+    env_snapshot = first_submission.get("environment_path")
+    if isinstance(env_snapshot, Path) and env_snapshot.is_file():
+        try:
+            env = json.loads(env_snapshot.read_text())
+            prompt = env.get("EXPERIMENT_PROMPT")
+            if isinstance(prompt, str) and prompt:
+                task_prompt = prompt
+        except (json.JSONDecodeError, OSError):
+            pass
 
     task_md = ""
     workdir = first_submission.get("workdir")

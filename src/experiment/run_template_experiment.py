@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import json
 import math
@@ -11,10 +12,13 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from uuid import UUID, uuid4
 
 import yaml
 
@@ -54,6 +58,46 @@ DEPENDENCY_MANIFEST_NAMES = frozenset(("requirements.txt", "pyproject.toml"))
 COMPOSE_VARIABLE = re.compile(
     r"\$(?:\{(?P<braced>[A-Za-z_][A-Za-z0-9_]*)(?P<operator>:-|-)?"
     r"(?P<default>[^}]*)\}|(?P<bare>[A-Za-z_][A-Za-z0-9_]*))"
+)
+SCHEMA_VERSION = 2
+TRIAL_POLICY = {
+    "pass_at_k": 1,
+    "trials_per_pair": 1,
+    "retries": 0,
+    "execution_order": "sequential",
+}
+CONTROLLED_AGENT_SETTINGS = frozenset(
+    {
+        "EXPERIMENT_LLM_BASE_URL",
+        "EXPERIMENT_LLM_MODEL",
+        "EXPERIMENT_LLM_PROVIDER",
+        "EXPERIMENT_OPENCODE_MODEL",
+        "EXPERIMENT_HERMES_PROVIDER",
+        "EXPERIMENT_HERMES_MAX_TURNS",
+        "EXPERIMENT_HERMES_PROCESS_POLL_TIMEOUT_SECONDS",
+        "EXPERIMENT_OPENCLAW_MODEL",
+        "EXPERIMENT_OPENCLAW_THINKING",
+        "EXPERIMENT_TINYCUA_PROVIDER_TYPE",
+        "EXPERIMENT_TINYCUA_MAX_CONTEXT",
+        "EXPERIMENT_TINYCUA_RECOVERY_STRATEGY",
+        "EXPERIMENT_TIMEOUT_SECONDS",
+        "EXPERIMENT_SEARXNG_BASE_URL",
+        "SEARXNG_URL",
+        "SEARXNG_BASE_URL",
+        "TINYCUA_SEARXNG_URL",
+    }
+)
+PRUNED_WORKDIR_DIRECTORIES = frozenset(
+    {
+        ".venv",
+        "venv",
+        "node_modules",
+        "__pycache__",
+        ".pytest_cache",
+        ".agent_scripts",
+        ".tinycua_context_cache",
+        ".tinycua-artifacts",
+    }
 )
 
 
@@ -257,20 +301,6 @@ def tinycua_variant(agent: str) -> dict[str, bool]:
     return {"no_digest": no_digest, "no_review": no_review}
 
 
-def evaluator_base_agents(
-    fixtures: tuple[Fixture, ...], agents: tuple[str, ...]
-) -> tuple[str, ...]:
-    """Include the local Python evaluator base when a fixture needs it."""
-    services = tuple(dict.fromkeys(agent_service(agent) for agent in agents))
-    if "tinycua" not in services and any(
-        fixture.eval_image == LOCAL_PYTHON_EVALUATOR_IMAGE
-        or fixture.evaluator_dockerfile is not None
-        for fixture in fixtures
-    ):
-        return (*services, "tinycua")
-    return services
-
-
 def _selected_names(root: Path, raw: str | None) -> tuple[str, ...]:
     """Validate fixture selectors before filesystem or Docker work."""
     available = tuple(sorted(path.name for path in root.iterdir() if path.is_dir()))
@@ -414,19 +444,37 @@ def discover_fixtures(root: Path, raw: str | None = None) -> tuple[Fixture, ...]
     return tuple(_load_fixture(root, name) for name in _selected_names(root, raw))
 
 
-def state_volume_name(fixture: str, agent: str) -> str:
+def state_volume_name(
+    fixture: str, agent: str, campaign_id: str | None = None
+) -> str:
     """Return the inspectable volume name for one isolated pair."""
-    return f"tinycua-template-{fixture.encode().hex()}-{agent.encode().hex()}"
+    namespace = f"-{campaign_id}" if campaign_id else ""
+    return (
+        f"tinycua-template{namespace}-{fixture.encode().hex()}-"
+        f"{agent.encode().hex()}"
+    )
 
 
-def workspace_volume_name(fixture: str, agent: str) -> str:
+def workspace_volume_name(
+    fixture: str, agent: str, campaign_id: str | None = None
+) -> str:
     """Return the disposable live workspace volume for one pair."""
-    return f"tinycua-template-workspace-{fixture.encode().hex()}-{agent.encode().hex()}"
+    namespace = f"-{campaign_id}" if campaign_id else ""
+    return (
+        f"tinycua-template-workspace{namespace}-{fixture.encode().hex()}-"
+        f"{agent.encode().hex()}"
+    )
 
 
-def container_name(fixture: str, agent: str, role: str) -> str:
+def container_name(
+    fixture: str, agent: str, role: str, campaign_id: str | None = None
+) -> str:
     """Return the deterministic Docker container name for one pair role."""
-    return f"tinycua-template-{role}-{fixture.encode().hex()}-{agent.encode().hex()}"
+    namespace = f"-{campaign_id}" if campaign_id else ""
+    return (
+        f"tinycua-template-{role}{namespace}-{fixture.encode().hex()}-"
+        f"{agent.encode().hex()}"
+    )
 
 
 def build_base_command(agent: str, image: str) -> list[str]:
@@ -703,28 +751,28 @@ def write_result(
     environment: dict[str, str],
     score: Score | None = None,
     score_error: str | None = None,
+    failure_stage: str | None = None,
 ) -> None:
     """Write portable, sanitized evidence and outcome for one pair."""
-    snapshot = path.with_name("container_environment.json")
+    snapshot = path.with_name("environment.json")
     secret_values = _secret_values(environment)
-    snapshot.write_text(
-        json.dumps(
-            {
-                name: "[REDACTED]"
-                if _is_secret_name(name)
-                else _redact_output(value, secret_values)
-                for name, value in sorted(environment.items())
-            },
-            indent=2,
-        )
-        + "\n"
+    _atomic_write_json(
+        snapshot,
+        {
+            name: "[REDACTED]"
+            if _is_secret_name(name)
+            else _redact_output(value, secret_values)
+            for name, value in sorted(environment.items())
+        },
     )
     passed = (
         evaluator_exit_code == 0
         and score_error is None
         and (score is None or score.passed)
+        and failure_stage is None
     )
     result: dict[str, object] = {
+        "schema_version": SCHEMA_VERSION,
         "fixture": fixture,
         "agent": agent,
         "state_volume": volume,
@@ -733,17 +781,55 @@ def write_result(
         "elapsed_prompt_to_finish_seconds": elapsed_prompt_to_finish_seconds,
         "stdout_path": str(stdout.relative_to(path.parent)),
         "stderr_path": str(stderr.relative_to(path.parent)),
+        "workdir_path": "workdir",
         "agent_exit_code": agent_exit_code,
         "sanitized_environment": str(snapshot.relative_to(path.parent)),
         "evaluator_exit_code": evaluator_exit_code,
         "evaluator_outcome": "passed" if passed else "failed",
         "passed": passed,
+        "status": "passed" if passed else "failed",
     }
     if score is not None:
         result["score"] = score.as_dict()
     if score_error is not None:
         result["score_error"] = score_error
-    path.write_text(json.dumps(result, indent=2) + "\n")
+    if failure_stage is not None:
+        result["failure_stage"] = failure_stage
+    _atomic_write_json(path, result)
+
+
+def _atomic_write_json(path: Path, value: object) -> None:
+    """Durably replace one JSON artifact without exposing a partial file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w") as stream:
+            json.dump(value, stream, indent=2)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+        parent_descriptor = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(parent_descriptor)
+        finally:
+            os.close(parent_descriptor)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def prune_workdir(workdir: Path) -> None:
+    """Remove generated dependency and harness directories from a submission."""
+    if not workdir.is_dir():
+        return
+    for root, directories, _files in os.walk(workdir):
+        for name in tuple(directories):
+            if name in PRUNED_WORKDIR_DIRECTORIES:
+                shutil.rmtree(Path(root) / name, ignore_errors=True)
+                directories.remove(name)
 
 
 def _captured_text(value: str | bytes | None) -> str:
@@ -827,6 +913,7 @@ def _run(
     timeout_seconds: int,
     secret_values: tuple[str, ...] = (),
     name: str | None = None,
+    stage: str | None = None,
 ) -> tuple[int, str | None]:
     """Run one Docker command and retain its diagnostics."""
     try:
@@ -843,16 +930,32 @@ def _run(
             _remove_container(name, timeout_seconds) if name is not None else None
         )
         cleanup_message = f"{cleanup_error}\n" if cleanup_error else ""
-        stdout.write_text(_redact_output(_captured_text(error.stdout), secret_values))
-        stderr.write_text(
+        _write_log(
+            stdout,
+            _redact_output(_captured_text(error.stdout), secret_values),
+            stage,
+        )
+        _write_log(
+            stderr,
             f"{_redact_output(_captured_text(error.stderr), secret_values)}"
-            f"Timed out after {timeout_seconds} seconds\n"
-            f"{cleanup_message}"
+            f"Timed out after {timeout_seconds} seconds\n{cleanup_message}",
+            stage,
         )
         return TIMEOUT_EXIT_CODE, cleanup_error
-    stdout.write_text(_redact_output(result.stdout, secret_values))
-    stderr.write_text(_redact_output(result.stderr, secret_values))
+    _write_log(stdout, _redact_output(result.stdout, secret_values), stage)
+    _write_log(stderr, _redact_output(result.stderr, secret_values), stage)
     return result.returncode, None
+
+
+def _write_log(path: Path, text: str, stage: str | None = None) -> None:
+    """Write one sanitized command stream, appending when it is consolidated."""
+    mode = "a" if stage is not None else "w"
+    with path.open(mode) as stream:
+        if stage is not None:
+            stream.write(f"=== {stage} ===\n")
+        stream.write(text)
+        if text and not text.endswith("\n"):
+            stream.write("\n")
 
 
 def _transfer_volume(
@@ -868,13 +971,8 @@ def _transfer_volume(
 ) -> str | None:
     """Copy data through a stopped volume-mounted container without host mounts."""
 
-    def logs(step: str) -> tuple[Path, Path]:
-        return (
-            log_root / f"workspace-{operation}-{step}.stdout.log",
-            log_root / f"workspace-{operation}-{step}.stderr.log",
-        )
-
-    create_stdout, create_stderr = logs("create")
+    stdout = log_root / "stdout.log"
+    stderr = log_root / "stderr.log"
     code, _ = _run(
         [
             "docker",
@@ -886,30 +984,31 @@ def _transfer_volume(
             image,
             "true",
         ],
-        create_stdout,
-        create_stderr,
+        stdout,
+        stderr,
         timeout_seconds,
         secret_values,
         container,
+        f"workspace/{operation}/create",
     )
     if code:
         return f"workspace {operation} setup failed with exit code {code}"
-    copy_stdout, copy_stderr = logs("copy")
     code, _ = _run(
         ["docker", "cp", copy_source, copy_destination],
-        copy_stdout,
-        copy_stderr,
+        stdout,
+        stderr,
         timeout_seconds,
         secret_values,
         container,
+        f"workspace/{operation}/copy",
     )
-    remove_stdout, remove_stderr = logs("remove")
     remove_code, _ = _run(
         ["docker", "rm", "--force", container],
-        remove_stdout,
-        remove_stderr,
+        stdout,
+        stderr,
         timeout_seconds,
         secret_values,
+        stage=f"workspace/{operation}/remove",
     )
     if code:
         return f"workspace {operation} copy failed with exit code {code}"
@@ -985,6 +1084,8 @@ def _remove_workspace_volume(name: str, timeout_seconds: int) -> str | None:
         )
     except subprocess.TimeoutExpired:
         return f"workspace volume cleanup timed out removing {name}"
+    except OSError as error:
+        return f"workspace volume cleanup failed removing {name}: {error}"
     if removed.returncode and "No such volume" not in removed.stderr:
         return f"workspace volume cleanup failed removing {name}"
     return None
@@ -995,43 +1096,45 @@ def _write_override(path: Path, agent: str, image: str) -> None:
     path.write_text(f"services:\n  {agent}:\n    build: null\n    image: {image}\n")
 
 
-def _prepare_output(
-    root: Path, fixtures: tuple[Fixture, ...], agents: tuple[str, ...], overwrite: bool
+@contextmanager
+def campaign_lock(root: Path):
+    """Hold a Linux advisory lock on the result root without a lock artifact."""
+    descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise OSError(f"campaign is already running: {root}") from error
+        yield
+    finally:
+        os.close(descriptor)
+
+
+def _remove_state_volume(name: str, timeout_seconds: int) -> str | None:
+    """Remove one harness state volume before or after an actual pair."""
+    try:
+        removed = subprocess.run(
+            ["docker", "volume", "rm", "--force", name],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired:
+        return f"state volume cleanup timed out removing {name}"
+    except OSError as error:
+        return f"state volume cleanup failed removing {name}: {error}"
+    if removed.returncode and "No such volume" not in removed.stderr:
+        return f"state volume cleanup failed removing {name}"
+    return None
+
+
+def _restart_searxng(
+    timeout_seconds: int = 30,
+    stdout: Path | None = None,
+    stderr: Path | None = None,
+    secret_values: tuple[str, ...] = (),
 ) -> None:
-    """Reject existing evidence unless its replacement was explicitly requested."""
-    existing = [root / fixture.name / agent for fixture in fixtures for agent in agents]
-    occupied = next((path for path in existing if path.exists()), None)
-    if occupied and not overwrite:
-        raise FileExistsError(f"output exists; rerun with --overwrite: {occupied}")
-    if overwrite:
-        for path in existing:
-            shutil.rmtree(path, ignore_errors=True)
-
-
-def _reset_state_volumes(
-    fixtures: tuple[Fixture, ...], agents: tuple[str, ...], timeout_seconds: int
-) -> None:
-    """Reset stateful harnesses selected for an explicit overwrite."""
-    for fixture in fixtures:
-        for agent in agents:
-            if agent == "opencode":
-                continue
-            volume = state_volume_name(fixture.name, agent)
-            try:
-                removed = subprocess.run(
-                    ["docker", "volume", "rm", "--force", volume],
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                    timeout=timeout_seconds,
-                )
-            except subprocess.TimeoutExpired as error:
-                raise OSError(f"timed out resetting state volume {volume}") from error
-            if removed.returncode and "No such volume" not in removed.stderr:
-                raise OSError(f"failed resetting state volume {volume}")
-
-
-def _restart_searxng(timeout_seconds: int = 30) -> None:
     """Restart SearXNG once per runner invocation for a clean container state.
 
     Best-effort: a failure logs a warning and continues so infra never blocks
@@ -1039,17 +1142,27 @@ def _restart_searxng(timeout_seconds: int = 30) -> None:
     the restart; add a query cache or external proxy if engine rate limits
     persist across restarts.
     """
-    try:
-        subprocess.run(
+    if stdout is not None and stderr is not None:
+        _run(
             ["docker", "compose", "restart", "searxng"],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=timeout_seconds,
+            stdout,
+            stderr,
+            timeout_seconds,
+            secret_values,
+            stage="service/searxng-restart",
         )
-    except subprocess.TimeoutExpired:
-        print("WARNING: searxng restart timed out; continuing", flush=True)
-        return
+    else:
+        try:
+            subprocess.run(
+                ["docker", "compose", "restart", "searxng"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=timeout_seconds,
+            )
+        except subprocess.TimeoutExpired:
+            print("WARNING: searxng restart timed out; continuing", flush=True)
+            return
     print("[searxng] restarted for this run", flush=True)
 
 
@@ -1061,6 +1174,18 @@ def tree_revision(root: Path) -> str:
         digest.update(b"\0")
         digest.update(path.read_bytes())
         digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def _execution_revision() -> str:
+    """Hash runner and Docker inputs that can change pair execution."""
+    root = Path(__file__).resolve().parent
+    digest = hashlib.sha256()
+    for path in (Path(__file__).resolve(), root / "docker-compose.yml", root / "docker"):
+        digest.update(path.name.encode())
+        digest.update(
+            tree_revision(path).encode() if path.is_dir() else path.read_bytes()
+        )
     return digest.hexdigest()
 
 
@@ -1093,57 +1218,53 @@ def _git_value(*arguments: str) -> str:
     ).stdout.strip()
 
 
-def write_run_metadata(
-    path: Path,
-    fixtures: tuple[Fixture, ...],
-    agents: tuple[str, ...],
-    base_images: dict[str, str],
-    timeout_seconds: int,
-    overwrite: bool,
-    environment: dict[str, str],
-) -> None:
-    """Freeze the configuration and revisions used to generate one controlled run."""
-    evaluator_images = sorted({fixture.eval_image for fixture in fixtures})
-    model_settings = {
+def _model_settings(environment: dict[str, str]) -> dict[str, str]:
+    """Return non-secret model and provider controls that freeze a campaign."""
+    return {
         name: value
         for name, value in sorted(environment.items())
-        if any(
-            marker in name
-            for marker in (
-                "MODEL",
-                "PROVIDER",
-                "THINKING",
-                "MAX_CONTEXT",
-                "MAX_TURNS",
-                "TIMEOUT_SECONDS",
-            )
-        )
-        and not _is_secret_name(name)
+        if name in CONTROLLED_AGENT_SETTINGS
     }
+
+
+def _fixture_record(fixture: Fixture) -> dict[str, str]:
+    """Return the compatibility fields for one registered fixture."""
+    return {
+        "outcome_group": fixture.outcome_group,
+        "fixture_revision": tree_revision(fixture.root),
+        "evaluator_revision": tree_revision(fixture.root / "eval"),
+    }
+
+
+def _agent_configuration(agent: str) -> dict[str, object]:
+    """Return the stable logical configuration for one agent identity."""
+    configuration: dict[str, object] = {"service": agent_service(agent)}
+    if agent in TINYCUA_VARIANTS:
+        configuration.update(tinycua_variant(agent))
+    return configuration
+
+
+def _new_metadata(
+    timeout_seconds: int, environment: dict[str, str]
+) -> dict[str, object]:
+    """Create the empty aggregate record for a controlled campaign."""
     result_generation_commit = _git_value("rev-parse", "HEAD")
-    metadata = {
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "campaign_id": str(uuid4()),
         "result_generation_commit": result_generation_commit,
+        "result_generation_revision": _execution_revision(),
         "working_tree_dirty": bool(_git_value("status", "--porcelain")),
-        "selected_fixtures": [fixture.name for fixture in fixtures],
-        "selected_agents": list(agents),
-        "agent_configurations": {
-            agent: {"service": "tinycua", **tinycua_variant(agent)}
-            for agent in agents
-            if agent in TINYCUA_VARIANTS
-        },
-        "fixtures": {
-            fixture.name: {
-                "outcome_group": fixture.outcome_group,
-                "fixture_revision": tree_revision(fixture.root),
-                "evaluator_revision": tree_revision(fixture.root / "eval"),
-            }
-            for fixture in fixtures
-        },
+        "selected_fixtures": [],
+        "selected_agents": [],
+        "agent_configurations": {},
+        "fixtures": {},
+        "pairs": [],
+        "invocations": [],
         "images": {
-            "harnesses": {
-                agent: _image_identity(image) for agent, image in base_images.items()
-            },
-            "evaluators": {image: _image_identity(image) for image in evaluator_images},
+            "harnesses": {},
+            "evaluators": {},
+            "decorators": {},
             "candidates": {},
         },
         "harness_versions": {
@@ -1152,379 +1273,1340 @@ def write_run_metadata(
             "openclaw": "openclaw@2026.7.1-2",
             "tinycua": result_generation_commit,
         },
-        "model_settings": model_settings,
+        "model_settings": _model_settings(environment),
         "sampling_settings": {
             "temperature": environment.get("EXPERIMENT_TEMPERATURE"),
             "top_p": environment.get("EXPERIMENT_TOP_P"),
             "seed": environment.get("EXPERIMENT_SEED"),
         },
         "timeout_seconds": timeout_seconds,
-        "trial_policy": {
-            "pass_at_k": 1,
-            "trials_per_pair": 1,
-            "retries": 0,
-            "execution_order": "sequential",
-        },
-        "overwrite": overwrite,
-        "state_reset_on_overwrite": overwrite,
+        "trial_policy": TRIAL_POLICY,
     }
-    path.write_text(json.dumps(metadata, indent=2) + "\n")
 
 
-def record_candidate_image(path: Path, fixture: str, agent: str, image: str) -> None:
-    """Record one final candidate image before its agent starts."""
-    metadata = json.loads(path.read_text())
+def _register_invocation(
+    metadata: dict[str, object],
+    fixtures: tuple[Fixture, ...],
+    agents: tuple[str, ...],
+    overwrite: bool,
+) -> None:
+    """Aggregate selectors and append one compact invocation record."""
+    fixture_records = metadata["fixtures"]
+    agent_records = metadata["agent_configurations"]
+    pairs = {
+        (pair["fixture"], pair["agent"])
+        for pair in metadata["pairs"]
+    }
+    for fixture in fixtures:
+        fixture_records[fixture.name] = _fixture_record(fixture)
+        pairs.update((fixture.name, agent) for agent in agents)
+    for agent in agents:
+        agent_records[agent] = _agent_configuration(agent)
+    metadata["selected_fixtures"] = sorted(fixture_records)
+    metadata["selected_agents"] = sorted(agent_records)
+    metadata["pairs"] = [
+        {"fixture": fixture, "agent": agent} for fixture, agent in sorted(pairs)
+    ]
+    started_at = datetime.now(timezone.utc).isoformat()
+    for invocation in metadata["invocations"]:
+        if "ended_at" not in invocation:
+            invocation.update(
+                {"ended_at": started_at, "status": "failed", "exit_code": 1}
+            )
+    metadata["invocations"].append(
+        {
+            "started_at": started_at,
+            "fixtures": [fixture.name for fixture in fixtures],
+            "agents": list(agents),
+            "overwrite": overwrite,
+        }
+    )
+
+
+def _finish_invocation(
+    metadata_path: Path,
+    metadata: dict[str, object],
+    exit_code: int,
+) -> None:
+    """Record one registered invocation's terminal status."""
+    invocation = metadata["invocations"][-1]
+    invocation.update(
+        {
+            "ended_at": datetime.now(timezone.utc).isoformat(),
+            "status": "passed" if exit_code == 0 else "failed",
+            "exit_code": exit_code,
+        }
+    )
+    _save_metadata(metadata_path, metadata)
+
+
+def _pair_directories(output_root: Path) -> list[Path]:
+    """Return campaign pair directories while excluding semantic verdicts."""
+    return sorted(
+        agent_root
+        for fixture_root in output_root.iterdir()
+        if fixture_root.is_dir()
+        for agent_root in fixture_root.iterdir()
+        if agent_root.is_dir()
+        and agent_root.name != "cross_verdict"
+        and not agent_root.name.startswith(".")
+    )
+
+
+def _safe_result_artifact(run_root: Path, value: object) -> Path | None:
+    """Resolve a pair-relative result path without allowing traversal."""
+    if not isinstance(value, str):
+        return None
+    relative = Path(value)
+    if relative.is_absolute() or ".." in relative.parts:
+        return None
+    return run_root / relative
+
+
+def _valid_pair_result(
+    path: Path,
+    expected_fixture: str | None = None,
+    expected_agent: str | None = None,
+) -> dict[str, object] | None:
+    """Return a complete pair result, or None for an interrupted pair."""
+    try:
+        result = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(result, dict):
+        return None
+    run_root = path.parent
+    expected_fixture = expected_fixture or run_root.parent.name
+    expected_agent = expected_agent or run_root.name
+    if (
+        result.get("fixture") != expected_fixture
+        or result.get("agent") != expected_agent
+        or not isinstance(result.get("passed"), bool)
+        or isinstance(result.get("agent_exit_code"), bool)
+        or not isinstance(result.get("agent_exit_code"), int)
+        or isinstance(result.get("evaluator_exit_code"), bool)
+        or not isinstance(result.get("evaluator_exit_code"), int)
+    ):
+        return None
+    schema_version = result.get("schema_version", 1)
+    if schema_version not in (1, SCHEMA_VERSION):
+        return None
+    if schema_version == SCHEMA_VERSION and any(
+        result.get(name) != expected
+        for name, expected in (
+            ("stdout_path", "stdout.log"),
+            ("stderr_path", "stderr.log"),
+            ("workdir_path", "workdir"),
+            ("sanitized_environment", "environment.json"),
+        )
+    ):
+        return None
+    if schema_version == SCHEMA_VERSION and not _schema_v2_result_consistent(result):
+        return None
+    if not _pair_artifacts_complete(run_root, result):
+        return None
+    return result
+
+
+def _pair_artifacts_complete(
+    run_root: Path, result: dict[str, object]
+) -> bool:
+    """Validate required result paths and the sanitized environment JSON."""
+    artifacts = {}
+    for artifact_field, default in {
+        "stdout_path": "agent.stdout.log",
+        "stderr_path": "agent.stderr.log",
+        "sanitized_environment": "container_environment.json",
+    }.items():
+        artifact = _safe_result_artifact(run_root, result.get(artifact_field, default))
+        if artifact is None or not artifact.is_file():
+            return False
+        artifacts[artifact_field] = artifact
+    workdir = _safe_result_artifact(
+        run_root, result.get("workdir_path", "workdir")
+    )
+    legacy_failed_without_workdir = (
+        result.get("schema_version", 1) == 1 and result.get("passed") is False
+        and result.get("agent_exit_code") == SKIPPED_EVALUATOR_EXIT_CODE
+        and result.get("evaluator_exit_code") == SKIPPED_EVALUATOR_EXIT_CODE
+    )
+    if (workdir is None or not workdir.is_dir()) and not legacy_failed_without_workdir:
+        return False
+    try:
+        environment = json.loads(artifacts["sanitized_environment"].read_text())
+    except (OSError, json.JSONDecodeError):
+        return False
+    return isinstance(environment, dict)
+
+
+def _schema_v2_result_consistent(result: dict[str, object]) -> bool:
+    """Validate an embedded score and all derived terminal outcome fields."""
+    score = None
+    if "score" in result:
+        try:
+            score = parse_score(result["score"])
+        except ValueError:
+            return False
+    score_error = result.get("score_error")
+    failure_stage = result.get("failure_stage")
+    if score_error is not None and not isinstance(score_error, str):
+        return False
+    if failure_stage is not None and not isinstance(failure_stage, str):
+        return False
+    passed = (
+        result["evaluator_exit_code"] == 0
+        and score_error is None
+        and (score is None or score.passed)
+        and failure_stage is None
+    )
+    outcome = "passed" if passed else "failed"
+    return (
+        result.get("passed") is passed
+        and result.get("status") == outcome
+        and result.get("evaluator_outcome") == outcome
+    )
+
+
+def _load_campaign(output_root: Path) -> tuple[dict[str, object] | None, bool]:
+    """Load canonical metadata and validate schema-v1 pair evidence."""
+    path = output_root / "run_metadata.json"
+    if not path.is_file():
+        if _pair_directories(output_root):
+            raise ValueError("pair directories require canonical run_metadata.json")
+        return None, False
+    metadata = _read_metadata(path)
+    schema_version = metadata.get("schema_version", 1)
+    if schema_version not in (1, SCHEMA_VERSION):
+        raise ValueError(f"unsupported run_metadata.json schema_version: {schema_version}")
+    if schema_version == 1:
+        _validate_legacy_results(output_root)
+        _upgrade_metadata_shape(metadata, output_root)
+        return metadata, True
+    _validate_metadata_shape(metadata)
+    return metadata, False
+
+
+def _read_metadata(path: Path) -> dict[str, object]:
+    """Read canonical campaign metadata as one JSON object."""
+    try:
+        metadata = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f"invalid run_metadata.json: {error}") from error
+    if not isinstance(metadata, dict):
+        raise ValueError("run_metadata.json must contain a JSON object")
+    return metadata
+
+
+def _validate_legacy_results(output_root: Path) -> None:
+    """Reject corrupt legacy result files before automatic migration."""
+    for run_root in _pair_directories(output_root):
+        result_path = run_root / "result.json"
+        if result_path.exists() and _valid_pair_result(result_path) is None:
+            raise ValueError(f"invalid schema-v1 pair result: {result_path}")
+
+
+def _validate_metadata_shape(metadata: dict[str, object]) -> None:
+    """Validate aggregate metadata containers before using them."""
+    try:
+        UUID(str(metadata.get("campaign_id")))
+    except ValueError as error:
+        raise ValueError("run_metadata.json campaign_id must be a UUID") from error
+    for metadata_field, expected_type in (
+        ("fixtures", dict),
+        ("agent_configurations", dict),
+        ("pairs", list),
+        ("invocations", list),
+        ("images", dict),
+    ):
+        if not isinstance(metadata.get(metadata_field), expected_type):
+            raise ValueError(
+                f"run_metadata.json {metadata_field} has the wrong type"
+            )
+
+
+def _upgrade_metadata_shape(
+    metadata: dict[str, object], output_root: Path
+) -> None:
+    """Convert validated legacy metadata to the aggregate schema in memory."""
+    fixtures = metadata.get("fixtures", {})
+    selected_fixtures = metadata.get("selected_fixtures", [])
+    selected_agents = metadata.get("selected_agents", [])
+    agent_configurations = metadata.setdefault("agent_configurations", {})
+    if not isinstance(fixtures, dict) or not isinstance(agent_configurations, dict):
+        raise ValueError("invalid schema-v1 campaign registrations")
+    if not isinstance(selected_fixtures, list) or not isinstance(selected_agents, list):
+        raise ValueError("invalid schema-v1 campaign selectors")
+    for agent in selected_agents:
+        if isinstance(agent, str):
+            agent_configurations.setdefault(agent, _agent_configuration(agent))
+    pairs = {
+        (fixture, agent)
+        for fixture in selected_fixtures
+        for agent in selected_agents
+        if isinstance(fixture, str) and isinstance(agent, str)
+    }
+    pairs.update(
+        (run_root.parent.name, run_root.name)
+        for run_root in _pair_directories(output_root)
+        if (run_root / "result.json").is_file()
+    )
+    metadata.update(
+        {
+            "schema_version": SCHEMA_VERSION,
+            "campaign_id": str(uuid4()),
+            "selected_fixtures": sorted(fixtures),
+            "selected_agents": sorted(agent_configurations),
+            "pairs": [
+                {"fixture": fixture, "agent": agent}
+                for fixture, agent in sorted(pairs)
+            ],
+            "invocations": [],
+            "result_generation_revision": (
+                f"legacy:{metadata.get('result_generation_commit', 'unknown')}"
+            ),
+            "legacy_results": True,
+        }
+    )
+    metadata.pop("overwrite", None)
+    metadata.pop("state_reset_on_overwrite", None)
+    images = metadata.setdefault("images", {})
+    if not isinstance(images, dict):
+        raise ValueError("invalid schema-v1 image registrations")
+    _upgrade_image_records(images)
+
+
+def _upgrade_image_records(images: dict[str, object]) -> None:
+    """Drop legacy image entries that lack an immutable local identity."""
+    for category in ("harnesses", "evaluators", "decorators", "candidates"):
+        images.setdefault(category, {})
+    for category in ("harnesses", "evaluators", "decorators"):
+        records = images[category]
+        for key, identity in tuple(records.items()):
+            if not isinstance(identity, dict) or not isinstance(identity.get("id"), str):
+                del records[key]
+    candidates = images["candidates"]
+    for fixture, records in tuple(candidates.items()):
+        if not isinstance(records, dict):
+            del candidates[fixture]
+            continue
+        for agent, identity in tuple(records.items()):
+            if not isinstance(identity, dict) or not isinstance(identity.get("id"), str):
+                del records[agent]
+
+
+def _validate_campaign_compatibility(
+    metadata: dict[str, object],
+    fixtures: tuple[Fixture, ...],
+    timeout_seconds: int,
+    environment: dict[str, str],
+) -> None:
+    """Reject campaign drift before any Docker command or pair mutation."""
+    expected = {
+        "model_settings": _model_settings(environment),
+        "sampling_settings": {
+            "temperature": environment.get("EXPERIMENT_TEMPERATURE"),
+            "top_p": environment.get("EXPERIMENT_TOP_P"),
+            "seed": environment.get("EXPERIMENT_SEED"),
+        },
+        "timeout_seconds": timeout_seconds,
+        "trial_policy": TRIAL_POLICY,
+    }
+    for setting, value in expected.items():
+        if metadata.get(setting) != value:
+            raise ValueError(f"campaign configuration mismatch: {setting}")
+    if (
+        not metadata.get("legacy_results")
+        and metadata.get("result_generation_revision") != _execution_revision()
+    ):
+        raise ValueError("campaign configuration mismatch: result_generation_revision")
+    selected = {fixture.name: fixture for fixture in fixtures}
+    for name, recorded in metadata["fixtures"].items():
+        fixture = selected.get(name)
+        if fixture is None:
+            try:
+                fixture = _load_fixture(FIXTURE_ROOT, name)
+            except (OSError, ValueError) as error:
+                raise ValueError(f"registered fixture is unavailable: {name}") from error
+        if recorded != _fixture_record(fixture):
+            raise ValueError(f"campaign fixture revision mismatch: {name}")
+    configurations = metadata["agent_configurations"]
+    for agent, recorded in configurations.items():
+        if agent not in SUPPORTED_AGENTS or recorded != _agent_configuration(agent):
+            raise ValueError(f"campaign agent configuration mismatch: {agent}")
+
+
+def _consolidate_legacy_logs(directory: Path) -> tuple[Path, ...]:
+    """Fold old stage logs into the schema-v2 stdout/stderr streams."""
+    all_sources = []
+    for stream_name in ("stdout", "stderr"):
+        target = directory / f"{stream_name}.log"
+        sources = sorted(
+            path
+            for path in directory.glob(f"*.{stream_name}.log")
+            if path != target
+        )
+        if sources:
+            target.write_text("")
+        else:
+            target.touch()
+        for source in sources:
+            stage = "agent" if source.name == f"agent.{stream_name}.log" else source.name
+            _write_log(target, source.read_text(), stage)
+        all_sources.extend(sources)
+    return tuple(all_sources)
+
+
+def _upgrade_campaign_artifacts(
+    output_root: Path, metadata: dict[str, object]
+) -> None:
+    """Normalize validated schema-v1 artifacts to the compact allowlist."""
+    root_sources = _consolidate_legacy_logs(output_root)
+    for run_root in _pair_directories(output_root):
+        result_path = run_root / "result.json"
+        result = _valid_pair_result(result_path) if result_path.is_file() else None
+        if result is None:
+            continue
+        if result.get("schema_version", 1) == 1:
+            (run_root / "workdir").mkdir(exist_ok=True)
+            _consolidate_legacy_logs(run_root)
+            environment_source = _safe_result_artifact(
+                run_root,
+                result.get("sanitized_environment", "container_environment.json"),
+            )
+            environment = json.loads(environment_source.read_text())
+            _atomic_write_json(run_root / "environment.json", environment)
+            result.update(
+                {
+                    "schema_version": SCHEMA_VERSION,
+                    "stdout_path": "stdout.log",
+                    "stderr_path": "stderr.log",
+                    "workdir_path": "workdir",
+                    "sanitized_environment": "environment.json",
+                    "status": "passed" if result["passed"] else "failed",
+                    "evaluator_outcome": "passed" if result["passed"] else "failed",
+                }
+            )
+            _atomic_write_json(result_path, result)
+        prune_workdir(run_root / "workdir")
+        allowed = {
+            "result.json",
+            "stdout.log",
+            "stderr.log",
+            "environment.json",
+            "workdir",
+        }
+        for artifact in tuple(run_root.iterdir()):
+            if artifact.name not in allowed:
+                shutil.rmtree(artifact) if artifact.is_dir() else artifact.unlink()
+    for source in root_sources:
+        source.unlink(missing_ok=True)
+    metadata["schema_version"] = SCHEMA_VERSION
+
+
+def _save_metadata(path: Path, metadata: dict[str, object]) -> None:
+    """Atomically persist aggregate campaign metadata."""
+    _atomic_write_json(path, metadata)
+
+
+def _ensure_image(
+    metadata_path: Path,
+    metadata: dict[str, object],
+    records: dict[str, object],
+    key: str,
+    image: str,
+    build_command: list[str] | None,
+    stdout: Path,
+    stderr: Path,
+    timeout_seconds: int,
+    secret_values: tuple[str, ...],
+    stage: str,
+) -> int:
+    """Reuse one campaign image or build and verify its immutable identity."""
+    recorded = records.get(key)
+    if recorded is not None and not isinstance(recorded, dict):
+        raise ValueError(f"invalid recorded image: {key}")
+    current = _image_identity(image)
+    recorded_id = recorded.get("id") if isinstance(recorded, dict) else None
+    if recorded is not None and not isinstance(recorded_id, str):
+        raise ValueError(f"recorded image has no immutable ID: {image}")
+    if recorded_id is not None and current.get("id") == recorded_id:
+        return 0
+    if build_command is None:
+        return _ensure_external_image(
+            metadata_path,
+            metadata,
+            records,
+            key,
+            image,
+            current,
+            recorded_id,
+            stdout,
+            stderr,
+            timeout_seconds,
+            secret_values,
+        )
+    code, _ = _run(
+        build_command,
+        stdout,
+        stderr,
+        timeout_seconds,
+        secret_values,
+        stage=stage,
+    )
+    if code:
+        return code
+    rebuilt = _image_identity(image)
+    if not isinstance(rebuilt.get("id"), str):
+        raise ValueError(f"built image has no immutable local ID: {image}")
+    if recorded_id is not None and rebuilt.get("id") != recorded_id:
+        raise ValueError(f"rebuilt image ID changed for campaign image: {image}")
+    records[key] = rebuilt
+    _save_metadata(metadata_path, metadata)
+    return 0
+
+
+def _ensure_external_image(
+    metadata_path: Path,
+    metadata: dict[str, object],
+    records: dict[str, object],
+    key: str,
+    image: str,
+    current: dict[str, object],
+    recorded_id: object,
+    stdout: Path,
+    stderr: Path,
+    timeout_seconds: int,
+    secret_values: tuple[str, ...],
+) -> int:
+    """Materialize and record one immutable external evaluator image."""
+    if recorded_id is not None:
+        return _restore_external_image(
+            records[key],
+            str(recorded_id),
+            image,
+            stdout,
+            stderr,
+            timeout_seconds,
+            secret_values,
+        )
+    if current.get("id") is None:
+        code, _ = _run(
+            ["docker", "pull", image],
+            stdout,
+            stderr,
+            timeout_seconds,
+            secret_values,
+            stage=f"pull/{image}",
+        )
+        if code:
+            return code
+        current = _image_identity(image)
+    if not isinstance(current.get("id"), str):
+        raise ValueError(f"image has no immutable local ID after pull: {image}")
+    records[key] = current
+    _save_metadata(metadata_path, metadata)
+    return 0
+
+
+def _restore_external_image(
+    recorded: dict[str, object],
+    recorded_id: str,
+    image: str,
+    stdout: Path,
+    stderr: Path,
+    timeout_seconds: int,
+    secret_values: tuple[str, ...],
+) -> int:
+    """Restore one missing external image without accepting different bytes."""
+    digest_target = "@sha256:" in image
+    source = (
+        recorded_id
+        if not digest_target
+        and _image_identity(recorded_id).get("id") == recorded_id
+        else None
+    )
+    digests = recorded.get("repo_digests", [])
+    if source is None and isinstance(digests, list):
+        source = next((digest for digest in digests if isinstance(digest, str)), None)
+        if source is not None:
+            code, _ = _run(
+                ["docker", "pull", source],
+                stdout,
+                stderr,
+                timeout_seconds,
+                secret_values,
+                stage=f"pull/{source}",
+            )
+            if code or _image_identity(image).get("id") == recorded_id:
+                return code
+    if source is None:
+        raise ValueError(f"recorded image ID mismatch or unavailable: {image}")
+    code, _ = _run(
+        ["docker", "image", "tag", source, image],
+        stdout,
+        stderr,
+        timeout_seconds,
+        secret_values,
+        stage=f"tag/{image}",
+    )
+    if not code and _image_identity(image).get("id") != recorded_id:
+        raise ValueError(f"rematerialized image ID changed: {image}")
+    return code
+
+
+def _record_candidate_image(
+    metadata_path: Path,
+    metadata: dict[str, object],
+    fixture: str,
+    agent: str,
+    identity: dict[str, object],
+) -> None:
+    """Register one logical pair's already-verified physical image."""
     candidates = metadata["images"]["candidates"]
-    candidates.setdefault(fixture, {})[agent] = _image_identity(image)
-    path.write_text(json.dumps(metadata, indent=2) + "\n")
+    candidates.setdefault(fixture, {})[agent] = identity
+    _save_metadata(metadata_path, metadata)
 
 
 def write_outcomes(
     path: Path,
     output_root: Path,
-    fixtures: tuple[Fixture, ...],
-    agents: tuple[str, ...],
+    metadata: dict[str, object],
 ) -> None:
-    """Report per-task outcomes in separate non-comparable task groups."""
+    """Atomically aggregate every complete registered campaign pair."""
     outcomes: dict[str, dict[str, dict[str, object]]] = {
         "coding": {},
         "research": {},
         "conversation": {},
     }
+    for fixture_name, fixture_record in metadata["fixtures"].items():
+        outcomes[fixture_record["outcome_group"]][fixture_name] = {}
+    for pair in metadata["pairs"]:
+        fixture_name = pair["fixture"]
+        agent = pair["agent"]
+        result = _valid_pair_result(
+            output_root / fixture_name / agent / "result.json"
+        )
+        if result is None:
+            continue
+        score = result.get("score")
+        outcome_group = metadata["fixtures"][fixture_name]["outcome_group"]
+        outcomes[outcome_group][fixture_name][agent] = {
+            "passed": result["passed"],
+            "score": score["total"] if isinstance(score, dict) else None,
+            "metrics": score.get("metrics", {}) if isinstance(score, dict) else {},
+        }
+    _atomic_write_json(path, outcomes)
+
+
+def _write_failed_pair(
+    fixture: Fixture,
+    agent: str,
+    run_root: Path,
+    environment: dict[str, str],
+    message: str,
+    failure_stage: str,
+    campaign_id: str,
+) -> None:
+    """Write one complete failed result when a pair cannot start."""
+    run_root.mkdir(parents=True, exist_ok=True)
+    (run_root / "workdir").mkdir(exist_ok=True)
+    stdout = run_root / "stdout.log"
+    stderr = run_root / "stderr.log"
+    stdout.touch()
+    _write_log(stderr, message + "\n", failure_stage)
+    timestamp = datetime.now(timezone.utc)
+    write_result(
+        run_root / "result.json",
+        fixture.name,
+        agent,
+        state_volume_name(fixture.name, agent, campaign_id),
+        timestamp,
+        timestamp,
+        0.0,
+        SKIPPED_EVALUATOR_EXIT_CODE,
+        SKIPPED_EVALUATOR_EXIT_CODE,
+        stdout,
+        stderr,
+        environment,
+        failure_stage=failure_stage,
+    )
+
+
+def _evaluate_submission(
+    fixture: Fixture,
+    agent: str,
+    submission: Path,
+    run_root: Path,
+    agent_stdout: Path,
+    secret_values: tuple[str, ...],
+    timeout_seconds: int,
+    campaign_id: str,
+) -> tuple[int, Score | None, str | None, str | None, str | None]:
+    """Run one deterministic evaluator and return its validated outcome."""
+    evaluator_result = run_root / ".evaluator-result"
+    evaluator_result.mkdir()
+    evaluator_name = container_name(
+        fixture.name, agent, "evaluator", campaign_id
+    )
+    stdout = run_root / "stdout.log"
+    stderr = run_root / "stderr.log"
+    failure_stage = None
+    score = None
+    score_error = None
+    cleanup_error = None
+    try:
+        try:
+            dependency_files = (
+                ()
+                if fixture.entrypoint_manages_dependencies
+                else _existing_submission_dependency_files(
+                    submission, fixture.submission_dependency_files
+                )
+            )
+        except ValueError as error:
+            evaluator_code = SKIPPED_EVALUATOR_EXIT_CODE
+            failure_stage = "evaluator_setup"
+            _write_log(stderr, f"Evaluator setup failed: {error}\n", failure_stage)
+        else:
+            build_code = 0
+            if fixture.submission_dockerfile is not None:
+                build_code, _ = _run(
+                    build_submission_command(
+                        submission / fixture.submission_dockerfile, submission
+                    ),
+                    stdout,
+                    stderr,
+                    timeout_seconds,
+                    secret_values,
+                    stage="submission-build",
+                )
+                if build_code:
+                    evaluator_code = SKIPPED_EVALUATOR_EXIT_CODE
+                    failure_stage = "submission_build"
+                    _write_log(
+                        stderr,
+                        "Evaluator skipped: submission Docker build failed "
+                        f"with exit code {build_code}\n",
+                        failure_stage,
+                    )
+            if not build_code:
+                evaluator_code, cleanup_error = _run(
+                    build_evaluator_command(
+                        fixture.eval_image,
+                        fixture.eval_command,
+                        submission,
+                        fixture.root / "eval",
+                        evaluator_name,
+                        dependency_files,
+                        agent_stdout,
+                        evaluator_result,
+                        not fixture.entrypoint_manages_dependencies,
+                    ),
+                    stdout,
+                    stderr,
+                    timeout_seconds,
+                    secret_values,
+                    evaluator_name,
+                    "evaluator",
+                )
+                if cleanup_error:
+                    failure_stage = "evaluator_cleanup"
+        try:
+            score = read_score(evaluator_result / "score.json")
+        except ValueError as error:
+            score_error = str(error)
+            failure_stage = "score"
+            _write_log(
+                stderr, f"Evaluator score rejected: {error}\n", failure_stage
+            )
+        if evaluator_code != 0 and failure_stage is None:
+            failure_stage = "evaluator"
+        return evaluator_code, score, score_error, failure_stage, cleanup_error
+    finally:
+        shutil.rmtree(evaluator_result, ignore_errors=True)
+
+
+def _execute_pair(
+    fixture: Fixture,
+    agent: str,
+    image: str,
+    run_root: Path,
+    timeout_seconds: int,
+    campaign_id: str,
+) -> tuple[bool, bool]:
+    """Run one fresh pair, clean its volumes, and retain only durable evidence."""
+    run_root.mkdir(parents=True)
+    stdout = run_root / "stdout.log"
+    stderr = run_root / "stderr.log"
+    stdout.touch()
+    stderr.touch()
+    agent_stdout = run_root / ".agent.stdout.log"
+    agent_stderr = run_root / ".agent.stderr.log"
+    raw_environment, environment = _agent_compose_environments(
+        Path(".env"), fixture.prompt, agent
+    )
+    secret_values = _secret_values(raw_environment, environment)
+    volume = state_volume_name(fixture.name, agent, campaign_id)
+    workspace = workspace_volume_name(fixture.name, agent, campaign_id)
+    override = run_root / ".compose-image.yaml"
+    _write_override(override, agent_service(agent), image)
+    state_error = (
+        None if agent == "opencode" else _remove_state_volume(volume, timeout_seconds)
+    )
+    workspace_error = _remove_workspace_volume(workspace, timeout_seconds)
+    started_at = datetime.now(timezone.utc)
+    started_time = time.monotonic()
+    cleanup_error = state_error or workspace_error
+    failure_stage = "state_setup" if state_error else None
+    if workspace_error:
+        failure_stage = "workspace_setup"
+    try:
+        seed_error = cleanup_error or _seed_workspace_volume(
+            fixture.root / "workdir",
+            workspace,
+            image,
+            container_name(fixture.name, agent, "workspace-seed", campaign_id),
+            run_root,
+            timeout_seconds,
+            secret_values,
+        )
+        if seed_error:
+            agent_code = SKIPPED_EVALUATOR_EXIT_CODE
+            cleanup_error = seed_error
+            failure_stage = failure_stage or "workspace_setup"
+            _write_log(stderr, f"Agent skipped: {seed_error}\n", failure_stage)
+        else:
+            agent_name = container_name(
+                fixture.name, agent, "agent", campaign_id
+            )
+            agent_code, cleanup_error = _run(
+                build_agent_command(
+                    Path("docker-compose.yml"),
+                    override,
+                    agent,
+                    fixture.prompt,
+                    workspace,
+                    volume,
+                    agent_name,
+                ),
+                agent_stdout,
+                agent_stderr,
+                timeout_seconds,
+                secret_values,
+                agent_name,
+            )
+            _write_log(stdout, agent_stdout.read_text(), "agent")
+            _write_log(stderr, agent_stderr.read_text(), "agent")
+            if cleanup_error:
+                failure_stage = "agent_cleanup"
+            else:
+                cleanup_error = _export_workspace_volume(
+                    workspace,
+                    image,
+                    container_name(
+                        fixture.name, agent, "workspace-export", campaign_id
+                    ),
+                    run_root / "workdir",
+                    run_root,
+                    timeout_seconds,
+                    secret_values,
+                )
+                if cleanup_error:
+                    failure_stage = "workspace_export"
+        ended_at = datetime.now(timezone.utc)
+        elapsed = time.monotonic() - started_time
+        if cleanup_error:
+            evaluator_code = SKIPPED_EVALUATOR_EXIT_CODE
+            score = None
+            score_error = None
+            _write_log(
+                stderr,
+                f"Evaluator skipped: {cleanup_error}\n",
+                failure_stage or "cleanup",
+            )
+        else:
+            (
+                evaluator_code,
+                score,
+                score_error,
+                failure_stage,
+                cleanup_error,
+            ) = _evaluate_submission(
+                fixture,
+                agent,
+                run_root / "workdir",
+                run_root,
+                agent_stdout,
+                secret_values,
+                timeout_seconds,
+                campaign_id,
+            )
+        prune_workdir(run_root / "workdir")
+    finally:
+        final_errors = [
+            error
+            for error in (
+                _remove_workspace_volume(workspace, timeout_seconds),
+                None
+                if agent == "opencode"
+                else _remove_state_volume(volume, timeout_seconds),
+            )
+            if error
+        ]
+        override.unlink(missing_ok=True)
+        agent_stdout.unlink(missing_ok=True)
+        agent_stderr.unlink(missing_ok=True)
+    if final_errors:
+        cleanup_error = cleanup_error or final_errors[0]
+        failure_stage = "cleanup"
+        _write_log(stderr, "\n".join(final_errors) + "\n", failure_stage)
+    write_result(
+        run_root / "result.json",
+        fixture.name,
+        agent,
+        volume,
+        started_at,
+        ended_at,
+        elapsed,
+        agent_code,
+        evaluator_code,
+        stdout,
+        stderr,
+        environment,
+        score,
+        score_error,
+        failure_stage,
+    )
+    passed = (
+        evaluator_code == 0
+        and score_error is None
+        and (score is None or score.passed)
+        and failure_stage is None
+    )
+    return not passed, cleanup_error is not None
+
+
+def _selected_campaign_failed(
+    output_root: Path, fixtures: tuple[Fixture, ...], agents: tuple[str, ...]
+) -> bool:
+    """Return whether any complete currently selected pair failed."""
+    return any(
+        result is not None and not result["passed"]
+        for fixture in fixtures
+        for agent in agents
+        if (
+            result := _valid_pair_result(
+                output_root / fixture.name / agent / "result.json"
+            )
+        )
+        is not None
+    )
+
+
+def _prepare_campaign_metadata(
+    output_root: Path,
+    fixtures: tuple[Fixture, ...],
+    agents: tuple[str, ...],
+    overwrite: bool,
+    timeout_seconds: int,
+    environment: dict[str, str],
+) -> dict[str, object]:
+    """Load, validate, migrate, and register one campaign invocation."""
+    metadata, migrated = _load_campaign(output_root)
+    if metadata is None:
+        metadata = _new_metadata(timeout_seconds, environment)
+    else:
+        _validate_campaign_compatibility(
+            metadata, fixtures, timeout_seconds, environment
+        )
+        _recover_registered_pairs(output_root, metadata)
+        if metadata.get("legacy_results") and (
+            overwrite
+            or any(
+                _valid_pair_result(
+                    output_root / fixture.name / agent / "result.json"
+                )
+                is None
+                for fixture in fixtures
+                for agent in agents
+            )
+        ):
+            raise ValueError("legacy campaign results are sealed; use a new output root")
+        if migrated:
+            _upgrade_campaign_artifacts(output_root, metadata)
+    _register_invocation(metadata, fixtures, agents, overwrite)
+    _save_metadata(output_root / "run_metadata.json", metadata)
+    return metadata
+
+
+def _select_pending_pairs(
+    output_root: Path,
+    fixtures: tuple[Fixture, ...],
+    agents: tuple[str, ...],
+    overwrite: bool,
+) -> list[tuple[Fixture, str]]:
+    """Skip complete results and clean every selected pair that must run."""
+    pending = []
     for fixture in fixtures:
-        fixture_outcomes: dict[str, object] = {}
         for agent in agents:
-            result_path = output_root / fixture.name / agent / "result.json"
-            if result_path.is_file():
-                result = json.loads(result_path.read_text())
-                score = result.get("score")
-                fixture_outcomes[agent] = {
-                    "passed": result["passed"],
-                    "score": score["total"] if isinstance(score, dict) else None,
-                    "metrics": score.get("metrics", {})
-                    if isinstance(score, dict)
-                    else {},
-                }
-        outcomes[fixture.outcome_group][fixture.name] = fixture_outcomes
-    path.write_text(json.dumps(outcomes, indent=2) + "\n")
+            run_root = output_root / fixture.name / agent
+            complete = _valid_pair_result(run_root / "result.json") is not None
+            if complete and not overwrite:
+                print(f"[{fixture.name}/{agent}] skipped complete", flush=True)
+                continue
+            pending.append((fixture, agent))
+    return pending
 
 
-def run_experiments(
+def _replacement_paths(run_root: Path) -> tuple[Path, Path]:
+    """Return hidden staging and previous siblings for one public pair."""
+    return (
+        run_root.with_name(f".{run_root.name}.staging"),
+        run_root.with_name(f".{run_root.name}.previous"),
+    )
+
+
+def _recover_previous_pair(run_root: Path, fixture: str, agent: str) -> None:
+    """Restore a valid hidden previous pair left by interrupted publication."""
+    staging, previous = _replacement_paths(run_root)
+    current_valid = _valid_pair_result(
+        run_root / "result.json", fixture, agent
+    )
+    previous_valid = _valid_pair_result(
+        previous / "result.json", fixture, agent
+    )
+    if current_valid is not None:
+        shutil.rmtree(previous, ignore_errors=True)
+    elif previous_valid is not None:
+        shutil.rmtree(run_root, ignore_errors=True)
+        previous.replace(run_root)
+    else:
+        shutil.rmtree(previous, ignore_errors=True)
+    shutil.rmtree(staging, ignore_errors=True)
+
+
+def _recover_registered_pairs(output_root: Path, metadata: dict[str, object]) -> None:
+    """Recover interrupted publication for every registered campaign pair."""
+    for pair in metadata["pairs"]:
+        fixture = pair["fixture"]
+        agent = pair["agent"]
+        _recover_previous_pair(output_root / fixture / agent, fixture, agent)
+
+
+def _publish_replacement(run_root: Path, fixture: str, agent: str) -> None:
+    """Atomically replace a public pair while retaining a recoverable previous."""
+    staging, previous = _replacement_paths(run_root)
+    if _valid_pair_result(staging / "result.json", fixture, agent) is None:
+        raise OSError(f"replacement pair is incomplete: {staging}")
+    shutil.rmtree(previous, ignore_errors=True)
+    if run_root.exists():
+        run_root.replace(previous)
+    try:
+        staging.replace(run_root)
+    except OSError:
+        if previous.exists() and not run_root.exists():
+            previous.replace(run_root)
+        raise
+    shutil.rmtree(previous, ignore_errors=True)
+
+
+def _build_campaign_images(
+    pending: list[tuple[Fixture, str]],
+    metadata_path: Path,
+    metadata: dict[str, object],
+    stdout: Path,
+    stderr: Path,
+    timeout_seconds: int,
+    secret_values: tuple[str, ...],
+) -> tuple[dict[str, str], int]:
+    """Build or reuse every base and evaluator image needed by pending pairs."""
+    fixtures = tuple(dict.fromkeys(fixture for fixture, _agent in pending))
+    agents = tuple(dict.fromkeys(agent for _fixture, agent in pending))
+    services = {agent_service(agent) for agent in agents}
+    if any(
+        fixture.eval_image == LOCAL_PYTHON_EVALUATOR_IMAGE
+        or fixture.evaluator_dockerfile is not None
+        for fixture in fixtures
+    ):
+        services.add("tinycua")
+    base_images = {
+        service: f"tinycua-template-{service}-base" for service in sorted(services)
+    }
+    records = metadata["images"]
+    for service, image in base_images.items():
+        code = _ensure_image(
+            metadata_path,
+            metadata,
+            records["harnesses"],
+            service,
+            image,
+            build_base_command(service, image),
+            stdout,
+            stderr,
+            timeout_seconds,
+            secret_values,
+            f"build/harness/{service}",
+        )
+        if code:
+            return base_images, code
+    return base_images, 0
+
+
+def _ensure_evaluator_image(
+    fixture: Fixture,
+    base_images: dict[str, str],
+    metadata_path: Path,
+    metadata: dict[str, object],
+    stdout: Path,
+    stderr: Path,
+    timeout_seconds: int,
+    secret_values: tuple[str, ...],
+) -> int:
+    """Prepare the evaluator immediately before its fixture executes."""
+    command = (
+        build_decorator_command(
+            fixture.evaluator_dockerfile,
+            base_images["tinycua"],
+            fixture.eval_image,
+        )
+        if fixture.evaluator_dockerfile is not None
+        else None
+    )
+    return _ensure_image(
+        metadata_path,
+        metadata,
+        metadata["images"]["evaluators"],
+        fixture.name,
+        fixture.eval_image,
+        command,
+        stdout,
+        stderr,
+        timeout_seconds,
+        secret_values,
+        f"build/evaluator/{fixture.eval_image}",
+    )
+
+
+def _candidate_image(
+    fixture: Fixture,
+    agent: str,
+    base_images: dict[str, str],
+    metadata_path: Path,
+    metadata: dict[str, object],
+    stdout: Path,
+    stderr: Path,
+    timeout_seconds: int,
+    secret_values: tuple[str, ...],
+) -> tuple[str, dict[str, object], int]:
+    """Return one pair's verified base or fixture-decorated image."""
+    service = agent_service(agent)
+    image = base_images[service]
+    records = metadata["images"]
+    identity = records["harnesses"][service]
+    if not fixture.dockerfile.exists():
+        return image, identity, 0
+    image = f"tinycua-template-{fixture.name}-{service}"
+    key = f"{fixture.name}/{service}"
+    code = _ensure_image(
+        metadata_path,
+        metadata,
+        records["decorators"],
+        key,
+        image,
+        build_decorator_command(fixture.dockerfile, base_images[service], image),
+        stdout,
+        stderr,
+        timeout_seconds,
+        secret_values,
+        f"build/decorator/{key}",
+    )
+    return image, records["decorators"].get(key, identity), code
+
+
+def _run_pending_pairs(
+    pending: list[tuple[Fixture, str]],
+    output_root: Path,
+    base_images: dict[str, str],
+    metadata: dict[str, object],
+    timeout_seconds: int,
+    secret_values: tuple[str, ...],
+    overwrite: bool,
+) -> bool:
+    """Run pending pairs and return whether cleanup requires an early stop."""
+    metadata_path = output_root / "run_metadata.json"
+    stdout = output_root / "stdout.log"
+    stderr = output_root / "stderr.log"
+    campaign_id = metadata["campaign_id"]
+    for fixture, agent in pending:
+        print(f"[{fixture.name}/{agent}] starting", flush=True)
+        public_root = output_root / fixture.name / agent
+        code = _ensure_evaluator_image(
+            fixture,
+            base_images,
+            metadata_path,
+            metadata,
+            stdout,
+            stderr,
+            timeout_seconds,
+            secret_values,
+        )
+        if code:
+            return True
+        image, identity, code = _candidate_image(
+            fixture,
+            agent,
+            base_images,
+            metadata_path,
+            metadata,
+            stdout,
+            stderr,
+            timeout_seconds,
+            secret_values,
+        )
+        if code:
+            message = f"fixture image build failed exit_code={code}"
+            print(f"[{fixture.name}/{agent}] {message}", flush=True)
+            if overwrite:
+                return True
+            _, environment = _agent_compose_environments(
+                Path(".env"), fixture.prompt, agent
+            )
+            shutil.rmtree(public_root, ignore_errors=True)
+            _write_failed_pair(
+                fixture,
+                agent,
+                public_root,
+                environment,
+                message,
+                "fixture_image_build",
+                campaign_id,
+            )
+            write_outcomes(output_root / "outcomes.json", output_root, metadata)
+            continue
+        if not overwrite and _valid_pair_result(
+            public_root / "result.json", fixture.name, agent
+        ) is not None:
+            print(f"[{fixture.name}/{agent}] recovered complete", flush=True)
+            continue
+        run_root = _replacement_paths(public_root)[0] if overwrite else public_root
+        shutil.rmtree(run_root, ignore_errors=True)
+        _record_candidate_image(
+            metadata_path, metadata, fixture.name, agent, identity
+        )
+        failed, cleanup_failed = _execute_pair(
+            fixture,
+            agent,
+            image,
+            run_root,
+            timeout_seconds,
+            campaign_id,
+        )
+        if overwrite:
+            if failed or cleanup_failed:
+                shutil.rmtree(run_root, ignore_errors=True)
+                return True
+            _publish_replacement(public_root, fixture.name, agent)
+        write_outcomes(output_root / "outcomes.json", output_root, metadata)
+        print(
+            f"[{fixture.name}/{agent}] {'failed' if failed else 'passed'}",
+            flush=True,
+        )
+        if cleanup_failed:
+            return True
+    return False
+
+
+def _continue_campaign(
+    fixtures: tuple[Fixture, ...],
+    agents: tuple[str, ...],
+    output_root: Path,
+    overwrite: bool,
+    timeout_seconds: int,
+    metadata: dict[str, object],
+    configured_secrets: tuple[str, ...],
+) -> int:
+    """Execute one already-registered compatible campaign invocation."""
+    metadata_path = output_root / "run_metadata.json"
+    pending = _select_pending_pairs(output_root, fixtures, agents, overwrite)
+    write_outcomes(output_root / "outcomes.json", output_root, metadata)
+    if not pending:
+        return int(_selected_campaign_failed(output_root, fixtures, agents))
+
+    root_stdout = output_root / "stdout.log"
+    root_stderr = output_root / "stderr.log"
+    root_stdout.touch()
+    root_stderr.touch()
+    _restart_searxng(
+        timeout_seconds,
+        root_stdout,
+        root_stderr,
+        configured_secrets,
+    )
+    base_images, build_code = _build_campaign_images(
+        pending,
+        metadata_path,
+        metadata,
+        root_stdout,
+        root_stderr,
+        timeout_seconds,
+        configured_secrets,
+    )
+    if build_code:
+        return build_code
+    if _run_pending_pairs(
+        pending,
+        output_root,
+        base_images,
+        metadata,
+        timeout_seconds,
+        configured_secrets,
+        overwrite,
+    ):
+        return 1
+    return int(_selected_campaign_failed(output_root, fixtures, agents))
+
+
+def _run_campaign(
     fixtures: tuple[Fixture, ...],
     agents: tuple[str, ...],
     output_root: Path,
     overwrite: bool,
     timeout_seconds: int,
 ) -> int:
-    """Build selected harnesses and run every fixture/harness pair sequentially."""
-    _prepare_output(output_root, fixtures, agents, overwrite)
-    if overwrite:
-        _reset_state_volumes(fixtures, agents, timeout_seconds)
-    _restart_searxng(timeout_seconds)
+    """Resume one compatible controlled campaign under a single writer."""
+    metadata_path = output_root / "run_metadata.json"
     raw_environment, configured_environment = _agent_compose_environments(
         Path(".env"), ""
     )
     configured_secrets = _secret_values(raw_environment, configured_environment)
-    base_images = {
-        agent: f"tinycua-template-{agent}-base"
-        for agent in evaluator_base_agents(fixtures, agents)
-    }
-    for agent, image in base_images.items():
-        print(f"[build/{agent}] starting", flush=True)
-        code, _ = _run(
-            build_base_command(agent, image),
-            output_root / f"{agent}-build.stdout.log",
-            output_root / f"{agent}-build.stderr.log",
-            timeout_seconds,
-            configured_secrets,
-        )
-        if code:
-            print(f"[build/{agent}] failed exit_code={code}", flush=True)
-            return code
-        print(f"[build/{agent}] complete", flush=True)
-
-    built_evaluators: set[str] = set()
-    for fixture in fixtures:
-        if (
-            fixture.evaluator_dockerfile is None
-            or fixture.eval_image in built_evaluators
-        ):
-            continue
-        print(f"[build/{fixture.eval_image}] starting", flush=True)
-        code, _ = _run(
-            build_decorator_command(
-                fixture.evaluator_dockerfile,
-                base_images["tinycua"],
-                fixture.eval_image,
-            ),
-            output_root / f"{fixture.name}-evaluator-build.stdout.log",
-            output_root / f"{fixture.name}-evaluator-build.stderr.log",
-            timeout_seconds,
-            configured_secrets,
-        )
-        if code:
-            print(f"[build/{fixture.eval_image}] failed exit_code={code}", flush=True)
-            return code
-        built_evaluators.add(fixture.eval_image)
-        print(f"[build/{fixture.eval_image}] complete", flush=True)
-
-    write_run_metadata(
-        output_root / "run_metadata.json",
+    metadata = _prepare_campaign_metadata(
+        output_root,
         fixtures,
         agents,
-        base_images,
-        timeout_seconds,
         overwrite,
+        timeout_seconds,
         configured_environment,
     )
-
-    failed = False
-    built_decorators: set[tuple[str, str]] = set()
-    for fixture in fixtures:
-        for agent in agents:
-            print(f"[{fixture.name}/{agent}] starting", flush=True)
-            run_root = output_root / fixture.name / agent
-            submission = run_root / "workdir"
-            run_root.mkdir(parents=True)
-            service = agent_service(agent)
-            image = base_images[service]
-            if fixture.dockerfile.exists():
-                image = f"tinycua-template-{fixture.name}-{service}"
-                decorator = (fixture.name, service)
-                if decorator not in built_decorators:
-                    code, _ = _run(
-                        build_decorator_command(
-                            fixture.dockerfile, base_images[service], image
-                        ),
-                        run_root / "build.stdout.log",
-                        run_root / "build.stderr.log",
-                        timeout_seconds,
-                        configured_secrets,
-                    )
-                    if code:
-                        failed = True
-                        message = f"fixture image build failed exit_code={code}"
-                        print(f"[{fixture.name}/{agent}] {message}", flush=True)
-                        agent_stdout = run_root / "agent.stdout.log"
-                        agent_stderr = run_root / "agent.stderr.log"
-                        evaluator_stdout = run_root / "eval.stdout.log"
-                        evaluator_stderr = run_root / "eval.stderr.log"
-                        agent_stdout.write_text("")
-                        agent_stderr.write_text(f"Agent skipped: {message}\n")
-                        evaluator_stdout.write_text("")
-                        evaluator_stderr.write_text(f"Evaluator skipped: {message}\n")
-                        (run_root / "evaluator-result").mkdir()
-                        _, agent_environment = _agent_compose_environments(
-                            Path(".env"), fixture.prompt, agent
-                        )
-                        timestamp = datetime.now(timezone.utc)
-                        write_result(
-                            run_root / "result.json",
-                            fixture.name,
-                            agent,
-                            state_volume_name(fixture.name, agent),
-                            timestamp,
-                            timestamp,
-                            0.0,
-                            SKIPPED_EVALUATOR_EXIT_CODE,
-                            SKIPPED_EVALUATOR_EXIT_CODE,
-                            agent_stdout,
-                            agent_stderr,
-                            agent_environment,
-                        )
-                        continue
-                    built_decorators.add(decorator)
-            override = run_root / "compose-image.yaml"
-            _write_override(override, service, image)
-            record_candidate_image(
-                output_root / "run_metadata.json", fixture.name, agent, image
-            )
-            volume = state_volume_name(fixture.name, agent)
-            workspace = workspace_volume_name(fixture.name, agent)
-            agent_stdout = run_root / "agent.stdout.log"
-            agent_stderr = run_root / "agent.stderr.log"
-            raw_environment, agent_environment = _agent_compose_environments(
-                Path(".env"), fixture.prompt, agent
-            )
-            secret_values = _secret_values(raw_environment, agent_environment)
-            started_at = datetime.now(timezone.utc)
-            started_time = time.monotonic()
-            agent_name = container_name(fixture.name, agent, "agent")
-            workspace_reset_error = _remove_workspace_volume(workspace, timeout_seconds)
-            seed_error = workspace_reset_error or _seed_workspace_volume(
-                fixture.root / "workdir",
-                workspace,
-                image,
-                container_name(fixture.name, agent, "workspace-seed"),
-                run_root,
-                timeout_seconds,
-                secret_values,
-            )
-            if seed_error:
-                agent_code = SKIPPED_EVALUATOR_EXIT_CODE
-                cleanup_error = seed_error
-                agent_stdout.write_text("")
-                agent_stderr.write_text(f"Agent skipped: {seed_error}\n")
-            else:
-                agent_code, cleanup_error = _run(
-                    build_agent_command(
-                        Path("docker-compose.yml"),
-                        override,
-                        agent,
-                        fixture.prompt,
-                        workspace,
-                        volume,
-                        agent_name,
-                    ),
-                    agent_stdout,
-                    agent_stderr,
-                    timeout_seconds,
-                    secret_values,
-                    agent_name,
-                )
-                if cleanup_error is None:
-                    cleanup_error = _export_workspace_volume(
-                        workspace,
-                        image,
-                        container_name(fixture.name, agent, "workspace-export"),
-                        submission,
-                        run_root,
-                        timeout_seconds,
-                        secret_values,
-                    )
-            ended_at = datetime.now(timezone.utc)
-            elapsed_prompt_to_finish_seconds = time.monotonic() - started_time
-            print(
-                f"[{fixture.name}/{agent}] agent exit_code={agent_code} "
-                f"duration={elapsed_prompt_to_finish_seconds:.1f}s",
-                flush=True,
-            )
-            evaluator_name = container_name(fixture.name, agent, "evaluator")
-            evaluator_stdout = run_root / "eval.stdout.log"
-            evaluator_stderr = run_root / "eval.stderr.log"
-            evaluator_result = run_root / "evaluator-result"
-            evaluator_result.mkdir()
-            if cleanup_error:
-                evaluator_code = SKIPPED_EVALUATOR_EXIT_CODE
-                evaluator_stdout.write_text("")
-                evaluator_stderr.write_text(f"Evaluator skipped: {cleanup_error}\n")
-            else:
-                try:
-                    dependency_files = (
-                        ()
-                        if fixture.entrypoint_manages_dependencies
-                        else _existing_submission_dependency_files(
-                            submission, fixture.submission_dependency_files
-                        )
-                    )
-                except ValueError as error:
-                    evaluator_code = SKIPPED_EVALUATOR_EXIT_CODE
-                    evaluator_stdout.write_text("")
-                    evaluator_stderr.write_text(f"Evaluator setup failed: {error}\n")
-                else:
-                    if fixture.submission_dockerfile is not None:
-                        build_code, _ = _run(
-                            build_submission_command(
-                                submission / fixture.submission_dockerfile, submission
-                            ),
-                            run_root / "submission-build.stdout.log",
-                            run_root / "submission-build.stderr.log",
-                            timeout_seconds,
-                            secret_values,
-                        )
-                        if build_code:
-                            evaluator_code = SKIPPED_EVALUATOR_EXIT_CODE
-                            evaluator_stdout.write_text("")
-                            evaluator_stderr.write_text(
-                                "Evaluator skipped: submission Docker build failed "
-                                f"with exit code {build_code}\n"
-                            )
-                        else:
-                            evaluator_code, cleanup_error = _run(
-                                build_evaluator_command(
-                                    fixture.eval_image,
-                                    fixture.eval_command,
-                                    submission,
-                                    fixture.root / "eval",
-                                    evaluator_name,
-                                    dependency_files,
-                                    agent_stdout,
-                                    evaluator_result,
-                                    not fixture.entrypoint_manages_dependencies,
-                                ),
-                                evaluator_stdout,
-                                evaluator_stderr,
-                                timeout_seconds,
-                                secret_values,
-                                evaluator_name,
-                            )
-                    else:
-                        evaluator_code, cleanup_error = _run(
-                            build_evaluator_command(
-                                fixture.eval_image,
-                                fixture.eval_command,
-                                submission,
-                                fixture.root / "eval",
-                                evaluator_name,
-                                dependency_files,
-                                agent_stdout,
-                                evaluator_result,
-                                not fixture.entrypoint_manages_dependencies,
-                            ),
-                            evaluator_stdout,
-                            evaluator_stderr,
-                            timeout_seconds,
-                            secret_values,
-                            evaluator_name,
-                        )
-            score: Score | None = None
-            score_error: str | None = None
-            try:
-                score = read_score(evaluator_result / "score.json")
-            except ValueError as error:
-                score_error = str(error)
-                with evaluator_stderr.open("a") as stream:
-                    stream.write(f"Evaluator score rejected: {error}\n")
-            workspace_error = _remove_workspace_volume(workspace, timeout_seconds)
-            if workspace_error:
-                cleanup_error = cleanup_error or workspace_error
-                with evaluator_stderr.open("a") as stream:
-                    stream.write(f"Workspace cleanup failed: {workspace_error}\n")
-            write_result(
-                run_root / "result.json",
-                fixture.name,
-                agent,
-                volume,
-                started_at,
-                ended_at,
-                elapsed_prompt_to_finish_seconds,
-                agent_code,
-                evaluator_code,
-                agent_stdout,
-                agent_stderr,
-                agent_environment,
-                score,
-                score_error,
-            )
-            if cleanup_error:
-                write_outcomes(
-                    output_root / "outcomes.json", output_root, fixtures, agents
-                )
-                return 1
-            failed = (
-                failed
-                or evaluator_code != 0
-                or score_error is not None
-                or (score is not None and not score.passed)
-            )
-            print(
-                f"[{fixture.name}/{agent}] "
-                f"{'passed' if evaluator_code == 0 and score_error is None and (score is None or score.passed) else 'failed'} "
-                f"eval_exit_code={evaluator_code}",
-                flush=True,
-            )
-    write_outcomes(output_root / "outcomes.json", output_root, fixtures, agents)
-    return int(failed)
+    exit_code = 1
+    try:
+        exit_code = _continue_campaign(
+            fixtures,
+            agents,
+            output_root,
+            overwrite,
+            timeout_seconds,
+            metadata,
+            configured_secrets,
+        )
+    except (OSError, ValueError):
+        exit_code = 2
+        raise
+    except KeyboardInterrupt:
+        exit_code = 130
+        raise
+    finally:
+        _finish_invocation(metadata_path, metadata, exit_code)
+    return exit_code
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -1565,9 +2647,10 @@ def main(argv: list[str] | None = None) -> int:
         agents = parse_agents(args.agents)
         output_root = args.output_root.resolve()
         output_root.mkdir(parents=True, exist_ok=True)
-        return run_experiments(
-            fixtures, agents, output_root, args.overwrite, args.timeout_seconds
-        )
+        with campaign_lock(output_root):
+            return _run_campaign(
+                fixtures, agents, output_root, args.overwrite, args.timeout_seconds
+            )
     except (OSError, ValueError) as error:
         print(error, file=sys.stderr)
         return 2
