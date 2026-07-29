@@ -57,21 +57,21 @@ def shrink_threshold_for_effort(effort: str) -> int:
 
 
 _TASK_REFINEMENT_GUIDANCE = (
-    "Tasks are recursively refinable outcomes, not required atomic steps. At current "
-    "granularity, coherent, actionable, and verifiable work enables a focused execution "
-    "attempt and meaningful review from observable evidence. Decompose only when "
-    "separating responsibilities, dependencies, uncertainty, or evidence materially "
-    "improves execution or review. Children are scoped contributions and may be "
-    "decomposed again; the parent integrates them. Analysis "
-    "effort reassesses granularity but never requires a split, fixed depth, or task count."
+    "Recursively refinable outcomes are not required atomic steps. At current granularity, "
+    "coherent, actionable, verifiable work supports focused execution attempt and "
+    "meaningful review with observable evidence. Split only if useful. "
+    "Children are scoped contributions, may be decomposed again; parents integrate them. "
+    "Order prerequisites before dependents. Give shared foundations one owner; nest "
+    "dependents under an integrating outcome; state shared boundaries in descriptions. "
+    "Optional/speculative work is not required. Analysis effort reassesses "
+    "granularity; it never requires a split, fixed depth, or task count."
 )
 _TASK_ANALYZER_INSTRUCTION = (
     "TaskAnalyzer: Produce or refine an actionable roadmap; do not execute. Use available "
-    "tools like read_file or web_search only for material uncertainty. "
+    "tools (read_file) for material uncertainty. "
     f"{_TASK_REFINEMENT_GUIDANCE} Preserve explicit workflows and hard constraints; "
     "avoid hidden replanning, intentional sibling work, overlapping siblings, and "
-    "command-level or lifecycle-only tasks. Leave genuinely unsupported choices open. "
-    "Resolve the assigned roadmap region."
+    "command-level/lifecycle-only tasks. Leave genuinely unsupported choices open."
 )
 _TASK_ANALYZER_CONTINUATION = (
     "Decide whether refinement materially improves execution or review. Retain an "
@@ -87,13 +87,11 @@ _TASK_ANALYZER_LOCAL_REPLAN_CONTINUATION = (
 )
 
 _TASK_ASSESSOR_UPFRONT_INSTRUCTION = (
-    "TaskAssessor: review the whole roadmap; do not execute or mutate. Use read_file as "
-    "needed. "
-    f"{_TASK_REFINEMENT_GUIDANCE} Select only current blockers to execution or review. "
-    "Judge parents as integrated outcomes; report shared defects on the narrowest useful "
-    "node. Preserve explicit workflows and hard constraints; reject hidden replanning, "
-    "intentional sibling work, overlapping siblings, and command-level or lifecycle-only "
-    "tasks."
+    "TaskAssessor: Do not execute; review whole roadmap with read_file. "
+    f"{_TASK_REFINEMENT_GUIDANCE} Select blockers. Judge parent integration; put "
+    "shared defects on the narrowest useful node. Preserve explicit workflows and hard "
+    "constraints; reject hidden replanning, intentional sibling work, overlapping "
+    "siblings, and command-level/lifecycle-only tasks."
 )
 _TASK_ASSESSOR_UPFRONT_CONTINUATION = (
     "Decide ready when the roadmap is adequate at its current granularity and covers the "
@@ -101,12 +99,11 @@ _TASK_ASSESSOR_UPFRONT_CONTINUATION = (
     "execution or review. A task being large or further decomposable is not sufficient reason."
 )
 _TASK_ASSESSOR_LOCAL_REPLAN_INSTRUCTION = (
-    "You are the TaskAssessor. Review only the active task's local roadmap for a local "
-    "replan; do not execute or mutate work. "
-    f"{_TASK_REFINEMENT_GUIDANCE} Select only current defects; do not reassess the whole "
-    "roadmap. Preserve explicit workflows and hard constraints; "
-    "reject hidden replanning, intentional sibling work, overlapping siblings, and "
-    "command-level or lifecycle-only tasks. Do not impose unsupported choices."
+    "TaskAssessor: Review the active task for local replan; do not execute. "
+    f"{_TASK_REFINEMENT_GUIDANCE} Select local defects; do not reassess the whole "
+    "roadmap. Preserve explicit workflows and hard constraints; reject hidden replanning, "
+    "intentional sibling work, overlapping siblings, and command-level/lifecycle-only "
+    "tasks. Do not impose unsupported choices."
 )
 _TASK_ASSESSOR_LOCAL_REPLAN_CONTINUATION = (
     "Decide ready when the local region is adequate at its current granularity. Otherwise "
@@ -852,10 +849,13 @@ class TinyCUATaskExecutorNode(ProcessNode):
                 "\n## Child Task Verification Gate\n"
                 "This is a PARENT task with completed child tasks. For this "
                 "task to be approved, all child tasks below must remain "
-                "completed and their results must still be valid. Verify "
-                "integration — run tests, check the app starts, confirm "
-                "endpoints are wired. Fix issues if needed. Do NOT re-execute "
-                "the children.\n\n"
+                "completed and their results must still be valid. Verify integration "
+                "with task-appropriate evidence. Validate the composed outcome against "
+                "applicable acceptance criteria. When behavior depends on runtime "
+                "configuration or state, exercise contract-defined boundaries in a fresh "
+                "context. "
+                "Child status and prose claims are not evidence. Fix issues if needed. "
+                "Do NOT re-execute the children.\n\n"
                 "Child tasks (direct children only):\n" + "\n".join(child_lines) + "\n"
             )
         path_note = (
@@ -1020,8 +1020,12 @@ class TinyCUAResultReviewerNode(ProcessNode):
                 "This is a PARENT task. For this task to be approved, all "
                 "child tasks below must be terminal and their results must still "
                 "be valid. Compromised children are unsuccessful limitations that "
-                "must remain explicit. Verify integration — do not re-execute the "
-                "children.\n\n"
+                "must remain explicit. Verify integration with task-appropriate evidence; "
+                "do not re-execute the children. Validate the composed outcome against "
+                "applicable acceptance criteria. When behavior depends on runtime "
+                "configuration or state, "
+                "exercise contract-defined boundaries in a fresh context. Child status "
+                "and prose claims are not evidence.\n\n"
                 "Child tasks (direct children only):\n" + "\n".join(child_lines) + "\n"
             )
         journal = "\n".join(_render_review_journal(session.task_store, task))
