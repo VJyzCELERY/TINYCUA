@@ -1,0 +1,21 @@
+Epoch AI Benchmark Data — June 14, 2026 (via LM Council.ai)
+
+The current frontier LLM landscape as of June 2026 shows the following benchmark leaders across key evaluation categories.
+
+SWE-bench Verified measures real-world software engineering capability by testing models on actual GitHub issues from open-source repositories. The leader is Claude Opus 4.7 with a score of 83.5% plus or minus 1.7, demonstrating superior multi-file code understanding and repair capability.
+
+Terminal-Bench 2.0 evaluates command-line and system-level task execution. Claude Opus 4.7 leads with 90.2% plus or minus 2.1, showing strong terminal operation and system interaction skills.
+
+GPQA Diamond tests graduate-level science reasoning with PhD-quality questions in biology, chemistry, and physics. Human expert average is approximately 65%. GPT-5.4 Pro in xhigh configuration leads with 94.6% plus or minus 1.6, approaching saturation on this benchmark. Gemini 3 Preview high is competitive at 94.1% plus or minus 1.7.
+
+FrontierMath Tiers 1-3 v2 evaluates advanced mathematical reasoning. GPT-5.5 Pro in xhigh configuration leads with 87.7% plus or minus 1.9.
+
+OTIS Mock AIME 2024-25 tests competition-level mathematics. GPT-5.5 achieves a perfect score of 100.0% plus or minus 0.0.
+
+Humanity's Last Exam presents the most challenging general knowledge and reasoning problems. GPT-5.4 Pro leads with 44.3% plus or minus 2.0, indicating significant room for improvement on this frontier.
+
+API Pricing as of June 2026: GPT-5.5 costs 5.00 dollars input and 30.00 dollars output per 1M tokens. Claude Opus 4.7 costs 5.00 dollars input and 25.00 dollars output per 1M tokens. Gemini 3.1 Pro costs 2.00 dollars input and 12.00 dollars output per 1M tokens. DeepSeek V4 Flash costs 0.14 dollars input and 0.28 dollars output per 1M tokens.
+
+Open-Weight Models: DeepSeek V4 Pro and R1 are released under MIT license. The architecture uses 1.6 trillion total parameters with 49 billion active per token. It is competitive with closed flagships on key benchmarks when using thinking mode, but with first-token latency measured in seconds rather than milliseconds.
+
+Model Strengths by Use Case: For agentic coding, Claude Opus 4.7 is the leader on SWE-bench and Terminal-Bench. For general reasoning, GPT-5.5 leads on GPQA near saturation, perfect Mock AIME, and FrontierMath. For cost-efficient frontier, Gemini 3.1 Pro offers competitive GPQA performance at the lowest frontier pricing. For self-hosted open-weight, DeepSeek V4 Pro and R1 provide MIT-licensed competitive benchmarks.
