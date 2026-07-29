@@ -41,6 +41,9 @@ def test_build_runtime_context_includes_date_snapshot() -> None:
     assert "knowledge cutoff" in ctx
     assert "unknown until verified" in ctx
     assert "state the uncertainty instead of guessing" in ctx
+    lowered = ctx.lower()
+    assert "time-sensitive requests without an explicit timeframe" in lowered
+    assert "explicit historical or future timeframe controls" in lowered
 
 
 def test_system_prompt_is_byte_stable_across_calls() -> None:

@@ -152,7 +152,9 @@ def build_runtime_context(
             "training data and knowledge cutoff are not evidence of what is true "
             "today. Treat claims about the current state of the world as unknown "
             "until verified with available evidence. If verification is unavailable, "
-            "state the uncertainty instead of guessing."
+            "state the uncertainty instead of guessing. For time-sensitive requests "
+            "without an explicit timeframe, interpret relative time references against "
+            "Today; any explicit historical or future timeframe controls."
         )
     if env_snapshot:
         parts.append(env_snapshot)
