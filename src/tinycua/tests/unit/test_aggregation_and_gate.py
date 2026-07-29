@@ -5,6 +5,7 @@ from __future__ import annotations
 from tinycua.config.node_config import create_node_config
 from tinycua.loops.task_nodes import (
     TinyCUAResultAggregationNode,
+    TinyCUAResultReviewerNode,
     TinyCUATaskExecutorNode,
 )
 from tinycua.models.session import Session
@@ -122,6 +123,39 @@ class TestChildVerificationGate:
         assert "Sub1" in continuation
         assert "Sub2" in continuation
         assert "must remain completed" in continuation
+
+    def test_parent_gates_require_composed_runtime_evidence(self):
+        """Parent execution and review verify the composed acceptance boundary."""
+        store = TaskStateStore()
+        root = store.create_task("Root")
+        child = store.create_task("Subtask", parent_id=root.task_id)
+        store.record_result(child.task_id, TaskResult(content="done", success=True))
+        store.record_reviewer_decision(child.task_id, "approved")
+        session = Session()
+        session.task_store = store
+
+        nodes = (
+            TinyCUATaskExecutorNode(
+                node_id="task_executor",
+                config=create_node_config("task_executor"),
+            ),
+            TinyCUAResultReviewerNode(
+                node_id="result_reviewer",
+                config=create_node_config("result_reviewer"),
+            ),
+        )
+
+        for node in nodes:
+            node.session = session
+            continuation = node.build_continuation(session).lower()
+            assert "composed outcome" in continuation
+            assert "applicable acceptance criteria" in continuation
+            assert "contract-defined boundaries" in continuation
+            assert "fresh context" in continuation
+            assert "child status and prose claims are not evidence" in continuation
+            assert "task-appropriate evidence" in continuation
+            assert "check the app starts" not in continuation
+            assert "endpoints are wired" not in continuation
 
     def test_leaf_task_no_child_gate(self):
         """Active leaf task (no children) → no child verification gate."""
