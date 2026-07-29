@@ -111,8 +111,14 @@ def test_planning_agents_define_bounded_outcome_readiness() -> None:
         assert "explicit workflows and hard constraints" in normalized
         assert "hidden replanning" in normalized
         assert "intentional sibling work" in normalized
+        assert "overlapping siblings" in normalized
         assert "command-level" in normalized
         assert "fixed depth" in normalized
+        assert "prerequisites before dependents" in normalized
+        assert "shared foundations one owner" in normalized
+        assert "nest dependents" in normalized
+        assert "shared boundaries" in normalized
+        assert "optional/speculative work is not required" in normalized
 
 
 def test_assessor_requires_material_benefit_before_further_decomposition() -> None:
