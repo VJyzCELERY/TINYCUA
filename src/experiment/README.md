@@ -87,6 +87,20 @@ uv run python run_template_experiment.py \
 
 `tinycua-nr` disables review, `tinycua-nd` disables digestion, and
 `tinycua-nd-nr` disables both. They are opt-in and are not included in defaults.
+The controlled-runner default agent sequence is
+`tinycua,opencode,hermes,openclaw`. An explicit `--agents` list both selects
+agents and preserves their order.
+
+Runs are fixture-major by default. Use `--order-by agent` to finish all selected
+fixtures for each agent before advancing to the next listed agent:
+
+```bash
+uv run python run_template_experiment.py \
+  --fixtures experiment-1,experiment-2,experiment-3,experiment-4,experiment-5 \
+  --agents tinycua,tinycua-nr,tinycua-nd,tinycua-nd-nr,opencode,hermes,openclaw \
+  --order-by agent \
+  --output-root template-results/campaign-1
+```
 
 Reusing the same `--output-root` resumes automatically. Complete pass or fail
 pairs are skipped, interrupted pairs are rerun from clean state, and new
@@ -227,6 +241,11 @@ TINYCUA_SEARXNG_URL=http://searxng:8080/search
 ```
 
 The host port defaults to `18080`; override `EXPERIMENT_SEARXNG_HOST_PORT` if needed.
+Controlled campaigns start SearXNG if needed and wait up to 60 seconds for its
+`/healthz` endpoint before building or running a pair. The service is not
+restarted between invocations: preserving SearXNG's engine backoff avoids
+immediately retrying upstreams that already returned rate limits or CAPTCHAs.
+Container lifecycle cannot clear limits attached to the host's public IP.
 
 Controlled runs are noninteractive and full-access by existing configuration:
 OpenCode (`--dangerously-skip-permissions`), Hermes (`--yolo`), and OpenClaw

@@ -30,6 +30,13 @@ IMAGE_INSPECT_STUB = (
     "    print(json.dumps({'Id': 'sha256:' + args[2], 'RepoDigests': []}))\n"
     "    sys.exit(0)\n"
 )
+SEARXNG_READY_COMMAND = [
+    "compose",
+    "up",
+    "-d",
+    "--wait",
+    "searxng",
+]
 
 
 def _run_controlled(
@@ -40,6 +47,7 @@ def _run_controlled(
     *,
     cwd: Path = ROOT,
     overwrite: bool = False,
+    order_by: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     command = [
         sys.executable,
@@ -53,6 +61,8 @@ def _run_controlled(
     ]
     if overwrite:
         command.append("--overwrite")
+    if order_by is not None:
+        command.extend(("--order-by", order_by))
     return subprocess.run(
         command,
         cwd=cwd,
@@ -141,7 +151,14 @@ def test_controlled_campaign_resumes_aggregates_and_keeps_compact_artifacts(
     try:
         first = _run_controlled(output, fixture_name, "tinycua", env, cwd=tmp_path)
         first_calls = [json.loads(line) for line in calls.read_text().splitlines()]
-        second = _run_controlled(output, fixture_name, "opencode", env, cwd=tmp_path)
+        second = _run_controlled(
+            output,
+            fixture_name,
+            "opencode",
+            env,
+            cwd=tmp_path,
+            order_by="agent",
+        )
         second_calls = [json.loads(line) for line in calls.read_text().splitlines()]
 
         assert first.returncode == second.returncode == 0
@@ -154,6 +171,9 @@ def test_controlled_campaign_resumes_aggregates_and_keeps_compact_artifacts(
             {"fixture": fixture_name, "agent": "tinycua"},
         ]
         assert len(metadata["invocations"]) == 2
+        assert [
+            invocation["order_by"] for invocation in metadata["invocations"]
+        ] == ["fixture", "agent"]
         assert all(
             set(invocation) >= {"ended_at", "status", "exit_code"}
             for invocation in metadata["invocations"]
@@ -850,11 +870,13 @@ def test_controlled_runner_records_agent_telemetry_before_delayed_evaluation(
         "    stream.write(json.dumps(sys.argv[1:]) + '\\n')\n"
         "args = sys.argv[1:]\n"
         + IMAGE_INSPECT_STUB
-        + VOLUME_TRANSFER_STUB
-        + "if args[:1] == ['run']:\n"
-        "    time.sleep(1)\n"
-        "    sys.exit(int(os.environ['EVALUATOR_CODE']))\n"
-        "if args[:1] == ['compose']:\n"
+            + VOLUME_TRANSFER_STUB
+            + "if args[:1] == ['run']:\n"
+            "    time.sleep(1)\n"
+            "    sys.exit(int(os.environ['EVALUATOR_CODE']))\n"
+            "if args[:2] == ['compose', 'up']:\n"
+            "    sys.exit(0)\n"
+            "if args[:1] == ['compose']:\n"
         "    print('agent-only-output')\n"
         "    sys.exit(int(os.environ['AGENT_CODE']))\n"
     )
@@ -893,8 +915,8 @@ def test_controlled_runner_records_agent_telemetry_before_delayed_evaluation(
         command
         for line in calls.read_text().splitlines()
         if (command := json.loads(line))[:2] != ["image", "inspect"]
-        and command[:2] != ["compose", "restart"]
     ]
+    assert commands.pop(0) == SEARXNG_READY_COMMAND
     assert commands[0][:2] == ["build", "--tag"]
     assert commands[1][:3] == ["build", "--tag", "tinycua-template-tinycua-base"]
     assert commands[2][:3] == ["build", "--tag", eval_image]
@@ -1318,7 +1340,7 @@ def test_controlled_runner_records_agent_and_evaluator_timeouts(
         json.loads(line)
         for line in (tmp_path / "calls.jsonl").read_text().splitlines()
     ]
-    commands = [c for c in commands if c[:2] != ["compose", "restart"]]
+    assert commands.pop(0) == SEARXNG_READY_COMMAND
     timed_out_index = next(
         index
         for index, command in enumerate(commands)
@@ -1468,7 +1490,7 @@ def test_controlled_runner_stops_after_failed_or_hung_timeout_cleanup(
     run_root = output / "test-controlled-cleanup-failure" / "opencode"
     result_json = json.loads((run_root / "result.json").read_text())
     commands = [json.loads(line) for line in calls.read_text().splitlines()]
-    commands = [c for c in commands if c[:2] != ["compose", "restart"]]
+    assert commands.pop(0) == SEARXNG_READY_COMMAND
     assert result.returncode == 1
     assert result_json["agent_exit_code"] == 124
     assert result_json["evaluator_exit_code"] == 125

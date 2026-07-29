@@ -23,7 +23,7 @@ from uuid import UUID, uuid4
 import yaml
 
 
-AGENTS = ("opencode", "hermes", "openclaw", "tinycua")
+AGENTS = ("tinycua", "opencode", "hermes", "openclaw")
 TINYCUA_VARIANTS = {
     "tinycua": (False, False),
     "tinycua-nr": (False, True),
@@ -1129,41 +1129,28 @@ def _remove_state_volume(name: str, timeout_seconds: int) -> str | None:
     return None
 
 
-def _restart_searxng(
-    timeout_seconds: int = 30,
-    stdout: Path | None = None,
-    stderr: Path | None = None,
-    secret_values: tuple[str, ...] = (),
-) -> None:
-    """Restart SearXNG once per runner invocation for a clean container state.
-
-    Best-effort: a failure logs a warning and continues so infra never blocks
-    a run. # ponytail: a shared public-IP block could still starve results after
-    the restart; add a query cache or external proxy if engine rate limits
-    persist across restarts.
-    """
-    if stdout is not None and stderr is not None:
-        _run(
-            ["docker", "compose", "restart", "searxng"],
-            stdout,
-            stderr,
-            timeout_seconds,
-            secret_values,
-            stage="service/searxng-restart",
-        )
-    else:
-        try:
-            subprocess.run(
-                ["docker", "compose", "restart", "searxng"],
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=timeout_seconds,
-            )
-        except subprocess.TimeoutExpired:
-            print("WARNING: searxng restart timed out; continuing", flush=True)
-            return
-    print("[searxng] restarted for this run", flush=True)
+def _ensure_searxng_ready(
+    stdout: Path,
+    stderr: Path,
+    secret_values: tuple[str, ...],
+) -> int:
+    """Start SearXNG if needed and require healthy readiness."""
+    code, _ = _run(
+        [
+            "docker",
+            "compose",
+            "up",
+            "-d",
+            "--wait",
+            "searxng",
+        ],
+        stdout,
+        stderr,
+        60,
+        secret_values,
+        stage="service/searxng-ready",
+    )
+    return code
 
 
 def tree_revision(root: Path) -> str:
@@ -1289,6 +1276,7 @@ def _register_invocation(
     fixtures: tuple[Fixture, ...],
     agents: tuple[str, ...],
     overwrite: bool,
+    order_by: str,
 ) -> None:
     """Aggregate selectors and append one compact invocation record."""
     fixture_records = metadata["fixtures"]
@@ -1318,6 +1306,7 @@ def _register_invocation(
             "started_at": started_at,
             "fixtures": [fixture.name for fixture in fixtures],
             "agents": list(agents),
+            "order_by": order_by,
             "overwrite": overwrite,
         }
     )
@@ -2210,6 +2199,7 @@ def _prepare_campaign_metadata(
     overwrite: bool,
     timeout_seconds: int,
     environment: dict[str, str],
+    order_by: str = "fixture",
 ) -> dict[str, object]:
     """Load, validate, migrate, and register one campaign invocation."""
     metadata, migrated = _load_campaign(output_root)
@@ -2234,7 +2224,7 @@ def _prepare_campaign_metadata(
             raise ValueError("legacy campaign results are sealed; use a new output root")
         if migrated:
             _upgrade_campaign_artifacts(output_root, metadata)
-    _register_invocation(metadata, fixtures, agents, overwrite)
+    _register_invocation(metadata, fixtures, agents, overwrite, order_by)
     _save_metadata(output_root / "run_metadata.json", metadata)
     return metadata
 
@@ -2244,17 +2234,24 @@ def _select_pending_pairs(
     fixtures: tuple[Fixture, ...],
     agents: tuple[str, ...],
     overwrite: bool,
+    order_by: str = "fixture",
 ) -> list[tuple[Fixture, str]]:
     """Skip complete results and clean every selected pair that must run."""
+    if order_by not in ("fixture", "agent"):
+        raise ValueError(f"unsupported pair order: {order_by}")
+    ordered_pairs = (
+        ((fixture, agent) for fixture in fixtures for agent in agents)
+        if order_by == "fixture"
+        else ((fixture, agent) for agent in agents for fixture in fixtures)
+    )
     pending = []
-    for fixture in fixtures:
-        for agent in agents:
-            run_root = output_root / fixture.name / agent
-            complete = _valid_pair_result(run_root / "result.json") is not None
-            if complete and not overwrite:
-                print(f"[{fixture.name}/{agent}] skipped complete", flush=True)
-                continue
-            pending.append((fixture, agent))
+    for fixture, agent in ordered_pairs:
+        run_root = output_root / fixture.name / agent
+        complete = _valid_pair_result(run_root / "result.json") is not None
+        if complete and not overwrite:
+            print(f"[{fixture.name}/{agent}] skipped complete", flush=True)
+            continue
+        pending.append((fixture, agent))
     return pending
 
 
@@ -2524,10 +2521,13 @@ def _continue_campaign(
     timeout_seconds: int,
     metadata: dict[str, object],
     configured_secrets: tuple[str, ...],
+    order_by: str = "fixture",
 ) -> int:
     """Execute one already-registered compatible campaign invocation."""
     metadata_path = output_root / "run_metadata.json"
-    pending = _select_pending_pairs(output_root, fixtures, agents, overwrite)
+    pending = _select_pending_pairs(
+        output_root, fixtures, agents, overwrite, order_by
+    )
     write_outcomes(output_root / "outcomes.json", output_root, metadata)
     if not pending:
         return int(_selected_campaign_failed(output_root, fixtures, agents))
@@ -2536,12 +2536,10 @@ def _continue_campaign(
     root_stderr = output_root / "stderr.log"
     root_stdout.touch()
     root_stderr.touch()
-    _restart_searxng(
-        timeout_seconds,
-        root_stdout,
-        root_stderr,
-        configured_secrets,
-    )
+    if searxng_code := _ensure_searxng_ready(
+        root_stdout, root_stderr, configured_secrets
+    ):
+        return searxng_code
     base_images, build_code = _build_campaign_images(
         pending,
         metadata_path,
@@ -2572,6 +2570,7 @@ def _run_campaign(
     output_root: Path,
     overwrite: bool,
     timeout_seconds: int,
+    order_by: str = "fixture",
 ) -> int:
     """Resume one compatible controlled campaign under a single writer."""
     metadata_path = output_root / "run_metadata.json"
@@ -2586,6 +2585,7 @@ def _run_campaign(
         overwrite,
         timeout_seconds,
         configured_environment,
+        order_by,
     )
     exit_code = 1
     try:
@@ -2597,6 +2597,7 @@ def _run_campaign(
             timeout_seconds,
             metadata,
             configured_secrets,
+            order_by,
         )
     except (OSError, ValueError):
         exit_code = 2
@@ -2617,6 +2618,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--agents", help="Comma-separated harness names (default: all)."
+    )
+    parser.add_argument(
+        "--order-by",
+        choices=("fixture", "agent"),
+        default="fixture",
+        help="Run all agents per fixture or all fixtures per agent (default: fixture).",
     )
     parser.add_argument(
         "--output-root",
@@ -2649,7 +2656,12 @@ def main(argv: list[str] | None = None) -> int:
         output_root.mkdir(parents=True, exist_ok=True)
         with campaign_lock(output_root):
             return _run_campaign(
-                fixtures, agents, output_root, args.overwrite, args.timeout_seconds
+                fixtures,
+                agents,
+                output_root,
+                args.overwrite,
+                args.timeout_seconds,
+                args.order_by,
             )
     except (OSError, ValueError) as error:
         print(error, file=sys.stderr)

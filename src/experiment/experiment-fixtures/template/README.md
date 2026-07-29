@@ -149,6 +149,10 @@ uv run python run_template_experiment.py \
   --agents tinycua
 ```
 
+`--agents` selects agents in the listed order. Pair execution is fixture-major
+unless `--order-by agent` is supplied, which completes every selected fixture
+for one agent before moving to the next agent.
+
 Reusing the same output root resumes complete pairs; `--overwrite` replaces
 only selected pairs. Results contain schema-v2 `result.json`, consolidated
 `stdout.log` and `stderr.log`, `environment.json`, and a cleaned `workdir/`.

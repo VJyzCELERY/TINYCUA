@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import yaml
+
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -17,6 +19,18 @@ def test_compose_defines_four_services_and_volumes() -> None:
     assert "docker.io/searxng/searxng:latest" in compose
     assert "${EXPERIMENT_SEARXNG_HOST_PORT:-18080}:8080" in compose
     assert "host.docker.internal:host-gateway" in compose
+
+
+def test_compose_waits_for_healthy_searxng() -> None:
+    """Every search consumer waits for SearXNG readiness rather than startup."""
+    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text())
+    services = compose["services"]
+
+    assert "/healthz" in " ".join(services["searxng"]["healthcheck"]["test"])
+    for service in ("opencode", "hermes", "openclaw", "tinycua", "judge"):
+        assert services[service]["depends_on"] == {
+            "searxng": {"condition": "service_healthy"}
+        }
 
 
 def test_tinycua_dockerfile_installs_local_packages() -> None:

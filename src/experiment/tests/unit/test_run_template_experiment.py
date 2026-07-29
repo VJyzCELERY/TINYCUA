@@ -20,7 +20,6 @@ from run_template_experiment import (
     parse_agents,
     parse_score,
     parse_args,
-    _restart_searxng,
     state_volume_name,
     workspace_volume_name,
     write_result,
@@ -109,8 +108,44 @@ def test_tinycua_ablation_aliases_are_selectable_without_changing_defaults() -> 
     """Ablations are explicit controlled-runner selections, not new defaults."""
     aliases = ("tinycua-nr", "tinycua-nd", "tinycua-nd-nr")
 
-    assert AGENTS == ("opencode", "hermes", "openclaw", "tinycua")
+    assert AGENTS == ("tinycua", "opencode", "hermes", "openclaw")
     assert parse_agents(",".join(("tinycua", *aliases))) == ("tinycua", *aliases)
+
+
+def test_pending_pairs_follow_selected_major_order(tmp_path: Path) -> None:
+    """Agent and fixture selectors retain their explicit relative order."""
+    fixtures = tuple(
+        Fixture(
+            name,
+            "Make a change.",
+            "busybox",
+            ("true",),
+            tmp_path / name,
+            tmp_path / name / "Dockerfile",
+        )
+        for name in ("experiment-2", "experiment-1")
+    )
+    agents = ("tinycua", "opencode")
+
+    fixture_major = runner._select_pending_pairs(
+        tmp_path, fixtures, agents, False, "fixture"
+    )
+    agent_major = runner._select_pending_pairs(
+        tmp_path, fixtures, agents, False, "agent"
+    )
+
+    assert [(fixture.name, agent) for fixture, agent in fixture_major] == [
+        ("experiment-2", "tinycua"),
+        ("experiment-2", "opencode"),
+        ("experiment-1", "tinycua"),
+        ("experiment-1", "opencode"),
+    ]
+    assert [(fixture.name, agent) for fixture, agent in agent_major] == [
+        ("experiment-2", "tinycua"),
+        ("experiment-1", "tinycua"),
+        ("experiment-2", "opencode"),
+        ("experiment-1", "opencode"),
+    ]
 
 
 @pytest.mark.parametrize(
@@ -419,8 +454,12 @@ def test_evaluator_without_dependency_manifests_keeps_busybox_command(
 def test_parse_args_requires_a_positive_timeout() -> None:
     """The controlled runner always has a finite execution deadline."""
     assert parse_args([]).timeout_seconds == 14_400
+    assert parse_args([]).order_by == "fixture"
+    assert parse_args(["--order-by", "agent"]).order_by == "agent"
     with pytest.raises(SystemExit):
         parse_args(["--timeout-seconds", "0"])
+    with pytest.raises(SystemExit):
+        parse_args(["--order-by", "unknown"])
 
 
 def test_run_disconnects_child_stdin(
@@ -442,24 +481,66 @@ def test_run_disconnects_child_stdin(
     assert captured["stdin"] is subprocess.DEVNULL
 
 
-def test_restart_searxng_restarts_once_and_survives_failure(
-    monkeypatch: pytest.MonkeyPatch,
+def test_ensure_searxng_ready_waits_and_propagates_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The restart hook fires once per invocation and never blocks a run."""
+    """A campaign cannot start while its search service is unavailable."""
     commands: list[list[str]] = []
 
     def fake_run(
-        command: list[str], **_kwargs: object
-    ) -> subprocess.CompletedProcess[str]:
+        command: list[str], *_args: object, **_kwargs: object
+    ) -> tuple[int, None]:
         commands.append(command)
-        return subprocess.CompletedProcess(command, 1, "", "simulated failure")
+        return 7, None
 
-    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+    monkeypatch.setattr(runner, "_run", fake_run)
 
-    _restart_searxng(timeout_seconds=10)
+    code = runner._ensure_searxng_ready(
+        tmp_path / "stdout.log", tmp_path / "stderr.log", ()
+    )
 
-    assert commands == [["docker", "compose", "restart", "searxng"]]
-    assert commands[0] == ["docker", "compose", "restart", "searxng"]
+    assert code == 7
+    assert commands == [
+        [
+            "docker",
+            "compose",
+            "up",
+            "-d",
+            "--wait",
+            "searxng",
+        ]
+    ]
+
+
+def test_campaign_stops_before_build_when_searxng_is_unhealthy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Search readiness failure prevents every candidate and evaluator build."""
+    fixture = Fixture(
+        "fixture",
+        "Make a change.",
+        "busybox",
+        ("true",),
+        tmp_path / "fixture",
+        tmp_path / "fixture" / "Dockerfile",
+    )
+    metadata = {
+        "fixtures": {"fixture": {"outcome_group": "coding"}},
+        "pairs": [{"fixture": "fixture", "agent": "tinycua"}],
+    }
+    monkeypatch.setattr(runner, "_ensure_searxng_ready", lambda *_args: 7)
+
+    def unexpected_build(*_args: object) -> None:
+        raise AssertionError("build must not start")
+
+    monkeypatch.setattr(runner, "_build_campaign_images", unexpected_build)
+
+    assert (
+        runner._continue_campaign(
+            (fixture,), ("tinycua",), tmp_path, False, 1, metadata, (), "fixture"
+        )
+        == 7
+    )
 
 
 def test_write_result_is_portable_and_sanitizes_environment(tmp_path: Path) -> None:
