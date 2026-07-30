@@ -720,6 +720,76 @@ class TaskResultUpdateTool(SessionTaskToolMixin, Tool):
         }
 
 
+class TaskReviewPlanTool(SessionTaskToolMixin, Tool):
+    """Tool for staging a root review falsification plan."""
+
+    def __init__(self) -> None:
+        SessionTaskToolMixin.__init__(self)
+        self._source_node = ""
+        check_properties = {
+            "criterion_id": {"type": "string"},
+            "testability": {
+                "type": "string",
+                "enum": ["empirical", "judgment"],
+            },
+            "falsifying_condition": {"type": "string"},
+            "procedure": {"type": "string"},
+            "expected_observation": {"type": "string"},
+        }
+        Tool.__init__(
+            self,
+            name="task_review_plan",
+            description=(
+                "Commit one falsification check for every root acceptance clause "
+                "before inspecting executor claims or deciding the review."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "checks": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {
+                            "type": "object",
+                            "properties": check_properties,
+                            "required": list(check_properties),
+                            "additionalProperties": False,
+                        },
+                    }
+                },
+                "required": ["checks"],
+                "additionalProperties": False,
+            },
+        )
+
+    def bind_source_node(self, node_id: str) -> None:
+        """Bind the node so root-review ownership can be enforced."""
+        self._source_node = node_id
+
+    def __call__(self, checks: list[dict[str, str]]) -> dict[str, Any]:
+        """Stage the active root task's immutable review plan."""
+        if self._source_node != "result_reviewer":
+            return {"success": False, "error": "Only ResultReviewer may plan review."}
+        active_id = self._store.active_task_id
+        if active_id is None:
+            return {"success": False, "error": "No active task"}
+        if active_id != self._store.root_task_id:
+            return {
+                "success": False,
+                "error": "Review plans are supported only for the active root task.",
+            }
+        try:
+            self._store.stage_review_plan(active_id, checks)
+        except ValueError as exc:
+            return {"success": False, "error": str(exc)}
+        return {
+            "success": True,
+            "task_id": active_id,
+            "check_count": len(checks),
+            "staged": True,
+        }
+
+
 class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
     """Tool for recording reviewer decisions on task results."""
 
@@ -730,9 +800,10 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
             self,
             name="task_review_decision",
             description=(
-                "Record the active task decision (approved, needs_revision, replan, "
-                "postpone, or compromise) and task-local journal. Findings and explicit "
-                "context_updates to unfinished tasks commit atomically."
+                "Record the approved or needs_revision active-task verdict and journal "
+                "atomically. Root verdicts "
+                "assess every precommitted falsification check; context_updates target "
+                "unfinished tasks."
             ),
             parameters={
                 "type": "object",
@@ -799,6 +870,41 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
                             "additionalProperties": False,
                         },
                     },
+                    "criterion_assessments": {
+                        "type": "array",
+                        "description": (
+                            "Root-only assessments for every precommitted review check."
+                        ),
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "criterion_id": {"type": "string"},
+                                "result": {
+                                    "type": "string",
+                                    "enum": [
+                                        "supported",
+                                        "contradicted",
+                                        "inconclusive",
+                                        "judgment_only",
+                                    ],
+                                },
+                                "evidence_ids": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                },
+                                "inference": {"type": "string"},
+                                "limitations": {"type": "string"},
+                            },
+                            "required": [
+                                "criterion_id",
+                                "result",
+                                "evidence_ids",
+                                "inference",
+                                "limitations",
+                            ],
+                            "additionalProperties": False,
+                        },
+                    },
                 },
                 "required": ["decision", "rationale"],
                 "additionalProperties": False,
@@ -818,6 +924,7 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
         new_findings: list[str] | None = None,
         finding_updates: list[dict[str, str]] | None = None,
         context_updates: list[dict[str, str]] | None = None,
+        criterion_assessments: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Persist a reviewer decision for the active task.
 
@@ -829,6 +936,7 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
             new_findings: New active-task findings, initially OPEN.
             finding_updates: Status changes for existing active-task findings.
             context_updates: Optional claim handoffs for unfinished future tasks.
+            criterion_assessments: Root acceptance assessments and observations.
         """
         if not decision:
             return {
@@ -869,6 +977,7 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
             "review_summary": review_summary,
             "new_findings": new_findings or [],
             "finding_updates": finding_updates or [],
+            "criterion_assessments": criterion_assessments or [],
         }
         try:
             task = self._store.stage_reviewer_decision(

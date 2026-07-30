@@ -8,11 +8,13 @@ from tinycua.config.node_config import create_node_config
 from tinycua.config.types import LLMResult
 from tinycua.loops.node import ProcessNode
 from tinycua.loops.mission import _render_mission_block
+from tinycua.loops.node_contract import LifecyclePhase
 from tinycua.loops.node_guidance import (
     _RESULT_REVIEWER_CONTINUATION,
     _RESULT_REVIEWER_INSTRUCTION,
     build_reviewer_tool_guidance,
 )
+from tinycua.loops.reviewer_protocol import ReviewerProtocolMixin
 from tinycua.loops.session_context_query import find_latest_entry
 from tinycua.models.digested_information import DigestedInformation
 from tinycua.models.session_context_entry import entry_content
@@ -945,7 +947,7 @@ class TinyCUATaskExecutorNode(ProcessNode):
         return "Tool guidance: " + " ".join(lines)
 
 
-class TinyCUAResultReviewerNode(ProcessNode):
+class TinyCUAResultReviewerNode(ReviewerProtocolMixin, ProcessNode):
     """Review task execution results."""
 
     def __init__(
@@ -1089,6 +1091,11 @@ class TinyCUAResultReviewerNode(ProcessNode):
         task = self._task_to_review()
         if task is None:
             return base
+        if (
+            task.task_id == session.task_store.root_task_id
+            and self.progress.lifecycle_phase == LifecyclePhase.PLAN
+        ):
+            return self._build_plan_continuation(session, task)
         # Primary review target: the executor's outcome report
         result_content = task.result.content if task.result is not None else ""
         if not result_content.strip():
@@ -1271,6 +1278,9 @@ class TinyCUAResultAggregationNode(ProcessNode):
             if task.status == TaskStatus.COMPROMISED:
                 status_mark = " ! COMPROMISED"
             lines.append(f"- **{task.title}** [{task.status.value}]{status_mark}")
+            assurance = task.metadata.get("assurance_status")
+            if task_id == store.root_task_id and isinstance(assurance, str):
+                lines.append(f"  Assurance: {assurance}")
             summary = task.result.summary or task.result.content
             if summary:
                 lines.append(f"  {summary}")
@@ -1381,6 +1391,8 @@ class TinyCUAResultAggregationNode(ProcessNode):
         final_context = "\n".join(
             part for part in [model_context.strip(), *task_summaries] if part
         )
+        root = store.tasks.get(store.root_task_id)
+        assurance = root.metadata.get("assurance_status") if root is not None else None
         return AggregatedResult(
             root_task_id=store.root_task_id,
             task_summaries=task_summaries,
@@ -1389,7 +1401,10 @@ class TinyCUAResultAggregationNode(ProcessNode):
             artifacts=artifacts,
             final_context=final_context,
             response_continuation="Use this aggregated result to answer the user.",
-            metadata={"source_node_id": self.node_id},
+            metadata={
+                "source_node_id": self.node_id,
+                "assurance_status": assurance,
+            },
         )
 
 

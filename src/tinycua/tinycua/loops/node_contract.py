@@ -32,6 +32,7 @@ class NodeState(StrEnum):
 class LifecyclePhase(StrEnum):
     """Focused tool exposure phases for lifecycle nodes."""
 
+    PLAN = "plan"
     ACTION = "action"
     SUMMARY = "summary"
     COMMIT = "commit"
@@ -304,14 +305,25 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
         required_tools=frozenset({"task_review_decision"}),
         requires_terminate=True,
         retry_max_attempts=25,
-        goal="Review only the active task outcome, update its journal, and explicitly curate relevant future-task context.",
+        goal=(
+            "Review and try to falsify the active task outcome, update its journal, and "
+            "explicitly curate relevant future-task context."
+        ),
         role_boundary=(
             "Review only the active task. The decision may include context handoffs "
             "for unfinished tasks; never review or execute those tasks, modify their "
             "artifacts, or fix executor work."
         ),
-        success_criteria="task_review_decision called for the active task with review_summary, findings, rationale, and any explicit future-task context_updates.",
+        success_criteria=(
+            "task_review_decision called for the active task with review_summary, "
+            "findings, rationale, root criterion assessments when planned, and any "
+            "explicit future-task context_updates."
+        ),
         tool_rationale={
+            "task_review_plan": (
+                "Precommits root falsification checks before Executor conclusions are "
+                "revealed. It records a plan, not evidence."
+            ),
             "task_review_decision": "Records approved, needs_revision, replan, monotonic postponement, or terminal compromise. Approved completes; needs_revision reworks; compromise remains unsuccessful.",
             "task_inspect": "Reads task state for active-task review and future-task context curation.",
         },
@@ -402,6 +414,7 @@ def phase_tool_names(
 ) -> set[str]:
     """Return tools exposed exclusively in one lifecycle phase."""
     contract = get_node_contract(node_id)
+    plan_tools = {"task_review_plan"} if node_id == "result_reviewer" else set()
     commit_tools = set(contract.required_tools)
     for group in contract.any_of_tools:
         commit_tools.update(group)
@@ -410,7 +423,9 @@ def phase_tool_names(
         all_commit_tools.update(registered.required_tools)
         for group in registered.any_of_tools:
             all_commit_tools.update(group)
-    action_tools = tool_names - all_commit_tools - {"terminate"}
+    action_tools = tool_names - all_commit_tools - plan_tools - {"terminate"}
+    if phase == LifecyclePhase.PLAN:
+        return plan_tools & tool_names
     if phase == LifecyclePhase.ACTION:
         return action_tools | (commit_tools & tool_names)
     if phase == LifecyclePhase.COMMIT:

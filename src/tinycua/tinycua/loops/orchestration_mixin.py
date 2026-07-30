@@ -759,11 +759,20 @@ class OrchestrationMixin:
                     payload={"digested_information": content},
                 )
             if node.node_id == "result_aggregation" and content:
+                metadata = getattr(content, "metadata", {})
+                assurance = (
+                    metadata.get("assurance_status")
+                    if isinstance(metadata, dict)
+                    else None
+                )
                 return NodeHandoff(
                     source_node=node.node_id,
                     target_node=target_node_id,
                     instruction="Use the aggregation result to answer the user.",
-                    payload={"aggregation": content},
+                    payload={
+                        "assurance_status": assurance,
+                        "aggregation": content,
+                    },
                 )
         return None
 

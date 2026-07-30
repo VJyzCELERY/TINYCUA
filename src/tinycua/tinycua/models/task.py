@@ -8,6 +8,11 @@ from dataclasses import asdict, dataclass, field
 from enum import StrEnum
 from typing import Any, ClassVar
 
+from tinycua.models.review_protocol import (
+    build_review_event_metadata,
+    validate_review_plan,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -161,6 +166,9 @@ class TaskStateStore:
     active_task_id: str | None = None
     transition_log: list[dict[str, Any]] = field(default_factory=list)
     _staged_reviewer_decisions: dict[str, dict[str, Any]] = field(
+        default_factory=dict, repr=False
+    )
+    _staged_review_plans: dict[str, list[dict[str, str]]] = field(
         default_factory=dict, repr=False
     )
     # FR-075: enable task tree snapshot logging via --trace CLI flag.
@@ -871,6 +879,23 @@ class TaskStateStore:
             and isinstance(clause.get("text"), str)
         ]
 
+    def stage_review_plan(self, task_id: str, checks: list[dict[str, str]]) -> Task:
+        """Stage one immutable falsification plan for the active root review."""
+        task = self.get_task(task_id)
+        self._require_mutable(task)
+        if task_id != self.root_task_id:
+            raise ValueError("Review plans are supported only for the root task.")
+        if task_id in self._staged_review_plans:
+            raise ValueError("A root review plan is already staged for this attempt.")
+        normalized = validate_review_plan(self.acceptance_clauses(), checks)
+        self._staged_review_plans[task_id] = normalized
+        self._bump_version()
+        return task
+
+    def staged_review_plan(self, task_id: str) -> list[dict[str, str]]:
+        """Return a copy of the current staged root review plan."""
+        return [dict(check) for check in self._staged_review_plans.get(task_id, [])]
+
     def record_reviewer_decision(
         self,
         task_id: str,
@@ -899,6 +924,9 @@ class TaskStateStore:
             msg = "Approval requires a successful non-empty executor report."
             raise ValueError(msg)
         task.reviewer_decisions.append(event)
+        assurance_status = event.get("metadata", {}).get("assurance_status")
+        if task_id == self.root_task_id and isinstance(assurance_status, str):
+            task.metadata["assurance_status"] = assurance_status
         task.review_findings.extend(new_findings)
         findings_by_id = {
             finding["finding_id"]: finding for finding in task.review_findings
@@ -1087,6 +1115,12 @@ class TaskStateStore:
                 "Approval requires all active-task OPEN findings resolved."
             )
 
+        event_metadata = build_review_event_metadata(
+            plan=self.staged_review_plan(task.task_id),
+            decision=decision.value,
+            metadata=metadata,
+        )
+
         event = {
             "event_id": event_id,
             "review_summary": review_summary,
@@ -1094,9 +1128,7 @@ class TaskStateStore:
             "rationale": rationale,
             "new_findings": [item["finding_id"] for item in new_findings],
             "finding_updates": finding_updates,
-            "metadata": {
-                "context_updates": metadata.get("context_updates", []),
-            },
+            "metadata": event_metadata,
         }
         return event, new_findings, finding_updates
 
@@ -1139,6 +1171,7 @@ class TaskStateStore:
         """Stage a replaceable reviewer decision until node termination."""
         task = self.get_task(task_id)
         self._require_mutable(task)
+        self._staged_reviewer_decisions.pop(task_id, None)
         reviewer_decision = ReviewerDecision(decision)
         self._validate_deferred_decision(task, reviewer_decision, rationale)
         self._validated_reviewer_context_updates(
@@ -1151,7 +1184,6 @@ class TaskStateStore:
         ):
             msg = "Approval requires a successful non-empty executor report."
             raise ValueError(msg)
-        self._staged_reviewer_decisions.pop(task_id, None)
         self._staged_reviewer_decisions[task_id] = {
             "decision": reviewer_decision,
             "rationale": rationale,
@@ -1167,6 +1199,7 @@ class TaskStateStore:
             raise ValueError(msg)
         task = self.record_reviewer_decision(task_id, **staged)
         del self._staged_reviewer_decisions[task_id]
+        self._staged_review_plans.pop(task_id, None)
         return task
 
     def next_unfinished_leaf(self) -> Task | None:
@@ -1237,6 +1270,7 @@ class TaskStateStore:
         self.active_task_id = None
         self.transition_log.clear()
         self._staged_reviewer_decisions.clear()
+        self._staged_review_plans.clear()
         self._ordered_task_ids = None
         self.version += 1
 

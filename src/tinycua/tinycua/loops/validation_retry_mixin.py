@@ -478,6 +478,7 @@ class ValidationRetryMixin:
             self._validate_result_reviewer_result_exists(node, llm_result),
             self._validate_result_reviewer_inspects_after_decision(node, llm_result),
             self._validate_result_reviewer_report(node, llm_result),
+            self._validate_result_reviewer_assurance(node),
             self._validate_decision_route_tool(node, llm_result),
             self._validate_final_response_content(node, llm_result),
         ):
@@ -656,11 +657,20 @@ class ValidationRetryMixin:
         validation.is_valid = not validation.errors
         return validation
 
+    def _validate_result_reviewer_assurance(self, node: Node) -> ValidationResult:
+        """Require cited empirical observations from the current root review."""
+        if node.node_id != "result_reviewer" or node.session is None:
+            return ValidationResult(is_valid=True, errors=[])
+        from tinycua.loops.reviewer_protocol import reviewer_assurance_validation
+
+        return reviewer_assurance_validation(node, self.root_session.task_store)
+
     def _rollback_invalid_reviewer_approval(self, task_id: str) -> None:
         """Undo reviewer approval side effects when runtime validation rejects it."""
         task = self.root_session.task_store.tasks.get(task_id)
         if task is None:
             return
+        self.root_session.task_store._staged_reviewer_decisions.pop(task_id, None)
         from tinycua.models.task import TaskStatus
 
         if (

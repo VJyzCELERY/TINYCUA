@@ -76,6 +76,8 @@ class _RouteMatrixScript:
             return "task_assessor"
         if "task_result_update" in tool_names:
             return "task_executor"
+        if "task_review_plan" in tool_names:
+            return "result_reviewer"
         if "task_review_decision" in tool_names:
             return "result_reviewer"
         if "task_inspect" in tool_names and tool_names & {
@@ -312,6 +314,24 @@ class _RouteMatrixScript:
                 ],
             }
         if node == "result_reviewer":
+            if "task_review_plan" in tool_names:
+                return {
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": "task_review_plan",
+                                "arguments": (
+                                    '{"checks":[{"criterion_id":"acceptance-1",'
+                                    '"testability":"judgment",'
+                                    '"falsifying_condition":"The request is unmet.",'
+                                    '"procedure":"Compare the result to the request.",'
+                                    '"expected_observation":"The request is met."}]}'
+                                ),
+                            }
+                        }
+                    ],
+                }
             if "task_review_decision" not in tool_names:
                 if any(
                     m.get("role") == "tool"
@@ -339,7 +359,12 @@ class _RouteMatrixScript:
                             "name": "task_review_decision",
                             "arguments": (
                                 '{"decision":"approved",'
-                                '"rationale":"The scripted result is acceptable."}'
+                                '"rationale":"The scripted result is acceptable.",'
+                                '"criterion_assessments":[{'
+                                '"criterion_id":"acceptance-1",'
+                                '"result":"judgment_only","evidence_ids":[],'
+                                '"inference":"The request is met.",'
+                                '"limitations":"Scripted judgment only."}]}'
                             ),
                         }
                     },

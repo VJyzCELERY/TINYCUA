@@ -249,12 +249,27 @@ reviewer_decision:
   context_updates:
     - target_task_id: "<target task id>"
       update: "<context update>"
+  review_plan:  # root review only
+    - criterion_id: "acceptance-1"
+      testability: empirical | judgment
+      falsifying_condition: "<what would disprove the criterion>"
+      procedure: "<independent check>"
+      expected_observation: "<supporting observation>"
+  criterion_assessments:  # root review only
+    - criterion_id: "acceptance-1"
+      result: supported | contradicted | inconclusive | judgment_only
+      evidence_ids: ["<runtime observation id>"]
+      inference: "<how the observation bears on the criterion>"
+      limitations: "<remaining uncertainty>"
+  assurance_status: observed | mixed | judgment_only | contradicted | inconclusive
   retry_instructions: "..."  # failure context communication — format and mechanism are implementation detail
 ```
 
 Findings and review events belong only to their task. Default Executor and Reviewer
 prompts receive a bounded digest for the active task; `task_inspect(event_id=...)`
 returns one full event. Cross-task facts use explicit validated `context_updates`.
+
+Task completion and assurance are separate. Completion records that execution and review terminated successfully. Assurance summarizes the kind of support gathered by root review; it is not a universal correctness certificate.
 
 `escalate_user` is not a status. When the ResultReviewer cannot resolve, the agent stays
 active with an open question. Human-in-the-loop interaction occurs through passthrough
