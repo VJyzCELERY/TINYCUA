@@ -332,6 +332,9 @@ class OrchestrationMixin:
         # continuation renderers see.
         await self._maybe_compact(node, agent)
 
+        if self._recovery_reentry and not progress_prepared:
+            self._reset_progress_for_retry(node)
+            progress_prepared = True
         messages, resolved_tools = self._prepare_node(
             node,
             tools,
