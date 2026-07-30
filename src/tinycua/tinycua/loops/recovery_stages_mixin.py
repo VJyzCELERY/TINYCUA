@@ -803,6 +803,12 @@ class RecoveryGuardMixin:
         accumulated_successful: set[str],
     ) -> list[str]:
         """Return prerequisite tools not yet called, using the accumulated set."""
+        if node.progress.lifecycle_phase.value == "plan":
+            return (
+                []
+                if "task_review_plan" in accumulated_successful
+                else ["task_review_plan"]
+            )
         chain = self._RECOVERY_CHAINS.get(node.node_id, ())
         if not chain:
             return []

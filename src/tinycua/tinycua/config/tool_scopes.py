@@ -25,6 +25,7 @@ from tinycua.tools.task_tools import (
     TaskInspectTool,
     TaskResultUpdateTool,
     TaskReviewDecisionTool,
+    TaskReviewPlanTool,
     TaskShrinkTool,
     TaskUpdateTool,
 )
@@ -206,7 +207,7 @@ def result_reviewer_tool_scope() -> NodeToolPolicy:
         NodeToolPolicy for ResultReviewerNode.
     """
     return NodeToolPolicy(
-        node_tools=[TaskReviewDecisionTool(), TaskInspectTool()],
+        node_tools=[TaskReviewPlanTool(), TaskReviewDecisionTool(), TaskInspectTool()],
         include_agent_tools="selected",
         allowed_agent_tool_names=EXPLORATORY_AGENT_TOOLS,
     )

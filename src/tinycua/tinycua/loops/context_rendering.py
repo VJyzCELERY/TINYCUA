@@ -167,6 +167,9 @@ def _render_aggregated_result(value: Any) -> str:
     """Render AggregatedResult as concise markdown."""
     data = _json_safe(_object_data(value))
     lines = ["## Aggregated Result"]
+    metadata = data.get("metadata", {})
+    if isinstance(metadata, dict) and metadata.get("assurance_status"):
+        lines.append(f"**Assurance:** {metadata['assurance_status']}")
     if data.get("final_context"):
         lines.append(f"**Context:** {data['final_context']}")
     results = data.get("accepted_results", [])

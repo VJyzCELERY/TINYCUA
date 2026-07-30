@@ -10,6 +10,7 @@ import re
 import time
 from collections.abc import AsyncIterator, Callable
 from typing import TYPE_CHECKING, Any
+from uuid import uuid4
 
 from tinycua_sdk.agent.executor import ToolExecutor
 from tinycua_sdk.agent.loop import BaseLoop
@@ -26,6 +27,11 @@ from tinycua.loops.orchestration_mixin import OrchestrationMixin
 from tinycua.loops.prompt_protocol_mixin import PromptProtocolMixin
 from tinycua.loops.query_analyst import TinyCUAQueryAnalystNode
 from tinycua.loops.recovery_stages_mixin import RecoveryGuardMixin, RecoveryStagesMixin
+from tinycua.loops.reviewer_protocol import (
+    advance_lifecycle_phase,
+    annotate_outcome,
+    review_action_directive,
+)
 from tinycua.loops.task_tree_rendering import render_task_tree
 from tinycua.loops.tool_call_normalization_mixin import ToolCallNormalizationMixin
 from tinycua.loops.trace_state_mixin import TraceStateMixin
@@ -553,27 +559,7 @@ class TinyCUALoop(
             )
         return self._tools_for_retry_attempt(node, resolved_tools, retry_message)
 
-    @staticmethod
-    def _advance_lifecycle_phase(node: Node, result: LLMResult) -> bool:
-        """Advance a lifecycle node from action to commit."""
-        if not node.contract.requires_terminate:
-            return False
-        if node.progress.lifecycle_phase != LifecyclePhase.ACTION:
-            return False
-        commit_tools = set(node.contract.required_tools)
-        for group in node.contract.any_of_tools:
-            commit_tools.update(group)
-        attempted_commit = any(
-            isinstance(item, dict) and item.get("name") in commit_tools
-            for item in result.metadata.get("tool_results", [])
-        )
-        if attempted_commit or not result.tool_calls:
-            node.progress.advance_lifecycle(
-                LifecyclePhase.SUMMARY, result.content.strip()
-            )
-            node.progress.advance_lifecycle(LifecyclePhase.COMMIT)
-            return True
-        return False
+    _advance_lifecycle_phase = staticmethod(advance_lifecycle_phase)
 
     def _lifecycle_phase_directive(
         self,
@@ -581,6 +567,11 @@ class TinyCUALoop(
         resolved_tools: list[Tool] | None = None,
     ) -> str:
         """Return explicit guidance for the node's newly entered phase."""
+        if (
+            node.node_id == "result_reviewer"
+            and node.progress.lifecycle_phase == LifecyclePhase.ACTION
+        ):
+            return review_action_directive(node)
         if node.progress.lifecycle_phase == LifecyclePhase.COMMIT:
             if self._unresolved_analyzer_target_ids(node):
                 return (
@@ -735,7 +726,8 @@ class TinyCUALoop(
                 if terminate_seen:
                     continue
                 terminate_seen = True
-            call_id = str(tool_call.get("id") or "")
+            call_id = str(tool_call.get("id") or f"runtime-{uuid4().hex}")
+            task_id = self.root_session.task_store.active_task_id
 
             def record(result: dict[str, Any]) -> None:
                 result["call_id"] = call_id
@@ -743,9 +735,17 @@ class TinyCUALoop(
                     json.dumps(result, default=str), call_id or name, tool_name=name
                 )
                 result["prompt_content"] = prompt_content
-                result["outcome"] = normalize_tool_outcome(
+                outcome = normalize_tool_outcome(
                     tool_call, result, content=prompt_content
                 )
+                annotate_outcome(
+                    outcome,
+                    call_id=call_id,
+                    node=node,
+                    task_id=task_id,
+                    task_version=self.root_session.task_store.version,
+                )
+                result["outcome"] = outcome
                 self._record_tool_chat_result(result)
                 results.append(result)
 

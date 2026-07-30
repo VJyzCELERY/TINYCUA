@@ -3,7 +3,7 @@
 > **Category:** Agent Spec
 
 > **File:** `architecture/result-reviewer.md`
-> **Last Updated:** 2026-05-30
+> **Last Updated:** 2026-07-30
 > **Status:** Implemented
 > **See also:** [overview.md](overview.md), [session-architecture.md](session-architecture.md), [worker-orchestration.md](worker-orchestration.md), [task-analysis.md](task-analysis.md), [task-creation.md](task-creation.md), [task-execution.md](task-execution.md), [task-assessor.md](task-assessor.md), [state-objects.md](state-objects.md)
 
@@ -29,7 +29,9 @@ The Result Reviewer should be hybrid:
 
 - deterministic checks for schema validity and missing required fields;
 - **sanity-checker (FR-056)** — a deterministic pre-pass that flags obviously broken results (empty output, schema mismatch, missing required artifacts) before the LLM review runs, so semantic review effort is not wasted on structurally invalid results;
-- LLM-based semantic review for correctness, sufficiency, context propagation, and recovery decisions. The reviewer records a concise free-form report with its decision; no evidence tags or clause-proof payload are required. It matches material claims to proportionate evidence and prioritizes explicit verification commands.
+- LLM-based semantic review for correctness, sufficiency, context propagation, and recovery decisions. Leaf review remains task-local. Root review first commits a falsification plan without seeing Executor conclusions, then assesses every immutable acceptance clause against independently gathered observations or explicit judgment-only reasoning.
+
+Tool execution establishes observation provenance, not semantic proof. The runtime can validate that a cited observation occurred during the current root review; it cannot prove that the Reviewer selected the best test or interpreted it correctly.
 
 ---
 
@@ -52,9 +54,11 @@ require artifact inspection, and external claims require authoritative evidence.
 exact evidence may be reused; unrelated suites are not run merely because tools exist.
 Generated criteria never override the original user request or immutable constraints.
 
+During the root planning phase, the Executor result and child success summaries are withheld. The Reviewer receives the original request and acceptance-clause IDs, commits one falsifying condition and procedure per clause, and only then receives the Executor outcome for independent checking.
+
 **Output:**
 
-- `Reviewer Decision` — canonical schema in [state-objects.md](state-objects.md).
+- `Reviewer Decision` — canonical schema in [state-objects.md](state-objects.md), including root criterion assessments and runtime-derived assurance when the falsification protocol applies.
 
 ---
 
@@ -62,17 +66,21 @@ Generated criteria never override the original user request or immutable constra
 
 ```mermaid
 flowchart TD
-    INPUT{{"Task Result"}}
+    INPUT{{"Task + acceptance criteria"}}
+    PLAN["Commit root falsification plan\nwithout Executor conclusions"]
     CHECK["Validate required result fields\n(sanity-checker, FR-056)"]
-    REVIEW["Review result against task and\nacceptance context"]
+    REVEAL["Reveal Executor outcome"]
+    REVIEW["Execute planned checks and assess\nevery root criterion"]
     APPROVED{"Approved?"}
     PROP["Commit explicit named context updates"]
     REVISE{"Needs revision?"}
     REPLAN{"Roadmap revision or exploration needed?"}
     OUT{{"Reviewer Decision"}}
 
-    INPUT --> CHECK
-    CHECK --> REVIEW
+    INPUT --> PLAN
+    PLAN --> CHECK
+    CHECK --> REVEAL
+    REVEAL --> REVIEW
     REVIEW --> APPROVED
     APPROVED -->|Yes| PROP
     PROP --> OUT
@@ -93,6 +101,8 @@ flowchart TD
 ## Context Propagation
 
 Review events and findings stay on the active task across retry, replan, postponement, and resume. They never enter sibling prompts automatically. Approval is rejected while that task owns unresolved `OPEN` findings.
+
+Root review events also retain the precommitted plan, criterion assessments, and assurance status. Empirical support cites successful current-review observations. `task_inspect`, task-state commits, decisions, and termination are context or workflow operations and cannot serve as independent observations. Judgment-only criteria require explicit limitations and no fabricated observation reference.
 
 Cross-task transfer occurs only through validated `task_review_decision.context_updates` targeting an existing unfinished task. Approved results, review events, findings, and copied context metadata are not otherwise propagated.
 

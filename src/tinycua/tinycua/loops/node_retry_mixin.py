@@ -17,6 +17,7 @@ from tinycua.loops._loop_constants import (
 )
 from tinycua.loops.context_rendering import sanitize_internal_reprs
 from tinycua.loops.node_contract import LifecyclePhase, NodeState
+from tinycua.loops.reviewer_protocol import initialize_reviewer_lifecycle
 
 if TYPE_CHECKING:
     from tinycua_sdk.agent.agent import Agent
@@ -110,6 +111,7 @@ class NodeRetryMixin:
         """Reset node progress while retaining recovery evidence on re-entry."""
         if not self._recovery_reentry:
             node.progress.reset()
+            initialize_reviewer_lifecycle(node)
             return
         preserved = dict(node.progress.accumulated_tool_results)
         preserved_history = list(node.progress.stage_tool_history)
@@ -124,6 +126,7 @@ class NodeRetryMixin:
         node.progress.recovery_fingerprint = recovery_fingerprint
         node.progress.recovery_escalations = recovery_escalations
         node.progress.recovery_last_error = recovery_last_error
+        initialize_reviewer_lifecycle(node)
         self._recovery_reentry = False
 
     def _record_attempt_tool_results(

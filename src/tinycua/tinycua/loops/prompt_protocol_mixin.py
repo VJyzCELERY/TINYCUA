@@ -285,6 +285,8 @@ class PromptProtocolMixin:
             # QueryAnalyst must commit a summary and a route in one response;
             # a singleton forced choice would hide one of those required tools.
             return None
+        if node.progress.lifecycle_phase.value == "plan":
+            return "required"
         required = self._required_single_tool_choice_name(node)
         if (
             node.contract.requires_terminate
@@ -330,6 +332,8 @@ class PromptProtocolMixin:
 
     def _required_single_tool_choice_name(self, node: Node) -> str | None:
         """Return a singleton state/route tool that should be forced."""
+        if node.progress.lifecycle_phase.value == "plan":
+            return "task_review_plan"
         route_tool = self._required_route_tool_name(node)
         if route_tool is not None:
             return route_tool
@@ -344,6 +348,7 @@ class PromptProtocolMixin:
                 return str(tool_name)
         for tool_name in (
             "task_result_update",
+            "task_review_plan",
             "task_inspect",
             "task_review_decision",
             "task_update",

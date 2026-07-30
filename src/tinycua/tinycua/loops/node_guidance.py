@@ -85,6 +85,12 @@ def build_reviewer_tool_guidance(resolved_tools: list[Any] | None) -> str:
     """
     names = {getattr(tool, "name", "") for tool in (resolved_tools or [])}
     lines: list[str] = []
+    if "task_review_plan" in names:
+        lines.append(
+            "Before seeing Executor conclusions, commit one falsification check for "
+            "every root acceptance criterion. Classify only inherently subjective "
+            "criteria as judgment."
+        )
     readonly = names.intersection({"read_file", "run_shell", "list_files"})
     if readonly:
         lines.append(
@@ -102,8 +108,9 @@ def build_reviewer_tool_guidance(resolved_tools: list[Any] | None) -> str:
     if "task_review_decision" in names:
         lines.append(
             "Commit the review with task_review_decision, including review_summary, "
-            "new_findings, and finding_updates. Use context_updates only for explicit "
-            "cross-task facts."
+            "new_findings, finding_updates, and root criterion assessments. Cite only "
+            "actual current-review observations for empirical support. Use "
+            "context_updates only for explicit cross-task facts."
         )
     if "terminate" in names:
         lines.append("Call terminate now.")

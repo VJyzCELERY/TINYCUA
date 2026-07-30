@@ -98,6 +98,8 @@ class RuntimeContractScript:
             return "task_analyzer"
         if "task_assessment_decision" in tool_names:
             return "task_assessor"
+        if "task_review_plan" in tool_names:
+            return "result_reviewer"
         if "task_review_decision" in tool_names:
             return "result_reviewer"
         if "task_update" in tool_names and "task_decompose" not in tool_names:
@@ -293,6 +295,24 @@ class RuntimeContractScript:
             }
         if node == "result_reviewer":
             task_id = self._task_id(messages)
+            if "task_review_plan" in tool_names:
+                return {
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": "task_review_plan",
+                                "arguments": (
+                                    '{"checks":[{"criterion_id":"acceptance-1",'
+                                    '"testability":"empirical",'
+                                    '"falsifying_condition":"The request is unmet.",'
+                                    '"procedure":"Compare the result to the request.",'
+                                    '"expected_observation":"The request is met."}]}'
+                                ),
+                            }
+                        }
+                    ],
+                }
             # First call: inspect workspace
             if "list_files" in tool_names and not any(
                 m.get("role") == "tool" and "list_files" in str(m.get("content", ""))
@@ -301,7 +321,10 @@ class RuntimeContractScript:
                 return {
                     "content": "",
                     "tool_calls": [
-                        {"function": {"name": "list_files", "arguments": "{}"}}
+                        {
+                            "id": "review-observation",
+                            "function": {"name": "list_files", "arguments": "{}"},
+                        }
                     ],
                 }
             # After inspection: decide
@@ -322,7 +345,7 @@ class RuntimeContractScript:
                         {
                             "function": {
                                 "name": "task_review_decision",
-                                "arguments": f'{{"decision":"approved","rationale":"Task {task_id} completed successfully","task_id":"{task_id}"}}',
+                                "arguments": f'{{"decision":"approved","rationale":"Task {task_id} completed successfully","task_id":"{task_id}","criterion_assessments":[{{"criterion_id":"acceptance-1","result":"supported","evidence_ids":["review-observation"],"inference":"The request is met.","limitations":"One scripted observation."}}]}}',
                             }
                         },
                         {"function": {"name": "task_inspect", "arguments": "{}"}},
@@ -334,7 +357,7 @@ class RuntimeContractScript:
                     {
                         "function": {
                             "name": "task_review_decision",
-                            "arguments": f'{{"decision":"approved","rationale":"Verified","task_id":"{task_id}"}}',
+                            "arguments": f'{{"decision":"approved","rationale":"Verified","task_id":"{task_id}","criterion_assessments":[{{"criterion_id":"acceptance-1","result":"supported","evidence_ids":["review-observation"],"inference":"The request is met.","limitations":"One scripted observation."}}]}}',
                         }
                     },
                     {"function": {"name": "task_inspect", "arguments": "{}"}},
@@ -432,6 +455,11 @@ async def test_runtime_routes_full_worker_path_when_llm_calls_correct_tools(
 
     # Active task cleared
     assert agent.loop.root_session.task_store.active_task_id is None
+    root_task = agent.loop.root_session.task_store.tasks[root["task_id"]]
+    assert root_task.metadata["assurance_status"] == "observed"
+    assert '"assurance_status":"observed"' in str(
+        script.captured_messages_by_node["final"][-1]
+    )
 
     # No validation errors on final attempt per node
     seen_nodes: set[str] = set()

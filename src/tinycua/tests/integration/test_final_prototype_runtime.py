@@ -55,6 +55,62 @@ class ScriptedAgentResponses:
         )
         return match.group(1) if match else ""
 
+    def _review_response(self, messages, tool_names):
+        """Return the scripted root-plan or review-decision response."""
+        if "task_review_plan" in tool_names:
+            return {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "task_review_plan",
+                            "arguments": (
+                                '{"checks":[{"criterion_id":"acceptance-1",'
+                                '"testability":"judgment",'
+                                '"falsifying_condition":"The request is unmet.",'
+                                '"procedure":"Compare the result to the request.",'
+                                '"expected_observation":"The request is met."}]}'
+                            ),
+                        }
+                    }
+                ],
+            }
+        if "list_files" in tool_names and not any(
+            message.get("role") == "tool"
+            and "list_files" in str(message.get("content", ""))
+            for message in messages
+        ):
+            return {
+                "content": "",
+                "tool_calls": [{"function": {"name": "list_files", "arguments": "{}"}}],
+            }
+        if any(
+            message.get("role") == "tool"
+            and "task_review_decision" in str(message.get("content", ""))
+            for message in messages
+        ):
+            return {"content": "approved", "tool_calls": []}
+        return {
+            "content": "",
+            "tool_calls": [
+                {
+                    "function": {
+                        "name": "task_review_decision",
+                        "arguments": (
+                            '{"decision":"approved",'
+                            '"rationale":"Execution result is present.",'
+                            '"criterion_assessments":[{'
+                            '"criterion_id":"acceptance-1",'
+                            '"result":"judgment_only","evidence_ids":[],'
+                            '"inference":"The request is met.",'
+                            '"limitations":"Scripted judgment only."}]}'
+                        ),
+                    }
+                },
+                {"function": {"name": "task_inspect", "arguments": "{}"}},
+            ],
+        }
+
     async def __call__(self, messages, tools, stream=False):
         self.calls += 1
         tool_names = {tool.name for tool in tools}
@@ -138,48 +194,8 @@ class ScriptedAgentResponses:
                     }
                 ],
             }
-        if "task_review_decision" in tool_names:
-            if "list_files" in tool_names and not any(
-                message.get("role") == "tool"
-                and "list_files" in str(message.get("content", ""))
-                for message in messages
-            ):
-                return {
-                    "content": "",
-                    "tool_calls": [
-                        {
-                            "function": {
-                                "name": "list_files",
-                                "arguments": "{}",
-                            }
-                        }
-                    ],
-                }
-            if any(
-                message.get("role") == "tool"
-                and "task_review_decision" in str(message.get("content", ""))
-                for message in messages
-            ):
-                return {"content": "approved", "tool_calls": []}
-            # Decide-then-inspect: record the decision and inspect the roadmap in
-            # the same response so the node can terminate.
-            return {
-                "content": "",
-                "tool_calls": [
-                    {
-                        "function": {
-                            "name": "task_review_decision",
-                            "arguments": '{"decision":"approved","rationale":"Execution result is present."}',
-                        }
-                    },
-                    {
-                        "function": {
-                            "name": "task_inspect",
-                            "arguments": "{}",
-                        }
-                    },
-                ],
-            }
+        if tool_names & {"task_review_plan", "task_review_decision"}:
+            return self._review_response(messages, tool_names)
         if "task_assessment_decision" in tool_names:
             if any(
                 message.get("role") == "tool"
