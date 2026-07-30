@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analog Clock</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        #clock {
+            border-radius: 50%;
+            border: 3px solid #333;
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+    <div id="clock"></div>
+    <script type="module">
+        // Get clock element and create canvas
+        const clockContainer = document.getElementById('clock');
+        const canvas = document.createElement('canvas');
+        canvas.width = 400;
+        canvas.height = 400;
+        clockContainer.appendChild(canvas);
+
+        // Set up 2D render context
+        const ctx = canvas.getContext('2d');
+
+        // Canvas dimensions and center point
+        const width = canvas.width;
+        const height = canvas.height;
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const radius = 180;
+
+        // Draw clock face circle
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+        ctx.fillStyle = 'white';
+        ctx.fill();
+        ctx.stroke();
+
+        // Add hour markers (tick marks)
+        ctx.font = '14px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        for (let i = 0; i < 12; i++) {
+            const angle = (i * Math.PI) / 6; // 30 degrees per hour
+            const x = centerX + radius * Math.cos(angle);
+            const y = centerY + radius * Math.sin(angle);
+            
+            ctx.beginPath();
+            ctx.arc(x, y, 8, 0, Math.PI * 2);
+            ctx.fillStyle = '#333';
+            ctx.fill();
+        }
+
+        // Draw center point
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 5, 0, Math.PI * 2);
+        ctx.fillStyle = '#333';
+        ctx.fill();
+
+        // Time derivation and hand angle calculation
+        function updateClock() {
+            const now = new Date();
+            const seconds = now.getSeconds();
+            const milliseconds = now.getMilliseconds();
+            const minutes = now.getMinutes();
+            const hours = now.getHours() % 12;
+
+            // Calculate angles in degrees, then convert to positive radians
+            // Seconds: seconds × 6°, plus fractional movement based on milliseconds
+            const secondsAngle = (seconds + milliseconds / 1000) * 6;
+            
+            // Minutes: minutes × 6° plus offset from seconds movement
+            const minutesAngle = (minutes + seconds / 60) * 6;
+            
+            // Hours: hours × 30° plus offset from minutes movement
+            const hoursAngle = (hours + minutes / 60) * 30;
+
+            // Convert degrees to positive radians (Canvas draws clockwise from -PI/2 or top)
+            // Canvas arc uses radians, 0 is at 3 o'clock, we want 12 o'clock as reference
+            const secondsRadian = (Math.PI / 2) - (secondsAngle * Math.PI / 180);
+            const minutesRadian = (Math.PI / 2) - (minutesAngle * Math.PI / 180);
+            const hoursRadian = (Math.PI / 2) - (hoursAngle * Math.PI / 180);
+
+            // Store hand states for rendering
+            const handStates = {
+                secondsAngle: secondsAngle,
+                secondsRadian: secondsRadian,
+                minutesAngle: minutesAngle,
+                minutesRadian: minutesRadian,
+                hoursAngle: hoursAngle,
+                hoursRadian: hoursRadian
+            };
+
+            return handStates;
+        }
+
+        // Get current hand states
+        const handStates = updateClock();
+
+        // Draw second hand (thin red line from center to edge)
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        const secondLength = radius - 10;
+        const sx = centerX + secondLength * Math.cos(handStates.secondsRadian);
+        const sy = centerY + secondLength * Math.sin(handStates.secondsRadian);
+        ctx.lineTo(sx, sy);
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Draw minute hand (medium blue line)
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        const minuteLength = radius - 15;
+        const mx = centerX + minuteLength * Math.cos(handStates.minutesRadian);
+        const my = centerY + minuteLength * Math.sin(handStates.minutesRadian);
+        ctx.lineTo(mx, my);
+        ctx.strokeStyle = 'blue';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        // Draw hour hand (thick black line)
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        const hourLength = radius - 20;
+        const hx = centerX + hourLength * Math.cos(handStates.hoursRadian);
+        const hy = centerY + hourLength * Math.sin(handStates.hoursRadian);
+        ctx.lineTo(hx, hy);
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 4;
+        ctx.stroke();
+
+        // Draw hour numbers
+        ctx.font = 'bold 16px Arial';
+        for (let i = 0; i < 12; i++) {
+            const angle = (i * Math.PI) / 6;
+            const x = centerX + (radius - 60) * Math.cos(angle);
+            const y = centerY + (radius - 60) * Math.sin(angle);
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(i === 0 ? '12' : i, x, y);
+        }
+
+        // Animation loop with requestAnimationFrame
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+            const currentHandStates = updateClock();
+            
+            // Re-draw clock face
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+            ctx.fillStyle = 'white';
+            ctx.fill();
+            ctx.stroke();
+
+            // Re-draw hour markers
+            for (let i = 0; i < 12; i++) {
+                const angle = (i * Math.PI) / 6;
+                const x = centerX + radius * Math.cos(angle);
+                const y = centerY + radius * Math.sin(angle);
+                
+                ctx.beginPath();
+                ctx.arc(x, y, 8, 0, Math.PI * 2);
+                ctx.fillStyle = '#333';
+                ctx.fill();
+            }
+
+            // Draw center point
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 5, 0, Math.PI * 2);
+            ctx.fillStyle = '#333';
+            ctx.fill();
+
+            // Draw second hand
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            const secondLength = radius - 10;
+            const sx = centerX + secondLength * Math.cos(handStates.secondsRadian);
+            const sy = centerY + secondLength * Math.sin(handStates.secondsRadian);
+            ctx.lineTo(sx, sy);
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Draw minute hand
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            const minuteLength = radius - 15;
+            const mx = centerX + minuteLength * Math.cos(handStates.minutesRadian);
+            const my = centerY + minuteLength * Math.sin(handStates.minutesRadian);
+            ctx.lineTo(mx, my);
+            ctx.strokeStyle = 'blue';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // Draw hour hand
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            const hourLength = radius - 20;
+            const hx = centerX + hourLength * Math.cos(handStates.hoursRadian);
+            const hy = centerY + hourLength * Math.sin(handStates.hoursRadian);
+            ctx.lineTo(hx, hy);
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            // Draw hour numbers
+            ctx.font = 'bold 16px Arial';
+            for (let i = 0; i < 12; i++) {
+                const angle = (i * Math.PI) / 6;
+                const x = centerX + (radius - 60) * Math.cos(angle);
+                const y = centerY + (radius - 60) * Math.sin(angle);
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(i === 0 ? '12' : i, x, y);
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        // Start animation loop
+        animate();
+    </script>
+</body>
+</html>

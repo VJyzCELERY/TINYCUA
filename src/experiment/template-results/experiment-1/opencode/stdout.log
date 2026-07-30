@@ -1,0 +1,26 @@
+=== workspace/seed/create ===
+e03db83be765170facdd898271ccb33728926ee595c26b088d67ecbbc4c03067
+=== workspace/seed/copy ===
+=== workspace/seed/remove ===
+tinycua-template-workspace-seed-1eb78b68-d840-4e0d-9437-3a674c0194d3-6578706572696d656e742d31-6f70656e636f6465
+=== agent ===
+{"type":"step_start","timestamp":1785363828115,"sessionID":"ses_05005fd64ffebUMwog3YPehm6M","part":{"id":"prt_faffa0d8e0012no4gLG4qz545b","messageID":"msg_faffa03f7001cweYN3YIWTOAcm","sessionID":"ses_05005fd64ffebUMwog3YPehm6M","type":"step-start"}}
+{"type":"reasoning","timestamp":1785363828394,"sessionID":"ses_05005fd64ffebUMwog3YPehm6M","part":{"id":"prt_faffa0d900017nSfJEAyBy9X0I","messageID":"msg_faffa03f7001cweYN3YIWTOAcm","sessionID":"ses_05005fd64ffebUMwog3YPehm6M","type":"reasoning","text":"The user wants me to reply with the exact text \"Hello Reply\".\n","time":{"start":1785363828112,"end":1785363828390}}}
+{"type":"text","timestamp":1785363828442,"sessionID":"ses_05005fd64ffebUMwog3YPehm6M","part":{"id":"prt_faffa0ea8001YxE2Cjmdi6Vh9M","messageID":"msg_faffa03f7001cweYN3YIWTOAcm","sessionID":"ses_05005fd64ffebUMwog3YPehm6M","type":"text","text":"Hello Reply","time":{"start":1785363828392,"end":1785363828424}}}
+{"type":"step_finish","timestamp":1785363828442,"sessionID":"ses_05005fd64ffebUMwog3YPehm6M","part":{"id":"prt_faffa0ecd001Y6gnS93F3gEM0j","reason":"stop","messageID":"msg_faffa03f7001cweYN3YIWTOAcm","sessionID":"ses_05005fd64ffebUMwog3YPehm6M","type":"step-finish","tokens":[REDACTED],"input":7283,"output":5,"reasoning":15,"cache":{"write":0,"read":0}},"cost":0}}
+=== workspace/export/create ===
+67a557d5a639b34f7b73be201e35af1b0968ec4f767b951281f0d06b44b6fb36
+=== workspace/export/copy ===
+=== workspace/export/remove ===
+tinycua-template-workspace-export-1eb78b68-d840-4e0d-9437-3a674c0194d3-6578706572696d656e742d31-6f70656e636f6465
+=== workspace/seed/create ===
+b0fdf7ec493c04671825f0fc530da4995135f48559cec0e394d0fedf4b17b0f3
+=== workspace/seed/copy ===
+=== workspace/seed/remove ===
+tinycua-template-evaluator-input-1eb78b68-d840-4e0d-9437-3a674c0194d3-6578706572696d656e742d31-6f70656e636f6465
+=== evaluator ===
+=== workspace/export/create ===
+5c9e83dd55d0e05b32745352b9e4075583fccd44cfaeeacc2be965d6d7403632
+=== workspace/export/copy ===
+=== workspace/export/remove ===
+tinycua-template-evaluator-result-1eb78b68-d840-4e0d-9437-3a674c0194d3-6578706572696d656e742d31-6f70656e636f6465

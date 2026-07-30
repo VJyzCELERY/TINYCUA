@@ -1,0 +1,99 @@
+{
+  "schema_version": 2,
+  "fixture": "experiment-4",
+  "agent": "tinycua-nr",
+  "state_volume": "tinycua-template-1eb78b68-d840-4e0d-9437-3a674c0194d3-6578706572696d656e742d34-74696e796375612d6e72",
+  "started_at": "2026-07-29T21:24:54.724808+00:00",
+  "ended_at": "2026-07-29T21:48:53.536464+00:00",
+  "elapsed_prompt_to_finish_seconds": 1374.2013758209941,
+  "stdout_path": "stdout.log",
+  "stderr_path": "stderr.log",
+  "workdir_path": "workdir",
+  "agent_exit_code": 0,
+  "sanitized_environment": "environment.json",
+  "evaluator_exit_code": 1,
+  "evaluator_outcome": "failed",
+  "passed": false,
+  "status": "failed",
+  "score": {
+    "categories": {
+      "start_script": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "root start.sh exists"
+        ]
+      },
+      "application_starts": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: start.sh exited with code 2"
+        ]
+      },
+      "python_backend": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: start.sh process group includes a Python backend"
+        ]
+      },
+      "block_create": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:36247/\nCall log:\n  - navigating to \"http://127.0.0.1:36247/\", waiting until \"domcontentloaded\"\n"
+        ]
+      },
+      "block_edit": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:36247/\nCall log:\n  - navigating to \"http://127.0.0.1:36247/\", waiting until \"domcontentloaded\"\n"
+        ]
+      },
+      "block_delete": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:36247/\nCall log:\n  - navigating to \"http://127.0.0.1:36247/\", waiting until \"domcontentloaded\"\n"
+        ]
+      },
+      "reload_persistence": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:36247/\nCall log:\n  - navigating to \"http://127.0.0.1:36247/\", waiting until \"domcontentloaded\"\n"
+        ]
+      },
+      "sqlite_persistence": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:36247/\nCall log:\n  - navigating to \"http://127.0.0.1:36247/\", waiting until \"domcontentloaded\"\n"
+        ]
+      },
+      "restart_persistence": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: start.sh exited with code 2"
+        ]
+      }
+    },
+    "total": 1,
+    "pass_threshold": 9,
+    "critical_categories": [
+      "start_script",
+      "application_starts",
+      "python_backend",
+      "block_create",
+      "block_edit",
+      "block_delete",
+      "reload_persistence",
+      "sqlite_persistence",
+      "restart_persistence"
+    ]
+  },
+  "failure_stage": "evaluator"
+}

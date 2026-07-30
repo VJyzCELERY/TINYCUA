@@ -1,0 +1,44 @@
+=== workspace/seed/create ===
+=== workspace/seed/copy ===
+=== workspace/seed/remove ===
+=== agent ===
+ Container experiment-searxng-1 Running 
+ Container experiment-searxng-1 Waiting 
+ Container experiment-searxng-1 Healthy 
+ Container tinycua-template-agent-1eb78b68-d840-4e0d-9437-3a674c0194d3-6578706572696d656e742d31-74696e796375612d6e642d6e72 Creating 
+ Container tinycua-template-agent-1eb78b68-d840-4e0d-9437-3a674c0194d3-6578706572696d656e742d31-74696e796375612d6e642d6e72 Created 
+INFO:httpx:HTTP Request: GET http://host.docker.internal:1234/v1/models "HTTP/1.1 200 OK"
+INFO:tinycua.cli.model_probe:max_context_probe_no_field fallback=128000
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.node:node=query_analyst record_output content_len=0
+INFO:tinycua.loops.query_analyst:QueryAnalyst routed to 'passthrough' — no action taken
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.node:node=response record_output content_len=11
+Agent completed in 4.4s
+=== NODE TRAVERSAL ===
+query_analyst
+response
+
+=== TRACE ===
+[1] query_analyst (TinyCUAQueryAnalystNode) route=passthrough terminal=False
+
+[2] response (ResponseNode) route=None terminal=True
+
+=== FINAL RESPONSE ===
+Hello Reply
+=== TASK TREE ===
+No tasks.
+
+=== WORKSPACE FILES ===
+- .agent_scripts/README.md
+- .agent_scripts/search.sh
+=== workspace/export/create ===
+=== workspace/export/copy ===
+=== workspace/export/remove ===
+=== workspace/seed/create ===
+=== workspace/seed/copy ===
+=== workspace/seed/remove ===
+=== evaluator ===
+=== workspace/export/create ===
+=== workspace/export/copy ===
+=== workspace/export/remove ===

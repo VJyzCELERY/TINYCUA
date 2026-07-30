@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analog Clock</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #1a1a2e; font-family: Arial, sans-serif; }
+        canvas { border-radius: 50%; }
+    </style>
+</head>
+<body>
+    <canvas id="clock" width="400" height="400"></canvas>
+
+    <script>
+        const canvas = document.getElementById('clock');
+        const ctx = canvas.getContext('2d');
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const radius = 180;
+
+        function drawClock() {
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw outer ring
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius + 15, 0, Math.PI * 2);
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // Draw hour markers and numbers
+            for (let i = 0; i < 12; i++) {
+                const angle = (i * Math.PI / 6) - Math.PI / 2;
+                
+                const x1 = centerX + radius * Math.cos(angle);
+                const y1 = centerY + radius * Math.sin(angle);
+                
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(
+                    x1 + (radius - 80) * Math.cos(angle),
+                    centerY + (radius - 80) * Math.sin(angle)
+                );
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                const x2 = centerX + (radius - 65) * Math.cos(angle);
+                const y2 = centerY + (radius - 65) * Math.sin(angle);
+                
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+
+                ctx.save();
+                ctx.translate(centerX, centerY);
+                ctx.rotate(angle + Math.PI / 2);
+                ctx.textAlign = 'right';
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 16px Arial';
+                ctx.fillText(i === 12 ? 12 : i, radius - 50, 7);
+                ctx.restore();
+            }
+
+            // Center circle
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 25, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 10, 0, Math.PI * 2);
+            ctx.fillStyle = '#3a3a5e';
+            ctx.fill();
+
+            const now = new Date();
+            const seconds = now.getSeconds();
+            const milliseconds = now.getMilliseconds();
+            const minutes = now.getMinutes();
+            const hours = now.getHours() % 12 || 12;
+
+            const secondAngle = (seconds + milliseconds / 1000) * 6;
+            const minuteAngle = minutes * 6 + seconds * 0.1;
+            const hourAngle = (hours + minutes / 60) * 30;
+
+            // Hour hand
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.rotate(hourAngle * Math.PI / 180);
+            ctx.beginPath();
+            ctx.moveTo(0, -20);
+            ctx.lineTo(0, 75);
+            ctx.lineWidth = 6;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = '#ffffff';
+            ctx.stroke();
+            ctx.restore();
+
+            // Minute hand
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.rotate(minuteAngle * Math.PI / 180);
+            ctx.beginPath();
+            ctx.moveTo(0, -25);
+            ctx.lineTo(0, 70);
+            ctx.lineWidth = 4;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = '#ffffff';
+            ctx.stroke();
+            ctx.restore();
+
+            // Second hand (red)
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.rotate(secondAngle * Math.PI / 180);
+            ctx.beginPath();
+            ctx.moveTo(0, -25);
+            ctx.lineTo(0, 75);
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = '#ff4444';
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.arc(0, -28, 3, 0, Math.PI * 2);
+            ctx.fillStyle = '#ff4444';
+            ctx.fill();
+            ctx.restore();
+
+            requestAnimationFrame(drawClock);
+        }
+
+        drawClock();
+    </script>
+</body>
+</html>

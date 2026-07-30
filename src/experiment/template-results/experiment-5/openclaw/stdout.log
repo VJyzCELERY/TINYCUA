@@ -1,0 +1,162 @@
+=== workspace/seed/create ===
+b59e80d6311f94f05df253211e442f986c1f97c50a57ff9305ee1a6960092b4d
+=== workspace/seed/copy ===
+=== workspace/seed/remove ===
+tinycua-template-workspace-seed-1eb78b68-d840-4e0d-9437-3a674c0194d3-6578706572696d656e742d35-6f70656e636c6177
+=== agent ===
+│
+◇  Config warnings ────────────────────────────────────────────────────────╮
+│                                                                          │
+│  - tools.web.search.provider: web_search provider is not available:      │
+│    searxng (configured plugin "searxng" is unavailable; Gateway will     │
+│    ignore this optional provider until the plugin is installed/enabled   │
+│    or openclaw doctor --fix repairs the config)                          │
+│  - plugins.entries.searxng: plugin not installed: searxng — install the  │
+│    official external plugin with: openclaw plugins install               │
+│    @openclaw/searxng-plugin                                              │
+│                                                                          │
+├──────────────────────────────────────────────────────────────────────────╯
+[plugins] loading browser from /usr/local/lib/node_modules/openclaw/dist/extensions/browser/index.js
+[plugins] loading canvas from /usr/local/lib/node_modules/openclaw/dist/extensions/canvas/index.js
+[plugins] loading device-pair from /usr/local/lib/node_modules/openclaw/dist/extensions/device-pair/index.js
+Registered plugin command: /pair (plugin: device-pair)
+[plugins] loading file-transfer from /usr/local/lib/node_modules/openclaw/dist/extensions/file-transfer/index.js
+[plugins] loading memory-core from /usr/local/lib/node_modules/openclaw/dist/extensions/memory-core/index.js
+Registered plugin command: /dreaming (plugin: memory-core)
+[plugins] loading ollama from /usr/local/lib/node_modules/openclaw/dist/extensions/ollama/index.js
+[plugins] loading phone-control from /usr/local/lib/node_modules/openclaw/dist/extensions/phone-control/index.js
+Registered plugin command: /phone (plugin: phone-control)
+[plugins] loading talk-voice from /usr/local/lib/node_modules/openclaw/dist/extensions/talk-voice/index.js
+Registered plugin command: /voice (plugin: talk-voice)
+[plugins] loaded 8 plugin(s) (8 attempted) in 164.6ms
+[diagnostic] lane enqueue: lane=session:agent:main:experiment- queueSize=1
+[diagnostic] lane dequeue: lane=session:agent:main:experiment- waitMs=1 queueSize=0
+[diagnostic] lane enqueue: lane=main queueSize=1
+[diagnostic] lane dequeue: lane=main waitMs=0 queueSize=0
+[plugins] loading alibaba from /usr/local/lib/node_modules/openclaw/dist/extensions/alibaba/index.js
+[plugins] loading anthropic from /usr/local/lib/node_modules/openclaw/dist/extensions/anthropic/index.js
+[plugins] loading azure-speech from /usr/local/lib/node_modules/openclaw/dist/extensions/azure-speech/index.js
+[plugins] loading browser from /usr/local/lib/node_modules/openclaw/dist/extensions/browser/index.js
+[plugins] loading byteplus from /usr/local/lib/node_modules/openclaw/dist/extensions/byteplus/index.js
+[plugins] loading canvas from /usr/local/lib/node_modules/openclaw/dist/extensions/canvas/index.js
+[plugins] loading clawrouter from /usr/local/lib/node_modules/openclaw/dist/extensions/clawrouter/index.js
+[plugins] loading cohere from /usr/local/lib/node_modules/openclaw/dist/extensions/cohere/index.js
+[plugins] loading comfy from /usr/local/lib/node_modules/openclaw/dist/extensions/comfy/index.js
+[plugins] loading copilot-proxy from /usr/local/lib/node_modules/openclaw/dist/extensions/copilot-proxy/index.js
+[plugins] loading deepgram from /usr/local/lib/node_modules/openclaw/dist/extensions/deepgram/index.js
+[plugins] loading device-pair from /usr/local/lib/node_modules/openclaw/dist/extensions/device-pair/index.js
+Registered plugin command: /pair (plugin: device-pair)
+[plugins] loading document-extract from /usr/local/lib/node_modules/openclaw/dist/extensions/document-extract/index.js
+[plugins] loading elevenlabs from /usr/local/lib/node_modules/openclaw/dist/extensions/elevenlabs/index.js
+[plugins] loading fal from /usr/local/lib/node_modules/openclaw/dist/extensions/fal/index.js
+[plugins] loading file-transfer from /usr/local/lib/node_modules/openclaw/dist/extensions/file-transfer/index.js
+[plugins] loading github-copilot from /usr/local/lib/node_modules/openclaw/dist/extensions/github-copilot/index.js
+[plugins] loading google from /usr/local/lib/node_modules/openclaw/dist/extensions/google/index.js
+[plugins] loading huggingface from /usr/local/lib/node_modules/openclaw/dist/extensions/huggingface/index.js
+[plugins] loading litellm from /usr/local/lib/node_modules/openclaw/dist/extensions/litellm/index.js
+[plugins] loading lmstudio from /usr/local/lib/node_modules/openclaw/dist/extensions/lmstudio/index.js
+[plugins] loading memory-core from /usr/local/lib/node_modules/openclaw/dist/extensions/memory-core/index.js
+Registered plugin command: /dreaming (plugin: memory-core)
+[plugins] loading meta from /usr/local/lib/node_modules/openclaw/dist/extensions/meta/index.js
+[plugins] loading microsoft from /usr/local/lib/node_modules/openclaw/dist/extensions/microsoft/index.js
+[plugins] loading microsoft-foundry from /usr/local/lib/node_modules/openclaw/dist/extensions/microsoft-foundry/index.js
+[plugins] loading minimax from /usr/local/lib/node_modules/openclaw/dist/extensions/minimax/index.js
+[plugins] loading mistral from /usr/local/lib/node_modules/openclaw/dist/extensions/mistral/index.js
+[plugins] loading novita from /usr/local/lib/node_modules/openclaw/dist/extensions/novita/index.js
+[plugins] loading nvidia from /usr/local/lib/node_modules/openclaw/dist/extensions/nvidia/index.js
+[plugins] loading ollama from /usr/local/lib/node_modules/openclaw/dist/extensions/ollama/index.js
+[plugins] loading openai from /usr/local/lib/node_modules/openclaw/dist/extensions/openai/index.js
+[plugins] loading opencode from /usr/local/lib/node_modules/openclaw/dist/extensions/opencode/index.js
+[plugins] loading opencode-go from /usr/local/lib/node_modules/openclaw/dist/extensions/opencode-go/index.js
+[plugins] loading openrouter from /usr/local/lib/node_modules/openclaw/dist/extensions/openrouter/index.js
+[plugins] loading phone-control from /usr/local/lib/node_modules/openclaw/dist/extensions/phone-control/index.js
+Registered plugin command: /phone (plugin: phone-control)
+[plugins] loading runway from /usr/local/lib/node_modules/openclaw/dist/extensions/runway/index.js
+[plugins] loading senseaudio from /usr/local/lib/node_modules/openclaw/dist/extensions/senseaudio/index.js
+[plugins] loading sglang from /usr/local/lib/node_modules/openclaw/dist/extensions/sglang/index.js
+[plugins] loading synthetic from /usr/local/lib/node_modules/openclaw/dist/extensions/synthetic/index.js
+[plugins] loading talk-voice from /usr/local/lib/node_modules/openclaw/dist/extensions/talk-voice/index.js
+Registered plugin command: /voice (plugin: talk-voice)
+[plugins] loading together from /usr/local/lib/node_modules/openclaw/dist/extensions/together/index.js
+[plugins] loading tts-local-cli from /usr/local/lib/node_modules/openclaw/dist/extensions/tts-local-cli/index.js
+[plugins] loading vllm from /usr/local/lib/node_modules/openclaw/dist/extensions/vllm/index.js
+[plugins] loading volcengine from /usr/local/lib/node_modules/openclaw/dist/extensions/volcengine/index.js
+[plugins] loading voyage from /usr/local/lib/node_modules/openclaw/dist/extensions/voyage/index.js
+[plugins] loading vydra from /usr/local/lib/node_modules/openclaw/dist/extensions/vydra/index.js
+[plugins] loading web-readability from /usr/local/lib/node_modules/openclaw/dist/extensions/web-readability/index.js
+[plugins] loading xai from /usr/local/lib/node_modules/openclaw/dist/extensions/xai/index.js
+[plugins] loading xiaomi from /usr/local/lib/node_modules/openclaw/dist/extensions/xiaomi/index.js
+[plugins] loaded 67 plugin(s) (49 attempted) in 632.4ms
+[agents/harness] agent harness selected
+[agent/embedded] embedded run start: runId=8ce012f9-0aeb-444b-bae8-cecc56b9d1ba sessionId=160b0998-51ef-4ac7-8b6c-59b847732271 provider=local model=qwen3.5-9b thinking=off messageChannel=unknown
+[plugins] loading browser from /usr/local/lib/node_modules/openclaw/dist/extensions/browser/index.js
+[plugins] loading canvas from /usr/local/lib/node_modules/openclaw/dist/extensions/canvas/index.js
+[plugins] loading file-transfer from /usr/local/lib/node_modules/openclaw/dist/extensions/file-transfer/index.js
+[plugins] loading memory-core from /usr/local/lib/node_modules/openclaw/dist/extensions/memory-core/index.js
+[plugins] loading ollama from /usr/local/lib/node_modules/openclaw/dist/extensions/ollama/index.js
+[plugins] loaded 9 plugin(s) (5 attempted) in 22.9ms
+[plugins] plugin tool factory returned null (memory-core): [memory_search]
+[plugins] plugin tool factory returned null (memory-core): [memory_get]
+[agent/embedded] tool-search: cataloged 28 tools behind compact prompt surface
+[agent/embedded] applying extraParams to agent streamFn for local/qwen3.5-9b
+[diagnostic] session state: sessionId=160b0998-51ef-4ac7-8b6c-59b847732271 sessionKey=[REDACTED] prev=idle new=processing reason="run_started" queueDepth=0
+[diagnostic] run registered: sessionId=160b0998-51ef-4ac7-8b6c-59b847732271 totalActive=1
+[agent/embedded] embedded run prompt start: runId=8ce012f9-0aeb-444b-bae8-cecc56b9d1ba sessionId=160b0998-51ef-4ac7-8b6c-59b847732271 provider=local api=openai-completions endpoint=local route=local policy=none
+[agent/embedded] [context-diag] pre-prompt: sessionKey=agent:main:experiment- messages=0 roleCounts=none historyTextChars=0 maxMessageTextChars=0 historyImageBlocks=0 systemPromptChars=26866 promptChars=304 promptImages=0 provider=local/qwen3.5-9b sessionFile=/state/.openclaw/agents/main/sessions/160b0998-51ef-4ac7-8b6c-59b847732271.jsonl
+[agent/embedded] [context-overflow-precheck] pre-prompt check sessionKey=[REDACTED] provider=local/qwen3.5-9b route=fits estimatedPromptTokens=[REDACTED] pressureSource=llm_boundary_normalized_prompt promptBudgetBeforeReserve=100000 overflowTokens=[REDACTED] toolResultReducibleChars=0 reserveTokens=[REDACTED] effectiveReserveTokens=[REDACTED] contextTokenBudget=[REDACTED] messages=0 unwindowedMessages=0 sessionFile=/state/.openclaw/agents/main/sessions/160b0998-51ef-4ac7-8b6c-59b847732271.jsonl
+[agent/embedded] embedded run agent start: runId=8ce012f9-0aeb-444b-bae8-cecc56b9d1ba
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=23 contentType=text/event-stream
+[agent/embedded] embedded run tool start: runId=8ce012f9-0aeb-444b-bae8-cecc56b9d1ba tool=exec toolCallId=7IalVYQpxrwKLvAWyrPRWHio96Y90SkB
+[agent/embedded] embedded run tool end: runId=8ce012f9-0aeb-444b-bae8-cecc56b9d1ba tool=exec toolCallId=7IalVYQpxrwKLvAWyrPRWHio96Y90SkB
+[provider-transport-fetch] [model-fetch] start provider=local api=openai-completions model=qwen3.5-9b method=POST url=http://host.docker.internal:1234/v1/chat/completions timeoutMs=undefined proxy=none policy=custom
+[provider-transport-fetch] [model-fetch] response provider=local api=openai-completions model=qwen3.5-9b status=200 elapsedMs=8 contentType=text/event-stream
+[agent/embedded] embedded run agent end: runId=8ce012f9-0aeb-444b-bae8-cecc56b9d1ba isError=false
+[diagnostic] session state: sessionId=160b0998-51ef-4ac7-8b6c-59b847732271 sessionKey=[REDACTED] prev=processing new=idle reason="run_completed" queueDepth=0
+[diagnostic] run cleared: sessionId=160b0998-51ef-4ac7-8b6c-59b847732271 totalActive=0
+[agent/embedded] embedded run prompt end: runId=8ce012f9-0aeb-444b-bae8-cecc56b9d1ba sessionId=160b0998-51ef-4ac7-8b6c-59b847732271 durationMs=99438
+[diagnostic] lane task done: lane=main durationMs=100355 active=0 queued=0
+[diagnostic] lane task done: lane=session:agent:main:experiment- durationMs=100357 active=0 queued=0
+⚠️ Agent couldn't generate a response. Note: some tool actions may have already been executed — please verify before retrying.
+=== workspace/export/create ===
+1b51dd58d4aa0c15b9eae4d6ce510bccd0d5748ca897229825a2a08a58b32a4b
+=== workspace/export/copy ===
+=== workspace/export/remove ===
+tinycua-template-workspace-export-1eb78b68-d840-4e0d-9437-3a674c0194d3-6578706572696d656e742d35-6f70656e636c6177
+=== workspace/seed/create ===
+cb258d65e0aaed3d7ffd92ca8e8a7dbc4d0ca7f64bfeec43830649533c623ce1
+=== workspace/seed/copy ===
+=== workspace/seed/remove ===
+tinycua-template-evaluator-input-1eb78b68-d840-4e0d-9437-3a674c0194d3-6578706572696d656e742d35-6f70656e636c6177
+=== evaluator ===
+Collecting sacrebleu==2.5.1 (from -r /eval/requirements.txt (line 1))
+  Downloading sacrebleu-2.5.1-py3-none-any.whl.metadata (51 kB)
+Collecting portalocker (from sacrebleu==2.5.1->-r /eval/requirements.txt (line 1))
+  Downloading portalocker-3.2.0-py3-none-any.whl.metadata (8.7 kB)
+Collecting regex (from sacrebleu==2.5.1->-r /eval/requirements.txt (line 1))
+  Downloading regex-2026.7.19-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (40 kB)
+Collecting tabulate>=0.8.9 (from sacrebleu==2.5.1->-r /eval/requirements.txt (line 1))
+  Downloading tabulate-0.10.0-py3-none-any.whl.metadata (40 kB)
+Collecting numpy>=1.17 (from sacrebleu==2.5.1->-r /eval/requirements.txt (line 1))
+  Downloading numpy-2.5.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (6.6 kB)
+Collecting colorama (from sacrebleu==2.5.1->-r /eval/requirements.txt (line 1))
+  Downloading colorama-0.4.6-py2.py3-none-any.whl.metadata (17 kB)
+Collecting lxml (from sacrebleu==2.5.1->-r /eval/requirements.txt (line 1))
+  Downloading lxml-6.1.1-cp312-cp312-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl.metadata (3.5 kB)
+Downloading sacrebleu-2.5.1-py3-none-any.whl (104 kB)
+Downloading numpy-2.5.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (16.7 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 16.7/16.7 MB 15.8 MB/s eta 0:00:00
+Downloading tabulate-0.10.0-py3-none-any.whl (39 kB)
+Downloading colorama-0.4.6-py2.py3-none-any.whl (25 kB)
+Downloading lxml-6.1.1-cp312-cp312-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl (5.2 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.2/5.2 MB 15.7 MB/s eta 0:00:00
+Downloading portalocker-3.2.0-py3-none-any.whl (22 kB)
+Downloading regex-2026.7.19-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (801 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 801.8/801.8 kB 12.2 MB/s eta 0:00:00
+Installing collected packages: tabulate, regex, portalocker, numpy, lxml, colorama, sacrebleu
+Successfully installed colorama-0.4.6 lxml-6.1.1 numpy-2.5.1 portalocker-3.2.0 regex-2026.7.19 sacrebleu-2.5.1 tabulate-0.10.0
+=== workspace/export/create ===
+c092f70c1a038a89c16ab543b245e9711d719a21dec8d092a5d059cd3fe8ba2e
+=== workspace/export/copy ===
+=== workspace/export/remove ===
+tinycua-template-evaluator-result-1eb78b68-d840-4e0d-9437-3a674c0194d3-6578706572696d656e742d35-6f70656e636c6177

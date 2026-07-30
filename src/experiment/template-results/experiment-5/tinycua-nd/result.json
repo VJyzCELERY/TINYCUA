@@ -1,0 +1,131 @@
+{
+  "schema_version": 2,
+  "fixture": "experiment-5",
+  "agent": "tinycua-nd",
+  "state_volume": "tinycua-template-1eb78b68-d840-4e0d-9437-3a674c0194d3-6578706572696d656e742d35-74696e796375612d6e64",
+  "started_at": "2026-07-29T20:48:30.790675+00:00",
+  "ended_at": "2026-07-29T21:17:06.429223+00:00",
+  "elapsed_prompt_to_finish_seconds": 1642.9110909309966,
+  "stdout_path": "stdout.log",
+  "stderr_path": "stderr.log",
+  "workdir_path": "workdir",
+  "agent_exit_code": 0,
+  "sanitized_environment": "environment.json",
+  "evaluator_exit_code": 0,
+  "evaluator_outcome": "passed",
+  "passed": true,
+  "status": "passed",
+  "score": {
+    "categories": {
+      "guide_exists": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "study-guide.md exists"
+        ]
+      },
+      "markdown_title": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "a Markdown H1 title is present"
+        ]
+      },
+      "organized_sections": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "at least three descriptive H2 sections organize the guide"
+        ]
+      },
+      "table_of_contents": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "an optional table of contents links to existing headings"
+        ]
+      },
+      "unique_headings": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: normalized headings are unique"
+        ]
+      },
+      "backpropagation": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "backpropagation is explained"
+        ]
+      },
+      "gradient_descent": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "gradient descent is explained"
+        ]
+      },
+      "self_attention": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "self-attention is explained"
+        ]
+      },
+      "positional_encoding": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "positional encoding is explained"
+        ]
+      },
+      "encoder": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "encoders are explained"
+        ]
+      },
+      "decoder": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "decoders are explained"
+        ]
+      },
+      "code_example": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "a fenced code example is present"
+        ]
+      },
+      "practical_plan": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "a practical schedule or exercise plan is present"
+        ]
+      },
+      "task_integrity": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "TASK.md hash matches evaluator snapshot"
+        ]
+      }
+    },
+    "total": 13,
+    "pass_threshold": 9,
+    "critical_categories": [
+      "guide_exists",
+      "organized_sections",
+      "task_integrity"
+    ],
+    "metrics": {
+      "bleu": 0.0525,
+      "rouge_l_f1": 0.9293
+    }
+  }
+}

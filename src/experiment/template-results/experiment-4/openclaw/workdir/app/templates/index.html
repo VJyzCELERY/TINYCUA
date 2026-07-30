@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notion-like Workspace</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div id="page-list" class="page-list"></div>
+    <main id="editor" class="editor hidden">
+        <header class="editor-header">
+            <button id="back-btn" class="btn btn-secondary">← Back</button>
+            <input type="text" id="page-title-input" placeholder="Page title..." aria-label="Page title">
+            <span id="page-id-display"></span>
+        </header>
+        
+        <div id="blocks-container" class="blocks-container">
+            <!-- Blocks will be rendered here -->
+        </div>
+
+        <button id="add-block-btn" class="btn btn-primary">+ Add Block</button>
+    </main>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

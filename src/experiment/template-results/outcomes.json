@@ -1,0 +1,235 @@
+{
+  "coding": {
+    "experiment-3": {
+      "hermes": {
+        "passed": true,
+        "score": 9,
+        "metrics": {}
+      },
+      "openclaw": {
+        "passed": false,
+        "score": 3,
+        "metrics": {}
+      },
+      "opencode": {
+        "passed": false,
+        "score": 3,
+        "metrics": {}
+      },
+      "tinycua": {
+        "passed": false,
+        "score": 5,
+        "metrics": {}
+      },
+      "tinycua-nd": {
+        "passed": false,
+        "score": 0,
+        "metrics": {}
+      },
+      "tinycua-nd-nr": {
+        "passed": false,
+        "score": 3,
+        "metrics": {}
+      },
+      "tinycua-nr": {
+        "passed": false,
+        "score": 0,
+        "metrics": {}
+      }
+    },
+    "experiment-4": {
+      "hermes": {
+        "passed": false,
+        "score": 1,
+        "metrics": {}
+      },
+      "openclaw": {
+        "passed": false,
+        "score": 3,
+        "metrics": {}
+      },
+      "opencode": {
+        "passed": false,
+        "score": 1,
+        "metrics": {}
+      },
+      "tinycua": {
+        "passed": false,
+        "score": 1,
+        "metrics": {}
+      },
+      "tinycua-nd": {
+        "passed": false,
+        "score": 3,
+        "metrics": {}
+      },
+      "tinycua-nd-nr": {
+        "passed": false,
+        "score": 1,
+        "metrics": {}
+      },
+      "tinycua-nr": {
+        "passed": false,
+        "score": 1,
+        "metrics": {}
+      }
+    }
+  },
+  "research": {
+    "experiment-2": {
+      "hermes": {
+        "passed": false,
+        "score": 16,
+        "metrics": {
+          "bleu": 0.8794,
+          "rouge_l_f1": 3.2836
+        }
+      },
+      "openclaw": {
+        "passed": false,
+        "score": 17,
+        "metrics": {
+          "bleu": 0.2551,
+          "rouge_l_f1": 3.3576
+        }
+      },
+      "opencode": {
+        "passed": false,
+        "score": 17,
+        "metrics": {
+          "bleu": 0.7333,
+          "rouge_l_f1": 2.9163
+        }
+      },
+      "tinycua": {
+        "passed": true,
+        "score": 19,
+        "metrics": {
+          "bleu": 1.1224,
+          "rouge_l_f1": 5.0132
+        }
+      },
+      "tinycua-nd": {
+        "passed": true,
+        "score": 21,
+        "metrics": {
+          "bleu": 0.7971,
+          "rouge_l_f1": 4.5226
+        }
+      },
+      "tinycua-nd-nr": {
+        "passed": false,
+        "score": 16,
+        "metrics": {
+          "bleu": 0.831,
+          "rouge_l_f1": 3.4425
+        }
+      },
+      "tinycua-nr": {
+        "passed": true,
+        "score": 20,
+        "metrics": {
+          "bleu": 0.2485,
+          "rouge_l_f1": 4.1431
+        }
+      }
+    },
+    "experiment-5": {
+      "hermes": {
+        "passed": true,
+        "score": 14,
+        "metrics": {
+          "bleu": 0.1044,
+          "rouge_l_f1": 1.9219
+        }
+      },
+      "openclaw": {
+        "passed": false,
+        "score": 2,
+        "metrics": {
+          "bleu": 0.0,
+          "rouge_l_f1": 0.0
+        }
+      },
+      "opencode": {
+        "passed": true,
+        "score": 13,
+        "metrics": {
+          "bleu": 0.1596,
+          "rouge_l_f1": 2.775
+        }
+      },
+      "tinycua": {
+        "passed": true,
+        "score": 13,
+        "metrics": {
+          "bleu": 0.0853,
+          "rouge_l_f1": 2.6176
+        }
+      },
+      "tinycua-nd": {
+        "passed": true,
+        "score": 13,
+        "metrics": {
+          "bleu": 0.0525,
+          "rouge_l_f1": 0.9293
+        }
+      },
+      "tinycua-nd-nr": {
+        "passed": true,
+        "score": 12,
+        "metrics": {
+          "bleu": 0.0494,
+          "rouge_l_f1": 0.8585
+        }
+      },
+      "tinycua-nr": {
+        "passed": true,
+        "score": 13,
+        "metrics": {
+          "bleu": 0.2147,
+          "rouge_l_f1": 3.5028
+        }
+      }
+    }
+  },
+  "conversation": {
+    "experiment-1": {
+      "hermes": {
+        "passed": true,
+        "score": 1,
+        "metrics": {}
+      },
+      "openclaw": {
+        "passed": true,
+        "score": 1,
+        "metrics": {}
+      },
+      "opencode": {
+        "passed": true,
+        "score": 1,
+        "metrics": {}
+      },
+      "tinycua": {
+        "passed": true,
+        "score": 1,
+        "metrics": {}
+      },
+      "tinycua-nd": {
+        "passed": true,
+        "score": 1,
+        "metrics": {}
+      },
+      "tinycua-nd-nr": {
+        "passed": true,
+        "score": 1,
+        "metrics": {}
+      },
+      "tinycua-nr": {
+        "passed": true,
+        "score": 1,
+        "metrics": {}
+      }
+    }
+  }
+}

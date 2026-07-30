@@ -1,0 +1,98 @@
+{
+  "schema_version": 2,
+  "fixture": "experiment-3",
+  "agent": "hermes",
+  "state_volume": "tinycua-template-1eb78b68-d840-4e0d-9437-3a674c0194d3-6578706572696d656e742d33-6865726d6573",
+  "started_at": "2026-07-29T22:40:48.701158+00:00",
+  "ended_at": "2026-07-29T22:42:05.892686+00:00",
+  "elapsed_prompt_to_finish_seconds": 72.74199095299991,
+  "stdout_path": "stdout.log",
+  "stderr_path": "stderr.log",
+  "workdir_path": "workdir",
+  "agent_exit_code": 0,
+  "sanitized_environment": "environment.json",
+  "evaluator_exit_code": 0,
+  "evaluator_outcome": "passed",
+  "passed": true,
+  "status": "passed",
+  "score": {
+    "categories": {
+      "clock_loads": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "clock.html loads in Chromium"
+        ]
+      },
+      "clock_surface": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "a visible Canvas or SVG surface renders"
+        ]
+      },
+      "second_hand": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "second hand renders at 60 degrees"
+        ]
+      },
+      "minute_hand": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "minute hand renders from the frozen current time"
+        ]
+      },
+      "hour_hand": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "hour hand renders from the frozen current time"
+        ]
+      },
+      "second_updates_clockwise": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "scheduled update moves the second hand clockwise"
+        ]
+      },
+      "minute_updates_clockwise": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "forward time moves the minute hand clockwise"
+        ]
+      },
+      "hour_updates_clockwise": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "forward time moves the hour hand clockwise"
+        ]
+      },
+      "self_contained": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "clock makes no external HTTP requests"
+        ]
+      }
+    },
+    "total": 9,
+    "pass_threshold": 9,
+    "critical_categories": [
+      "clock_loads",
+      "clock_surface",
+      "second_hand",
+      "minute_hand",
+      "hour_hand",
+      "second_updates_clockwise",
+      "minute_updates_clockwise",
+      "hour_updates_clockwise",
+      "self_contained"
+    ]
+  }
+}

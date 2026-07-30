@@ -1,0 +1,12 @@
+[project]
+name = "notion-clone"
+version = "0.1.0"
+description = "Notion-like workspace application"
+requires-python = ">=3.9"
+dependencies = [
+    "flask>=3.0",
+    "uvicorn>=0.24",
+]
+
+[project.scripts]
+start = "app:main"

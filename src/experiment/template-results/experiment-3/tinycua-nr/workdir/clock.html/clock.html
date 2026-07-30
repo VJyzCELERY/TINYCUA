@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Analog Clock</title>
+    <style>
+        body {
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #333;
+        }
+        canvas {
+            border-radius: 50%;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="clock" width="400" height="400"></canvas>
+    <script>
+        const canvas = document.getElementById('clock');
+        const ctx = canvas.getContext('2d');
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const radius = 180;
+
+        function drawClock() {
+            // Clear canvas
+            ctx.fillStyle = '#333';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw clock face
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Draw hour markers
+            for (let i = 0; i < 12; i++) {
+                const angle = (i * Math.PI) / 6 - Math.PI / 2;
+                const x1 = centerX + radius * Math.cos(angle);
+                const y1 = centerY + radius * Math.sin(angle);
+                const x2 = centerX + (radius - 15) * Math.cos(angle);
+                const y2 = centerY + (radius - 15) * Math.sin(angle);
+
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = i % 3 === 0 ? 4 : 2;
+                ctx.stroke();
+            }
+
+            // Get current time
+            const now = new Date();
+            const seconds = now.getSeconds();
+            const milliseconds = now.getMilliseconds();
+            const minutes = now.getMinutes();
+            const hours = now.getHours() % 12;
+
+            // Calculate angles with smooth second hand movement
+            const secondAngle = ((seconds + milliseconds / 1000) / 60) * Math.PI * 2;
+            const minuteAngle = ((minutes + seconds / 60) / 60) * Math.PI * 2;
+            const hourAngle = ((hours + minutes / 60) / 12) * Math.PI * 2;
+
+            // Draw second hand (positive rotation angle)
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.rotate(secondAngle);
+            ctx.beginPath();
+            ctx.moveTo(0, -10);
+            ctx.lineTo(0, 130);
+            ctx.strokeStyle = '#ff0000';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.restore();
+
+            // Draw minute hand (positive rotation angle)
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.rotate(minuteAngle);
+            ctx.beginPath();
+            ctx.moveTo(0, -20);
+            ctx.lineTo(0, 110);
+            ctx.strokeStyle = '#00ff00';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            ctx.restore();
+
+            // Draw hour hand (positive rotation angle)
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.rotate(hourAngle);
+            ctx.beginPath();
+            ctx.moveTo(0, -25);
+            ctx.lineTo(0, 100);
+            ctx.strokeStyle = '#0000ff';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+            ctx.restore();
+
+            // Draw clock center
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 10, 0, Math.PI * 2);
+            ctx.fillStyle = '#fff';
+            ctx.fill();
+        }
+
+        // Use requestAnimationFrame for smooth rendering
+        function animate() {
+            drawClock();
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    </script>
+</body>
+</html>

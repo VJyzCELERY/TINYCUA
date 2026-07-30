@@ -1,0 +1,99 @@
+{
+  "schema_version": 2,
+  "fixture": "experiment-3",
+  "agent": "tinycua",
+  "state_volume": "tinycua-template-1eb78b68-d840-4e0d-9437-3a674c0194d3-6578706572696d656e742d33-74696e79637561",
+  "started_at": "2026-07-29T18:19:35.239308+00:00",
+  "ended_at": "2026-07-29T18:25:11.612356+00:00",
+  "elapsed_prompt_to_finish_seconds": 324.75235590999364,
+  "stdout_path": "stdout.log",
+  "stderr_path": "stderr.log",
+  "workdir_path": "workdir",
+  "agent_exit_code": 0,
+  "sanitized_environment": "environment.json",
+  "evaluator_exit_code": 1,
+  "evaluator_outcome": "failed",
+  "passed": false,
+  "status": "failed",
+  "score": {
+    "categories": {
+      "clock_loads": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "clock.html loads in Chromium"
+        ]
+      },
+      "clock_surface": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "a visible Canvas or SVG surface renders"
+        ]
+      },
+      "second_hand": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "second hand renders at 60 degrees"
+        ]
+      },
+      "minute_hand": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "minute hand renders from the frozen current time"
+        ]
+      },
+      "hour_hand": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: hour hand renders from the frozen current time"
+        ]
+      },
+      "second_updates_clockwise": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: scheduled update moves the second hand clockwise"
+        ]
+      },
+      "minute_updates_clockwise": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: forward time moves the minute hand clockwise"
+        ]
+      },
+      "hour_updates_clockwise": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: forward time moves the hour hand clockwise"
+        ]
+      },
+      "self_contained": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "clock makes no external HTTP requests"
+        ]
+      }
+    },
+    "total": 5,
+    "pass_threshold": 9,
+    "critical_categories": [
+      "clock_loads",
+      "clock_surface",
+      "second_hand",
+      "minute_hand",
+      "hour_hand",
+      "second_updates_clockwise",
+      "minute_updates_clockwise",
+      "hour_updates_clockwise",
+      "self_contained"
+    ]
+  },
+  "failure_stage": "evaluator"
+}
