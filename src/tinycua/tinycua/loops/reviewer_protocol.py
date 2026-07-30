@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+from uuid import uuid4
 
 from tinycua.loops.node_contract import LifecyclePhase
 
@@ -43,6 +44,52 @@ def initialize_reviewer_lifecycle(node: Any) -> None:
         and not store.staged_review_plan(active.task_id)
     ):
         node.progress.lifecycle_phase = LifecyclePhase.PLAN
+
+
+def reset_reviewer_attempt(node: Any) -> bool:
+    """Reset root plan and observations before a new Reviewer attempt."""
+    if node.node_id != "result_reviewer" or node.session is None:
+        return False
+    store = node.session.task_store
+    active = store.get_active_task()
+    if (
+        active is None
+        or active.task_id != store.root_task_id
+        or not store.acceptance_clauses()
+    ):
+        return False
+    plan = store._staged_review_plans.pop(active.task_id, None)
+    decision = store._staged_reviewer_decisions.pop(active.task_id, None)
+    changed = bool(plan or decision)
+    if changed:
+        store._bump_version()
+    node.progress.visited_tools.clear()
+    node.progress.satisfied_requirements.clear()
+    node.progress.correlated_outcomes.clear()
+    node.progress.lifecycle_history.clear()
+    node.progress.lifecycle_phase = LifecyclePhase.PLAN
+    node.progress.action_summary = ""
+    node.progress.accumulated_tool_results.pop("task_review_plan", None)
+    node.progress.accumulated_tool_results.pop("task_review_decision", None)
+    return True
+
+
+def issue_observation_ids(
+    tool_call: dict[str, Any], node: Any, results: list[dict[str, Any]]
+) -> tuple[str, str]:
+    """Return provider provenance and a unique runtime evidence ID."""
+    call_id = str(tool_call.get("id") or f"runtime-{uuid4().hex}")
+    prior = node.progress.correlated_outcomes if node is not None else []
+    used = {
+        str(outcome.get("evidence_id"))
+        for outcome in [
+            *prior,
+            *(item.get("outcome", {}) for item in results),
+        ]
+        if outcome.get("evidence_id")
+    }
+    evidence_id = call_id if call_id not in used else f"runtime-{uuid4().hex}"
+    return call_id, evidence_id
 
 
 def render_plan_continuation(
@@ -121,6 +168,7 @@ def annotate_outcome(
     outcome: dict[str, Any],
     *,
     call_id: str,
+    evidence_id: str,
     node: Any,
     task_id: str | None,
     task_version: int,
@@ -129,7 +177,7 @@ def annotate_outcome(
     outcome.update(
         {
             "call_id": call_id,
-            "evidence_id": call_id,
+            "evidence_id": evidence_id,
             "node_id": node.node_id if node is not None else None,
             "task_id": task_id,
             "review_attempt": node.progress.attempt_count if node is not None else None,
