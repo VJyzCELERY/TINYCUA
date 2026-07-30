@@ -83,6 +83,22 @@ class _ObserveTool(Tool):
         return {"success": True, "command": command, "value": "observed"}
 
 
+class _TaskStateTool(Tool):
+    def __init__(self) -> None:
+        super().__init__(name="task_inspect")
+
+    def __call__(self) -> dict[str, Any]:
+        return {"success": True, "tasks": []}
+
+
+class _FailedObserveTool(Tool):
+    def __init__(self) -> None:
+        super().__init__(name="run_shell")
+
+    def __call__(self) -> dict[str, Any]:
+        return {"success": False, "error": "observation failed"}
+
+
 def test_root_review_plan_requires_exact_acceptance_coverage() -> None:
     """A root plan covers each immutable acceptance clause exactly once."""
     store = TaskStateStore()
@@ -280,6 +296,7 @@ async def test_root_reviewer_plan_unlocks_action_and_decision() -> None:
     root = store.create_task("Root", acceptance_clauses=["Outcome works"])
     store.record_result(root.task_id, TaskResult(content="Executor says it works."))
     check = [{**_checks()[0], "criterion_id": "acceptance-1"}]
+    review_summary = "Comprehensive evidence-backed review. " * 40
     llm = _SequenceLLM(
         [
             {
@@ -298,6 +315,7 @@ async def test_root_reviewer_plan_unlocks_action_and_decision() -> None:
                         {
                             "decision": "approved",
                             "rationale": "Observed outcome.",
+                            "review_summary": review_summary,
                             "criterion_assessments": [
                                 {
                                     "criterion_id": "acceptance-1",
@@ -333,6 +351,7 @@ async def test_root_reviewer_plan_unlocks_action_and_decision() -> None:
         "run_shell",
     }
     assert root.reviewer_decisions[-1]["decision"] == "approved"
+    assert root.reviewer_decisions[-1]["review_summary"] == review_summary.strip()
 
 
 @pytest.mark.asyncio
@@ -714,6 +733,58 @@ async def test_duplicate_provider_call_ids_get_distinct_observation_ids() -> Non
     assert [json.loads(item["prompt_content"])["evidence_id"] for item in results] == (
         evidence_ids
     )
+
+
+@pytest.mark.asyncio
+async def test_task_state_tools_do_not_advertise_evidence_ids() -> None:
+    """Uncitable task-state operations expose call provenance but not evidence IDs."""
+    loop = TinyCUALoop()
+    store = loop.root_session.task_store
+    store.create_task("Root", acceptance_clauses=["Outcome works"])
+    node = TinyCUAResultReviewerNode(
+        "result_reviewer", create_node_config("result_reviewer")
+    )
+    node.ensure_session(loop.root_session)
+    node.progress.lifecycle_phase = LifecyclePhase.ACTION
+
+    results = await loop._execute_tool_calls(
+        Agent(llm_model=LanguageModel()),
+        [_tool_call("task_inspect", {})],
+        [_TaskStateTool()],
+        node,
+    )
+
+    result = results[0]
+    assert result["call_id"]
+    assert "evidence_id" not in result
+    assert "evidence_id" not in result["outcome"]
+    assert "evidence_id" not in json.loads(result["prompt_content"])
+
+
+@pytest.mark.asyncio
+async def test_failed_action_observation_has_call_id_only() -> None:
+    """Failed Reviewer observations cannot advertise uncitable evidence IDs."""
+    loop = TinyCUALoop()
+    store = loop.root_session.task_store
+    store.create_task("Root", acceptance_clauses=["Outcome works"])
+    node = TinyCUAResultReviewerNode(
+        "result_reviewer", create_node_config("result_reviewer")
+    )
+    node.ensure_session(loop.root_session)
+    node.progress.lifecycle_phase = LifecyclePhase.ACTION
+
+    results = await loop._execute_tool_calls(
+        Agent(llm_model=LanguageModel()),
+        [_tool_call("run_shell", {"command": "check"})],
+        [_FailedObserveTool()],
+        node,
+    )
+
+    result = results[0]
+    assert result["call_id"]
+    assert "evidence_id" not in result
+    assert "evidence_id" not in result["outcome"]
+    assert "evidence_id" not in json.loads(result["prompt_content"])
 
 
 @pytest.mark.asyncio

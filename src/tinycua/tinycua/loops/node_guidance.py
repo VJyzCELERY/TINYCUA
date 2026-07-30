@@ -66,8 +66,9 @@ _RESULT_REVIEWER_INSTRUCTION = (
     "hallucinated, or inconsistent claims. Use needs_revision for defects; replan a wrong "
     "task, approach, or substantial sibling work. Incidental sibling effects are not "
     "completion. Postpone blocked work; compromise only after failure. Record "
-    "review_summary, a rationale report, and active-task findings. Do not write a long "
-    "explanation. Approval requires no OPEN findings. Pass cross-task facts only through "
+    "comprehensive review_summary, rationale report, and active-task findings in the "
+    "decision tool. Do not write a long explanation outside it. Approval requires no OPEN "
+    "findings. Pass cross-task facts only through "
     "explicit context_updates; do not approve unfinished tasks or trust executor claims "
     "alone."
 )
@@ -137,3 +138,43 @@ def validate_reviewer_report(tool_calls: list[dict[str, Any]]) -> list[str]:
                 "task_review_decision rationale is required as a concise review report."
             ]
     return []
+
+
+def failed_tool_retry_message(llm_result: Any) -> str:
+    """Return exact corrective guidance for the latest rejected tool call."""
+    succeeded: set[str] = set()
+    for item in reversed(llm_result.metadata.get("tool_results", [])):
+        if not isinstance(item, dict):
+            continue
+        outcome = item.get("outcome")
+        output = item.get("output")
+        name = (
+            outcome.get("tool_name") if isinstance(outcome, dict) else None
+        ) or item.get("name")
+        success = (
+            outcome.get("success")
+            if isinstance(outcome, dict)
+            else output.get("success")
+            if isinstance(output, dict)
+            else None
+        )
+        if success is True and isinstance(name, str):
+            succeeded.add(name)
+            continue
+        sources = (outcome, output, item)
+        error = next(
+            (
+                source.get("error")
+                for source in sources
+                if isinstance(source, dict) and source.get("error")
+            ),
+            None,
+        )
+        if (
+            isinstance(error, str)
+            and error.strip()
+            and isinstance(name, str)
+            and name not in succeeded
+        ):
+            return f"{name} failed: {error.strip()} Correct it and call {name} again."
+    return ""

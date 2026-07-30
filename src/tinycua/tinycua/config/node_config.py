@@ -307,7 +307,7 @@ def create_node_config(
         ),
         "result_reviewer": (
             "Review only the active task's description and outcome report, then "
-            "call task_review_decision with a concise review_summary, full rationale, "
+            "call task_review_decision with a comprehensive review_summary and rationale, "
             "task-local findings, and approved, needs_revision, replan, "
             "postpone_siblings, postpone_final, or compromise. Include optional "
             "context_updates only for explicit useful future-task claims. "

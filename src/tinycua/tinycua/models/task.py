@@ -10,6 +10,7 @@ from typing import Any, ClassVar
 
 from tinycua.models.review_protocol import (
     build_review_event_metadata,
+    review_event_preview,
     validate_review_plan,
 )
 
@@ -1052,10 +1053,8 @@ class TaskStateStore:
         if not isinstance(raw_summary, str):
             raise ValueError("review_summary must be a string.")
         review_summary = raw_summary.strip()
-        if len(review_summary) > 240:
-            raise ValueError("review_summary must be at most 240 characters.")
         if not review_summary:
-            review_summary = rationale.strip()[:240] or decision.value
+            review_summary = rationale.strip() or decision.value
 
         raw_findings = metadata.get("new_findings", [])
         if not isinstance(raw_findings, list):
@@ -1372,12 +1371,7 @@ class TaskStateStore:
         if addressed:
             digest["recently_addressed_findings"] = addressed
         events = [
-            {
-                "event_id": event["event_id"],
-                "review_summary": event.get("review_summary")
-                or str(event.get("rationale", ""))[:240],
-                "decision": event.get("decision", "unknown"),
-            }
+            review_event_preview(event)
             for event in task.reviewer_decisions
             if event.get("event_id")
         ][-3:]

@@ -10,6 +10,7 @@ import logging
 from typing import Any
 
 from tinycua.config.types import Tool
+from tinycua.models.review_protocol import review_event_page
 from tinycua.models.task import ReviewerDecision, TaskResult, TaskStateStore, TaskStatus
 
 logger = logging.getLogger(__name__)
@@ -224,13 +225,14 @@ class TaskInspectTool(SessionTaskToolMixin, Tool):
     - With ``task_id`` → returns one task with compacted detail and a bounded
       review digest.
     - With ``event_id`` → returns that task's full review event.
-      This is the "drill into a specific task" mode.
+    - With ``event_id`` and ``field`` → returns one offset/limit text page.
     ``task_id`` may be a UUID or the task's 1-based number from the rendered
     roadmap.
     """
 
     def __init__(self) -> None:
         SessionTaskToolMixin.__init__(self)
+        self._source_node = ""
         Tool.__init__(
             self,
             name="task_inspect",
@@ -239,7 +241,8 @@ class TaskInspectTool(SessionTaskToolMixin, Tool):
                 "of all tasks (id, title, status, has_result) — scan this "
                 "first. With task_id, returns compacted detail for one task "
                 "(bounded review digest, result truncated to 200 chars). "
-                "With event_id, returns that task's full review event. "
+                "With event_id, returns that task's full review event. Add field, "
+                "offset, and limit to page review_summary or rationale. "
                 "task_id may be a UUID or the task's 1-based number from the "
                 "rendered roadmap."
             ),
@@ -260,24 +263,61 @@ class TaskInspectTool(SessionTaskToolMixin, Tool):
                             "rationale for the selected or active task."
                         ),
                     },
+                    "field": {
+                        "type": "string",
+                        "enum": ["review_summary", "rationale"],
+                        "description": "Optional long-form review field to page.",
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "Zero-based character offset for field paging.",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 8000,
+                        "description": "Maximum characters in one field page.",
+                    },
                 },
                 "additionalProperties": False,
             },
         )
+
+    def bind_source_node(self, node_id: str) -> None:
+        """Bind the caller so Executor detail remains task-local."""
+        self._source_node = node_id
 
     def __call__(
         self,
         *,
         task_id: str | None = None,
         event_id: str | None = None,
+        field: str | None = None,
+        offset: int = 0,
+        limit: int = 4000,
     ) -> dict[str, Any]:
         """Return the compact list (no task_id) or compacted detail (with task_id)."""
+        if field is not None and event_id is None:
+            return {"error": "Review field pagination requires event_id."}
+        if field is None and (offset != 0 or limit != 4000):
+            return {"error": "Review offset and limit require a field."}
         if task_id is not None or event_id is not None:
             resolved = self._store.resolve_task_id(task_id)
             if resolved is None or resolved not in self._store.tasks:
                 return {"error": f"Task {task_id} not found."}
+            if (
+                self._source_node == "task_executor"
+                and resolved != self._store.active_task_id
+            ):
+                return {"error": "Task Executor may inspect only the active task."}
             if event_id is not None:
                 event = self._store.review_event_detail(resolved, event_id)
+                if event is not None and field is not None:
+                    try:
+                        return review_event_page(event, field, offset, limit)
+                    except ValueError as exc:
+                        return {"error": str(exc)}
                 return (
                     event
                     if event is not None
@@ -825,8 +865,10 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
                     },
                     "review_summary": {
                         "type": "string",
-                        "maxLength": 240,
-                        "description": "Concise summary shown in bounded task prompts.",
+                        "description": (
+                            "Comprehensive review retained in the task journal. "
+                            "Default prompts show a bounded navigable preview."
+                        ),
                     },
                     "new_findings": {
                         "type": "array",
@@ -932,7 +974,7 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
             task_id: Optional active-task reference for non-reviewer callers.
             decision: Required reviewer decision. Must not be omitted.
             rationale: Full review rationale supporting the decision.
-            review_summary: Concise summary for default task prompts.
+            review_summary: Comprehensive review retained with the decision.
             new_findings: New active-task findings, initially OPEN.
             finding_updates: Status changes for existing active-task findings.
             context_updates: Optional claim handoffs for unfinished future tasks.

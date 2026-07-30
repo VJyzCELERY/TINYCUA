@@ -145,16 +145,37 @@ def test_review_finding_rejects_oversized_summary() -> None:
         )
 
 
+def test_review_summary_is_stored_without_length_limit() -> None:
+    """Comprehensive review text is durable while finding labels stay bounded."""
+    store = TaskStateStore()
+    task = store.create_task("Task")
+    store.record_result(task.task_id, TaskResult(content="result", success=False))
+    summary = "Detailed review section.\n" * 100
+
+    store.record_reviewer_decision(
+        task.task_id,
+        ReviewerDecision.NEEDS_REVISION,
+        rationale="Comprehensive rationale.",
+        metadata={"review_summary": summary},
+    )
+
+    assert task.reviewer_decisions[-1]["review_summary"] == summary.strip()
+    schema = TaskReviewDecisionTool().parameters["properties"]["review_summary"]
+    assert "maxLength" not in schema
+
+
 def test_task_inspect_defaults_to_digest_and_drills_into_one_event() -> None:
     store = TaskStateStore()
     task = store.create_task("Active")
     store.record_result(task.task_id, TaskResult(content="attempt"))
+    summary = "Comprehensive retry analysis. " * 30
+    rationale = "Full private rationale for this task only. " * 30
     store.record_reviewer_decision(
         task.task_id,
         ReviewerDecision.NEEDS_REVISION,
-        rationale="Full private rationale for this task only.",
+        rationale=rationale,
         metadata={
-            "review_summary": "Concise retry summary",
+            "review_summary": summary,
             "new_findings": ["Verify the generated file."],
             "finding_updates": [],
             "context_updates": [],
@@ -165,11 +186,92 @@ def test_task_inspect_defaults_to_digest_and_drills_into_one_event() -> None:
 
     detail = inspect(task_id=task.task_id)
     event = inspect(task_id=task.task_id, event_id="review-1")
+    pages = []
+    offset = 0
+    while True:
+        page = inspect(
+            task_id=task.task_id,
+            event_id="review-1",
+            field="review_summary",
+            offset=offset,
+            limit=97,
+        )
+        pages.append(page["content"])
+        if not page["has_more"]:
+            break
+        offset = page["next_offset"]
 
     assert detail["review_journal"]["recent_events"][0]["event_id"] == "review-1"
-    assert "Full private rationale" not in str(detail)
-    assert event["rationale"] == "Full private rationale for this task only."
+    digest_event = detail["review_journal"]["recent_events"][0]
+    assert digest_event["review_summary"] == f"{summary.strip()[:237]}..."
+    assert digest_event["review_summary_truncated"] is True
+    assert digest_event["review_summary_total_chars"] == len(summary.strip())
+    assert rationale.strip() not in str(detail)
+    assert event["review_summary"] == summary.strip()
+    assert event["rationale"] == rationale
     assert event["event_id"] == "review-1"
+    assert "".join(pages) == summary.strip()
+
+
+@pytest.mark.parametrize(
+    "arguments,error",
+    [
+        ({"field": "review_summary"}, "event_id"),
+        ({"event_id": "review-1", "offset": 1}, "field"),
+        (
+            {"event_id": "review-1", "field": "unknown"},
+            "review_summary or rationale",
+        ),
+        (
+            {"event_id": "review-1", "field": "rationale", "limit": 8001},
+            "between 1 and 8000",
+        ),
+    ],
+)
+def test_task_inspect_rejects_invalid_review_page_requests(
+    arguments: dict, error: str
+) -> None:
+    """Review pagination validates navigation arguments at the tool boundary."""
+    store = TaskStateStore()
+    task = store.create_task("Active")
+    store.record_result(task.task_id, TaskResult(content="attempt"))
+    store.record_reviewer_decision(
+        task.task_id,
+        ReviewerDecision.NEEDS_REVISION,
+        rationale="Full rationale.",
+    )
+    inspect = TaskInspectTool()
+    inspect.bind_task_store(store)
+
+    result = inspect(task_id=task.task_id, **arguments)
+
+    assert error in result["error"]
+
+
+def test_executor_task_inspect_is_active_task_only() -> None:
+    """Executor review retrieval cannot bypass task-local context isolation."""
+    store = TaskStateStore()
+    root = store.create_task("Root")
+    active = store.create_task("Active", parent_id=root.task_id)
+    sibling = store.create_task("Sibling", parent_id=root.task_id)
+    for task in (active, sibling):
+        store.record_result(task.task_id, TaskResult(content="attempt"))
+        store.record_reviewer_decision(
+            task.task_id,
+            ReviewerDecision.NEEDS_REVISION,
+            rationale=f"Private rationale for {task.title}.",
+        )
+    store.active_task_id = active.task_id
+    inspect = TaskInspectTool()
+    inspect.bind_task_store(store)
+    inspect.bind_source_node("task_executor")
+
+    assert (
+        inspect(task_id=active.task_id, event_id="review-1")["event_id"] == "review-1"
+    )
+    assert (
+        "active task" in inspect(task_id=sibling.task_id, event_id="review-1")["error"]
+    )
 
 
 def test_postponed_journal_resumes_on_same_task_without_sibling_leakage() -> None:
