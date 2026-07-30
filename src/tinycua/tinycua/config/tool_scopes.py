@@ -175,6 +175,7 @@ def task_executor_tool_scope() -> NodeToolPolicy:
     return NodeToolPolicy(
         node_tools=[
             TaskResultUpdateTool(),
+            TaskInspectTool(),
             EnhancedContextRetrievalTool(),
             TodoReadTool(),
             TodoWriteTool(),

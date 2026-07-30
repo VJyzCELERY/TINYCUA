@@ -6,6 +6,7 @@ from typing import Any
 from uuid import uuid4
 
 from tinycua.loops.node_contract import LifecyclePhase
+from tinycua.loops.trace_state_mixin import normalize_tool_outcome
 
 
 class ReviewerProtocolMixin:
@@ -76,9 +77,19 @@ def reset_reviewer_attempt(node: Any) -> bool:
 
 def issue_observation_ids(
     tool_call: dict[str, Any], node: Any, results: list[dict[str, Any]]
-) -> tuple[str, str]:
+) -> tuple[str, str | None]:
     """Return provider provenance and a unique runtime evidence ID."""
     call_id = str(tool_call.get("id") or f"runtime-{uuid4().hex}")
+    function = tool_call.get("function") or {}
+    tool_name = str(function.get("name") or tool_call.get("name") or "")
+    if (
+        node is None
+        or node.node_id != "result_reviewer"
+        or node.progress.lifecycle_phase != LifecyclePhase.ACTION
+        or tool_name.startswith("task_")
+        or tool_name == "terminate"
+    ):
+        return call_id, None
     prior = node.progress.correlated_outcomes if node is not None else []
     used = {
         str(outcome.get("evidence_id"))
@@ -90,6 +101,18 @@ def issue_observation_ids(
     }
     evidence_id = call_id if call_id not in used else f"runtime-{uuid4().hex}"
     return call_id, evidence_id
+
+
+def annotate_result_ids(
+    result: dict[str, Any],
+    call_id: str,
+    evidence_id: str | None,
+    tool_call: dict[str, Any],
+) -> None:
+    """Expose call provenance and only citable evidence IDs to the model."""
+    result["call_id"] = call_id
+    if evidence_id is not None and normalize_tool_outcome(tool_call, result)["success"]:
+        result["evidence_id"] = evidence_id
 
 
 def render_plan_continuation(
@@ -168,7 +191,7 @@ def annotate_outcome(
     outcome: dict[str, Any],
     *,
     call_id: str,
-    evidence_id: str,
+    evidence_id: str | None,
     node: Any,
     task_id: str | None,
     task_version: int,
@@ -177,7 +200,6 @@ def annotate_outcome(
     outcome.update(
         {
             "call_id": call_id,
-            "evidence_id": evidence_id,
             "node_id": node.node_id if node is not None else None,
             "task_id": task_id,
             "review_attempt": node.progress.attempt_count if node is not None else None,
@@ -187,6 +209,8 @@ def annotate_outcome(
             "task_version": task_version,
         }
     )
+    if evidence_id is not None:
+        outcome["evidence_id"] = evidence_id
 
 
 def reviewer_assurance_errors(node: Any, store: Any) -> list[str]:

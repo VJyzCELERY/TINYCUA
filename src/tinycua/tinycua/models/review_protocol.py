@@ -24,6 +24,53 @@ _ASSESSMENT_RESULTS = {
     "inconclusive",
     "judgment_only",
 }
+_REVIEW_PREVIEW_CHARS = 240
+_REVIEW_PAGE_LIMIT = 8_000
+
+
+def review_event_preview(event: dict[str, Any]) -> dict[str, Any]:
+    """Return bounded review-event context with full-view navigation metadata."""
+    summary = str(event.get("review_summary") or event.get("rationale", "")).strip()
+    preview = (
+        f"{summary[: _REVIEW_PREVIEW_CHARS - 3]}..."
+        if len(summary) > _REVIEW_PREVIEW_CHARS
+        else summary
+    )
+    return {
+        "event_id": event["event_id"],
+        "review_summary": preview,
+        "review_summary_total_chars": len(summary),
+        "review_summary_truncated": len(summary) > _REVIEW_PREVIEW_CHARS,
+        "decision": event.get("decision", "unknown"),
+    }
+
+
+def review_event_page(
+    event: dict[str, Any], field: str, offset: int, limit: int
+) -> dict[str, Any]:
+    """Return one bounded page from a review event's long-form text field."""
+    if field not in {"review_summary", "rationale"}:
+        raise ValueError("Review event field must be review_summary or rationale.")
+    if not isinstance(offset, int) or isinstance(offset, bool) or offset < 0:
+        raise ValueError("Review event offset must be a non-negative integer.")
+    if (
+        not isinstance(limit, int)
+        or isinstance(limit, bool)
+        or not 1 <= limit <= _REVIEW_PAGE_LIMIT
+    ):
+        raise ValueError("Review event limit must be between 1 and 8000.")
+    text = str(event.get(field, ""))
+    end = min(offset + limit, len(text))
+    return {
+        "event_id": event["event_id"],
+        "field": field,
+        "content": text[offset:end],
+        "offset": offset,
+        "limit": limit,
+        "total_chars": len(text),
+        "next_offset": end if end < len(text) else None,
+        "has_more": end < len(text),
+    }
 
 
 def build_review_event_metadata(

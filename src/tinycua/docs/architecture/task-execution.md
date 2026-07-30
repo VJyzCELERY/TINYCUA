@@ -29,7 +29,7 @@ A pending task cancellation is always assessed before Executor dispatch. Only an
 - `shallow_task_list` — task IDs and names from the Task Tree for scope awareness (no full task details).
 - Failure context from the Result Reviewer on retry — the Reviewer's output schema (see [state-objects.md](state-objects.md)) defines the retry contract.
 
-Retries create a new Task Executor sub-session. The new executor receives the active task's bounded review digest so it can avoid repeating the same mistake, without inheriting full rationale or another task's execution context.
+Retries create a new Task Executor sub-session. The new executor receives the active task's bounded review previews so it can avoid repeating the same mistake without inheriting another task's context. It can use `task_inspect` to retrieve a complete active-task review event or page its `review_summary` and `rationale` when the preview is insufficient; sibling detail remains inaccessible.
 
 **Output:**
 

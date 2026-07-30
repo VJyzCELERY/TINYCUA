@@ -29,6 +29,7 @@ from tinycua.loops.recovery_stages_mixin import RecoveryGuardMixin, RecoveryStag
 from tinycua.loops.reviewer_protocol import (
     advance_lifecycle_phase,
     annotate_outcome,
+    annotate_result_ids,
     issue_observation_ids,
     review_action_directive,
 )
@@ -730,8 +731,7 @@ class TinyCUALoop(
             task_id = self.root_session.task_store.active_task_id
 
             def record(result: dict[str, Any]) -> None:
-                result["call_id"] = call_id
-                result["evidence_id"] = evidence_id
+                annotate_result_ids(result, call_id, evidence_id, tool_call)
                 prompt_content = persist_if_oversized(
                     json.dumps(result, default=str), call_id or name, tool_name=name
                 )
@@ -742,7 +742,7 @@ class TinyCUALoop(
                 annotate_outcome(
                     outcome,
                     call_id=call_id,
-                    evidence_id=evidence_id,
+                    evidence_id=result.get("evidence_id"),
                     node=node,
                     task_id=task_id,
                     task_version=self.root_session.task_store.version,

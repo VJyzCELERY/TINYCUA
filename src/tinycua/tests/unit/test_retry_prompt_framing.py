@@ -100,6 +100,120 @@ def test_retry_message_for_terminate_is_directive() -> None:
     assert "terminate" in message
 
 
+def test_retry_message_surfaces_failed_tool_error() -> None:
+    """A rejected tool call reports its real error instead of claiming it was missing."""
+    loop = TinyCUALoop()
+    node = _node("result_reviewer")
+    result = LLMResult(
+        metadata={
+            "tool_results": [
+                {
+                    "name": "task_review_decision",
+                    "output": {
+                        "success": False,
+                        "error": "criterion assessments are incomplete",
+                    },
+                }
+            ]
+        }
+    )
+
+    message = loop._retry_message_for_validation(
+        ValidationError("result_reviewer must call task_review_decision"),
+        node,
+        node.config.tool_policy.resolve_tools([]),
+        result,
+    )
+
+    assert "criterion assessments are incomplete" in message
+    assert "current evidence before continuing" not in message
+
+
+def test_retry_message_surfaces_top_level_tool_error() -> None:
+    """Execution failures without a structured output still retain their error."""
+    loop = TinyCUALoop()
+    node = _node("result_reviewer")
+    result = LLMResult(
+        metadata={
+            "tool_results": [
+                {
+                    "name": "run_shell",
+                    "allowed": True,
+                    "error": "backend unavailable",
+                }
+            ]
+        }
+    )
+
+    message = loop._retry_message_for_validation(
+        ValidationError("result_reviewer must call task_review_decision"),
+        node,
+        node.config.tool_policy.resolve_tools([]),
+        result,
+    )
+
+    assert (
+        message
+        == "run_shell failed: backend unavailable Correct it and call run_shell again."
+    )
+
+
+def test_retry_message_surfaces_output_error_without_success_flag() -> None:
+    """Tool-returned errors do not require an explicit success false marker."""
+    loop = TinyCUALoop()
+    node = _node("result_reviewer")
+    result = LLMResult(
+        metadata={
+            "tool_results": [
+                {
+                    "name": "task_inspect",
+                    "output": {"error": "Review field pagination requires event_id."},
+                }
+            ]
+        }
+    )
+
+    message = loop._retry_message_for_validation(
+        ValidationError("result_reviewer must call task_review_decision"),
+        node,
+        node.config.tool_policy.resolve_tools([]),
+        result,
+    )
+
+    assert "Review field pagination requires event_id." in message
+
+
+def test_retry_message_ignores_superseded_failure() -> None:
+    """A corrected tool call cannot mask the current validation requirement."""
+    loop = TinyCUALoop()
+    node = _node("result_reviewer")
+    node.progress.lifecycle_phase = LifecyclePhase.TERMINATE
+    result = LLMResult(
+        metadata={
+            "tool_results": [
+                {
+                    "name": "task_review_decision",
+                    "output": {"success": False, "error": "obsolete failure"},
+                },
+                {
+                    "name": "task_review_decision",
+                    "output": {"success": True},
+                },
+            ]
+        }
+    )
+
+    message = loop._retry_message_for_validation(
+        ValidationError("result_reviewer completed its required work; call terminate."),
+        node,
+        node.config.tool_policy.resolve_tools([]),
+        result,
+    )
+
+    assert "obsolete failure" not in message
+    assert "terminate" in message
+
+
 def test_messages_with_retry_prompt_emits_system_prefixed_user() -> None:
     """The retry turn is a user-role message with [System: prefix."""
     loop = TinyCUALoop()

@@ -44,7 +44,7 @@ Tool execution establishes observation provenance, not semantic proof. The runti
 - Bounded executor evidence — tool names, command/path/URL/query identifiers, outcomes,
   and audit references from the Task Executor. Full tool output bodies are not replayed.
 - `shallow_task_list` — task IDs and names from the Task Tree for scope awareness (no full task details).
-- The active task's bounded review digest: open/deferred/recently addressed findings and recent event summaries. Full event rationale is loaded only through `task_inspect(event_id=...)`.
+- The active task's bounded review digest: open/deferred/recently addressed findings and navigable recent-event previews. `task_inspect(event_id=...)` returns the full event; adding `field`, `offset`, and `limit` pages the complete `review_summary` or `rationale`.
 
 The Result Reviewer should not receive a broad accumulated context dump by default. Cross-task context changes happen only through explicit validated `context_updates`.
 
@@ -102,7 +102,7 @@ flowchart TD
 
 Review events and findings stay on the active task across retry, replan, postponement, and resume. They never enter sibling prompts automatically. Approval is rejected while that task owns unresolved `OPEN` findings.
 
-Root review events also retain the precommitted plan, criterion assessments, and assurance status. Empirical support cites successful current-review observations. `task_inspect`, task-state commits, decisions, and termination are context or workflow operations and cannot serve as independent observations. Judgment-only criteria require explicit limitations and no fabricated observation reference.
+Root review events also retain the precommitted plan, criterion assessments, and assurance status. Empirical support cites successful current-review observations. Only successful, citable Reviewer ACTION observations expose `evidence_id`; failed observations, `task_inspect`, task-state commits, decisions, and termination retain call provenance but cannot masquerade as independent evidence. Judgment-only criteria require explicit limitations and no fabricated observation reference.
 
 Cross-task transfer occurs only through validated `task_review_decision.context_updates` targeting an existing unfinished task. Approved results, review events, findings, and copied context metadata are not otherwise propagated.
 

@@ -19,6 +19,7 @@ from tinycua.loops.node_contract import (
     RECOVERY_TOOL_MAP,
     TERMINATED_NODE_IDS,
 )
+from tinycua.loops.node_guidance import failed_tool_retry_message
 from tinycua.loops.route_classifier import RouteClassifier
 from tinycua.agent.tools.native.output_persist import persist_if_oversized
 from tinycua.models.node_handoff import NodeHandoff
@@ -158,13 +159,9 @@ class ValidationRetryMixin:
         resolved_tools: list[Tool],
         llm_result: LLMResult,
     ) -> str:
-        """Build retry guidance as an imperative runtime directive.
-
-        The message is wrapped by ``_retry_prompt_for_llm`` into a
-        ``[System: ...]``-prefixed user-role message. Internal origin is
-        marked by the prefix; the directive voice is imperative (no
-        first-person "I need to" framing). See FR-004.
-        """
+        """Build retry guidance as an imperative runtime directive."""
+        if failed_message := failed_tool_retry_message(llm_result):
+            return failed_message
         if node.node_id == "task_executor" and "task_result_update" in str(error):
             return (
                 "Call task_result_update with a concise outcome report. Set "

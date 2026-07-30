@@ -278,6 +278,11 @@ class TestTaskExecutorToolScope:
         tool_names = [t.name for t in policy.node_tools]
         assert "task_result_update" in tool_names
 
+    def test_includes_task_inspect(self) -> None:
+        """Executor can retrieve complete or paginated review events."""
+        policy = task_executor_tool_scope()
+        assert "task_inspect" in {tool.name for tool in policy.node_tools}
+
     def test_includes_enhanced_context_retrieval(self) -> None:
         """Includes EnhancedContextRetrievalTool."""
         policy = task_executor_tool_scope()
