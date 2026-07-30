@@ -1,5 +1,7 @@
 # Historical TinyCUA and Hermes Comparison
 
+[Report index](README.md) | [Evaluator validity](evaluator-validity-and-artifact-quality.md) | [Why orchestration did not improve quality](why-orchestration-did-not-improve-quality.md) | [TinyCUA ablations](tinycua-ablation.md) | [New-harness comparison](new-harness-comparison.md)
+
 ## Scope and reading guide
 
 This report compares the checked-in historical runs under
@@ -17,6 +19,8 @@ This report compares the checked-in historical runs under
 Related material:
 
 - [Report index](README.md)
+- [Harness specialties](harness-specialties.md)
+- [Reviewer verification limitations](reviewer-verification-limitations.md)
 - [Fixture versus prototype attribution](fixture-vs-prototype-attribution.md)
 - [Experiment README](../../README.md)
 - [TinyCUA ablation report](tinycua-ablation.md)
@@ -384,7 +388,7 @@ malformed content, duplication, and technical errors
 claims that deterministic execution disproves. In Experiment 3 the reviewer
 repeatedly approves current-time clockwise updates, although the animation loop
 draws stale initial `handStates`; in Experiment 4 the reviewer approves
-portability and persistence before the copied-workspace evaluator observes
+hard-coded workspace startup and persistence claims before the copied-workspace evaluator observes
 `start.sh` exit 1
 (`src/experiment/template-results/experiment-3/tinycua/stdout.log:227-257`;
 `src/experiment/template-results/experiment-3/tinycua/workdir/clock.html:109-110,156-160,186-217`;
@@ -698,8 +702,9 @@ reduction in model requests are equally plausible explanations.
 - **[D]** The old judge is semantic but model-mediated; the new research
   evaluators are deterministic but mostly lexical/structural. Neither alone is
   ground truth.
-- **[D]** No new semantic cross-verdict was available, so new TinyCUA/Hermes
-  prose quality was not independently judged.
+- **[D]** No new controlled semantic cross-verdict was available. The companion
+  artifact-quality report provides sampled manual source and static code review,
+  not an automated judge or learner study.
 - **[I]** The explanatory ranking organizes plausible interpretations; it is not
   a causal estimate. Isolating the planning hypothesis requires rerunning the same
   prompt, model snapshot, seed policy, process budget, tools, and evaluator while

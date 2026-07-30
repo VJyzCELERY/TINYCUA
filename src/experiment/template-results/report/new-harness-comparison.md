@@ -1,6 +1,6 @@
 # Full-Harness Comparison on Controlled Experiments 1-5
 
-[Report index](README.md) | [Fixture vs prototype](fixture-vs-prototype-attribution.md) | [TinyCUA ablations](tinycua-ablation.md) | [Historical comparison](historical-comparison.md) | [Experiment harness](../../README.md)
+[Report index](README.md) | [Evaluator validity](evaluator-validity-and-artifact-quality.md) | [Why orchestration did not improve quality](why-orchestration-did-not-improve-quality.md) | [Harness specialties](harness-specialties.md) | [Reviewer limitations](reviewer-verification-limitations.md) | [Fixture vs prototype](fixture-vs-prototype-attribution.md) | [TinyCUA ablations](tinycua-ablation.md) | [Historical comparison](historical-comparison.md) | [Experiment harness](../../README.md)
 
 ## Scope
 
@@ -115,27 +115,27 @@ The pass should not be read as broad current-model coverage. The report omitted 
 
 ### Hermes
 
-Hermes produced a structured 174-line report with the widest conventional cross-provider model-family comparison: GPT, Claude, Gemini, Llama, Qwen, and Mistral. Its benchmark-interpretation section directly discussed task alignment, prompt sensitivity, tool integration, saturation, reproducibility, and contamination. [D] `src/experiment/template-results/experiment-2/hermes/workdir/report.md:5-31`, `src/experiment/template-results/experiment-2/hermes/workdir/report.md:92-129`
+Hermes produced a structured 174-line report with the widest conventional cross-provider model-family comparison: GPT, Claude, Gemini, Llama, Qwen, and Mistral. Its benchmark-interpretation section discussed task alignment, prompt sensitivity, tool integration, saturation, reproducibility, and contamination. [D] `src/experiment/template-results/experiment-2/hermes/workdir/report.md:5-31`, `src/experiment/template-results/experiment-2/hermes/workdir/report.md:92-129`
 
 Its search behavior was active but constrained. Initial searches returned useful benchmark links, later model-specific searches returned no results, and URL extraction failed because Hermes's configured SearXNG backend was search-only. [D] `src/experiment/template-results/experiment-2/hermes/stdout.log:74-162`, `src/experiment/template-results/experiment-2/hermes/stdout.log:224-290`, `src/experiment/template-results/experiment-2/hermes/stdout.log:241-256`
 
-The artifact then fell back to 2024-2025 models and several unsupported or internally inconsistent numerical claims. It listed source domains without literal `http://` or `https://` URLs in its source section, so the evaluator denied the URL point; more importantly, it named none of the bundled models and failed the critical relevancy gate despite scoring 16, above the nominal threshold. [D] `src/experiment/template-results/experiment-2/hermes/workdir/report.md:5-22`, `src/experiment/template-results/experiment-2/hermes/workdir/report.md:166-173`, `src/experiment/template-results/experiment-2/hermes/result.json:62-67`, `src/experiment/template-results/experiment-2/hermes/result.json:139-257`
+The artifact then fell back to 2024-2025 models and severe unsupported or inconsistent numerical claims, including malformed pricing units, implausible latency, wrong context values, and benchmark values conflicting with the named source. It listed source domains without literal `http://` or `https://` URLs, named none of the bundled models, and failed the critical relevancy gate despite scoring 16, above the nominal threshold. [D] `src/experiment/template-results/experiment-2/hermes/workdir/report.md:5-45`, `src/experiment/template-results/experiment-2/hermes/workdir/report.md:76-81,166-173`, `src/experiment/template-results/experiment-2/hermes/result.json:62-67`, `src/experiment/template-results/experiment-2/hermes/result.json:139-257`
 
 ### OpenCode
 
 OpenCode produced the longest report and used direct shell searches, SearXNG API calls, and web fetches before writing. [D] `src/experiment/template-results/experiment-2/opencode/stderr.log:39-103` It focused heavily on open-weight July 2026 candidates, evidence confidence intervals, licenses, hardware costs, quantization, and deployment trade-offs. [D] `src/experiment/template-results/experiment-2/opencode/workdir/report.md:5-36`, `src/experiment/template-results/experiment-2/opencode/workdir/report.md:40-77`, `src/experiment/template-results/experiment-2/opencode/workdir/report.md:149-164`
 
-This was substantial research behavior, but it did not intersect the evaluator's exact model list. OpenCode scored every visible structural and methodology category except the optional extra chapter, then failed `model_relevancy`; its 17/32 therefore failed overall. [D] `src/experiment/template-results/experiment-2/opencode/result.json:20-143`, `src/experiment/template-results/experiment-2/opencode/result.json:245-258` Length and operational detail did not compensate for a critical hidden lexical constraint. [I]
+This was substantial research behavior, but it did not intersect the evaluator's exact model list. OpenCode scored every visible structural and methodology category except the optional extra chapter, then failed `model_relevancy`; its 17/32 therefore failed overall. [D] `src/experiment/template-results/experiment-2/opencode/result.json:20-143`, `src/experiment/template-results/experiment-2/opencode/result.json:245-258` Static source audit also found false parameter/architecture claims, internal context contradictions, and unsourced cost estimates. Current retrieval did not produce reliable synthesis. [I]
 
 ### OpenClaw
 
 OpenClaw started with an explicit warning that its configured SearXNG search provider and plugin were unavailable. [D] `src/experiment/template-results/experiment-2/openclaw/stdout.log:8-18` It attempted command and web-fetch fallbacks, including a fetch that returned a 404 page. [D] `src/experiment/template-results/experiment-2/openclaw/stdout.log:108-145`, `src/experiment/template-results/experiment-2/openclaw/stderr.log:10-25`
 
-It still produced a coherent 176-line report, but the content centered on 2023-2024 Llama 3, GPT-4o, Claude 3, Gemini 1.5, Mixtral, and Qwen2.5. [D] `src/experiment/template-results/experiment-2/openclaw/workdir/report.md:3-23` It passed visible structure, URLs, topic coverage, and methodology checks, scored 17/32, and failed only because no bundled model satisfied the critical relevancy category. [D] `src/experiment/template-results/experiment-2/openclaw/result.json:20-143`, `src/experiment/template-results/experiment-2/openclaw/result.json:245-258`
+It still produced a readable 176-line report, but the content centered on 2023-2024 Llama 3, GPT-4o, Claude 3, Gemini 1.5, Mixtral, and Qwen2.5 and contains architecture, license, context, and unsupported-percentage errors. [D] `src/experiment/template-results/experiment-2/openclaw/workdir/report.md:3-34,82-146` It passed visible structure, URLs, topic coverage, and methodology checks, scored 17/32, and failed only because no bundled model satisfied the critical relevancy category. [D] `src/experiment/template-results/experiment-2/openclaw/result.json:20-143`, `src/experiment/template-results/experiment-2/openclaw/result.json:245-258`
 
 ### Interpretation
 
-TinyCUA's research workflow was the only one to land on an evaluator-recognized current name, but the pass hinged on one lexical hit. Hermes was broader on conventional closed models, OpenCode was deeper on open-weight deployment, and OpenClaw remained productive despite a broken primary search integration. [I] The experiment is useful for instruction following and search adaptation, but its pass/fail result is unusually sensitive to a hidden synthetic model list and should not be treated as a general research-quality ranking. [I]
+TinyCUA's pass hinged on one lexical hit. OpenCode retrieved the most current shortlist but synthesized unsupported claims; TinyCUA mismatched family evidence; Hermes was stale and numerically unreliable; OpenClaw was stale despite stronger first-party citation intent. None is publication-ready. [I] The experiment is useful for instruction following and search adaptation, but its score is not a research-quality ranking. See [the factual audit](evaluator-validity-and-artifact-quality.md#current-research-artifact-audit).
 
 ## Experiment 3: Browser-Observed Clock Behavior
 
@@ -149,7 +149,7 @@ This is a stronger behavioral test than searching source text for `Date` or `req
 
 Hermes passed 9/9 with the shortest successful implementation. It reads current seconds, minutes, and hours inside every draw, subtracts `PI/2` to align zero with twelve o'clock, and schedules the next frame. [D] `src/experiment/template-results/experiment-3/hermes/workdir/clock.html:90-134`, `src/experiment/template-results/experiment-3/hermes/result.json:18-97`
 
-The implementation is simple rather than exhaustive, which helped here. One limitation remains outside the scored cases: the hour hand uses integer hours without a minute offset, so it steps by hour instead of moving continuously. [D] `src/experiment/template-results/experiment-3/hermes/workdir/clock.html:118-125` Hermes is evaluator-correct, not a claim of perfect analog-clock fidelity. [I]
+The implementation is simple rather than exhaustive, which helped here. It includes fractional minute/hour progression and satisfies the measured geometry and movement contract. [D] `src/experiment/template-results/experiment-3/hermes/workdir/clock.html:33-39,118-125` Hermes is evaluator-correct; this single fixture is not a claim of general coding superiority. [I]
 
 ### TinyCUA
 
@@ -219,7 +219,7 @@ There are deeper workflow defects behind that first failure. The backend exposes
 
 Experiment 4 is the strongest end-to-end discriminator in the set. Three polished-looking submissions failed before a browser could connect because they assumed the construction path or shell. OpenClaw alone produced a relocatable, launchable app, but it failed the first empty-state interaction and would still have failed edit/delete persistence. [I] Testing APIs inside `/workspace` was not equivalent to testing the required exported product through `sh start.sh` and the rendered UI.
 
-## Experiment 5: Study-Guide Thoroughness And Truncation
+## Experiment 5: Structural Coverage, Semantic Defects, And Truncation
 
 ### What the evaluator measured
 
@@ -231,7 +231,7 @@ Hermes produced by far the most expansive guide: 1,236 lines and 42,001 bytes. I
 
 Its web-search adapter returned zero results for several queries, so Hermes explicitly proceeded from model knowledge. [D] `src/experiment/template-results/experiment-5/hermes/stderr.log:108-137`, `src/experiment/template-results/experiment-5/hermes/stderr.log:172-223` Despite that, it was the only harness to satisfy all 14 structural checks. [D] `src/experiment/template-results/experiment-5/hermes/result.json:18-130`
 
-The 14/14 score is structural, not a correctness certificate. Examples use nonexistent `np.softmax`, invalid transpose axes, undefined variables such as `x`, `ax`, `causal_mask`, and helper functions that are never supplied. [D] `src/experiment/template-results/experiment-5/hermes/workdir/study-guide.md:344-395`, `src/experiment/template-results/experiment-5/hermes/workdir/study-guide.md:426-435`, `src/experiment/template-results/experiment-5/hermes/workdir/study-guide.md:969-1005` Hermes was most thorough in topic and exercise volume, but that volume also carried the most unchecked pseudo-code. [I]
+The 14/14 score is structural, not a correctness certificate. Static inspection found duplicated broken backpropagation, invalid optimizer abstractions, nonexistent `np.softmax`, incoherent attention shapes, invalid positional encoding/normalization, and a practical model that cannot update parameters. [D] `src/experiment/template-results/experiment-5/hermes/workdir/study-guide.md:127-298`, `src/experiment/template-results/experiment-5/hermes/workdir/study-guide.md:344-637`, `src/experiment/template-results/experiment-5/hermes/workdir/study-guide.md:822-1135` Hermes was largest, but technically worse than the shorter TinyCUA and OpenCode guides in the sampled static audit. [I]
 
 ### TinyCUA
 
@@ -253,27 +253,27 @@ The 2/14 score came from the untouched task file and vacuously unique empty head
 
 ### Interpretation
 
-Hermes was the most thorough writer and the only perfect structural scorer. TinyCUA and OpenCode delivered roughly half as many lines while covering every required topic. OpenClaw's failure was harness-level completion reliability rather than a low-quality submitted guide because no guide reached the workspace. [I]
+Hermes was the largest writer and the only perfect structural scorer. TinyCUA and OpenCode delivered roughly half as many lines while covering every required topic. OpenClaw's failure was harness-level completion reliability rather than a low-quality submitted guide because no guide reached the workspace. [I]
 
-All three passing guides contain code defects that the evaluator never executes. The experiment therefore supports claims about coverage, organization, and completion, but not that Hermes's 14/14 is semantically superior to the two 13/14 guides. [I]
+All three passing guides contain code defects that the evaluator never executes. Static technical inspection supports **TinyCUA approximately equal to OpenCode, both above Hermes**, reversing the deterministic one-point ordering. It does not establish learner outcomes or publication readiness. [I] See [the guide audit](evaluator-validity-and-artifact-quality.md#static-technical-quality-audit).
 
 ## Cross-Harness Behavior
 
 ### TinyCUA
 
-TinyCUA most visibly externalized planning and review and produced complete long-form deliverables, but every substantial run was the slowest. Only TinyCUA happened to include one name from the hidden experiment-2 model list in this unseeded trial; the data does not identify which orchestration component produced that match. [D] `src/experiment/template-results/experiment-2/tinycua/result.json:139-187`, `src/experiment/template-results/run_metadata.json:754-764` More importantly, Result Reviewer often checked whether source text appeared to satisfy a requirement rather than running the decisive behavior: it approved stale clock state, invalid startup code, destructive database initialization, and broken guide anchors. [D] `src/experiment/template-results/experiment-3/tinycua/stdout.log:227-257`, `src/experiment/template-results/experiment-4/tinycua/stdout.log:119-214`, `src/experiment/template-results/experiment-5/tinycua/result.json:41-47`
+TinyCUA produced complete long-form deliverables and happened to include one name from the hidden experiment-2 model list, but every substantial run was the slowest and the data does not identify which orchestration component produced that match. [D] `src/experiment/template-results/experiment-2/tinycua/result.json:139-187`, `src/experiment/template-results/run_metadata.json:754-764` Result Reviewer often checked whether source text appeared to satisfy a requirement rather than running the decisive behavior: it approved stale clock state, invalid startup code, destructive database initialization, and broken guide anchors. [D] `src/experiment/template-results/experiment-3/tinycua/stdout.log:227-257`, `src/experiment/template-results/experiment-4/tinycua/stdout.log:119-214`, `src/experiment/template-results/experiment-5/tinycua/result.json:41-47`
 
-The architecture supplies systematic review, but this campaign shows that review quality depends on the verification surface. Repeated self-review without an independent executable oracle can repeat the same mistaken premise. [I]
+The added decomposition/review stages show no demonstrated net quality benefit in this campaign. Repeated same-model review without an independent executable or semantic oracle can repeat the same mistaken premise. [I]
 
 ### Hermes
 
-Hermes was fastest on experiments 2 and 4, produced the only passing clock, and wrote the most comprehensive study guide. Its direct, conventional clock code outperformed more elaborate implementations. Conversely, it did not honor the exact POSIX startup interface in experiment 4, its research became stale when extraction failed, and its long guide accumulated many non-runnable examples. [I]
+Hermes was fastest on experiments 2 and 4, produced the only passing clock, and wrote the largest study guide. Its direct, conventional clock code outperformed more elaborate implementations. Conversely, it did not honor the exact POSIX startup interface in experiment 4, its research became stale and numerically unreliable when extraction failed, and its long guide was technically the weakest submitted guide in static inspection. [I]
 
 Hermes's strength in this sample was rapid, broad construction from model knowledge. Its weakness was limited validation of exact deployment contracts and generated code details. [I]
 
 ### OpenCode
 
-OpenCode showed the clearest direct tool loop: search or inspect, write, then use shell/API checks. It produced the longest research report and spent the second-most time on the app. Yet it had no equivalent independent behavioral review: the report missed a hidden critical vocabulary, the clock had a coordinate-origin error, and extensive app API tests missed exported-path startup. [I]
+OpenCode showed the clearest direct tool loop: search or inspect, write, then use shell/API checks. It produced the longest research report and spent the second-most time on the app. Its current retrieval still produced factual errors, its clock had a coordinate-origin error, and extensive app API tests missed exported-path startup. [I]
 
 Its work was often operationally detailed, but verification was too close to the environment and assumptions used during construction. [I]
 
@@ -292,10 +292,10 @@ Its experiment-4 startup result shows useful portability, but tool availability 
 - **Hidden-corpus sensitivity:** Experiment 2's pass depends on exact evaluator-only model names. TinyCUA's single matching name passed the critical gate while three otherwise substantial reports failed it. [D] `src/experiment/experiment-fixtures/experiments-list/experiment-2/eval/evidence.json:2-14`, `src/experiment/template-results/experiment-2/tinycua/result.json:139-187`
 - **Resumed campaign:** The campaign was resumed through runner migrations, and the metadata stamps full TinyCUA pairs with an older result-generation revision than the other full harness pairs. The checked-in aggregate treats them as compatible, but the exact effect of those preserved revisions cannot be inferred from artifacts alone. [D] `src/experiment/template-results/run_metadata.json:766-830`, `src/experiment/template-results/run_metadata.json:833-868`
 - **Volume is not quality:** Line and byte counts describe artifact size. The largest clock failed, the largest app workspace never started, and the largest guide passed lexical checks while containing invalid examples.
-- **No semantic judge used here:** Conclusions come from deterministic evaluator outcomes plus manual artifact/log inspection. They should not be generalized beyond these five tasks or this model/harness snapshot.
+- **No controlled semantic judge used here:** Conclusions come from deterministic outcomes plus sampled manual source, artifact, and code inspection. They should not be generalized beyond these five tasks or this model/harness snapshot.
 
 ## Conclusion
 
-No full harness dominated the campaign. TinyCUA and Hermes tied on fixture passes but succeeded for different reasons. TinyCUA most visibly externalized workflow decomposition and happened to match the hidden experiment-2 model list; Hermes was strongest at concise working clock code and broad documentation. OpenCode produced substantial, tool-driven artifacts but missed critical hidden and relocation assumptions. OpenClaw demonstrated the best exported startup behavior yet suffered the most severe tool and completion failures. [I]
+No full harness dominated the campaign. TinyCUA and Hermes tied on fixture passes, but those passes do not establish semantic quality. TinyCUA's extra decomposition and review produced no demonstrated practical advantage over OpenCode's simpler loop; Hermes' real clock win coexists with the weakest static guide; OpenCode's current retrieval coexists with factual errors; and OpenClaw's startup portability coexists with no usable workflow. [I]
 
-The most defensible cross-experiment result is about verification, not raw score: executable, externally controlled checks exposed defects that source inspection and self-review repeatedly missed. Future comparisons should add seeded repeated trials, equalize tool surfaces, execute documentation code samples, and preserve the exported-entrypoint browser test as the standard for application work. [I]
+The most defensible cross-experiment result is about verification, not raw score: executable, externally controlled checks exposed defects that source inspection and self-review repeatedly missed. Future comparisons should add seeded repeated trials, equalize tool surfaces, validate research claims, execute documentation code samples, and preserve the exported-entrypoint browser test as the standard for application work. [I]

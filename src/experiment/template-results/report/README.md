@@ -9,6 +9,9 @@ The central questions are:
 3. How does full TinyCUA behave relative to Hermes, OpenCode, and OpenClaw?
 4. Why is new TinyCUA much faster than historical TinyCUA while often producing less detail?
 5. Why did TinyCUA's internal review approve artifacts that deterministic evaluators later rejected?
+6. What task-specific specialties does each harness actually demonstrate?
+7. Did task decomposition and routine review improve final quality enough to justify their cost?
+8. Do the deterministic scores measure factual, semantic, pedagogical, or functional quality?
 
 ## Reports
 
@@ -16,6 +19,10 @@ The central questions are:
 - [New full-harness comparison](new-harness-comparison.md): behavior and outcomes for TinyCUA, Hermes, OpenCode, and OpenClaw.
 - [Historical TinyCUA and Hermes comparison](historical-comparison.md): prompt, planning, runtime, artifact-detail, verification, and evaluation changes between snapshots.
 - [Fixture versus prototype attribution](fixture-vs-prototype-attribution.md): separates shared fixture effects, TinyCUA-specific process associations, and evaluator measurement effects.
+- [Harness specialties](harness-specialties.md): distinguishes internet acquisition, synthesis, coding, startup portability, and documentation strengths supported by evidence.
+- [Reviewer verification limitations](reviewer-verification-limitations.md): explains active-task scope, shared construction state, stale-process risk, and why prompted final integration gates were not enforced as independent checks.
+- [Why orchestration did not improve quality](why-orchestration-did-not-improve-quality.md): traces why generated tasks and same-model review added work without a demonstrated outcome benefit.
+- [Evaluator validity and actual artifact quality](evaluator-validity-and-artifact-quality.md): separates deterministic predicate counts from factual, semantic, pedagogical, and functional quality.
 
 ## Evidence conventions
 
@@ -27,7 +34,27 @@ The central questions are:
 
 ## Executive conclusions
 
-### 1. Result Reviewer approval is not independent verification
+### 1. TinyCUA shows no demonstrated practical quality advantage
+
+**[D]** Full TinyCUA and no-Reviewer TinyCUA each pass 3/5 fixtures. Full TinyCUA and OpenCode satisfy the same 16/17 prompt-visible Experiment 2 checks, both fail the executable application, and both score 13/14 on the structural study-guide evaluator. Static artifact audit places their study guides in a similar quality band and finds no harness's research report publication-ready.
+
+**[D]** TinyCUA is slower than every other full harness on all four nontrivial fixtures. It takes 30.61 cumulative minutes versus OpenCode's 14.06 minutes and the fastest per-fixture times are 3.0x-6.9x lower than TinyCUA's.
+
+**[I]** Task decomposition, role transitions, and routine review create substantial internal activity, but this campaign does not show that the activity improves the user's final result. Observability, auditability, and traceability are not counted as comparative TinyCUA benefits because OpenCode already exposes its work through its TUI and logs.
+
+See [the causal diagnosis](why-orchestration-did-not-improve-quality.md).
+
+### 2. Deterministic scores are acceptance-signal counts, not quality ratings
+
+- Experiment 2 checks structure, keywords, URLs, and hidden model-name strings without verifying source authority, dates, or claim entailment.
+- Experiment 5 checks Markdown structure, topic words, code fences, and a plan without validating mathematics or executing code.
+- Experiments 3 and 4 provide stronger behavioral evidence at 9/9, but their partial points are dependent failure-frontier signals rather than equal quality increments.
+
+The clearest score reversal is Experiment 5: Hermes scores 14/14 because it has a valid table of contents, but static technical audit finds many more severe equation, API, shape, and runtime defects than in the 13/14 TinyCUA and OpenCode guides. The supported static ordering is **TinyCUA approximately equals OpenCode, both above Hermes**, not the deterministic total ordering.
+
+See [the evaluator and artifact-quality audit](evaluator-validity-and-artifact-quality.md).
+
+### 3. Result Reviewer approval is not independent verification
 
 **[D]** The Reviewer is instructed to inspect artifacts, runtime-check behavior, reject unsupported claims, and approve only when no findings remain (`src/tinycua/tinycua/loops/node_guidance.py:60-77`). In the observed runs it often performed a narrower operation: checking that source text or task reports appeared to contain required elements.
 
@@ -41,12 +68,12 @@ The clearest false approvals are:
 
 **[I]** The Reviewer behaves more like a task-local consistency critic than an acceptance-test oracle. It can find defects, but approval should not be interpreted as evidence that the exported result works.
 
-### 2. The Reviewer can still add value, but its cost and reliability vary
+### 4. The Reviewer changes work, but its net value is not demonstrated
 
 **[D]** The no-Digester Reviewer found real problems:
 
 - Experiment 2: it rejected unsupported evidence claims and forced explicit source limitations, although it also invented a requirement for three URLs per model family and entered a long retry/replan loop.
-- Experiment 4: it found a real mismatch between the new pages/blocks schema and API routes still using the old table. It later incorrectly predicted that a nullable foreign key would break block creation; runtime checks disproved that finding.
+- Experiment 4: it found a real mismatch between the new pages/blocks schema and API routes still using the old table. It later incorrectly predicted that a nullable foreign key would break block creation; SQLite semantics make that diagnosis wrong, while the retained runtime log does not prove a successful POST.
 - Experiment 5: it detected missing Transformer sections and caused them to be added.
 
 The same runs show the risk:
@@ -55,9 +82,11 @@ The same runs show the risk:
 - It used 17 Reviewer passes in Experiment 5 and took 1,642.91 seconds.
 - Large or partial artifact views coincided with contradictory approvals and revision requests.
 
+These interventions prove that the Reviewer is active, not that it improves final outcomes. The no-Reviewer configuration ties full TinyCUA at 3/5 passes, and Reviewer score contrasts change sign across tasks.
+
 See [Reviewer decision patterns](tinycua-ablation.md#reviewer-decision-pattern) and the per-experiment ablation case studies.
 
-### 3. Information Digester is bounded and most visibly useful for targeting
+### 5. Information Digester is bounded, with an unproven targeting association
 
 **[D]** The Digester runs once before Worker on every non-passthrough enabled run. It normally reads task/workspace context, retrieves context, and emits a compact digest. It does not create a separate deliverable.
 
@@ -68,9 +97,9 @@ The role does not guarantee downstream compliance:
 - In Experiment 3 no-Reviewer, the digest explicitly notices that `clock.html` is a directory, but execution still writes a nested file and scores 0/9.
 - In Experiments 3 and 4, every Digester configuration still fails the executable evaluator.
 
-**[I]** Digestion appears best understood as context compression and research targeting, not verification or coding-quality control.
+**[I]** Digestion appears best understood as context compression and research targeting, not verification or coding-quality control. One trial does not establish a net quality benefit.
 
-### 4. The TinyCUA ablation has no stable winner
+### 6. The TinyCUA ablation has no stable winner
 
 | Configuration | Digester | Reviewer | Passed fixtures | Nontrivial runtime |
 |---|---:|---:|---:|---:|
@@ -85,7 +114,7 @@ Nontrivial runtime excludes the exact-response fixture. Full, no-Digester, and n
 
 **[I]** One unseeded run per pair is insufficient to estimate role effects. The evidence identifies failure modes and associations, not a causal winner.
 
-### 5. Hermes and TinyCUA tie on passes, with task-specific strengths
+### 7. Hermes and TinyCUA tie on passes, but pass count is not semantic quality
 
 | Harness | Passed fixtures | Cumulative runtime | Distinctive result |
 |---|---:|---:|---|
@@ -97,13 +126,13 @@ Nontrivial runtime excludes the exact-response fixture. Full, no-Digester, and n
 These aggregate descriptions are not a universal quality ranking:
 
 - Experiment 2 pass/fail depends on mentioning at least one name from an evaluator-only synthetic model list. TinyCUA happened to mention `Claude Fable 5`; the other substantial reports exceeded the numeric threshold but failed the critical lexical gate.
-- Experiment 5 structurally checks headings, terms, code fences, and a plan. It does not execute examples. Hermes' 14/14 guide is the longest and broadest, but it contains non-runnable snippets.
+- Experiment 5 structurally checks headings, terms, code fences, and a plan. It does not execute examples. Hermes' 14/14 advantage is only its valid table of contents; static technical inspection places its guide below the 13/14 TinyCUA and OpenCode guides.
 - Experiment 3 is the cleanest correctness comparison because the evaluator observes browser geometry and movement. Hermes' simple 137-line implementation passes; TinyCUA's reviewed 237-line implementation fails.
 - Experiment 4 rejects every harness and exposes different delivery failures. OpenClaw alone starts after export, but its empty state offers no usable route to create the first page/block.
 
 See [the full behavior comparison](new-harness-comparison.md).
 
-### 6. New TinyCUA is much faster than historical TinyCUA, not fast within the new cohort
+### 8. New TinyCUA is much faster than historical TinyCUA, not fast within the new cohort
 
 | Experiment | Historical TinyCUA | New TinyCUA | Old/new duration ratio |
 |---:|---:|---:|---:|
@@ -116,7 +145,7 @@ The old/new ratios are descriptive, not an isolated optimization estimate: promp
 
 Within the new campaign, TinyCUA is the slowest core harness on every nontrivial fixture: approximately 3.0x the fastest runtime in Experiment 2, 6.9x in Experiment 3, 6.8x in Experiment 4, and 3.2x in Experiment 5.
 
-### 7. Less-detailed new TinyCUA output correlates with flatter planning and fewer requests
+### 9. Less-detailed new TinyCUA output correlates with flatter planning and fewer requests
 
 | Experiment | TinyCUA artifact, old -> new | TinyCUA child tasks, old -> new | TinyCUA model requests, old -> new |
 |---:|---:|---:|---:|
@@ -131,7 +160,7 @@ Historical TinyCUA recursively decomposes broader prompts and repeatedly appends
 
 **[I]** High-level, acceptance-shaped planning is a plausible explanation for reduced detail because broad leaves are completed once and later leaves become no-op checks. It is not the only explanation: the new prompts impose finite stopping boundaries and model-request counts collapse at the same time.
 
-### 8. The TinyCUA/Hermes detail reversal is real but task-specific
+### 10. The TinyCUA/Hermes detail reversal is real but task-specific
 
 | Artifact | Historical TinyCUA | Historical Hermes | New TinyCUA | New Hermes |
 |---|---:|---:|---:|---:|
@@ -140,15 +169,32 @@ Historical TinyCUA recursively decomposes broader prompts and repeatedly appends
 
 Historical TinyCUA is larger in both documentation tasks; new Hermes is larger in both. Experiment 3 correctness also reverses: historical TinyCUA at least renders while historical Hermes crashes, whereas new Hermes passes all checks and new TinyCUA fails movement.
 
-This is not a global hierarchy reversal. Hermes already led the old semantic judgment for Experiment 5, TinyCUA still has the higher new Experiment 2 deterministic total, and both fail Experiment 4.
+This is not a global hierarchy reversal. Hermes led the old semantic judgment for Experiment 5, TinyCUA has the higher new Experiment 2 deterministic total, and both fail Experiment 4. The current controlled Experiment 5 static audit does **not** reproduce the old Hermes semantic lead: Hermes' larger guide is technically worse than the TinyCUA/OpenCode guides despite scoring 14/14 structurally.
 
-### 9. Experiment 4's narrower code is primarily fixture-associated
+### 11. Experiment 4's narrower code is primarily fixture-associated
 
 Using the linked attribution report's logical-line `str.splitlines()` inventory, rather than the newline-terminated `wc -l` convention used in sections 7-8, all four harnesses produce 77-84% smaller Experiment 4 text inventories under the new fixture. TinyCUA contracts 82.7%; the three non-TinyCUA harnesses contract 81.0% in aggregate. The new task explicitly removes authentication, accounts, sharing, and unrelated collaboration while defining one block CRUD/persistence workflow.
 
 The newer TinyCUA prototype is consistent with the flat seven-child plan rather than recursive expansion. Historical Experiment 4 reached 40 retained nodes; controlled Experiment 4 had eight. The cross-harness contraction argues against a TinyCUA-only explanation and makes fixture scope the strongest observed association, but it does not identify a primary causal contribution.
 
 This pattern does not generalize to every fixture. In Experiment 5, TinyCUA shrinks 86.6% while Hermes more than doubles and OpenCode stays nearly unchanged. See [the full fixture-versus-prototype attribution](fixture-vs-prototype-attribution.md).
+
+### 12. Each harness shows a different narrow capability, not a universal advantage
+
+- **OpenCode** shows the strongest live internet-acquisition loop: it recovers from empty search output, queries SearXNG directly, and fetches multiple pages. Its final report still contains serious unsupported or false claims.
+- **TinyCUA** shows compact checklist synthesis and is the only harness to match Experiment 2's hidden reference vocabulary, but this does not prove superior factual research.
+- **Hermes** produces the only evaluator-correct clock and the broadest structurally complete study guide, but the latter is technically worse in static inspection.
+- **OpenClaw** produces the only full-harness Experiment 4 app that starts after export, though it still has no working CRUD/persistence flow.
+
+See [the evidence-bounded harness profiles](harness-specialties.md).
+
+### 13. Shared construction state can make review overconfident
+
+Executor and Reviewer share the same candidate workspace, installed packages, database files, ports, and possible running processes. The evaluator runs the exported files in a separate container and copies them again before startup.
+
+In full TinyCUA Experiment 4, one server launch is retained, later tasks edit `app.py` into invalid Python, and subsequent Reviewer/root approvals do not perform a clean restart. Reuse of the earlier process is strongly supported but not strictly proven because compact logs omit command bodies. Regardless, the exported app has independent startup and persistence blockers.
+
+This environment mismatch is only one failure class. Experiment 3 is a semantic data-flow miss, and Experiment 5 contains semantic and code-correctness failures outside the evaluator. See [the full Reviewer failure analysis](reviewer-verification-limitations.md).
 
 ## New full-harness result matrix
 
@@ -168,10 +214,10 @@ Source: `src/experiment/template-results/outcomes.json` and the individual `resu
 
 The evidence suggests four concrete design questions:
 
-1. **Reviewer verification boundary:** Should approval require executing the exact public entrypoint or evaluator-equivalent behavioral check rather than accepting executor reports?
-2. **Reviewer retry budget:** Should repeated `needs_revision` cycles have a hard cap and require re-reading the original acceptance criteria before replanning?
-3. **Artifact ownership:** Should one task own the final integrated artifact while later tasks produce explicit patches, preventing both first-task overcompletion and concatenated duplicate guides?
-4. **Telemetry:** Should every specialized node report tokens, tool calls, decision payloads, and verification commands so role cost and effectiveness can be measured directly?
+1. **Reviewer verification boundary:** Should approval require executing the exact public entrypoint or evaluator-equivalent behavioral check from a clean copied workspace rather than accepting construction-environment evidence?
+2. **Decomposition threshold:** Should small, tightly coupled single-artifact work skip the task tree entirely?
+3. **Reviewer trigger:** Should review run only after failed acceptance evidence instead of after every task?
+4. **Evaluator validity:** Should research and educational fixtures validate claim support, mathematics, and executable code before their scores are called quality measures?
 
 ## Limits
 
@@ -183,8 +229,8 @@ The evidence suggests four concrete design questions:
 - Historical tasks, runner fields, harness versions, and semantic evaluation differ from the controlled fixtures.
 - Experiment 2's hidden model list weakens its value as a general research-quality test.
 - Experiment 5's structural evaluator cannot establish factual or code-example correctness.
-- No new semantic cross-verdict was generated, so qualitative conclusions come from manual log/artifact inspection plus deterministic results.
+- No new semantic cross-verdict was generated; qualitative conclusions come from manual log/artifact inspection, sampled external-source checks, and deterministic results.
 
 ## Bottom line
 
-The new runs record fewer requests, flatter task trees, shorter artifacts, and much shorter observed runtimes than the historical runs. These changes coincide with less exploratory detail; the design does not isolate architecture or control as its cause. The Information Digester is a bounded context stage with its clearest visible association in research targeting. The Result Reviewer is far more consequential and expensive, but its approvals frequently validate textual intent rather than exported behavior. In this campaign, external deterministic execution—not internal review—provides the reliable verification signal.
+The new runs record fewer requests, flatter task trees, shorter artifacts, and much shorter runtimes than historical TinyCUA, but TinyCUA remains the slowest current harness on substantial work. Its task decomposition and routine review do not show a practical quality benefit: no role configuration wins consistently, no TinyCUA cell passes either executable coding fixture, Reviewer approval contradicts final behavior, and static semantic audits expose defects that lexical scores miss. The smallest supported correction is not another role; it is a mandatory final acceptance check against the clean exported artifact, with decomposition reserved for work that has real independent contracts.

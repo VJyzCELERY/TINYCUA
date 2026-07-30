@@ -1,6 +1,6 @@
 # TinyCUA Controlled-Template 2x2 Ablation
 
-[README](README.md) | [Fixture vs prototype](fixture-vs-prototype-attribution.md) | [New-harness comparison](new-harness-comparison.md) | [Historical comparison](historical-comparison.md)
+[README](README.md) | [Why orchestration did not improve quality](why-orchestration-did-not-improve-quality.md) | [Evaluator validity](evaluator-validity-and-artifact-quality.md) | [Reviewer limitations](reviewer-verification-limitations.md) | [Harness specialties](harness-specialties.md) | [Fixture vs prototype](fixture-vs-prototype-attribution.md) | [New-harness comparison](new-harness-comparison.md) | [Historical comparison](historical-comparison.md)
 
 This report analyzes campaign `1eb78b68-d840-4e0d-9437-3a674c0194d3` across the four TinyCUA configurations: both Information Digester and Result Reviewer enabled (`tinycua`), Digester disabled (`tinycua-nd`), Reviewer disabled (`tinycua-nr`), and both disabled (`tinycua-nd-nr`). The aliases and flags are recorded directly in the campaign metadata ([`src/experiment/template-results/run_metadata.json:23-43`](../run_metadata.json#L23-L43)).
 
@@ -21,7 +21,7 @@ This report analyzes campaign `1eb78b68-d840-4e0d-9437-3a674c0194d3` across the 
 3. **[D] The Digester was a single, bounded pre-planning stage.** It ran once in every non-passthrough Digester-enabled cell and never ran in a no-Digester cell. Most calls read the task/workspace and retrieved context; only experiment 2 no-Reviewer visibly used web search and URL fetching during digestion ([`experiment-2/tinycua-nr/stdout.log:19-36`](../experiment-2/tinycua-nr/stdout.log#L19-L36)).
 4. **[I] Digestion is associated with more concise research artifacts, but the evidence is not causal.** In experiment 5, Digester-enabled guides were 667 and 490 logical lines; Digester-disabled guides were 3,185 and 3,083 logical lines and contained repeated headings/sections. The same directional size pattern appears in experiment 2, though less strongly. Single trials, unseeded sampling, and mixed runner revisions prevent attributing this difference to the Digester alone.
 5. **[D] Deterministic scores and usable quality diverged.** Experiment 2 no-Digester scored highest despite documenting an invented source constraint and centering older model families. Experiment 5 allowed duplicated multi-guide artifacts to pass because its gate checks existence, structure, required substrings, code fences, a plan, and task integrity rather than technical correctness ([`experiment-5/eval/check.py:124-170`](../../experiment-fixtures/experiments-list/experiment-5/eval/check.py#L124-L170)).
-6. **[I] This campaign supports a narrower conclusion than "both roles help."** The Digester looks operationally bounded and potentially useful for context compression. The Reviewer sometimes redirected work, but its unbounded retry behavior, acceptance-criteria drift, and weak evaluator-equivalent verification make its net value unresolved.
+6. **[I] Neither role has a demonstrated net quality benefit.** The Digester is operationally bounded and associated with shorter documents, but this is not isolated from changed planning trajectories. The Reviewer redirects work, but its retry behavior, acceptance-criteria drift, and weak evaluator-equivalent verification add cost without a consistent final-outcome gain.
 
 ## Experimental design
 
@@ -191,7 +191,7 @@ The required public workflow is start through `PORT=8765 sh start.sh`, create/ed
 
 ### No-Digester partial startup
 
-**[D]** This was the only cell to expose a root page backed by Python. Its UI starts with an add button and keeps its only textarea inside a hidden editor overlay, so it does not provide the initially visible textbox expected by the public workflow ([`tinycua-nd/workdir/start.sh:92-121`](../experiment-4/tinycua-nd/workdir/start.sh#L92-L121)). More seriously, `start.sh` deletes the SQLite database on every invocation, contradicting restart persistence ([`tinycua-nd/workdir/start.sh:21-33`](../experiment-4/tinycua-nd/workdir/start.sh#L21-L33)). The Reviewer approved startup as preserving data and later approved the composed outcome after API-level checks ([`tinycua-nd/stdout.log:142-175`](../experiment-4/tinycua-nd/stdout.log#L142-L175), [`tinycua-nd/stdout.log:317-368`](../experiment-4/tinycua-nd/stdout.log#L317-L368)).
+**[D]** This was the only cell to expose a root page backed by Python. Its UI starts with an add button and keeps its only textarea inside a hidden editor overlay, so it does not provide the initially visible textbox expected by the public workflow ([`tinycua-nd/workdir/start.sh:92-121`](../experiment-4/tinycua-nd/workdir/start.sh#L92-L121)). More seriously, `start.sh` deletes the SQLite database on every invocation, contradicting restart persistence ([`tinycua-nd/workdir/start.sh:21-33`](../experiment-4/tinycua-nd/workdir/start.sh#L21-L33)). The Reviewer approved startup as preserving data and later approved the composed outcome after claimed API-level checks; the retained server log does not preserve a successful POST ([`tinycua-nd/stdout.log:142-175`](../experiment-4/tinycua-nd/stdout.log#L142-L175), [`tinycua-nd/stdout.log:317-368`](../experiment-4/tinycua-nd/stdout.log#L317-L368), [`tinycua-nd/workdir/server.log:11-48`](../experiment-4/tinycua-nd/workdir/server.log#L11-L48)).
 
 ### Remaining entrypoints
 
@@ -271,8 +271,8 @@ The task asks for readable Markdown explaining six concepts, at least one code b
 
 **[I]** The most defensible operational reading is:
 
-1. Keep the Digester as a bounded, conditional context stage while testing its apparent concision benefit over repeated seeded trials.
-2. Do not treat Reviewer approval as verification. Require evaluator-equivalent runtime checks for behavioral tasks, exact acceptance-criteria grounding, stable chunked artifact inspection, and a hard retry budget.
-3. Rerun all four variants under one result-generation revision with multiple fixed seeds before making a default-role or performance claim.
+1. Do not claim either role as a default quality improvement from this campaign.
+2. Replace routine Reviewer approval with a mandatory task-appropriate final check against the exported artifact; invoke review only to diagnose failed evidence.
+3. Rerun all four variants under one result-generation revision with multiple fixed seeds and semantic-quality checks before making a default-role or performance claim.
 
-Until that rerun, these results support hypotheses about context compression, review-loop failure modes, and role interaction. They do not support causal claims about either role's standalone effectiveness.
+Until that rerun, these results support hypotheses about context compression, review-loop failure modes, and role interaction. They do not support a practical quality claim for either role.

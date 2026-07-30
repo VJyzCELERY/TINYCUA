@@ -1,6 +1,6 @@
 # Fixture Change Versus TinyCUA Prototype Change
 
-[Report index](README.md) | [TinyCUA ablations](tinycua-ablation.md) | [New-harness comparison](new-harness-comparison.md) | [Historical comparison](historical-comparison.md)
+[Report index](README.md) | [Evaluator validity](evaluator-validity-and-artifact-quality.md) | [Why orchestration did not improve quality](why-orchestration-did-not-improve-quality.md) | [Harness specialties](harness-specialties.md) | [Reviewer limitations](reviewer-verification-limitations.md) | [TinyCUA ablations](tinycua-ablation.md) | [New-harness comparison](new-harness-comparison.md) | [Historical comparison](historical-comparison.md)
 
 ## Question
 
