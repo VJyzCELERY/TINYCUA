@@ -60,6 +60,10 @@ COMPOSE_VARIABLE = re.compile(
     r"(?P<default>[^}]*)\}|(?P<bare>[A-Za-z_][A-Za-z0-9_]*))"
 )
 SCHEMA_VERSION = 2
+BUILDKIT_EVALUATOR_MIGRATION_REVISION = (
+    "81eb29778cb601374d933eed8140ce0a24a9a07d13a4b57715abb56e08eca1af"
+)
+BUILDKIT_EVALUATOR_MIGRATION_ID = "fixture-scoped-evaluator-images-v1"
 TRIAL_POLICY = {
     "pass_at_k": 1,
     "trials_per_pair": 1,
@@ -97,6 +101,7 @@ PRUNED_WORKDIR_DIRECTORIES = frozenset(
         ".agent_scripts",
         ".tinycua_context_cache",
         ".tinycua-artifacts",
+        ".git",
     }
 )
 
@@ -495,6 +500,7 @@ def build_decorator_command(dockerfile: Path, base_image: str, image: str) -> li
     return [
         "docker",
         "build",
+        "--provenance=false",
         "--tag",
         image,
         "--build-arg",
@@ -646,6 +652,10 @@ def build_evaluator_command(
     agent_stdout: Path | None = None,
     result_directory: Path | None = None,
     install_submission_dependencies: bool = True,
+    submission_mount: str | None = None,
+    evaluator_mount: str | None = None,
+    agent_stdout_mount: str | None = None,
+    result_mount: str | None = None,
 ) -> list[str]:
     """Build the separate read-only evaluator container command."""
     command = [
@@ -655,13 +665,16 @@ def build_evaluator_command(
         "--name",
         name,
         "-v",
-        f"{submission.resolve()}:/submission:ro",
+        f"{submission_mount or submission.resolve()}:/submission:ro",
         "-v",
-        f"{evaluator.resolve()}:/eval:ro",
+        f"{evaluator_mount or evaluator.resolve()}:/eval:ro",
     ]
-    if result_directory is not None:
-        command.extend(["-v", f"{result_directory.resolve()}:{EVALUATOR_RESULT_DIR}"])
-    if agent_stdout is not None:
+    if result_mount is not None or result_directory is not None:
+        source = result_mount or str(result_directory.resolve())
+        command.extend(["-v", f"{source}:{EVALUATOR_RESULT_DIR}"])
+    if agent_stdout_mount is not None:
+        command.extend(["-v", f"{agent_stdout_mount}:/agent-output:ro"])
+    elif agent_stdout is not None:
         command.extend(
             ["-v", f"{agent_stdout.resolve()}:/agent-output/agent.stdout.log:ro"]
         )
@@ -1247,6 +1260,7 @@ def _new_metadata(
         "agent_configurations": {},
         "fixtures": {},
         "pairs": [],
+        "pair_result_generation_revisions": {},
         "invocations": [],
         "images": {
             "harnesses": {},
@@ -1308,6 +1322,7 @@ def _register_invocation(
             "agents": list(agents),
             "order_by": order_by,
             "overwrite": overwrite,
+            "result_generation_revision": _execution_revision(),
         }
     )
 
@@ -1549,6 +1564,7 @@ def _upgrade_metadata_shape(
                 {"fixture": fixture, "agent": agent}
                 for fixture, agent in sorted(pairs)
             ],
+            "pair_result_generation_revisions": {},
             "invocations": [],
             "result_generation_revision": (
                 f"legacy:{metadata.get('result_generation_commit', 'unknown')}"
@@ -1588,6 +1604,7 @@ def _validate_campaign_compatibility(
     fixtures: tuple[Fixture, ...],
     timeout_seconds: int,
     environment: dict[str, str],
+    compatible_revisions: tuple[str, ...] = (),
 ) -> None:
     """Reject campaign drift before any Docker command or pair mutation."""
     expected = {
@@ -1605,7 +1622,8 @@ def _validate_campaign_compatibility(
             raise ValueError(f"campaign configuration mismatch: {setting}")
     if (
         not metadata.get("legacy_results")
-        and metadata.get("result_generation_revision") != _execution_revision()
+        and metadata.get("result_generation_revision")
+        not in (_execution_revision(), *compatible_revisions)
     ):
         raise ValueError("campaign configuration mismatch: result_generation_revision")
     selected = {fixture.name: fixture for fixture in fixtures}
@@ -1622,6 +1640,57 @@ def _validate_campaign_compatibility(
     for agent, recorded in configurations.items():
         if agent not in SUPPORTED_AGENTS or recorded != _agent_configuration(agent):
             raise ValueError(f"campaign agent configuration mismatch: {agent}")
+
+
+def _migrate_buildkit_evaluator_campaign(
+    output_root: Path, metadata: dict[str, object]
+) -> bool:
+    """Migrate the known shared-tag campaign without relabeling valid pairs."""
+    migrations = metadata.setdefault("runner_migrations", [])
+    existing = next(
+        (
+            migration
+            for migration in migrations
+            if migration.get("id") == BUILDKIT_EVALUATOR_MIGRATION_ID
+        ),
+        None,
+    )
+    if existing is not None:
+        return False
+    if (
+        metadata.get("result_generation_revision")
+        != BUILDKIT_EVALUATOR_MIGRATION_REVISION
+    ):
+        return False
+
+    preserved: dict[str, str] = {}
+    for run_root in _pair_directories(output_root):
+        result = _valid_pair_result(run_root / "result.json")
+        if result is None:
+            continue
+        key = f"{result['fixture']}/{result['agent']}"
+        preserved[key] = BUILDKIT_EVALUATOR_MIGRATION_REVISION
+
+    current_revision = _execution_revision()
+    for invocation in metadata["invocations"]:
+        invocation.setdefault(
+            "result_generation_revision", BUILDKIT_EVALUATOR_MIGRATION_REVISION
+        )
+    archived_evaluators = metadata["images"].get("evaluators", {}).copy()
+    migration = {
+        "id": BUILDKIT_EVALUATOR_MIGRATION_ID,
+        "applied_at": datetime.now(timezone.utc).isoformat(),
+        "from_result_generation_revision": BUILDKIT_EVALUATOR_MIGRATION_REVISION,
+        "to_result_generation_revision": current_revision,
+        "preserved_pairs": sorted(preserved),
+        "archived_evaluators": archived_evaluators,
+    }
+    metadata["pair_result_generation_revisions"] = preserved
+    metadata["images"]["evaluators"] = {}
+    metadata["result_generation_revision"] = current_revision
+    migrations.append(migration)
+    _save_metadata(output_root / "run_metadata.json", metadata)
+    return True
 
 
 def _consolidate_legacy_logs(directory: Path) -> tuple[Path, ...]:
@@ -1856,6 +1925,19 @@ def _record_candidate_image(
     _save_metadata(metadata_path, metadata)
 
 
+def _record_pair_revision(
+    metadata_path: Path,
+    metadata: dict[str, object],
+    fixture: str,
+    agent: str,
+) -> None:
+    """Record the runner revision that produced one complete pair."""
+    metadata.setdefault("pair_result_generation_revisions", {})[
+        f"{fixture}/{agent}"
+    ] = _execution_revision()
+    _save_metadata(metadata_path, metadata)
+
+
 def write_outcomes(
     path: Path,
     output_root: Path,
@@ -1930,6 +2012,8 @@ def _evaluate_submission(
     secret_values: tuple[str, ...],
     timeout_seconds: int,
     campaign_id: str,
+    evaluator_image: str,
+    workspace: str,
 ) -> tuple[int, Score | None, str | None, str | None, str | None]:
     """Run one deterministic evaluator and return its validated outcome."""
     evaluator_result = run_root / ".evaluator-result"
@@ -1943,7 +2027,30 @@ def _evaluate_submission(
     score = None
     score_error = None
     cleanup_error = None
+    retain_result_volume = False
+    volumes_cleaned = False
+    input_volume = f"{workspace}-evaluator-input"
+    result_volume = f"{workspace}-evaluator-result"
+    evaluator_input = run_root / ".evaluator-input"
     try:
+        shutil.rmtree(evaluator_input, ignore_errors=True)
+        shutil.copytree(fixture.root / "eval", evaluator_input)
+        shutil.copy2(agent_stdout, evaluator_input / "agent.stdout.log")
+        setup_error = _remove_workspace_volume(
+            input_volume, timeout_seconds
+        ) or _remove_workspace_volume(result_volume, timeout_seconds)
+        if setup_error is None:
+            setup_error = _seed_workspace_volume(
+                evaluator_input,
+                input_volume,
+                evaluator_image,
+                container_name(
+                    fixture.name, agent, "evaluator-input", campaign_id
+                ),
+                run_root,
+                timeout_seconds,
+                secret_values,
+            )
         try:
             dependency_files = (
                 ()
@@ -1957,8 +2064,14 @@ def _evaluate_submission(
             failure_stage = "evaluator_setup"
             _write_log(stderr, f"Evaluator setup failed: {error}\n", failure_stage)
         else:
-            build_code = 0
-            if fixture.submission_dockerfile is not None:
+            build_code = SKIPPED_EVALUATOR_EXIT_CODE if setup_error else 0
+            if setup_error:
+                evaluator_code = SKIPPED_EVALUATOR_EXIT_CODE
+                failure_stage = "evaluator_setup"
+                _write_log(
+                    stderr, f"Evaluator setup failed: {setup_error}\n", failure_stage
+                )
+            if fixture.submission_dockerfile is not None and setup_error is None:
                 build_code, _ = _run(
                     build_submission_command(
                         submission / fixture.submission_dockerfile, submission
@@ -1979,9 +2092,10 @@ def _evaluate_submission(
                         failure_stage,
                     )
             if not build_code:
+                retain_result_volume = True
                 evaluator_code, cleanup_error = _run(
                     build_evaluator_command(
-                        fixture.eval_image,
+                        evaluator_image,
                         fixture.eval_command,
                         submission,
                         fixture.root / "eval",
@@ -1990,6 +2104,10 @@ def _evaluate_submission(
                         agent_stdout,
                         evaluator_result,
                         not fixture.entrypoint_manages_dependencies,
+                        workspace,
+                        input_volume,
+                        input_volume,
+                        result_volume,
                     ),
                     stdout,
                     stderr,
@@ -2000,6 +2118,28 @@ def _evaluate_submission(
                 )
                 if cleanup_error:
                     failure_stage = "evaluator_cleanup"
+                export_error = _export_workspace_volume(
+                    result_volume,
+                    evaluator_image,
+                    container_name(
+                        fixture.name, agent, "evaluator-result", campaign_id
+                    ),
+                    evaluator_result,
+                    run_root,
+                    timeout_seconds,
+                    secret_values,
+                )
+                if export_error:
+                    cleanup_error = cleanup_error or export_error
+                    failure_stage = "evaluator_result_export"
+                    _write_log(
+                        stderr,
+                        "Evaluator result retained in Docker volume "
+                        f"{result_volume}: {export_error}\n",
+                        failure_stage,
+                    )
+                else:
+                    retain_result_volume = False
         try:
             score = read_score(evaluator_result / "score.json")
         except ValueError as error:
@@ -2010,8 +2150,26 @@ def _evaluate_submission(
             )
         if evaluator_code != 0 and failure_stage is None:
             failure_stage = "evaluator"
+        cleanup_volumes = [input_volume]
+        if not retain_result_volume:
+            cleanup_volumes.append(result_volume)
+        volume_errors = tuple(
+            error
+            for volume in cleanup_volumes
+            if (error := _remove_workspace_volume(volume, timeout_seconds))
+        )
+        if volume_errors:
+            cleanup_error = cleanup_error or volume_errors[0]
+            failure_stage = "evaluator_cleanup"
+        else:
+            volumes_cleaned = True
         return evaluator_code, score, score_error, failure_stage, cleanup_error
     finally:
+        if not volumes_cleaned:
+            _remove_workspace_volume(input_volume, timeout_seconds)
+            if not retain_result_volume:
+                _remove_workspace_volume(result_volume, timeout_seconds)
+        shutil.rmtree(evaluator_input, ignore_errors=True)
         shutil.rmtree(evaluator_result, ignore_errors=True)
 
 
@@ -2022,6 +2180,7 @@ def _execute_pair(
     run_root: Path,
     timeout_seconds: int,
     campaign_id: str,
+    evaluator_image: str | None = None,
 ) -> tuple[bool, bool]:
     """Run one fresh pair, clean its volumes, and retain only durable evidence."""
     run_root.mkdir(parents=True)
@@ -2129,6 +2288,8 @@ def _execute_pair(
                 secret_values,
                 timeout_seconds,
                 campaign_id,
+                evaluator_image or fixture.eval_image,
+                workspace,
             )
         prune_workdir(run_root / "workdir")
     finally:
@@ -2206,10 +2367,21 @@ def _prepare_campaign_metadata(
     if metadata is None:
         metadata = _new_metadata(timeout_seconds, environment)
     else:
+        compatible_revisions = (
+            (BUILDKIT_EVALUATOR_MIGRATION_REVISION,)
+            if metadata.get("result_generation_revision")
+            == BUILDKIT_EVALUATOR_MIGRATION_REVISION
+            else ()
+        )
         _validate_campaign_compatibility(
-            metadata, fixtures, timeout_seconds, environment
+            metadata,
+            fixtures,
+            timeout_seconds,
+            environment,
+            compatible_revisions,
         )
         _recover_registered_pairs(output_root, metadata)
+        _migrate_buildkit_evaluator_campaign(output_root, metadata)
         if metadata.get("legacy_results") and (
             overwrite
             or any(
@@ -2358,29 +2530,37 @@ def _ensure_evaluator_image(
     stderr: Path,
     timeout_seconds: int,
     secret_values: tuple[str, ...],
-) -> int:
+) -> tuple[str, int]:
     """Prepare the evaluator immediately before its fixture executes."""
+    image = (
+        f"{fixture.eval_image}-{fixture.name}"
+        if fixture.evaluator_dockerfile is not None
+        else fixture.eval_image
+    )
     command = (
         build_decorator_command(
             fixture.evaluator_dockerfile,
             base_images["tinycua"],
-            fixture.eval_image,
+            image,
         )
         if fixture.evaluator_dockerfile is not None
         else None
     )
-    return _ensure_image(
-        metadata_path,
-        metadata,
-        metadata["images"]["evaluators"],
-        fixture.name,
-        fixture.eval_image,
-        command,
-        stdout,
-        stderr,
-        timeout_seconds,
-        secret_values,
-        f"build/evaluator/{fixture.eval_image}",
+    return (
+        image,
+        _ensure_image(
+            metadata_path,
+            metadata,
+            metadata["images"]["evaluators"],
+            fixture.name,
+            image,
+            command,
+            stdout,
+            stderr,
+            timeout_seconds,
+            secret_values,
+            f"build/evaluator/{image}",
+        ),
     )
 
 
@@ -2437,7 +2617,7 @@ def _run_pending_pairs(
     for fixture, agent in pending:
         print(f"[{fixture.name}/{agent}] starting", flush=True)
         public_root = output_root / fixture.name / agent
-        code = _ensure_evaluator_image(
+        evaluator_image, code = _ensure_evaluator_image(
             fixture,
             base_images,
             metadata_path,
@@ -2478,6 +2658,9 @@ def _run_pending_pairs(
                 "fixture_image_build",
                 campaign_id,
             )
+            _record_pair_revision(
+                metadata_path, metadata, fixture.name, agent
+            )
             write_outcomes(output_root / "outcomes.json", output_root, metadata)
             continue
         if not overwrite and _valid_pair_result(
@@ -2497,12 +2680,14 @@ def _run_pending_pairs(
             run_root,
             timeout_seconds,
             campaign_id,
+            evaluator_image,
         )
         if overwrite:
             if failed or cleanup_failed:
                 shutil.rmtree(run_root, ignore_errors=True)
                 return True
             _publish_replacement(public_root, fixture.name, agent)
+        _record_pair_revision(metadata_path, metadata, fixture.name, agent)
         write_outcomes(output_root / "outcomes.json", output_root, metadata)
         print(
             f"[{fixture.name}/{agent}] {'failed' if failed else 'passed'}",

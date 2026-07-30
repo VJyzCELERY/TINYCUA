@@ -247,6 +247,7 @@ def test_docker_commands_isolate_agent_and_evaluator(tmp_path: Path) -> None:
     assert decorator == [
         "docker",
         "build",
+        "--provenance=false",
         "--tag",
         "derived:latest",
         "--build-arg",
@@ -819,6 +820,7 @@ def test_prune_workdir_removes_only_generated_heavy_directories(tmp_path: Path) 
         ".agent_scripts/tool.py",
         ".tinycua_context_cache/context.json",
         ".tinycua-artifacts/log.json",
+        ".git/config",
     )
     for relative in (*keep, *remove):
         path = workdir / relative
@@ -1162,7 +1164,7 @@ def test_evaluator_images_are_recorded_per_fixture(
             "candidates": {},
         }
     }
-    evaluator_keys = []
+    evaluator_images = []
 
     def ensure(
         _metadata_path: Path,
@@ -1174,13 +1176,14 @@ def test_evaluator_images_are_recorded_per_fixture(
     ) -> int:
         records[key] = {"reference": image, "id": f"sha256:{key}"}
         if records is metadata["images"]["evaluators"]:
-            evaluator_keys.append(key)
+            evaluator_images.append((key, image))
         return 0
 
     monkeypatch.setattr(runner, "_ensure_image", ensure)
 
+    resolved = []
     for fixture in fixtures:
-        runner._ensure_evaluator_image(
+        resolved.append(runner._ensure_evaluator_image(
             fixture,
             {"tinycua": "tinycua-base"},
             tmp_path / "run_metadata.json",
@@ -1189,9 +1192,111 @@ def test_evaluator_images_are_recorded_per_fixture(
             tmp_path / "stderr.log",
             1,
             (),
-        )
+        ))
 
-    assert evaluator_keys == ["first", "second"]
+    assert resolved == [
+        ("shared-evaluator-first", 0),
+        ("shared-evaluator-second", 0),
+    ]
+    assert evaluator_images == [
+        ("first", "shared-evaluator-first"),
+        ("second", "shared-evaluator-second"),
+    ]
+
+
+def test_campaign_builds_disable_nondeterministic_provenance(tmp_path: Path) -> None:
+    """Rebuilding an unchanged campaign image does not change its identity."""
+    command = build_decorator_command(
+        tmp_path / "Dockerfile", "base-image", "fixture-image"
+    )
+
+    assert "--provenance=false" in command
+
+
+def test_buildkit_campaign_migration_preserves_all_complete_pairs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The known shared-tag campaign keeps valid evidence and retries infra failures."""
+    old_revision = runner.BUILDKIT_EVALUATOR_MIGRATION_REVISION
+
+    def write_pair(agent: str, evaluator_code: int, stderr_text: str = "") -> Path:
+        run_root = tmp_path / "experiment-1" / agent
+        (run_root / "workdir").mkdir(parents=True)
+        stdout = run_root / "stdout.log"
+        stderr = run_root / "stderr.log"
+        stdout.write_text("agent output\n")
+        stderr.write_text(stderr_text)
+        write_result(
+            run_root / "result.json",
+            "experiment-1",
+            agent,
+            "state",
+            datetime(2026, 7, 29, tzinfo=timezone.utc),
+            datetime(2026, 7, 29, 0, 0, 1, tzinfo=timezone.utc),
+            1.0,
+            0,
+            evaluator_code,
+            stdout,
+            stderr,
+            {},
+            failure_stage="evaluator" if evaluator_code else None,
+        )
+        return run_root
+
+    valid_root = write_pair("tinycua", 0)
+    retry_root = write_pair(
+        "tinycua-nd",
+        127,
+        "docker: Error response from daemon: error mounting source, dst=/submission\n",
+    )
+    unrelated_root = write_pair(
+        "opencode",
+        127,
+        "docker: Error response from daemon: error mounting source, dst=/submission\n",
+    )
+    valid_snapshot = {
+        path.relative_to(valid_root): path.read_bytes()
+        for path in valid_root.rglob("*")
+        if path.is_file()
+    }
+    metadata = {
+        "result_generation_revision": old_revision,
+        "invocations": [{"started_at": "2026-07-29T00:00:00+00:00"}],
+        "images": {
+            "harnesses": {},
+            "evaluators": {
+                "experiment-3": {"id": "sha256:old", "reference": "shared"}
+            },
+            "decorators": {},
+            "candidates": {},
+        },
+    }
+    monkeypatch.setattr(runner, "_execution_revision", lambda: "new-revision")
+
+    assert runner._migrate_buildkit_evaluator_campaign(tmp_path, metadata) is True
+
+    assert valid_snapshot == {
+        path.relative_to(valid_root): path.read_bytes()
+        for path in valid_root.rglob("*")
+        if path.is_file()
+    }
+    assert retry_root.exists()
+    assert unrelated_root.exists()
+    assert metadata["result_generation_revision"] == "new-revision"
+    assert metadata["pair_result_generation_revisions"] == {
+        "experiment-1/opencode": old_revision,
+        "experiment-1/tinycua": old_revision,
+        "experiment-1/tinycua-nd": old_revision,
+    }
+    assert metadata["invocations"][0]["result_generation_revision"] == old_revision
+    migration = metadata["runner_migrations"][0]
+    assert migration["from_result_generation_revision"] == old_revision
+    assert migration["archived_evaluators"] == {
+        "experiment-3": {"id": "sha256:old", "reference": "shared"}
+    }
+    assert metadata["images"]["evaluators"] == {}
+    assert runner._migrate_buildkit_evaluator_campaign(tmp_path, metadata) is False
+    assert retry_root.exists()
 
 
 def test_schema_v1_failed_setup_can_migrate_without_workdir(tmp_path: Path) -> None:

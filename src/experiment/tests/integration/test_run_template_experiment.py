@@ -16,14 +16,33 @@ import run_template_experiment as runner
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "experiment-fixtures" / "experiments-list"
 VOLUME_TRANSFER_STUB = (
+    "import hashlib\n"
+    "volume_root = Path(os.environ['DOCKER_VOLUMES'])\n"
+    "volume_root.mkdir(parents=True, exist_ok=True)\n"
+    "containers_file = volume_root / 'containers.json'\n"
+    "containers = json.loads(containers_file.read_text()) if containers_file.exists() else {}\n"
+    "def volume_path(name):\n"
+    "    return volume_root / hashlib.sha256(name.encode()).hexdigest()\n"
+    "if args[:1] == ['create']:\n"
+    "    name = args[args.index('--name') + 1]\n"
+    "    mount = args[args.index('-v') + 1]\n"
+    "    containers[name] = mount.split(':', 1)[0]\n"
+    "    containers_file.write_text(json.dumps(containers))\n"
+    "    sys.exit(0)\n"
     "if args[:1] == ['cp']:\n"
     "    source, destination = args[1:3]\n"
-    "    volume_state = Path(os.environ['DOCKER_VOLUMES'])\n"
     "    if ':' not in source:\n"
-    "        volume_state.write_text(source)\n"
+    "        container = destination.split(':', 1)[0]\n"
+    "        shutil.copytree(source, volume_path(containers[container]), dirs_exist_ok=True)\n"
     "    else:\n"
-    "        shutil.copytree(volume_state.read_text(), destination, dirs_exist_ok=True)\n"
+    "        container = source.split(':', 1)[0]\n"
+    "        shutil.copytree(volume_path(containers[container]), destination, dirs_exist_ok=True)\n"
     "    sys.exit(0)\n"
+    "if args[:1] == ['run']:\n"
+    "    for mount in (arg for arg in args if ':/' in arg):\n"
+    "        source = mount.split(':', 1)[0]\n"
+    "        if not source.startswith('/'):\n"
+    "            volume_path(source).mkdir(parents=True, exist_ok=True)\n"
 )
 IMAGE_INSPECT_STUB = (
     "if args[:2] == ['image', 'inspect']:\n"
@@ -127,7 +146,9 @@ def test_controlled_campaign_resumes_aggregates_and_keeps_compact_artifacts(
         + "if args[:1] == ['run']:\n"
         "    result_mount = next((arg[:-8] for arg in args if arg.endswith(':/result')), None)\n"
         "    if result_mount:\n"
-        "        Path(result_mount, 'score.json').write_text(json.dumps({\n"
+        "        result_dir = volume_path(result_mount)\n"
+        "        result_dir.mkdir(parents=True, exist_ok=True)\n"
+        "        Path(result_dir, 'score.json').write_text(json.dumps({\n"
         "            'categories': {'check': {'points': 1, 'max_points': 1, 'evidence': ['ok']}},\n"
         "            'total': 1, 'pass_threshold': 1, 'critical_categories': ['check']}))\n"
         "    if os.environ.get('FAIL_EVALUATOR') == '1':\n"
@@ -916,15 +937,21 @@ def test_controlled_runner_records_agent_telemetry_before_delayed_evaluation(
         for line in calls.read_text().splitlines()
         if (command := json.loads(line))[:2] != ["image", "inspect"]
     ]
+    resolved_eval_image = f"{eval_image}-test-controlled-runner"
     assert commands.pop(0) == SEARXNG_READY_COMMAND
     assert commands[0][:2] == ["build", "--tag"]
     assert commands[1][:3] == ["build", "--tag", "tinycua-template-tinycua-base"]
-    assert commands[2][:3] == ["build", "--tag", eval_image]
-    assert commands[3][:2] == ["build", "--tag"]
+    assert commands[2][:4] == [
+        "build",
+        "--provenance=false",
+        "--tag",
+        resolved_eval_image,
+    ]
+    assert commands[3][:2] == ["build", "--provenance=false"]
     agent = next(command for command in commands if command[:1] == ["compose"])
     evaluator = next(command for command in commands if command[:1] == ["run"])
     transfers = [command for command in commands if command[:1] == ["cp"]]
-    assert len(transfers) == 2
+    assert len(transfers) == 4
     assert commands.index(agent) < commands.index(evaluator)
     assert (
         len(
@@ -934,7 +961,7 @@ def test_controlled_runner_records_agent_telemetry_before_delayed_evaluation(
                 if command[:3] == ["volume", "rm", "--force"]
             ]
         )
-        == 2
+        == 6
     )
     assert str(
         output / "test-controlled-runner" / "opencode" / "workdir"
@@ -943,13 +970,14 @@ def test_controlled_runner_records_agent_telemetry_before_delayed_evaluation(
     assert "eval" not in " ".join(agent)
     assert evaluator[0] == "run"
     assert any(mount.endswith(":/submission:ro") for mount in evaluator)
-    assert any(mount.endswith(":/eval:ro") for mount in evaluator)
+    assert any(mount.endswith("-evaluator-input:/eval:ro") for mount in evaluator)
     assert any(
-        mount.endswith("/.agent.stdout.log:/agent-output/agent.stdout.log:ro")
-        for mount in evaluator
+        mount.endswith("-evaluator-input:/agent-output:ro") for mount in evaluator
     )
+    assert any(mount.endswith("-evaluator-result:/result") for mount in evaluator)
+    assert str(output) not in " ".join(evaluator)
     assert evaluator[-(len(eval_command) + 1) :] == [
-        eval_image,
+        resolved_eval_image,
         *eval_command,
     ]
     run_root = output / "test-controlled-runner" / "opencode"
@@ -1068,7 +1096,9 @@ def test_controlled_runner_embeds_valid_evaluator_score(tmp_path: Path) -> None:
         + VOLUME_TRANSFER_STUB
         + "if args[:1] == ['run']:\n"
         "    result = next(arg[:-8] for arg in args if arg.endswith(':/result'))\n"
-        "    Path(result, 'score.json').write_text(json.dumps({\n"
+        "    result_dir = volume_path(result)\n"
+        "    result_dir.mkdir(parents=True, exist_ok=True)\n"
+        "    Path(result_dir, 'score.json').write_text(json.dumps({\n"
         "        'categories': {'checks': {'points': 100, 'max_points': 100, 'evidence': ['stub passed']}},\n"
         "        'total': 100, 'pass_threshold': 80, 'critical_categories': ['checks']\n"
         "    }))\n"
@@ -1371,16 +1401,19 @@ def test_evaluator_timeout_cleanup_failure_stops_before_later_pairs(
     calls = tmp_path / "calls.jsonl"
     docker.write_text(
         "#!/usr/bin/env python3\n"
-        "import json, os, sys, time\n"
+        "import json, os, shutil, sys, time\n"
+        "from pathlib import Path\n"
         "with open(os.environ['DOCKER_CALLS'], 'a') as stream:\n"
         "    stream.write(json.dumps(sys.argv[1:]) + '\\n')\n"
         "args = sys.argv[1:]\n"
         "if args[:2] == ['image', 'inspect']:\n"
         "    print(json.dumps({'Id': 'sha256:' + args[2], 'RepoDigests': []}))\n"
         "    sys.exit(0)\n"
-        "if args[:1] == ['run']:\n"
+        + VOLUME_TRANSFER_STUB
+        + "if args[:1] == ['run']:\n"
         "    time.sleep(2)\n"
-        "if args[:2] == ['rm', '--force'] and '-evaluator-' in args[2]:\n"
+        "if args[:2] == ['rm', '--force'] and '-evaluator-' in args[2] "
+        "and '-evaluator-input-' not in args[2] and '-evaluator-result-' not in args[2]:\n"
         "    sys.exit(1)\n"
         "sys.exit(0)\n"
     )
@@ -1389,6 +1422,7 @@ def test_evaluator_timeout_cleanup_failure_stops_before_later_pairs(
     env = os.environ | {
         "PATH": f"{tmp_path}:{os.environ['PATH']}",
         "DOCKER_CALLS": str(calls),
+        "DOCKER_VOLUMES": str(tmp_path / "volumes"),
     }
     try:
         completed = subprocess.run(
