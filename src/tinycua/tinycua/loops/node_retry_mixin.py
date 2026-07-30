@@ -17,7 +17,10 @@ from tinycua.loops._loop_constants import (
 )
 from tinycua.loops.context_rendering import sanitize_internal_reprs
 from tinycua.loops.node_contract import LifecyclePhase, NodeState
-from tinycua.loops.reviewer_protocol import initialize_reviewer_lifecycle
+from tinycua.loops.reviewer_protocol import (
+    initialize_reviewer_lifecycle,
+    reset_reviewer_attempt,
+)
 
 if TYPE_CHECKING:
     from tinycua_sdk.agent.agent import Agent
@@ -196,6 +199,10 @@ class NodeRetryMixin:
             self._reset_progress_for_retry(node)
 
         for attempt in range(1, max_attempts + 1):
+            if attempt > 1 and reset_reviewer_attempt(node):
+                retry_message = None
+                retry_feedback.clear()
+                retry_tool_results.clear()
             # Milestone 2: track per-node state transitions.
             node.progress.attempt_count = attempt
             node.progress.transition(

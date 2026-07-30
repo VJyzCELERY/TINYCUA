@@ -13,7 +13,10 @@ from tinycua.config.types import Tool
 from tinycua.loops.node_contract import LifecyclePhase, phase_tool_names
 from tinycua.loops.context_rendering import render_llm_content
 from tinycua.loops.node_queue import NodeQueue
-from tinycua.loops.reviewer_protocol import reviewer_assurance_errors
+from tinycua.loops.reviewer_protocol import (
+    reset_reviewer_attempt,
+    reviewer_assurance_errors,
+)
 from tinycua.loops.task_nodes import TinyCUAResultReviewerNode
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.task import (
@@ -628,3 +631,59 @@ def test_aggregated_result_renders_assurance_for_final_response() -> None:
 
     assert "Assurance:" in rendered
     assert "judgment_only" in rendered
+
+
+def test_reviewer_retry_resets_plan_and_observations() -> None:
+    """A new root Reviewer attempt starts blind with no prior evidence."""
+    loop = TinyCUALoop()
+    store = loop.root_session.task_store
+    root = store.create_task("Root", acceptance_clauses=["Outcome works"])
+    node = TinyCUAResultReviewerNode(
+        "result_reviewer", create_node_config("result_reviewer")
+    )
+    node.ensure_session(loop.root_session)
+    store.stage_review_plan(
+        root.task_id, [{**_checks()[0], "criterion_id": "acceptance-1"}]
+    )
+    node.progress.lifecycle_phase = LifecyclePhase.ACTION
+    node.progress.mark_tool_called("task_review_plan")
+    node.progress.correlated_outcomes.append({"evidence_id": "stale"})
+
+    assert reset_reviewer_attempt(node) is True
+    assert store.staged_review_plan(root.task_id) == []
+    assert node.progress.lifecycle_phase is LifecyclePhase.PLAN
+    assert node.progress.visited_tools == set()
+    assert node.progress.satisfied_requirements == set()
+    assert node.progress.correlated_outcomes == []
+
+
+@pytest.mark.asyncio
+async def test_duplicate_provider_call_ids_get_distinct_observation_ids() -> None:
+    """Provider call-ID collisions cannot alias two Reviewer observations."""
+    loop = TinyCUALoop()
+    store = loop.root_session.task_store
+    root = store.create_task("Root", acceptance_clauses=["Outcome works"])
+    node = TinyCUAResultReviewerNode(
+        "result_reviewer", create_node_config("result_reviewer")
+    )
+    node.ensure_session(loop.root_session)
+    node.progress.lifecycle_phase = LifecyclePhase.ACTION
+    calls = [
+        {
+            "id": "duplicate",
+            "type": "function",
+            "function": {"name": "run_shell", "arguments": '{"command":"check"}'},
+        },
+        {
+            "id": "duplicate",
+            "type": "function",
+            "function": {"name": "run_shell", "arguments": '{"command":"check"}'},
+        },
+    ]
+
+    results = await loop._execute_tool_calls(
+        Agent(llm_model=LanguageModel()), calls, [_ObserveTool()], node
+    )
+
+    assert root.task_id
+    assert len({item["outcome"]["evidence_id"] for item in results}) == 2

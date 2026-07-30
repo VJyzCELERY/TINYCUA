@@ -10,7 +10,6 @@ import re
 import time
 from collections.abc import AsyncIterator, Callable
 from typing import TYPE_CHECKING, Any
-from uuid import uuid4
 
 from tinycua_sdk.agent.executor import ToolExecutor
 from tinycua_sdk.agent.loop import BaseLoop
@@ -30,6 +29,7 @@ from tinycua.loops.recovery_stages_mixin import RecoveryGuardMixin, RecoveryStag
 from tinycua.loops.reviewer_protocol import (
     advance_lifecycle_phase,
     annotate_outcome,
+    issue_observation_ids,
     review_action_directive,
 )
 from tinycua.loops.task_tree_rendering import render_task_tree
@@ -726,7 +726,7 @@ class TinyCUALoop(
                 if terminate_seen:
                     continue
                 terminate_seen = True
-            call_id = str(tool_call.get("id") or f"runtime-{uuid4().hex}")
+            call_id, evidence_id = issue_observation_ids(tool_call, node, results)
             task_id = self.root_session.task_store.active_task_id
 
             def record(result: dict[str, Any]) -> None:
@@ -741,6 +741,7 @@ class TinyCUALoop(
                 annotate_outcome(
                     outcome,
                     call_id=call_id,
+                    evidence_id=evidence_id,
                     node=node,
                     task_id=task_id,
                     task_version=self.root_session.task_store.version,
