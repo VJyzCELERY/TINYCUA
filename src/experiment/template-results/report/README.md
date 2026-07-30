@@ -15,6 +15,7 @@ The central questions are:
 
 ## Reports
 
+- [Interim paper summary](summary.md): concise paper-ready synthesis of the design, results, artifact-quality audit, TinyCUA interpretation, and limitations.
 - [TinyCUA roles and 2x2 ablation](tinycua-ablation.md): detailed stdout/stderr traces for `tinycua`, `tinycua-nd`, `tinycua-nr`, and `tinycua-nd-nr`.
 - [New full-harness comparison](new-harness-comparison.md): behavior and outcomes for TinyCUA, Hermes, OpenCode, and OpenClaw.
 - [Historical TinyCUA and Hermes comparison](historical-comparison.md): prompt, planning, runtime, artifact-detail, verification, and evaluation changes between snapshots.
