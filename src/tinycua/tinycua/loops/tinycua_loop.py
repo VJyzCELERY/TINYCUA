@@ -731,6 +731,7 @@ class TinyCUALoop(
 
             def record(result: dict[str, Any]) -> None:
                 result["call_id"] = call_id
+                result["evidence_id"] = evidence_id
                 prompt_content = persist_if_oversized(
                     json.dumps(result, default=str), call_id or name, tool_name=name
                 )

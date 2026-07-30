@@ -657,6 +657,29 @@ def test_reviewer_retry_resets_plan_and_observations() -> None:
     assert node.progress.correlated_outcomes == []
 
 
+def test_reviewer_recovery_reentry_resets_plan_and_observations() -> None:
+    """Recovery re-entry starts a fresh blind root review attempt."""
+    loop = TinyCUALoop()
+    store = loop.root_session.task_store
+    root = store.create_task("Root", acceptance_clauses=["Outcome works"])
+    node = TinyCUAResultReviewerNode(
+        "result_reviewer", create_node_config("result_reviewer")
+    )
+    node.ensure_session(loop.root_session)
+    store.stage_review_plan(
+        root.task_id, [{**_checks()[0], "criterion_id": "acceptance-1"}]
+    )
+    node.progress.lifecycle_phase = LifecyclePhase.ACTION
+    node.progress.correlated_outcomes.append({"evidence_id": "stale"})
+    loop._recovery_reentry = True
+
+    loop._reset_progress_for_retry(node)
+
+    assert store.staged_review_plan(root.task_id) == []
+    assert node.progress.lifecycle_phase is LifecyclePhase.PLAN
+    assert node.progress.correlated_outcomes == []
+
+
 @pytest.mark.asyncio
 async def test_duplicate_provider_call_ids_get_distinct_observation_ids() -> None:
     """Provider call-ID collisions cannot alias two Reviewer observations."""
@@ -686,4 +709,64 @@ async def test_duplicate_provider_call_ids_get_distinct_observation_ids() -> Non
     )
 
     assert root.task_id
-    assert len({item["outcome"]["evidence_id"] for item in results}) == 2
+    evidence_ids = [item["outcome"]["evidence_id"] for item in results]
+    assert len(set(evidence_ids)) == 2
+    assert [json.loads(item["prompt_content"])["evidence_id"] for item in results] == (
+        evidence_ids
+    )
+
+
+@pytest.mark.asyncio
+async def test_recovery_reentry_rebuilds_blind_plan_context() -> None:
+    """Recovery resets review state before constructing the first new prompt."""
+    node = TinyCUAResultReviewerNode(
+        "result_reviewer", create_node_config("result_reviewer")
+    )
+    loop = TinyCUALoop(queue=NodeQueue(items=[node]))
+    store = loop.root_session.task_store
+    root = store.create_task("Root", acceptance_clauses=["Outcome works"])
+    store.record_result(root.task_id, TaskResult(content="SECRET EXECUTOR CLAIM"))
+    check = [{**_checks()[0], "criterion_id": "acceptance-1"}]
+    store.stage_review_plan(root.task_id, check)
+    node.ensure_session(loop.root_session)
+    node.progress.lifecycle_phase = LifecyclePhase.ACTION
+    loop._recovery_reentry = True
+    llm = _SequenceLLM(
+        [
+            {
+                "content": "",
+                "tool_calls": [_tool_call("task_review_plan", {"checks": check})],
+            },
+            {
+                "content": "",
+                "tool_calls": [_tool_call("run_shell", {"command": "check"})],
+            },
+            {
+                "content": "approved",
+                "tool_calls": [
+                    _tool_call(
+                        "task_review_decision",
+                        {
+                            "decision": "approved",
+                            "rationale": "Observed outcome.",
+                            "criterion_assessments": [
+                                {
+                                    "criterion_id": "acceptance-1",
+                                    "result": "supported",
+                                    "evidence_ids": ["call-run_shell"],
+                                    "inference": "The outcome works.",
+                                    "limitations": "One observation.",
+                                }
+                            ],
+                        },
+                    )
+                ],
+            },
+        ]
+    )
+    agent = Agent(llm_model=LanguageModel())
+    agent._call_llm = llm  # type: ignore[method-assign]
+
+    await loop._execute_node(node, agent, [_ObserveTool()])
+
+    assert "SECRET EXECUTOR CLAIM" not in json.dumps(llm.calls[0]["messages"])

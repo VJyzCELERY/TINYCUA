@@ -129,7 +129,8 @@ class NodeRetryMixin:
         node.progress.recovery_fingerprint = recovery_fingerprint
         node.progress.recovery_escalations = recovery_escalations
         node.progress.recovery_last_error = recovery_last_error
-        initialize_reviewer_lifecycle(node)
+        if not reset_reviewer_attempt(node):
+            initialize_reviewer_lifecycle(node)
         self._recovery_reentry = False
 
     def _record_attempt_tool_results(
