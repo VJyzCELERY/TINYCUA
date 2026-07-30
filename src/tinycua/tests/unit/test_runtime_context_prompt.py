@@ -42,8 +42,11 @@ def test_build_runtime_context_includes_date_snapshot() -> None:
     assert "unknown until verified" in ctx
     assert "state the uncertainty instead of guessing" in ctx
     lowered = ctx.lower()
-    assert "time-sensitive requests without an explicit timeframe" in lowered
-    assert "explicit historical or future timeframe controls" in lowered
+    assert "current, latest, frontier" in lowered
+    assert "ground initial discovery in the subject and today" in lowered
+    assert "do not seed it with remembered years or candidates" in lowered
+    assert "explicit user-provided timeframes and names control" in lowered
+    assert "older evidence remains valid" in lowered
 
 
 def test_system_prompt_is_byte_stable_across_calls() -> None:
