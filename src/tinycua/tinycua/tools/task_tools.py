@@ -240,7 +240,8 @@ class TaskInspectTool(SessionTaskToolMixin, Tool):
                 "Inspect task state. Without task_id, returns a compact list "
                 "of all tasks (id, title, status, has_result) — scan this "
                 "first. With task_id, returns compacted detail for one task "
-                "(bounded review digest, result truncated to 200 chars). "
+                "(bounded review digest and explicitly marked result preview); "
+                "ResultReviewer receives the full report. "
                 "With event_id, returns that task's full review event. Add field, "
                 "offset, and limit to page review_summary or rationale. "
                 "task_id may be a UUID or the task's 1-based number from the "
@@ -324,6 +325,19 @@ class TaskInspectTool(SessionTaskToolMixin, Tool):
                     else {"error": f"Review event {event_id} not found for task."}
                 )
             detail = self._store.compact_task_detail(resolved)
+            if (
+                detail is not None
+                and self._source_node == "result_reviewer"
+                and (result := self._store.get_task(resolved).result) is not None
+            ):
+                detail["result"].update(
+                    {
+                        "content": result.content,
+                        "content_truncated": False,
+                        "summary": result.summary,
+                        "summary_truncated": False,
+                    }
+                )
             return (
                 detail
                 if detail is not None

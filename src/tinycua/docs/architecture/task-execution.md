@@ -3,7 +3,7 @@
 > **Category:** Agent Spec
 
 > **File:** `architecture/task-execution.md`
-> **Last Updated:** 2026-07-30
+> **Last Updated:** 2026-07-31
 > **Status:** Implemented
 > **See also:** [overview.md](overview.md), [session-architecture.md](session-architecture.md), [worker-orchestration.md](worker-orchestration.md), [task-analysis.md](task-analysis.md), [result-reviewer.md](result-reviewer.md), [state-objects.md](state-objects.md)
 
@@ -37,7 +37,7 @@ Retries create a new Task Executor sub-session. The new executor automatically r
 
 Execution actions (tool calls, observations, decision trace) are recorded in the sub-session's `execution_log` — see [session-architecture.md](session-architecture.md). The Task Result points back to its sub-session but does not embed the full execution log.
 
-The Task Result is the Executor's completion claim, not independent verification. During final root review, the Reviewer commits its falsification plan before this claim is revealed and must gather its own observations for empirical support.
+The complete Task Result report is the primary review target and records the Executor's completion claim, not independent verification. Runtime-owned Executor tool evidence is presented separately with exact URLs, bounded invocation metadata, explicit output-preview truncation, and optional audit paths. During final root review, the Reviewer commits its falsification plan before this claim is revealed and must gather its own observations for empirical support.
 
 ---
 

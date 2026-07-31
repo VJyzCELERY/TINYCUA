@@ -729,6 +729,7 @@ class TinyCUALoop(
                 terminate_seen = True
             call_id, evidence_id = issue_observation_ids(tool_call, node, results)
             task_id = self.root_session.task_store.active_task_id
+            arguments = None
 
             def record(result: dict[str, Any]) -> None:
                 annotate_result_ids(result, call_id, evidence_id, tool_call)
@@ -737,7 +738,7 @@ class TinyCUALoop(
                 )
                 result["prompt_content"] = prompt_content
                 outcome = normalize_tool_outcome(
-                    tool_call, result, content=prompt_content
+                    tool_call, result, content=prompt_content, arguments=arguments
                 )
                 annotate_outcome(
                     outcome,
@@ -785,8 +786,7 @@ class TinyCUALoop(
                 node, name, arguments
             )
             self._log_tool_call_args(name, arguments)
-            # ponytail: per-tool rate limit for shared backends. See
-            # _TOOL_RATE_LIMITS. Async sleep so the event loop stays free.
+            # ponytail: async per-tool rate limit for shared backends.
             await self._await_tool_rate_limit(name)
             try:
                 output = await ToolExecutor.execute(

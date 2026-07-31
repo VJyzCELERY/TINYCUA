@@ -904,7 +904,7 @@ def test_result_reviewer_renders_bounded_executor_evidence() -> None:
 
     rendered = reviewer.build_continuation(loop.root_session)
 
-    assert "Executor evidence" in rendered
+    assert "Executor tool-call evidence" in rendered
     assert "sh .agent_scripts/browser.sh" in rendered
     assert "success=True" in rendered
     assert "exit_code=0" in rendered
