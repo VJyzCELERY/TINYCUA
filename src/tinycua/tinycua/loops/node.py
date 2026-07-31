@@ -684,6 +684,8 @@ class Node(ABC):
             response_tool_names = {
                 tc.get("function", {}).get("name", "") for tc in response.tool_calls
             }
+            response_tool_names.update(self.progress.satisfied_requirements)
+            response_tool_names.update(self.progress.accumulated_tool_results)
             for required in retry_policy.required_tool_calls:
                 if required not in response_tool_names:
                     result.is_valid = False
