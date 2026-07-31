@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import TYPE_CHECKING, ClassVar
 
+from tinycua.config.types import LLMResult
 from tinycua.loops.node import DecisionNode, DecisionResult
 from tinycua.config.node_config import create_node_config
 from tinycua.loops.task_create import TinyCUATaskCreateNode
@@ -22,7 +23,6 @@ from tinycua.tools.routing import WorkerRouteSelectionTool
 
 if TYPE_CHECKING:
     from tinycua.config.node_config import NodeConfigBase
-    from tinycua.config.types import LLMResult
     from tinycua.loops.node_queue import NodeQueue
     from tinycua.loops.node import Node
     from tinycua.models.node_input import NodeInputLike
@@ -30,13 +30,8 @@ if TYPE_CHECKING:
 
 _WORKER_INSTRUCTION = (
     "You are a worker node responsible for task planning and execution "
-    "orchestration. Analyze the request context and determine the "
-    "appropriate next step: create tasks, recreate tasks, reanalyze, "
-    "pass through, or proceed with execution. You MUST call "
-    "select_worker_route with exactly one route. Do not produce a text-only route answer; "
-    "the route decision must be expressed by the function call: task_creation, task_recreation, "
-    "task_reanalysis, passthrough, or proceed_execution. Choose "
-    "task_creation for a new task plan that has not yet been initialized. Do not "
+    "orchestration. Analyze the request context and MUST call select_worker_route "
+    "with exactly one route allowed by that tool's current schema. Do not "
     "answer the user directly from this node."
 )
 
@@ -131,6 +126,35 @@ class TinyCUAWorkerNode(DecisionNode):
             if tool.name == "select_worker_route":
                 self.config.tool_policy.node_tools[index] = cached
                 break
+
+    def should_run_deterministically(self) -> bool:
+        """Return whether task state leaves Worker exactly one valid route."""
+        return len(self.state_valid_route_labels()) == 1
+
+    def run_deterministic(self, queue: NodeQueue) -> LLMResult:
+        """Commit the sole state-valid route without asking the model again."""
+        route = self.state_valid_route_labels()[0]
+        result = LLMResult(
+            tool_calls=[
+                {
+                    "id": f"deterministic_{self.node_id}_route",
+                    "type": "function",
+                    "function": {
+                        "name": "select_worker_route",
+                        "arguments": f'{{"route":"{route}"}}',
+                    },
+                }
+            ]
+        )
+        self.on_complete(
+            queue,
+            DecisionResult(
+                route_label=route,
+                analysis_response=result,
+                classification_response=result,
+            ),
+        )
+        return result
 
     def build_messages(
         self,

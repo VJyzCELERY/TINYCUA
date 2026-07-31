@@ -21,7 +21,6 @@ from tinycua.loops.node_contract import (
 )
 from tinycua.loops.node_guidance import failed_tool_retry_message
 from tinycua.loops.route_classifier import RouteClassifier
-from tinycua.agent.tools.native.output_persist import persist_if_oversized
 from tinycua.models.node_handoff import NodeHandoff
 
 if TYPE_CHECKING:
@@ -1433,41 +1432,22 @@ class ValidationRetryMixin:
         """Return latest tool-call feedback messages for a retry attempt."""
         tool_results = llm_result.metadata.get("tool_results", [])
         normalized_tool_calls = self._normalize_tool_calls(llm_result.tool_calls)
-        if not normalized_tool_calls and not tool_results:
+        if not normalized_tool_calls:
             return []
         messages: list[dict[str, Any]] = []
-        if normalized_tool_calls:
-            messages.append(
-                {
-                    "role": "assistant",
-                    "content": llm_result.content,
-                    "tool_calls": normalized_tool_calls,
-                }
+        messages.append(
+            {
+                "role": "assistant",
+                "content": llm_result.content,
+                "tool_calls": normalized_tool_calls,
+            }
+        )
+        messages.extend(
+            self._tool_result_feedback_messages(
+                [item for item in tool_results if isinstance(item, dict)],
+                normalized_tool_calls,
             )
-        for index, tool_result in enumerate(tool_results):
-            if not isinstance(tool_result, dict):
-                continue
-            tool_call = (
-                normalized_tool_calls[index]
-                if index < len(normalized_tool_calls)
-                else {}
-            )
-            raw_content = json.dumps(tool_result, default=str)
-            tool_call_id = tool_call.get("id") or str(tool_result.get("name", ""))
-            tool_name = str(tool_result.get("name", ""))
-            content = tool_result.get("prompt_content")
-            if not isinstance(content, str):
-                content = persist_if_oversized(
-                    raw_content, tool_call_id, tool_name=tool_name
-                )
-            messages.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": tool_call_id,
-                    "name": tool_name,
-                    "content": content,
-                }
-            )
+        )
         return messages
 
     def _response_fallback_content(self) -> str:

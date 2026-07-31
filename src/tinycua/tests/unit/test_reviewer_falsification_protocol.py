@@ -412,7 +412,13 @@ async def test_root_reviewer_plan_unlocks_action_and_decision() -> None:
         "task_inspect",
         "run_shell",
     }
-    assert llm.calls[2]["tool_names"] == ["task_review_decision"]
+    assert set(llm.calls[2]["tool_names"]) == {
+        "task_review_decision",
+        "json_draft_create",
+        "json_draft_read",
+        "json_draft_replace",
+        "json_draft_commit",
+    }
     assert root.reviewer_decisions[-1]["decision"] == "approved"
     assert root.reviewer_decisions[-1]["review_summary"] == review_summary.strip()
 
@@ -516,7 +522,13 @@ async def test_root_reviewer_retries_unknown_observation_reference() -> None:
     await loop._execute_node(node, agent, [_ObserveTool()])
 
     assert len(llm.calls) == 4
-    assert llm.calls[-1]["tool_names"] == ["task_review_decision"]
+    assert set(llm.calls[-1]["tool_names"]) == {
+        "task_review_decision",
+        "json_draft_create",
+        "json_draft_read",
+        "json_draft_replace",
+        "json_draft_commit",
+    }
     assert root.reviewer_decisions[-1]["metadata"]["assurance_status"] == "observed"
 
 
@@ -693,7 +705,7 @@ def test_invalid_non_supported_observation_reference_is_rejected() -> None:
                     "inference": "The outcome failed.",
                     "limitations": "One observation.",
                 }
-            ]
+            ],
         },
     )
     node = SimpleNamespace(

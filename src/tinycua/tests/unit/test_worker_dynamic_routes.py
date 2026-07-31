@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from tinycua.config.node_config import create_node_config
 from tinycua.config.types import LLMResult
+from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.loops.worker import TinyCUAWorkerNode
 from tinycua.models.task import TaskStatus
@@ -23,6 +24,13 @@ def test_worker_with_no_task_exposes_only_task_creation_route() -> None:
     worker = TinyCUAWorkerNode("worker", create_node_config("worker"))
 
     assert _worker_route_enum(loop, worker) == ["task_creation"]
+    assert worker.should_run_deterministically()
+    assert (
+        worker.run_deterministic(NodeQueue(items=[worker])).tool_calls[0]["function"][
+            "arguments"
+        ]
+        == '{"route":"task_creation"}'
+    )
 
 
 def test_worker_with_existing_task_exposes_stateful_execution_routes() -> None:

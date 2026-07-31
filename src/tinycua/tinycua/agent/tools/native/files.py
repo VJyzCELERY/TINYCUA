@@ -7,11 +7,16 @@ fuzzy matching, and error handling.
 
 from __future__ import annotations
 
+import mimetypes
 import re
 import unicodedata
+import warnings
 from pathlib import Path
 from typing import Any
 
+from PIL import Image, UnidentifiedImageError
+
+from tinycua_sdk.models.attachment import FileAttachment
 from tinycua_sdk.tools.decorators import tool
 
 from tinycua.agent.tools.native.context import (
@@ -22,6 +27,14 @@ from tinycua.agent.tools.native.context import (
 
 # Internal truncation limit for full-file reads (100 KB)
 _FULL_FILE_TRUNCATION_BYTES = 100 * 1024
+_MAX_IMAGE_BYTES = 10 * 1024 * 1024
+_MAX_IMAGE_SIDE = 8192
+_MAX_IMAGE_PIXELS = 16_777_216
+_IMAGE_MIME_TYPES = {
+    "PNG": "image/png",
+    "JPEG": "image/jpeg",
+    "WEBP": "image/webp",
+}
 
 
 def _resolve_path(path: str) -> Path:
@@ -113,6 +126,77 @@ def _read_lines(path: str) -> tuple[list[str], str, bool] | dict[str, Any]:
     if trailing_newline:
         lines = lines[:-1]
     return (lines, content, trailing_newline)
+
+
+def _read_image(
+    path: str, start: int | None, offset: int | None
+) -> dict[str, Any] | None:
+    """Return a validated image attachment, or None when *path* is text."""
+    try:
+        resolved = _resolve_path(path)
+    except ValueError as exc:
+        return {"error": str(exc)}
+    if not resolved.exists():
+        return {"error": f"File not found: {path}"}
+    if not resolved.is_file():
+        return {"error": f"Not a file: {path}"}
+    try:
+        size = resolved.stat().st_size
+    except OSError:
+        return {"error": f"Failed to read file: {path}"}
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(resolved) as image:
+                image_format = image.format or ""
+                if image_format not in _IMAGE_MIME_TYPES:
+                    return {
+                        "error": f"Unsupported image format: {image_format or 'unknown'}."
+                    }
+                if size > _MAX_IMAGE_BYTES:
+                    return {"error": f"Image exceeds {_MAX_IMAGE_BYTES} byte limit."}
+                width, height = image.size
+                frames = getattr(image, "n_frames", 1)
+                if frames != 1:
+                    return {"error": "Animated images are not supported."}
+                if (
+                    width < 1
+                    or height < 1
+                    or width > _MAX_IMAGE_SIDE
+                    or height > _MAX_IMAGE_SIDE
+                    or width * height > _MAX_IMAGE_PIXELS
+                ):
+                    return {"error": "Image dimensions exceed the supported limit."}
+                image.verify()
+    except UnidentifiedImageError:
+        guessed, _encoding = mimetypes.guess_type(resolved.name)
+        if guessed and guessed.startswith("image/"):
+            return {"error": "Invalid or corrupt image."}
+        return None
+    except PermissionError:
+        return {"error": f"Permission denied: {path}"}
+    except (Image.DecompressionBombError, Image.DecompressionBombWarning):
+        return {"error": "Image exceeds decompression safety limits."}
+    except (OSError, ValueError):
+        return {"error": "Invalid or corrupt image."}
+    if start is not None or offset is not None:
+        return {"error": "Line ranges are not supported for images."}
+    data = resolved.read_bytes()
+    mime_type = _IMAGE_MIME_TYPES[image_format]
+    relative_path = to_workspace_relative(resolved)
+    return {
+        "content": f"Image read: {relative_path} ({width}x{height}, {mime_type})",
+        "attachments": [
+            FileAttachment.from_bytes(data, mime_type=mime_type, filename=resolved.name)
+        ],
+        "image_metadata": {
+            "path": relative_path,
+            "mime_type": mime_type,
+            "width": width,
+            "height": height,
+            "bytes": size,
+        },
+    }
 
 
 # --- read_file ---
@@ -209,6 +293,9 @@ def read_file(
         return {
             "error": f"Invalid line argument (start/offset must be integers): {exc}"
         }
+    image_result = _read_image(path, start, offset)
+    if image_result is not None:
+        return image_result
     result = _read_lines(path)
     if isinstance(result, dict):
         return result  # error dict
