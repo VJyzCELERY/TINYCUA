@@ -157,8 +157,19 @@ def test_reviewer_revisions_do_not_escalate_to_response_before_completion() -> N
     store.transition(active.task_id, TaskStatus.IN_PROGRESS)
     # Use 3 rejections — below the default replan_threshold of 5, so this
     # still routes to executor+reviewer (retry), not replan.
-    for _ in range(3):
-        store.record_reviewer_decision(active.task_id, ReviewerDecision.NEEDS_REVISION)
+    store.record_reviewer_decision(
+        active.task_id,
+        ReviewerDecision.NEEDS_REVISION,
+        metadata={"new_findings": ["The active task still needs revision."]},
+    )
+    for _ in range(2):
+        store.record_reviewer_decision(
+            active.task_id,
+            ReviewerDecision.NEEDS_REVISION,
+            metadata={
+                "finding_updates": [{"finding_id": "finding-1", "status": "OPEN"}]
+            },
+        )
     queue = NodeQueue()
 
     WorkerRuntimeController(store).schedule_after_review(

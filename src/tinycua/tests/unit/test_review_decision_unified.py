@@ -8,6 +8,27 @@ from tinycua.models.task import ReviewerDecision, TaskResult, TaskStateStore, Ta
 from tinycua.tools.task_tools import TaskReviewDecisionTool
 
 
+def _record_send_back(
+    store: TaskStateStore, task_id: str, decision: ReviewerDecision
+) -> None:
+    """Record a send-back against one stable actionable finding."""
+    open_findings = [
+        finding
+        for finding in store.get_task(task_id).review_findings
+        if finding.get("status") == "OPEN"
+    ]
+    metadata = (
+        {
+            "finding_updates": [
+                {"finding_id": open_findings[-1]["finding_id"], "status": "OPEN"}
+            ]
+        }
+        if open_findings
+        else {"new_findings": ["The task needs revision."]}
+    )
+    store.record_reviewer_decision(task_id, decision, metadata=metadata)
+
+
 class TestNeedsRevisionRejectedUnified:
     """FR-057: needs_revision and rejected are aliases — same routing + counting."""
 
@@ -18,9 +39,7 @@ class TestNeedsRevisionRejectedUnified:
         child1 = store1.create_task("Child", parent_id=root1.task_id)
         store1.transition(child1.task_id, TaskStatus.IN_PROGRESS)
         for _ in range(3):
-            store1.record_reviewer_decision(
-                child1.task_id, ReviewerDecision.NEEDS_REVISION
-            )
+            _record_send_back(store1, child1.task_id, ReviewerDecision.NEEDS_REVISION)
         assert child1.consecutive_failures == 3
 
         # rejected
@@ -29,7 +48,7 @@ class TestNeedsRevisionRejectedUnified:
         child2 = store2.create_task("Child", parent_id=root2.task_id)
         store2.transition(child2.task_id, TaskStatus.IN_PROGRESS)
         for _ in range(3):
-            store2.record_reviewer_decision(child2.task_id, ReviewerDecision.REJECTED)
+            _record_send_back(store2, child2.task_id, ReviewerDecision.REJECTED)
         assert child2.consecutive_failures == 3
 
     def test_both_route_through_same_schedule_after_review_branch(self):
@@ -41,7 +60,7 @@ class TestNeedsRevisionRejectedUnified:
             store.transition(child.task_id, TaskStatus.IN_PROGRESS)
             store.record_result(child.task_id, TaskResult(content="attempt"))
             for _ in range(5):
-                store.record_reviewer_decision(child.task_id, decision)
+                _record_send_back(store, child.task_id, decision)
             queue = NodeQueue()
 
             WorkerRuntimeController(store, max_replans=3).schedule_after_review(
@@ -58,7 +77,7 @@ class TestNeedsRevisionRejectedUnified:
             root = store.create_task("Root")
             child = store.create_task("Child", parent_id=root.task_id)
             store.transition(child.task_id, TaskStatus.IN_PROGRESS)
-            store.record_reviewer_decision(child.task_id, decision)
+            _record_send_back(store, child.task_id, decision)
             assert child.status == TaskStatus.IN_PROGRESS
             assert store.active_task_id == child.task_id
 

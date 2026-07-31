@@ -18,7 +18,6 @@ import pytest
 from tinycua.config.node_config import create_node_config
 from tinycua.config.types import LLMResult, ValidationResult
 from tinycua.loops.node import NodeExecutionError
-from tinycua.loops.node_contract import LifecyclePhase
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.recovery_stages_mixin import RecoveryStagesMixin
 from tinycua.loops.task_create import TinyCUATaskCreateNode
@@ -257,7 +256,6 @@ class TestOnCompleteFiresAfterRecovery:
             config=create_node_config("result_reviewer"),
         )
         reviewer.ensure_session(loop.root_session)
-        reviewer.progress.advance_lifecycle(LifecyclePhase.COMMIT)
         loop.queue = NodeQueue(items=[reviewer])
 
         agent = MagicMock()
@@ -266,8 +264,17 @@ class TestOnCompleteFiresAfterRecovery:
         agent.tool_permissions = {}
         agent.policy = MagicMock(max_tool_calls=100)
 
-        async def mock_stream(*args, **kwargs):
-            del args, kwargs
+        async def mock_stream(_messages, tools, **kwargs):
+            del kwargs
+            tool_names = {tool.name for tool in tools}
+            if "task_review_decision" not in tool_names:
+                yield {
+                    "type": "tool_call.ready",
+                    "id": "inspect",
+                    "name": "task_inspect",
+                    "arguments": "{}",
+                }
+                return
             yield {
                 "type": "tool_call.ready",
                 "id": "review",

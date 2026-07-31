@@ -127,6 +127,7 @@ def test_task_store_validates_status_transitions_and_records_reviewer_decisions(
         task.task_id,
         ReviewerDecision.NEEDS_REVISION,
         rationale="Missing evidence",
+        metadata={"new_findings": ["Missing evidence"]},
     )
 
     task_snapshot = store.snapshot()["tasks"][task.task_id]
@@ -318,7 +319,11 @@ def test_reviewer_decision_is_replaceable_until_committed() -> None:
     store.record_result(task.task_id, TaskResult(content="evidence"))
 
     store.stage_reviewer_decision(task.task_id, ReviewerDecision.APPROVED)
-    store.stage_reviewer_decision(task.task_id, ReviewerDecision.NEEDS_REVISION)
+    store.stage_reviewer_decision(
+        task.task_id,
+        ReviewerDecision.NEEDS_REVISION,
+        metadata={"new_findings": ["The result needs revision."]},
+    )
 
     assert task.status == TaskStatus.IN_PROGRESS
     assert task.reviewer_decisions == []
@@ -328,7 +333,7 @@ def test_reviewer_decision_is_replaceable_until_committed() -> None:
             "review_summary": "needs_revision",
             "decision": "needs_revision",
             "rationale": "",
-            "new_findings": [],
+            "new_findings": ["finding-1"],
             "finding_updates": [],
             "metadata": {"context_updates": []},
         }

@@ -29,7 +29,7 @@ A pending task cancellation is always assessed before Executor dispatch. Only an
 - `shallow_task_list` — task IDs and names from the Task Tree for scope awareness (no full task details).
 - Failure context from the Result Reviewer on retry — the Reviewer's output schema (see [state-objects.md](state-objects.md)) defines the retry contract.
 
-Retries create a new Task Executor sub-session. The new executor receives the active task's bounded review previews so it can avoid repeating the same mistake without inheriting another task's context. It can use `task_inspect` to retrieve a complete active-task review event or page its `review_summary` and `rationale` when the preview is insufficient; sibling detail remains inaccessible.
+Retries create a new Task Executor sub-session. The new executor automatically receives every current active-task `OPEN` finding and the complete rationale from each finding's latest linked review event. Linked events are deduplicated; addressed, deferred, invalid, sibling, superseded, and unrelated review prose is excluded. Executor does not receive `task_inspect` because relevant remediation context is injected deterministically.
 
 **Output:**
 
@@ -90,6 +90,6 @@ If the Task Executor asks the user for clarification, the user reply resumes the
 |----------|--------|-----------|
 | Context scope | Current task context only | Prevents unrelated context from polluting execution |
 | Roadmap awareness | Shallow task list | Helps scope control without exposing future task details |
-| Review history | Active-task digest by default | Open/deferred/recent findings and recent event summaries survive retry and postponement without crossing tasks |
+| Review history | Role-specific active-task projection | Executor receives complete current-open remediation detail; Reviewer receives a compact all-status ledger; full events remain inspectable without crossing tasks |
 | Output | Result + sub-session execution log | Gives Reviewer evidence for the active outcome and any unavoidable scope effects |
 | Failure handling | Return explicit status | Reviewer decides retry, replan, escalation, or context update |

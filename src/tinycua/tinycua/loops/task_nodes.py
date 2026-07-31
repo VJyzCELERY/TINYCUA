@@ -15,6 +15,10 @@ from tinycua.loops.node_guidance import (
     build_reviewer_tool_guidance,
 )
 from tinycua.loops.reviewer_protocol import ReviewerProtocolMixin
+from tinycua.loops.review_context import (
+    render_executor_review_context,
+    render_reviewer_finding_ledger,
+)
 from tinycua.loops.session_context_query import find_latest_entry
 from tinycua.models.digested_information import DigestedInformation
 from tinycua.models.session_context_entry import entry_content
@@ -79,7 +83,9 @@ _TASK_ANALYZER_CONTINUATION = (
     "Decide whether refinement materially improves execution or review. Retain an "
     "adequate task unchanged; size or the possibility of finer decomposition is not a "
     "defect. Otherwise make the smallest supported update, decomposition, or shrink that "
-    "resolves every assigned planning target."
+    "resolves every assigned planning target. Keep one explicitly singular, exactly "
+    "named deliverable in one task unless independent artifacts or verification justify "
+    "a split."
 )
 _TASK_ANALYZER_LOCAL_REPLAN_CONTINUATION = (
     "Review only the active local region. Retain an adequate task and record no "
@@ -524,35 +530,6 @@ def _render_local_region_markdown(region: dict) -> str:
     return "\n".join(lines) if lines else str(region)
 
 
-def _render_review_journal(store: TaskStateStore, task: Task) -> list[str]:
-    """Render one task's bounded review digest without full rationales."""
-    digest = store.review_journal_digest(task.task_id)
-    if not digest:
-        return []
-    lines = ["", "## Execution Review Journal"]
-    sections = (
-        ("open_findings", "Open findings"),
-        ("deferred_findings", "Deferred findings"),
-        ("recently_addressed_findings", "Recently addressed findings"),
-    )
-    for key, title in sections:
-        findings = digest.get(key, [])
-        if findings:
-            lines.append(f"{title}:")
-            lines.extend(
-                f"- {finding['finding_id']} [{finding['status']}]: {finding['summary']}"
-                for finding in findings
-            )
-    events = digest.get("recent_events", [])
-    if events:
-        lines.append("Recent review events:")
-        lines.extend(
-            f"- {event['event_id']} [{event['decision']}]: {event['review_summary']}"
-            for event in events
-        )
-    return lines
-
-
 def _render_approved_cancellations(store: TaskStateStore) -> str:
     """Render user-visible rationale for top-level approved cancellation requests."""
     lines = []
@@ -609,7 +586,7 @@ def _render_active_task_work_order(session: Session) -> str:
         if rendered_advisories:
             lines.extend(["", "## Planning advisories"])
             lines.extend(f"- {advisory}" for advisory in rendered_advisories)
-    lines.extend(_render_review_journal(store, active))
+    lines.extend(render_executor_review_context(active))
     context = str(active.metadata.get("context", "")).strip()
     if context:
         lines.extend(["", "## Useful Prior Context", context])
@@ -1030,7 +1007,7 @@ class TinyCUAResultReviewerNode(ReviewerProtocolMixin, ProcessNode):
                 "and prose claims are not evidence.\n\n"
                 "Child tasks (direct children only):\n" + "\n".join(child_lines) + "\n"
             )
-        journal = "\n".join(_render_review_journal(session.task_store, task))
+        journal = "\n".join(render_reviewer_finding_ledger(task))
         journal_block = f"{journal}\n" if journal else ""
         return f"{child_gate}{journal_block}{failure_note}{curation_block}"
 

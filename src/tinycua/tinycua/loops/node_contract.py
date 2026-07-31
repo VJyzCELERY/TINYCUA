@@ -427,6 +427,8 @@ def phase_tool_names(
     if phase == LifecyclePhase.PLAN:
         return plan_tools & tool_names
     if phase == LifecyclePhase.ACTION:
+        if node_id == "result_reviewer" and action_tools:
+            return action_tools
         return action_tools | (commit_tools & tool_names)
     if phase == LifecyclePhase.COMMIT:
         return commit_tools & tool_names

@@ -98,7 +98,9 @@ class TestRecordReviewerDecisionLogs:
         )
         with caplog.at_level(logging.INFO, logger="tinycua.models.task"):
             store.record_reviewer_decision(
-                root.task_id, ReviewerDecision.NEEDS_REVISION
+                root.task_id,
+                ReviewerDecision.NEEDS_REVISION,
+                metadata={"new_findings": ["The result needs revision."]},
             )
         mutations = [r for r in caplog.records if "task_tree_mutation" in r.message]
         labels = [

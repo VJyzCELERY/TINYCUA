@@ -9,12 +9,14 @@ from typing import Any
 import pytest
 
 from tinycua.config.node_config import create_node_config
-from tinycua.config.types import Tool
+from tinycua.config.types import LLMResult, Tool
 from tinycua.loops.node_contract import LifecyclePhase, phase_tool_names
 from tinycua.loops.context_rendering import render_llm_content
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.reviewer_protocol import (
+    advance_lifecycle_phase,
     reset_reviewer_attempt,
+    review_action_directive,
     reviewer_assurance_errors,
 )
 from tinycua.loops.task_nodes import TinyCUAResultReviewerNode
@@ -54,6 +56,44 @@ def _tool_call(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         "type": "function",
         "function": {"name": name, "arguments": json.dumps(arguments)},
     }
+
+
+def test_failed_reviewer_action_remains_retryable() -> None:
+    """A failed observation keeps Reviewer evidence tools available for retry."""
+    node = TinyCUAResultReviewerNode(
+        "result_reviewer", create_node_config("result_reviewer")
+    )
+    node.progress.lifecycle_phase = LifecyclePhase.ACTION
+    failed = LLMResult(
+        tool_calls=[_tool_call("run_shell", {"command": "check"})],
+        metadata={
+            "tool_results": [
+                {
+                    "name": "run_shell",
+                    "output": {
+                        "stdout": "",
+                        "stderr": "temporary failure",
+                        "exit_code": 1,
+                        "error": None,
+                    },
+                }
+            ]
+        },
+    )
+
+    assert advance_lifecycle_phase(node, failed) is False
+    assert node.progress.lifecycle_phase is LifecyclePhase.ACTION
+
+    succeeded = LLMResult(
+        tool_calls=[_tool_call("run_shell", {"command": "check"})],
+        metadata={
+            "tool_results": [
+                {"name": "run_shell", "output": {"success": True, "content": "ok"}}
+            ]
+        },
+    )
+    assert advance_lifecycle_phase(node, succeeded) is True
+    assert node.progress.lifecycle_phase is LifecyclePhase.COMMIT
 
 
 class _SequenceLLM:
@@ -241,9 +281,11 @@ def test_review_plan_phase_exposes_only_plan_tool() -> None:
         "task_review_plan"
     }
     assert phase_tool_names("result_reviewer", tools, LifecyclePhase.ACTION) == {
-        "task_review_decision",
         "task_inspect",
         "run_shell",
+    }
+    assert phase_tool_names("result_reviewer", tools, LifecyclePhase.COMMIT) == {
+        "task_review_decision"
     }
 
 
@@ -264,6 +306,32 @@ def test_root_reviewer_starts_blind_plan_before_executor_claims() -> None:
     assert "acceptance-1" in continuation
     assert "Outcome works" in continuation
     assert "SECRET EXECUTOR CLAIM" not in continuation
+
+
+def test_root_reviewer_receives_finding_ledger_only_after_plan() -> None:
+    """Blind planning hides findings that become visible for ACTION cross-checking."""
+    loop = TinyCUALoop()
+    store = loop.root_session.task_store
+    root = store.create_task("Root", acceptance_clauses=["Outcome works"])
+    store.record_result(root.task_id, TaskResult(content="failed", success=False))
+    store.record_reviewer_decision(
+        root.task_id,
+        ReviewerDecision.NEEDS_REVISION,
+        rationale="The prior attempt failed.",
+        metadata={"new_findings": ["ROOT_OPEN_FINDING"]},
+    )
+    store.record_result(root.task_id, TaskResult(content="retry", success=True))
+    node = TinyCUAResultReviewerNode(
+        "result_reviewer", create_node_config("result_reviewer")
+    )
+    node.ensure_session(loop.root_session)
+
+    plan_context = node.build_continuation(loop.root_session)
+    node.progress.lifecycle_phase = LifecyclePhase.ACTION
+    action_context = review_action_directive(node)
+
+    assert "ROOT_OPEN_FINDING" not in plan_context
+    assert "ROOT_OPEN_FINDING" in action_context
 
 
 def test_leaf_reviewer_keeps_existing_action_context() -> None:
@@ -341,15 +409,10 @@ async def test_root_reviewer_plan_unlocks_action_and_decision() -> None:
     assert "task_review_plan" not in llm.calls[1]["tool_names"]
     assert "Executor says it works." in json.dumps(llm.calls[1]["messages"])
     assert set(llm.calls[1]["tool_names"]) == {
-        "task_review_decision",
         "task_inspect",
         "run_shell",
     }
-    assert set(llm.calls[2]["tool_names"]) == {
-        "task_review_decision",
-        "task_inspect",
-        "run_shell",
-    }
+    assert llm.calls[2]["tool_names"] == ["task_review_decision"]
     assert root.reviewer_decisions[-1]["decision"] == "approved"
     assert root.reviewer_decisions[-1]["review_summary"] == review_summary.strip()
 
@@ -621,6 +684,7 @@ def test_invalid_non_supported_observation_reference_is_rejected() -> None:
         ReviewerDecision.NEEDS_REVISION,
         rationale="The check failed.",
         metadata={
+            "new_findings": ["The acceptance check failed."],
             "criterion_assessments": [
                 {
                     "criterion_id": "acceptance-1",

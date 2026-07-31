@@ -40,7 +40,11 @@ class TestStateDrivenQueue:
         root = store.create_task("Root")
         child = store.create_task("Child", parent_id=root.task_id)
         store.record_result(child.task_id, TaskResult(content="done", success=True))
-        store.record_reviewer_decision(child.task_id, ReviewerDecision.NEEDS_REVISION)
+        store.record_reviewer_decision(
+            child.task_id,
+            ReviewerDecision.NEEDS_REVISION,
+            metadata={"new_findings": ["The result needs revision."]},
+        )
         queue = NodeQueue()
         WorkerRuntimeController(store).schedule_next(queue)
         ids = [n.node_id for n in queue.items]

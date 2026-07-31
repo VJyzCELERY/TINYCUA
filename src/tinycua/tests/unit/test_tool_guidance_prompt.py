@@ -80,6 +80,36 @@ def test_result_reviewer_tool_guidance_matches_evidence_to_claims() -> None:
     assert "task_review_decision" in guidance
 
 
+def test_review_guidance_protects_exact_and_observable_requirements() -> None:
+    """Reviewer checks exact deliverables and public behavior without plan drift."""
+    node = TinyCUAResultReviewerNode(
+        node_id="result_reviewer", config=create_node_config("result_reviewer")
+    )
+
+    instruction = f"{node.build_instruction()} {node.build_continuation()}"
+    guidance = node.build_tool_system_prompt([TaskReviewDecisionTool(), run_shell])
+
+    assert "concise review_summary" in instruction
+    assert "comprehensive review_summary" not in instruction
+    assert "existing finding" in instruction
+    assert "exact path" in instruction
+    assert "public workflow" in instruction
+    assert "generated task" in instruction
+    assert "explicitly requested verification" in guidance.lower()
+
+
+def test_analyzer_guidance_keeps_exact_singular_deliverables_atomic() -> None:
+    """Planning does not split one exact deliverable into competing owners."""
+    node = TinyCUATaskAnalyzerNode(
+        node_id="task_analyzer", config=create_node_config("task_analyzer")
+    )
+
+    instruction = f"{node.build_instruction()} {node.build_continuation()}"
+
+    assert "exactly named deliverable" in instruction
+    assert "one task" in instruction
+
+
 def test_task_analyzer_commit_guidance_names_only_commit_tools() -> None:
     """Analyzer commit guidance omits action-only inspection tools."""
     node = TinyCUATaskAnalyzerNode(

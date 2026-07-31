@@ -34,7 +34,23 @@ def _make_store_with_active_child() -> tuple[TaskStateStore, str]:
 def _reject(store: TaskStateStore, task_id: str, n: int = 1) -> None:
     """Record ``n`` needs_revision decisions on ``task_id``."""
     for _ in range(n):
-        store.record_reviewer_decision(task_id, ReviewerDecision.NEEDS_REVISION)
+        open_findings = [
+            finding
+            for finding in store.get_task(task_id).review_findings
+            if finding.get("status") == "OPEN"
+        ]
+        metadata = (
+            {
+                "finding_updates": [
+                    {"finding_id": open_findings[-1]["finding_id"], "status": "OPEN"}
+                ]
+            }
+            if open_findings
+            else {"new_findings": ["The task still needs revision."]}
+        )
+        store.record_reviewer_decision(
+            task_id, ReviewerDecision.NEEDS_REVISION, metadata=metadata
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -124,7 +140,7 @@ class TestUnboundedReplans:
                 }
             )
         # Now reject once more so the latest decision is needs_revision.
-        store.record_reviewer_decision(child_id, ReviewerDecision.NEEDS_REVISION)
+        _reject(store, child_id)
         queue = NodeQueue()
 
         WorkerRuntimeController(store, max_replans=3).schedule_after_review(
@@ -150,7 +166,7 @@ class TestUnboundedReplans:
                     "metadata": {},
                 }
             )
-        store.record_reviewer_decision(child_id, ReviewerDecision.NEEDS_REVISION)
+        _reject(store, child_id)
         queue = NodeQueue()
 
         WorkerRuntimeController(store, max_replans=3).schedule_after_review(

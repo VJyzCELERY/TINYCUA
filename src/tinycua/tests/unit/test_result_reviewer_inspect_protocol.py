@@ -287,8 +287,19 @@ def test_reviewer_surfaces_failure_count_as_soft_context() -> None:
     store.record_result(first.task_id, TaskResult(content="done", success=True))
 
     # Simulate 5 send-backs (needs_revision) so failure_count == 5.
-    for _ in range(5):
-        store.record_reviewer_decision(first.task_id, ReviewerDecision.NEEDS_REVISION)
+    store.record_reviewer_decision(
+        first.task_id,
+        ReviewerDecision.NEEDS_REVISION,
+        metadata={"new_findings": ["The result needs revision."]},
+    )
+    for _ in range(4):
+        store.record_reviewer_decision(
+            first.task_id,
+            ReviewerDecision.NEEDS_REVISION,
+            metadata={
+                "finding_updates": [{"finding_id": "finding-1", "status": "OPEN"}]
+            },
+        )
 
     node = _reviewer_node(loop.root_session)
     continuation = node.build_continuation(loop.root_session)
@@ -306,7 +317,11 @@ def test_reviewer_no_failure_note_below_threshold() -> None:
     root = store.create_task("Root")
     first = store.create_task("First", parent_id=root.task_id)
     store.record_result(first.task_id, TaskResult(content="done", success=True))
-    store.record_reviewer_decision(first.task_id, ReviewerDecision.NEEDS_REVISION)
+    store.record_reviewer_decision(
+        first.task_id,
+        ReviewerDecision.NEEDS_REVISION,
+        metadata={"new_findings": ["The result needs revision."]},
+    )
 
     node = _reviewer_node(loop.root_session)
     continuation = node.build_continuation(loop.root_session)

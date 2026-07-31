@@ -43,7 +43,29 @@ def _simulate_replan_cycle(
                 final,
             )
         # The reviewer rejects the current result.
-        store.record_reviewer_decision(task_id, ReviewerDecision.NEEDS_REVISION)
+        open_findings = [
+            finding
+            for finding in task.review_findings
+            if finding.get("status") == "OPEN"
+        ]
+        metadata = (
+            {
+                "finding_updates": [
+                    {
+                        "finding_id": open_findings[-1]["finding_id"],
+                        "status": "OPEN",
+                    }
+                ]
+            }
+            if open_findings
+            else {"new_findings": ["Persistent simulated defect."]}
+        )
+        store.record_reviewer_decision(
+            task_id,
+            ReviewerDecision.NEEDS_REVISION,
+            rationale="The simulated defect remains.",
+            metadata=metadata,
+        )
         queue = NodeQueue()
         ctrl.schedule_after_review(
             queue, reviewed_task_id=task_id, decision="needs_revision"

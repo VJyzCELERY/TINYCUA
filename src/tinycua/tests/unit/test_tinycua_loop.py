@@ -995,7 +995,8 @@ async def test_commit_retries_until_reviewer_decision_then_auto_completes() -> N
                 "arguments": (
                     '{"task_id":"' + task.task_id + '",'
                     '"decision":"needs_revision",'
-                    '"rationale":"[finding]: retry [validate]: rerun"}'
+                    '"rationale":"[finding]: retry [validate]: rerun",'
+                    '"new_findings":["Retry and rerun validation."]}'
                 ),
             }
             return
@@ -1016,7 +1017,7 @@ async def test_commit_retries_until_reviewer_decision_then_auto_completes() -> N
         pass
 
     assert commit_calls == 2
-    assert tool_sets[0] == {"task_inspect", "task_review_decision"}
+    assert tool_sets[0] == {"task_inspect"}
     assert tool_sets[1] == {"task_review_decision"}
     assert not store._staged_reviewer_decisions
     assert task.reviewer_decisions[-1]["decision"] == "needs_revision"

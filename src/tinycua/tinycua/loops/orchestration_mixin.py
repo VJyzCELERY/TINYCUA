@@ -520,7 +520,10 @@ class OrchestrationMixin:
             self._prepend_retry_tool_results(llm_result, retry_tool_results)
         combined = llm_result.content
         if node.contract.requires_terminate:
-            if node.progress.lifecycle_phase == LifecyclePhase.ACTION:
+            if (
+                node.progress.lifecycle_phase == LifecyclePhase.ACTION
+                and node.node_id != "result_reviewer"
+            ):
                 node.progress.advance_lifecycle(
                     LifecyclePhase.SUMMARY, combined.strip()
                 )

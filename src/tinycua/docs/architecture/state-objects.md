@@ -239,7 +239,7 @@ reviewer_decision:
   task_id: "<task id>"
   event_id: "review-<task-local sequence>"
   status: approved | needs_revision | replan | postpone_siblings | postpone_final | compromise
-  review_summary: "<complete review; default prompts render a bounded preview>"
+  review_summary: "<concise index summary retained without a length limit>"
   rationale: "<full rationale, available on demand>"
   new_findings:
     - "finding-<task-local sequence>"
@@ -265,11 +265,12 @@ reviewer_decision:
   retry_instructions: "..."  # failure context communication — format and mechanism are implementation detail
 ```
 
-Findings and review events belong only to their task. Default Executor and Reviewer
-prompts receive a bounded digest for the active task; `task_inspect(event_id=...)`
-returns one full event, while `field`, `offset`, and `limit` retrieve deterministic
-pages of long-form review text. Cross-task facts use explicit validated
-`context_updates`.
+Findings and review events belong only to their task. Executor retry prompts receive
+all current `OPEN` finding summaries and complete deduplicated rationale from their
+latest linked events. Reviewer prompts receive a compact all-status active-task ledger;
+`task_inspect(event_id=...)` returns one full event, while `field`, `offset`, and
+`limit` retrieve deterministic pages of long-form review text. Cross-task facts use
+explicit validated `context_updates`.
 
 Task completion and assurance are separate. Completion records that execution and review terminated successfully. Assurance summarizes the kind of support gathered by root review; it is not a universal correctness certificate.
 
