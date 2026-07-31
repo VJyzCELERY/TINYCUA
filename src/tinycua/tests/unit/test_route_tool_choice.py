@@ -72,6 +72,36 @@ async def test_query_analyst_requires_route_tool_for_local_chat_completions() ->
     assert agent.config.llm_model.tool_choice is None
 
 
+async def test_query_analyst_accepts_required_tools_across_turns() -> None:
+    """QueryAnalyst retains successful required calls between LLM turns."""
+    agent = create_tinycua_agent()
+    query_calls = 0
+
+    async def call_llm(messages, tools, stream: bool = False):  # noqa: ANN001, ARG001
+        nonlocal query_calls
+        if any(tool.name == "select_query_route" for tool in tools):
+            query_calls += 1
+            if query_calls == 1:
+                return {"content": "", "tool_calls": [_summary_tool_call()]}
+            if query_calls == 2:
+                return {
+                    "content": "",
+                    "tool_calls": [
+                        _route_tool_call("select_query_route", "passthrough")
+                    ],
+                }
+            msg = "QueryAnalyst requested an unnecessary third turn"
+            raise AssertionError(msg)
+        return {"content": "Hello", "tool_calls": []}
+
+    agent._call_llm = call_llm  # type: ignore[method-assign]
+
+    result = await agent.run("hello")
+
+    assert result == "Hello"
+    assert query_calls == 2
+
+
 async def test_worker_requires_route_tool_for_local_chat_completions() -> None:
     """WorkerNode uses local-compatible required string route choice."""
     model = LanguageModel(
