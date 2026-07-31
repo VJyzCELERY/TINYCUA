@@ -415,8 +415,6 @@ async def test_root_reviewer_plan_unlocks_action_and_decision() -> None:
     assert set(llm.calls[2]["tool_names"]) == {
         "task_review_decision",
         "json_draft_create",
-        "json_draft_read",
-        "json_draft_replace",
         "json_draft_commit",
     }
     assert root.reviewer_decisions[-1]["decision"] == "approved"
@@ -525,8 +523,6 @@ async def test_root_reviewer_retries_unknown_observation_reference() -> None:
     assert set(llm.calls[-1]["tool_names"]) == {
         "task_review_decision",
         "json_draft_create",
-        "json_draft_read",
-        "json_draft_replace",
         "json_draft_commit",
     }
     assert root.reviewer_decisions[-1]["metadata"]["assurance_status"] == "observed"

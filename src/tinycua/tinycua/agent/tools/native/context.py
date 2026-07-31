@@ -15,6 +15,9 @@ from pathlib import Path
 _WORKSPACE_DIR: ContextVar[Path | None] = ContextVar(
     "native_workspace_dir", default=None
 )
+_MANAGED_DRAFT_DIR: ContextVar[Path | None] = ContextVar(
+    "native_managed_draft_dir", default=None
+)
 
 
 class WorkspaceNotBoundError(RuntimeError):
@@ -36,11 +39,13 @@ def bind_workspace(workspace_dir: str | Path | None) -> None:
     """
     if workspace_dir is None:
         _WORKSPACE_DIR.set(None)
+        _MANAGED_DRAFT_DIR.set(None)
         return
     workspace = Path(workspace_dir).expanduser().resolve()
     # ponytail: directory creation belongs to the CLI layer, not the tool
     # binding. Silently recreating a deleted workspace masks bugs.
     _WORKSPACE_DIR.set(workspace)
+    _MANAGED_DRAFT_DIR.set(None)
 
 
 def get_workspace_dir() -> Path | None:
@@ -142,12 +147,30 @@ def to_workspace_relative(path: str | Path) -> str:
     if workspace is None:
         return str(path)
     try:
-        p = Path(path).resolve(strict=False)
-        return str(p.relative_to(workspace))
+        resolved = Path(path).resolve(strict=False)
+        return str(resolved.relative_to(workspace))
     except (ValueError, RuntimeError):
         return str(path)
+
+
+def bind_managed_draft_dir(draft_dir: str | Path | None) -> None:
+    """Authorize native file tools to access one node execution's draft directory."""
+    _MANAGED_DRAFT_DIR.set(Path(draft_dir).resolve() if draft_dir else None)
+
+
+def is_hidden_workspace_path(path: Path) -> bool:
+    """Return whether an internal draft path is unavailable to this node."""
+    workspace = get_workspace_dir()
+    if workspace is None:
+        return False
+    drafts_root = workspace / ".tinycua"
+    if not path.is_relative_to(drafts_root):
+        return False
+    draft_dir = _MANAGED_DRAFT_DIR.get()
+    return draft_dir is None or not path.is_relative_to(draft_dir)
 
 
 def bind_workspace_to_tool(tool: object) -> None:
     """Attach the common workspace binder to an SDK Tool instance."""
     setattr(tool, "bind_workspace", bind_workspace)
+    setattr(tool, "bind_managed_draft_dir", bind_managed_draft_dir)

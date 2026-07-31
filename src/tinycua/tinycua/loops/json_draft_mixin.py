@@ -21,13 +21,11 @@ DRAFTABLE_TOOL_NAMES = {
     "task_update",
     "task_decompose",
     "task_shrink",
-    "task_result_update",
     "task_assessment_decision",
     "task_review_plan",
     "task_review_decision",
     "digest_information",
     "node_handoff",
-    "todo_write",
 }
 logger = logging.getLogger(__name__)
 
@@ -35,23 +33,70 @@ logger = logging.getLogger(__name__)
 class JsonDraftMixin:
     """Provide session-bound drafts without bloating the main loop."""
 
+    def _bind_draft_file_tools(self, tools: list[Tool], node: Node) -> None:
+        """Limit native file access to this execution's managed draft directory."""
+        draft_dir = None
+        if (
+            node.node_id != "task_executor"
+            and {tool.name for tool in tools} & DRAFTABLE_TOOL_NAMES
+            and self.workspace_dir is not None
+        ):
+            draft_dir = (
+                self.workspace_dir
+                / ".tinycua"
+                / self.root_session.session_id
+                / "tmp"
+                / self._draft_execution_id
+            )
+        for tool in tools:
+            binder = getattr(tool, "bind_managed_draft_dir", None)
+            if callable(binder):
+                binder(draft_dir)
+
+    def _managed_draft_path(self, node: Node | None) -> str | None:
+        """Return the sole active draft path for this node execution."""
+        if node is None or node.node_id == "task_executor":
+            return None
+        paths = [
+            draft["path"]
+            for draft in self.root_session.json_drafts.values()
+            if (
+                draft["session_id"] == self.root_session.session_id
+                and draft["node_id"] == node.node_id
+                and draft["execution_id"] == self._draft_execution_id
+            )
+        ]
+        return paths[0] if len(paths) == 1 else None
+
+    def _inject_managed_draft_path(
+        self, node: Node | None, name: str, arguments: dict[str, Any]
+    ) -> str | None:
+        """Route draft edits to their runtime-selected path."""
+        if name not in {"read_file", "write_file", "str_replace"}:
+            return None
+        if path := self._managed_draft_path(node):
+            arguments["path"] = path
+            return None
+        if (
+            node is not None
+            and node.node_id != "task_executor"
+            and name in {"write_file", "str_replace"}
+            and {tool.name for tool in node.config.tool_policy.node_tools}
+            & DRAFTABLE_TOOL_NAMES
+        ):
+            return "managed_draft_required"
+        return None
+
     def _with_json_draft_tools(self, node: Node, tools: list[Tool]) -> list[Tool]:
         """Expose bounded draft editing beside stateful structured commits."""
         del node
         if not {tool.name for tool in tools} & DRAFTABLE_TOOL_NAMES:
             return tools
-        from tinycua.tools.json_drafts import (
-            JsonDraftCommitTool,
-            JsonDraftCreateTool,
-            JsonDraftReadTool,
-            JsonDraftReplaceTool,
-        )
+        from tinycua.tools.json_drafts import JsonDraftCommitTool, JsonDraftCreateTool
 
         return [
             *tools,
             JsonDraftCreateTool(),
-            JsonDraftReadTool(),
-            JsonDraftReplaceTool(),
             JsonDraftCommitTool(),
         ]
 
@@ -120,7 +165,7 @@ class JsonDraftMixin:
 
     async def _prepare_json_draft_commit(
         self, agent: Any, arguments: dict[str, Any], allowed_tools: dict[str, Tool]
-    ) -> tuple[str, dict[str, Any], tuple[Tool, str, int]]:
+    ) -> tuple[str, dict[str, Any], tuple[Tool, str]]:
         """Expand a valid draft commit into its canonical target invocation."""
         draft_tool = allowed_tools["json_draft_commit"]
         try:
@@ -132,16 +177,14 @@ class JsonDraftMixin:
         target = output.get("target_tool")
         target_arguments = output.get("arguments")
         draft_id = output.get("draft_id")
-        revision = arguments.get("expected_revision")
         if (
             not isinstance(target, str)
             or not isinstance(target_arguments, dict)
             or target not in allowed_tools
             or not isinstance(draft_id, str)
-            or not isinstance(revision, int)
         ):
             raise ValueError("draft_target_not_available")
-        return target, target_arguments, (draft_tool, draft_id, revision)
+        return target, target_arguments, (draft_tool, draft_id)
 
     @staticmethod
     def _log_tool_call_args(name: str, arguments: dict[str, Any]) -> None:

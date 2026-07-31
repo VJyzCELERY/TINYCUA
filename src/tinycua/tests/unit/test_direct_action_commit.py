@@ -149,13 +149,7 @@ async def test_action_summary_falls_back_to_commit_only_phase() -> None:
 
     assert len(llm.calls) == 2
     assert set(llm.calls[0]["tool_names"]) >= {"write_file", "task_result_update"}
-    assert set(llm.calls[1]["tool_names"]) == {
-        "task_result_update",
-        "json_draft_create",
-        "json_draft_read",
-        "json_draft_replace",
-        "json_draft_commit",
-    }
+    assert set(llm.calls[1]["tool_names"]) == {"task_result_update"}
     assert "Action Summary: verified existing work." in json.dumps(
         llm.calls[1]["messages"]
     )
@@ -248,13 +242,7 @@ async def test_failed_action_commit_retries_commit_without_reopening_action() ->
     await loop._execute_node(node, agent, [action])
 
     assert len(llm.calls) == 2
-    assert set(llm.calls[1]["tool_names"]) == {
-        "task_result_update",
-        "json_draft_create",
-        "json_draft_read",
-        "json_draft_replace",
-        "json_draft_commit",
-    }
+    assert set(llm.calls[1]["tool_names"]) == {"task_result_update"}
     assert action.paths == ["done.py"]
     assert result_tool.calls == 2
 
@@ -301,13 +289,7 @@ async def test_invalid_action_commit_enters_commit_only_retry(failure: str) -> N
 
     await loop._execute_node(node, agent, [action])
 
-    assert set(calls[1]) == {
-        "task_result_update",
-        "json_draft_create",
-        "json_draft_read",
-        "json_draft_replace",
-        "json_draft_commit",
-    }
+    assert set(calls[1]) == {"task_result_update"}
     assert action.paths == []
 
 
@@ -358,8 +340,6 @@ async def test_reviewer_decision_stays_staged_until_validation_then_commits_once
     assert set(llm.calls[1]["tool_names"]) == {
         "task_review_decision",
         "json_draft_create",
-        "json_draft_read",
-        "json_draft_replace",
         "json_draft_commit",
     }
     assert task.reviewer_decisions == [

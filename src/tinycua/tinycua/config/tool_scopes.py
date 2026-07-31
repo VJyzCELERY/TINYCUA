@@ -44,6 +44,8 @@ EXPLORATORY_AGENT_TOOLS: list[str] = [
     "web_search",
     "fetch_url",
 ]
+DRAFT_FILE_TOOLS = ["read_file", "write_file", "str_replace"]
+DRAFT_AGENT_TOOLS = [*EXPLORATORY_AGENT_TOOLS, "write_file", "str_replace"]
 
 
 def query_analyst_tool_scope() -> NodeToolPolicy:
@@ -81,7 +83,7 @@ def information_digester_tool_scope() -> NodeToolPolicy:
             DigestInformationTool(),
         ],
         include_agent_tools="selected",
-        allowed_agent_tool_names=EXPLORATORY_AGENT_TOOLS,
+        allowed_agent_tool_names=DRAFT_AGENT_TOOLS,
     )
 
 
@@ -111,7 +113,8 @@ def task_create_tool_scope() -> NodeToolPolicy:
     """
     return NodeToolPolicy(
         node_tools=[TaskInitTool()],
-        include_agent_tools="none",
+        include_agent_tools="selected",
+        allowed_agent_tool_names=DRAFT_FILE_TOOLS,
     )
 
 
@@ -142,7 +145,7 @@ def task_analyzer_tool_scope(
     return NodeToolPolicy(
         node_tools=base_tools,
         include_agent_tools="selected",
-        allowed_agent_tool_names=EXPLORATORY_AGENT_TOOLS,
+        allowed_agent_tool_names=DRAFT_AGENT_TOOLS,
     )
 
 
@@ -158,7 +161,7 @@ def task_assessor_tool_scope() -> NodeToolPolicy:
     return NodeToolPolicy(
         node_tools=[TaskInspectTool(), TaskAssessmentDecisionTool()],
         include_agent_tools="selected",
-        allowed_agent_tool_names=EXPLORATORY_AGENT_TOOLS,
+        allowed_agent_tool_names=DRAFT_AGENT_TOOLS,
     )
 
 
@@ -209,7 +212,7 @@ def result_reviewer_tool_scope() -> NodeToolPolicy:
     return NodeToolPolicy(
         node_tools=[TaskReviewPlanTool(), TaskReviewDecisionTool(), TaskInspectTool()],
         include_agent_tools="selected",
-        allowed_agent_tool_names=EXPLORATORY_AGENT_TOOLS,
+        allowed_agent_tool_names=DRAFT_AGENT_TOOLS,
     )
 
 
