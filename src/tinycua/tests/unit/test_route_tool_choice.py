@@ -192,10 +192,14 @@ def test_task_assessor_uses_read_only_decision_tools_without_task_update() -> No
     )
 
     assert tool_choice is None
-    assert [tool.name for tool in narrowed_tools] == [
+    assert {tool.name for tool in narrowed_tools} == {
         "task_inspect",
         "task_assessment_decision",
-    ]
+        "json_draft_create",
+        "json_draft_read",
+        "json_draft_replace",
+        "json_draft_commit",
+    }
 
 
 def test_result_reviewer_is_not_provider_forced() -> None:

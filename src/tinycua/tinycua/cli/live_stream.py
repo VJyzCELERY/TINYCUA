@@ -102,6 +102,7 @@ class LiveStreamPrinter:
 
     def __init__(self) -> None:
         self._tool_json = ToolProtocolBuffer()
+        self._tool_argument_chars: dict[str, int] = {}
         # Track the node id that currently owns the prefix so continuation
         # lines of a multi-line delta don't repeat the prefix.
         self._current_prefix_node: str | None = None
@@ -115,6 +116,14 @@ class LiveStreamPrinter:
             return ""
         if event_type == "response.output_text.delta":
             return self._handle_output_delta(node_id, str(event.get("delta", "")))
+        if event_type == "response.function_call_arguments.delta":
+            call_id = str(event.get("id") or event.get("call_id") or "tool")
+            previous = self._tool_argument_chars.get(call_id, 0)
+            total = previous + len(str(event.get("delta", "")))
+            self._tool_argument_chars[call_id] = total
+            if previous == 0 or total // 1024 > previous // 1024:
+                self._print_marker(node_id, f"tool arguments streaming: {total} chars")
+            return ""
         if event_type in {"response.tool_call", "tool_call.ready"}:
             self._print_marker(node_id, f"tool_call: {tool_name_from_event(event)}")
             return ""

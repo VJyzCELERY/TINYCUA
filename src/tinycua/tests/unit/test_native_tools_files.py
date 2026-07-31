@@ -5,11 +5,46 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from PIL import Image
 
 from tinycua.agent.tools.native.context import bind_workspace
 
 
 # --- read_file edge cases ---
+
+
+def test_read_file_returns_a_model_attachment_for_png(tmp_path: Path) -> None:
+    """A workspace image is returned as an attachment, not decoded text."""
+    from tinycua.agent.tools.native.files import read_file
+
+    image_path = tmp_path / "diagram.png"
+    Image.new("RGB", (2, 3), "red").save(image_path)
+    bind_workspace(tmp_path)
+
+    result = read_file("diagram.png")
+
+    assert isinstance(result, dict)
+    assert result["image_metadata"] == {
+        "path": "diagram.png",
+        "mime_type": "image/png",
+        "width": 2,
+        "height": 3,
+        "bytes": image_path.stat().st_size,
+    }
+    assert result["attachments"][0].mime_type == "image/png"
+    assert "base64" not in result["content"]
+
+
+def test_read_file_rejects_line_ranges_for_images(tmp_path: Path) -> None:
+    """Text line ranges cannot be applied to binary images."""
+    from tinycua.agent.tools.native.files import read_file
+
+    Image.new("RGB", (1, 1)).save(tmp_path / "diagram.png")
+    bind_workspace(tmp_path)
+
+    assert read_file("diagram.png", start=1) == {
+        "error": "Line ranges are not supported for images."
+    }
 
 
 def test_read_file_path_resolution_absolute():

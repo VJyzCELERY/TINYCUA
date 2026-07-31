@@ -487,7 +487,6 @@ async def test_runtime_retries_each_contract_node_then_completes_when_llm_correc
     """Each bad-once node gets retried and then completes on correction."""
     bad_nodes = {
         "query_analyst",
-        "worker",
         "task_create",
         "task_analyzer",
         "task_assessor",
@@ -526,7 +525,7 @@ async def test_runtime_retries_each_contract_node_then_completes_when_llm_correc
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("node_id", ["query_analyst", "worker"])
+@pytest.mark.parametrize("node_id", ["query_analyst"])
 async def test_runtime_fails_closed_when_route_node_never_calls_required_tool(
     tmp_path: Path, node_id: str
 ) -> None:

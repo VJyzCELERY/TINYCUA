@@ -143,6 +143,9 @@ class Session:
     # reconstruction (fresh node instances read from here). Cleaned up when
     # a node completes (don't store done nodes).
     node_progress: dict[str, Any] = field(default_factory=dict)
+    # Editable structured tool payloads. Kept in memory because sessions do
+    # not currently support cross-process resume.
+    json_drafts: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     @staticmethod
     def _summary_to_entry(summary: Any) -> SessionContextEntry:

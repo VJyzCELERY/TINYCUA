@@ -19,6 +19,7 @@ from tinycua.config.system_prompt import build_runtime_context
 from tinycua.config.types import LLMResult, ValidationResult
 from tinycua.loops.context_rendering import render_llm_content, sanitize_internal_reprs
 from tinycua.loops.lazy_retry_mixin import LazyRetryMixin
+from tinycua.loops.json_draft_mixin import DRAFTABLE_TOOL_NAMES, JsonDraftMixin
 from tinycua.loops.node_contract import LifecyclePhase, phase_tool_names
 from tinycua.loops.node_queue import NodeQueue
 from tinycua.loops.node_retry_mixin import NodeRetryMixin
@@ -159,6 +160,7 @@ def _detect_repetition(content: str, min_block: int = 50, threshold: int = 3) ->
 
 class TinyCUALoop(
     OrchestrationMixin,
+    JsonDraftMixin,
     NodeRetryMixin,
     ToolCallNormalizationMixin,
     ValidationRetryMixin,
@@ -534,6 +536,15 @@ class TinyCUALoop(
                 analyzer_mode_binder(
                     str(node.config.metadata.get("task_analyzer_mode", ""))
                 )
+            draft_binder = getattr(tool, "bind_json_drafts", None)
+            if callable(draft_binder):
+                draft_binder(
+                    self.root_session.json_drafts,
+                    self.root_session.session_id,
+                    node.node_id,
+                    self.root_session.task_store.version,
+                    {item.name for item in tools} & DRAFTABLE_TOOL_NAMES,
+                )
 
     def _phase_tools(
         self,
@@ -544,8 +555,18 @@ class TinyCUALoop(
         """Resolve existing node tools for one focused lifecycle phase."""
         if phase == LifecyclePhase.TERMINATE and not self._can_terminate(node):
             phase = LifecyclePhase.COMMIT
-        names = phase_tool_names(node.node_id, {tool.name for tool in tools}, phase)
-        return [tool for tool in tools if tool.name in names]
+        names = phase_tool_names(
+            node.node_id,
+            {tool.name for tool in tools if not tool.name.startswith("json_draft_")},
+            phase,
+        )
+        phase_targets = names & DRAFTABLE_TOOL_NAMES
+        return [
+            tool
+            for tool in tools
+            if tool.name in names
+            or (tool.name.startswith("json_draft_") and phase_targets)
+        ]
 
     def _attempt_tools(
         self,
@@ -718,11 +739,12 @@ class TinyCUALoop(
         analyzer_task_refs = self._analyzer_batch_task_references(node)
         results: list[dict[str, Any]] = []
         terminate_seen = False
-        for tool_call in tool_calls:
+        for index, tool_call in enumerate(tool_calls):
             function = tool_call.get("function") or {}
             name = function.get("name") or tool_call.get("name")
             if not name:
                 continue
+            tool_call.setdefault("id", f"call_{index}_{name}")
             if name == "terminate":
                 if terminate_seen:
                     continue
@@ -730,15 +752,22 @@ class TinyCUALoop(
             call_id, evidence_id = issue_observation_ids(tool_call, node, results)
             task_id = self.root_session.task_store.active_task_id
             arguments = None
+            drafted_commit: tuple[Tool, str, int] | None = None
 
             def record(result: dict[str, Any]) -> None:
                 annotate_result_ids(result, call_id, evidence_id, tool_call)
+                history_result = self._redacted_tool_history(result)
                 prompt_content = persist_if_oversized(
-                    json.dumps(result, default=str), call_id or name, tool_name=name
+                    json.dumps(history_result, default=str),
+                    call_id or name,
+                    tool_name=name,
                 )
                 result["prompt_content"] = prompt_content
                 outcome = normalize_tool_outcome(
-                    tool_call, result, content=prompt_content, arguments=arguments
+                    tool_call,
+                    history_result,
+                    content=prompt_content,
+                    arguments=arguments,
                 )
                 annotate_outcome(
                     outcome,
@@ -749,7 +778,8 @@ class TinyCUALoop(
                     task_version=self.root_session.task_store.version,
                 )
                 result["outcome"] = outcome
-                self._record_tool_chat_result(result)
+                history_result["outcome"] = outcome
+                self._record_tool_chat_result(history_result)
                 results.append(result)
 
             if name not in allowed_tools:
@@ -782,6 +812,18 @@ class TinyCUALoop(
             arguments = self._freeze_analyzer_task_references(
                 arguments, analyzer_task_refs
             )
+            if name == "json_draft_commit":
+                try:
+                    (
+                        name,
+                        arguments,
+                        drafted_commit,
+                    ) = await self._prepare_json_draft_commit(
+                        agent, arguments, allowed_tools
+                    )
+                except Exception as exc:  # noqa: BLE001 - tool failures are feedback.
+                    record({"name": name, "allowed": True, "error": str(exc)})
+                    continue
             impacted_planning_targets = self._analyzer_planning_targets_for_call(
                 node, name, arguments
             )
@@ -811,6 +853,12 @@ class TinyCUALoop(
             self._record_analyzer_planning_resolution(
                 node, name, output, impacted_planning_targets
             )
+            if drafted_commit is not None and (
+                not isinstance(output, dict) or output.get("success") is not False
+            ):
+                consume = getattr(drafted_commit[0], "consume", None)
+                if callable(consume):
+                    consume(drafted_commit[1], drafted_commit[2])
             tool_result = {"name": name, "allowed": True, "output": output}
             artifact_path = self._write_tool_audit_artifact(name, arguments, output)
             if artifact_path:
@@ -819,46 +867,6 @@ class TinyCUALoop(
             if name in commit_tools and self._should_stop_commit_batch(node):
                 break
         return results
-
-    def _log_tool_call_args(self, name: str, arguments: dict[str, Any]) -> None:
-        r"""Log a truncated preview of tool call arguments to stderr for debugging.
-
-        File tools (str_replace, write_file, append_file) get path + content
-        preview. Other tools get a truncated JSON preview. This makes it
-        possible to diagnose issues like literal \n in content by inspecting
-        the stderr log.
-        """
-        if name in {"str_replace", "write_file", "append_file"}:
-            path = arguments.get("path", "?")
-            if name == "str_replace":
-                old = str(arguments.get("old_string", ""))[:100]
-                new = str(arguments.get("new_string", ""))[:100]
-                has_literal_n = "\\n" in str(arguments.get("new_string", ""))
-                logger.debug(
-                    "tool=%s path=%s old_string[:100]=%r new_string[:100]=%r%s",
-                    name,
-                    path,
-                    old,
-                    new,
-                    " [WARNING: literal \\n detected]" if has_literal_n else "",
-                )
-            else:
-                content = str(arguments.get("content", ""))[:100]
-                has_literal_n = "\\n" in str(arguments.get("content", ""))
-                logger.debug(
-                    "tool=%s path=%s content[:100]=%r%s",
-                    name,
-                    path,
-                    content,
-                    " [WARNING: literal \\n detected]" if has_literal_n else "",
-                )
-        else:
-            # Truncated JSON preview for non-file tools.
-            try:
-                preview = json.dumps(arguments, default=str)[:200]
-            except Exception:
-                preview = str(arguments)[:200]
-            logger.debug("tool=%s args=%s", name, preview)
 
     def _write_tool_audit_artifact(
         self,
@@ -1105,28 +1113,9 @@ class TinyCUALoop(
         attempt_messages don't balloon (experiment-4 peaked at 257K input
         tokens this way). Under the threshold this is a passthrough.
         """
-        for index, tool_result in enumerate(tool_results):
-            tool_call = (
-                normalized_tool_calls[index]
-                if index < len(normalized_tool_calls)
-                else {}
-            )
-            raw_content = json.dumps(tool_result, default=str)
-            tool_call_id = tool_call.get("id") or tool_result.get("name", "")
-            tool_name = tool_result.get("name", "")
-            content = tool_result.get("prompt_content")
-            if not isinstance(content, str):
-                content = persist_if_oversized(
-                    raw_content, tool_call_id, tool_name=tool_name
-                )
-            attempt_messages.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": tool_call_id,
-                    "name": tool_name,
-                    "content": content,
-                }
-            )
+        attempt_messages.extend(
+            self._tool_result_feedback_messages(tool_results, normalized_tool_calls)
+        )
 
     async def _call_agent_llm(
         self,

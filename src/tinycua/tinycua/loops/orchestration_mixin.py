@@ -133,6 +133,7 @@ class OrchestrationMixin:
         if callable(route_refresher):
             route_refresher()
         resolved_tools = node.config.tool_policy.resolve_tools(tools)
+        resolved_tools = self._with_json_draft_tools(node, resolved_tools)
         self._bind_session_tools(resolved_tools, node)
         self._resolved_tools_for_prompt = self._phase_tools(
             node, resolved_tools, node.progress.lifecycle_phase
@@ -359,7 +360,10 @@ class OrchestrationMixin:
                 )
 
         deterministic_runner = getattr(node, "run_deterministic", None)
-        if callable(deterministic_runner):
+        deterministic_gate = getattr(node, "should_run_deterministically", None)
+        if callable(deterministic_runner) and (
+            not callable(deterministic_gate) or deterministic_gate()
+        ):
             return await self._execute_deterministic_node(node, resolved_tools)
 
         try:
@@ -851,7 +855,10 @@ class OrchestrationMixin:
             )
 
         deterministic_runner = getattr(node, "run_deterministic", None)
-        if callable(deterministic_runner):
+        deterministic_gate = getattr(node, "should_run_deterministically", None)
+        if callable(deterministic_runner) and (
+            not callable(deterministic_gate) or deterministic_gate()
+        ):
             async for event in self._stream_deterministic_node_events(
                 node,
                 resolved_tools,

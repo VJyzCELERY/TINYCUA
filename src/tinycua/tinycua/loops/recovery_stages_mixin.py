@@ -543,7 +543,7 @@ class RecoveryGuardMixin:
         | None
     ):
         """Run the first recovery stage with budget remaining."""
-        if (
+        if missing and (
             attempts.get("structured_output_retry", 0)
             < budgets["structured_output_retry"]
         ):
