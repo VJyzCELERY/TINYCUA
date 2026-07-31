@@ -221,6 +221,7 @@ class TinyCUALoop(
         self._tool_artifact_seq = 0
         self._pending_handoffs: list[NodeHandoff] = []
         self._resolved_tools_for_prompt: list[Tool] | None = None
+        self._draft_execution_id = ""
 
     def get_usage_events(self) -> list[dict[str, Any]]:
         """Return the usage events captured during the last streaming run.
@@ -500,6 +501,7 @@ class TinyCUALoop(
                     }
                     for entry in self.root_session.session_context
                 )
+
                 context.extend(
                     {
                         "role": record.role,
@@ -544,7 +546,10 @@ class TinyCUALoop(
                     node.node_id,
                     self.root_session.task_store.version,
                     {item.name for item in tools} & DRAFTABLE_TOOL_NAMES,
+                    self.workspace_dir,
+                    self._draft_execution_id,
                 )
+        self._bind_draft_file_tools(tools, node)
 
     def _phase_tools(
         self,
@@ -812,6 +817,9 @@ class TinyCUALoop(
             arguments = self._freeze_analyzer_task_references(
                 arguments, analyzer_task_refs
             )
+            if error := self._inject_managed_draft_path(node, name, arguments):
+                record({"name": name, "allowed": True, "error": error})
+                continue
             if name == "json_draft_commit":
                 try:
                     (
@@ -858,7 +866,7 @@ class TinyCUALoop(
             ):
                 consume = getattr(drafted_commit[0], "consume", None)
                 if callable(consume):
-                    consume(drafted_commit[1], drafted_commit[2])
+                    consume(drafted_commit[1])
             tool_result = {"name": name, "allowed": True, "output": output}
             artifact_path = self._write_tool_audit_artifact(name, arguments, output)
             if artifact_path:

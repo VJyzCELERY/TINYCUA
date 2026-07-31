@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
 
@@ -129,6 +130,7 @@ class OrchestrationMixin:
             Tuple of (messages, resolved_tools) ready for LLM call.
         """
         node.ensure_session(self.root_session)
+        self._draft_execution_id = uuid.uuid4().hex
         route_refresher = getattr(node, "refresh_route_options", None)
         if callable(route_refresher):
             route_refresher()

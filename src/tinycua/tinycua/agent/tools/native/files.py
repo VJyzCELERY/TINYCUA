@@ -21,6 +21,7 @@ from tinycua_sdk.tools.decorators import tool
 
 from tinycua.agent.tools.native.context import (
     bind_workspace_to_tool,
+    is_hidden_workspace_path,
     resolve_workspace_path,
     to_workspace_relative,
 )
@@ -44,6 +45,13 @@ def _resolve_path(path: str) -> Path:
     that workspace. Otherwise legacy cwd-relative resolution is used.
     """
     return resolve_workspace_path(path)
+
+
+def _hidden_draft_error(resolved: Path) -> dict[str, str] | None:
+    """Keep runtime-managed drafts private to their owning node execution."""
+    if is_hidden_workspace_path(resolved):
+        return {"error": "Managed drafts are unavailable to this node."}
+    return None
 
 
 # --- Helper functions for read_file ---
@@ -107,6 +115,8 @@ def _read_lines(path: str) -> tuple[list[str], str, bool] | dict[str, Any]:
         resolved = _resolve_path(path)
     except ValueError as exc:
         return {"error": str(exc)}
+    if error := _hidden_draft_error(resolved):
+        return error
 
     if not resolved.exists():
         return {"error": f"File not found: {path}"}
@@ -136,6 +146,8 @@ def _read_image(
         resolved = _resolve_path(path)
     except ValueError as exc:
         return {"error": str(exc)}
+    if error := _hidden_draft_error(resolved):
+        return error
     if not resolved.exists():
         return {"error": f"File not found: {path}"}
     if not resolved.is_file():
@@ -341,6 +353,14 @@ def write_file(path: str, content: str) -> dict[str, Any]:
             "rel_path": path,
             "chars_written": 0,
             "error": str(exc),
+        }
+    if error := _hidden_draft_error(resolved):
+        return {
+            "success": False,
+            "path": path,
+            "rel_path": path,
+            "chars_written": 0,
+            "error": error["error"],
         }
 
     if not resolved.parent.exists():
@@ -748,6 +768,16 @@ def str_replace(
             "diff_preview": None,
             "error": str(exc),
         }
+    if error := _hidden_draft_error(resolved):
+        return {
+            "success": False,
+            "path": path,
+            "rel_path": path,
+            "replacements_made": 0,
+            "bytes_written": 0,
+            "diff_preview": None,
+            "error": error["error"],
+        }
     # Empty old_string = create new file.
     if not old_string:
         if resolved.exists():
@@ -887,6 +917,14 @@ def append_file(path: str, content: str) -> dict[str, Any]:
             "bytes_appended": 0,
             "error": str(exc),
         }
+    if error := _hidden_draft_error(resolved):
+        return {
+            "success": False,
+            "path": path,
+            "rel_path": path,
+            "bytes_appended": 0,
+            "error": error["error"],
+        }
     try:
         resolved.parent.mkdir(parents=True, exist_ok=True)
     except PermissionError:
@@ -971,6 +1009,8 @@ def list_files(
         resolved = _resolve_path(path)
     except ValueError as exc:
         return {"error": str(exc)}
+    if error := _hidden_draft_error(resolved):
+        return error
 
     if not resolved.exists():
         return {"error": f"Directory not found: {path}"}
@@ -988,6 +1028,8 @@ def list_files(
         # clean path to echo back, reducing the chance of path doubling.
         result = []
         for entry in entries:
+            if is_hidden_workspace_path(entry):
+                continue
             rel = to_workspace_relative(entry)
             if entry.is_dir():
                 result.append(f"{rel}/")
@@ -1045,7 +1087,7 @@ def _iter_searchable_files(
         return [root]
     results: list[Path] = []
     for entry in sorted(root.rglob("*")):
-        if not entry.is_file():
+        if is_hidden_workspace_path(entry) or not entry.is_file():
             continue
         if file_glob:
             import fnmatch
@@ -1208,7 +1250,11 @@ def _search_files_by_name(
             results.append(to_workspace_relative(root))
     else:
         for entry in sorted(root.rglob("*")):
-            if entry.is_file() and fnmatch.fnmatch(entry.name, pattern):
+            if (
+                not is_hidden_workspace_path(entry)
+                and entry.is_file()
+                and fnmatch.fnmatch(entry.name, pattern)
+            ):
                 results.append(to_workspace_relative(entry))
 
     total = len(results)
@@ -1270,6 +1316,8 @@ def search_files(
         resolved = _resolve_path(path)
     except ValueError as exc:
         return {"error": str(exc)}
+    if error := _hidden_draft_error(resolved):
+        return error
 
     if not resolved.exists():
         return {"error": f"Path not found: {path}"}

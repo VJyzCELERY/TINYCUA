@@ -7,10 +7,29 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from tinycua.agent.tools.native.context import bind_workspace
+from tinycua.agent.tools.native.context import bind_managed_draft_dir, bind_workspace
 
 
 # --- read_file edge cases ---
+
+
+def test_managed_drafts_are_hidden_without_node_ownership(tmp_path: Path) -> None:
+    """Normal workspace inspection cannot expose another node's managed draft."""
+    from tinycua.agent.tools.native.files import list_files, read_file
+
+    draft_dir = tmp_path / ".tinycua" / "session" / "tmp" / "execution"
+    draft_dir.mkdir(parents=True)
+    (draft_dir / "draft.json").write_text("{}\n", encoding="utf-8")
+    (tmp_path / "visible.txt").write_text("visible\n", encoding="utf-8")
+    bind_workspace(tmp_path)
+
+    assert list_files() == ["visible.txt"]
+    assert read_file(".tinycua/session/tmp/execution/draft.json") == {
+        "error": "Managed drafts are unavailable to this node."
+    }
+
+    bind_managed_draft_dir(draft_dir)
+    assert read_file(".tinycua/session/tmp/execution/draft.json") == "{}\n"
 
 
 def test_read_file_returns_a_model_attachment_for_png(tmp_path: Path) -> None:

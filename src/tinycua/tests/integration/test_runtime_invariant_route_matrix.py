@@ -68,17 +68,13 @@ class _RouteMatrixScript:
             return "task_create"
         if "task_decompose" in tool_names:
             return "task_analyzer"
-        if "write_file" in tool_names:
-            return "task_executor"
-        if "task_update" in tool_names:
-            return "result_reviewer"
         if "task_assessment_decision" in tool_names:
             return "task_assessor"
-        if "task_result_update" in tool_names:
-            return "task_executor"
         if "task_review_plan" in tool_names:
             return "result_reviewer"
         if "task_review_decision" in tool_names:
+            return "result_reviewer"
+        if "task_update" in tool_names:
             return "result_reviewer"
         if "task_inspect" in tool_names and tool_names & {
             "read_file",
@@ -86,6 +82,10 @@ class _RouteMatrixScript:
             "list_files",
         }:
             return "result_reviewer"
+        if "write_file" in tool_names:
+            return "task_executor"
+        if "task_result_update" in tool_names:
+            return "task_executor"
         if tool_names == {"task_inspect"}:
             return "result_aggregation"
         return "response"

@@ -377,6 +377,7 @@ async def test_streamed_lifecycle_action_summary_enters_commit(
     node_type,
 ) -> None:
     """A completed streamed action batch advances every lifecycle node to commit."""
+
     class SuccessfulTool(Tool):
         def __call__(self) -> dict[str, bool]:
             return {"success": True}
@@ -391,9 +392,9 @@ async def test_streamed_lifecycle_action_summary_enters_commit(
     await loop._finalize_streamed_node(
         node,
         Agent(llm_model=LanguageModel()),
-        ["Action Summary: wrote the requested file."],
-        [{"function": {"name": "write_file", "arguments": "{}"}}],
-        [SuccessfulTool(name="write_file")],
+        ["Action Summary: completed the requested check."],
+        [{"function": {"name": "run_shell", "arguments": "{}"}}],
+        [SuccessfulTool(name="run_shell")],
     )
 
     assert node.progress.lifecycle_phase is LifecyclePhase.COMMIT

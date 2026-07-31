@@ -7,9 +7,9 @@ Source: src/tinycua/docs/design/tools/task.md:5-18,
         src/tinycua/docs/design/loops/response.md:31-58
 
 Only TaskExecutor and ResponseNode may receive arbitrary workspace/action
-tools (write_file, str_replace, append_file, run_shell, run_python). Every other node is
-read-only plus its scoped structural tools. These assertions are negative
-gates: they fail if a forbidden tool leaks into a non-action node.
+tools. Structured nodes may receive write_file and str_replace solely for
+runtime-bound managed drafts; all other paths are rejected. These assertions
+fail if an unrestricted tool leaks into a non-action node.
 """
 
 from __future__ import annotations
@@ -35,15 +35,14 @@ from tinycua.config.node_config import NodeToolPolicy
 # depends on session config; import lazily to keep the test hermetic.
 from tinycua.config.tool_scopes import response_tool_scope
 
-# Arbitrary write/execute tools — only TaskExecutor and ResponseNode may have
-# these. run_shell is NOT in this set: it is the gated exploratory shell
+# Unrestricted write/execute tools — only TaskExecutor and ResponseNode may have
+# these. write_file and str_replace are excluded because draft-owning nodes can
+# use them only after json_draft_create binds their path. run_shell is NOT in this set: it is the gated exploratory shell
 # (hardline blocks unrecoverable commands like rm -rf /; recoverable destructive
 # commands warn but execute). Reviewer/analyzer/digester/assessor use it for
 # verification (test -f, grep, pytest, git diff) — the gate is the safety net,
 # not tool selection.
-_ARBITRARY_ACTION_AGENT_TOOLS = frozenset(
-    {"write_file", "str_replace", "append_file", "run_python"}
-)
+_ARBITRARY_ACTION_AGENT_TOOLS = frozenset({"append_file", "run_python"})
 
 # (node_id, scope_factory) pairs for every internal node that is NOT
 # TaskExecutor or ResponseNode. These must never resolve arbitrary action tools.
@@ -75,11 +74,11 @@ def _resolved_tool_names(policy: NodeToolPolicy) -> set[str]:
     return names
 
 
-def test_information_digester_has_only_digest_read_tools() -> None:
+def test_information_digester_has_only_digest_and_managed_draft_tools() -> None:
     """Spec: ./spec.md:188, ./spec.md:228, ./spec.md:274.
 
     Source: information_digester.md:13-18, information_digester.md:52-58.
-    InformationDigester must not receive task tools or action tools.
+    InformationDigester must not receive task tools or unrestricted action tools.
     """
     names = _resolved_tool_names(information_digester_tool_scope())
 
@@ -91,11 +90,12 @@ def test_information_digester_has_only_digest_read_tools() -> None:
     assert "task_decompose" not in names
     assert "task_result_update" not in names
     assert "task_review_decision" not in names
-    # Forbidden action tools (write/execute). run_shell is allowed — it is the
+    # write_file and str_replace are runtime-bound to one managed draft. run_shell is
+    # allowed — it is the
     # gated exploratory shell (hardline blocks unrecoverable commands; recoverable
     # destructive warns but executes). The digester uses it for read-only research.
-    assert "write_file" not in names
-    assert "str_replace" not in names
+    assert "write_file" in names
+    assert "str_replace" in names
     assert "append_file" not in names
     assert "run_python" not in names
 
@@ -112,7 +112,7 @@ def test_non_action_nodes_have_no_arbitrary_write_execute_tools(
 
     Source: task_executor.md:31-43, response.md:31-58, tools/task.md:5-18.
     Every node except TaskExecutor and ResponseNode must be free of
-    arbitrary write/execute tools.
+    unrestricted write/execute tools.
     """
     names = _resolved_tool_names(factory())
     leaked = _ARBITRARY_ACTION_AGENT_TOOLS & names
@@ -154,11 +154,11 @@ def test_task_analyzer_has_no_execution_or_action_tools_in_any_mode() -> None:
         )
 
 
-def test_result_reviewer_is_read_only_no_write_or_execute() -> None:
+def test_result_reviewer_has_only_managed_draft_writes() -> None:
     """Spec: ./spec.md:183, ./spec.md:213-214, ./spec.md:274.
 
     Source: result_reviewer.md:6-18, response.md:31-58.
-    ResultReviewer may inspect artifacts but must not write or execute.
+    ResultReviewer may inspect artifacts and edit only a managed draft.
     """
     names = _resolved_tool_names(result_reviewer_tool_scope())
     assert "task_review_decision" in names
@@ -168,7 +168,7 @@ def test_result_reviewer_is_read_only_no_write_or_execute() -> None:
     # (hardline blocks unrecoverable; recoverable-destructive warns). The
     # reviewer verifies via exit_code/exit_code_meaning.
     assert "run_shell" in names
-    assert "write_file" not in names
-    assert "str_replace" not in names
+    assert "write_file" in names
+    assert "str_replace" in names
     assert "append_file" not in names
     assert "run_python" not in names
