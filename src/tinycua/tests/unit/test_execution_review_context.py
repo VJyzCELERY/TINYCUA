@@ -156,12 +156,41 @@ def test_review_summary_is_stored_without_length_limit() -> None:
         task.task_id,
         ReviewerDecision.NEEDS_REVISION,
         rationale="Comprehensive rationale.",
-        metadata={"review_summary": summary},
+        metadata={
+            "review_summary": summary,
+            "new_findings": ["The result needs revision."],
+        },
     )
 
     assert task.reviewer_decisions[-1]["review_summary"] == summary.strip()
     schema = TaskReviewDecisionTool().parameters["properties"]["review_summary"]
     assert "maxLength" not in schema
+
+
+def test_needs_revision_requires_an_actionable_open_finding() -> None:
+    """Runtime review retries must identify the active defect explicitly."""
+    store = TaskStateStore()
+    task = store.create_task("Task")
+    store.record_result(task.task_id, TaskResult(content="result", success=False))
+    review = _review_tool(store)
+
+    rejected = review(decision="needs_revision", rationale="Something failed.")
+    accepted = review(
+        decision="needs_revision",
+        rationale="The exact file is missing.",
+        new_findings=["Create the exact required file."],
+    )
+
+    assert rejected["success"] is False
+    assert "OPEN finding" in rejected["error"]
+    assert accepted["success"] is True
+
+    with pytest.raises(ValueError, match="OPEN finding"):
+        store.record_reviewer_decision(
+            task.task_id,
+            ReviewerDecision.NEEDS_REVISION,
+            rationale="Direct state calls obey the same invariant.",
+        )
 
 
 def test_task_inspect_defaults_to_digest_and_drills_into_one_event() -> None:
@@ -239,6 +268,7 @@ def test_task_inspect_rejects_invalid_review_page_requests(
         task.task_id,
         ReviewerDecision.NEEDS_REVISION,
         rationale="Full rationale.",
+        metadata={"new_findings": ["The result needs revision."]},
     )
     inspect = TaskInspectTool()
     inspect.bind_task_store(store)
@@ -260,6 +290,7 @@ def test_executor_task_inspect_is_active_task_only() -> None:
             task.task_id,
             ReviewerDecision.NEEDS_REVISION,
             rationale=f"Private rationale for {task.title}.",
+            metadata={"new_findings": [f"{task.title} needs revision."]},
         )
     store.active_task_id = active.task_id
     inspect = TaskInspectTool()
@@ -272,6 +303,121 @@ def test_executor_task_inspect_is_active_task_only() -> None:
     assert (
         "active task" in inspect(task_id=sibling.task_id, event_id="review-1")["error"]
     )
+
+
+def test_executor_deduplicates_rationale_shared_by_open_findings() -> None:
+    """One review event is injected once even when it created several findings."""
+    session = Session()
+    store = session.task_store
+    task = store.create_task("Active")
+    store.record_result(task.task_id, TaskResult(content="attempt", success=False))
+    store.record_reviewer_decision(
+        task.task_id,
+        ReviewerDecision.NEEDS_REVISION,
+        rationale="SHARED_COMPLETE_RATIONALE",
+        metadata={"new_findings": ["FIRST_FINDING", "SECOND_FINDING"]},
+    )
+    executor = TinyCUATaskExecutorNode(
+        "task_executor", create_node_config("task_executor")
+    )
+
+    prompt = executor.build_continuation(session)
+
+    assert "FIRST_FINDING" in prompt
+    assert "SECOND_FINDING" in prompt
+    assert prompt.count("SHARED_COMPLETE_RATIONALE") == 1
+
+
+def test_role_specific_review_context_is_complete_and_relevant() -> None:
+    """Executor gets current remediation detail; Reviewer gets the status ledger."""
+    session = Session()
+    store = session.task_store
+    root = store.create_task("Root")
+    active = store.create_task("Active", parent_id=root.task_id)
+    sibling = store.create_task("Sibling", parent_id=root.task_id)
+    store.record_result(active.task_id, TaskResult(content="attempt", success=False))
+    store.record_reviewer_decision(
+        active.task_id,
+        ReviewerDecision.NEEDS_REVISION,
+        rationale="ADDRESSED_RATIONALE",
+        metadata={
+            "review_summary": "ADDRESSED_SUMMARY",
+            "new_findings": ["ADDRESSED_FINDING"],
+        },
+    )
+    store.record_reviewer_decision(
+        active.task_id,
+        ReviewerDecision.NEEDS_REVISION,
+        rationale="DEFERRED_RATIONALE",
+        metadata={
+            "review_summary": "DEFERRED_SUMMARY",
+            "new_findings": ["DEFERRED_FINDING"],
+            "finding_updates": [{"finding_id": "finding-1", "status": "ADDRESSED"}],
+        },
+    )
+    store.record_reviewer_decision(
+        active.task_id,
+        ReviewerDecision.NEEDS_REVISION,
+        rationale="INVALID_RATIONALE",
+        metadata={
+            "review_summary": "INVALID_SUMMARY",
+            "new_findings": ["INVALID_FINDING"],
+            "finding_updates": [{"finding_id": "finding-2", "status": "DEFERRED"}],
+        },
+    )
+    current_rationale = "CURRENT_OPEN_RATIONALE\n" * 600
+    store.record_reviewer_decision(
+        active.task_id,
+        ReviewerDecision.NEEDS_REVISION,
+        rationale=current_rationale,
+        metadata={
+            "review_summary": "CURRENT_SUMMARY",
+            "new_findings": ["CURRENT_OPEN_FINDING"],
+            "finding_updates": [{"finding_id": "finding-3", "status": "INVALID"}],
+        },
+    )
+    store.record_result(sibling.task_id, TaskResult(content="SIBLING_RESULT"))
+    store.record_reviewer_decision(
+        sibling.task_id,
+        ReviewerDecision.NEEDS_REVISION,
+        rationale="SIBLING_RATIONALE",
+        metadata={"new_findings": ["SIBLING_FINDING"]},
+    )
+    store.active_task_id = active.task_id
+    executor = TinyCUATaskExecutorNode(
+        "task_executor", create_node_config("task_executor")
+    )
+    reviewer = TinyCUAResultReviewerNode(
+        "result_reviewer", create_node_config("result_reviewer")
+    )
+    reviewer.ensure_session(session)
+
+    executor_prompt = executor.build_continuation(session)
+    reviewer_prompt = reviewer.build_continuation(session)
+
+    assert "CURRENT_OPEN_FINDING" in executor_prompt
+    assert current_rationale.strip() in executor_prompt
+    for excluded in (
+        "ADDRESSED_FINDING",
+        "ADDRESSED_RATIONALE",
+        "DEFERRED_FINDING",
+        "DEFERRED_RATIONALE",
+        "INVALID_FINDING",
+        "INVALID_RATIONALE",
+        "SIBLING_FINDING",
+        "SIBLING_RATIONALE",
+    ):
+        assert excluded not in executor_prompt
+    for finding_id, status, summary in (
+        ("finding-1", "ADDRESSED", "ADDRESSED_FINDING"),
+        ("finding-2", "DEFERRED", "DEFERRED_FINDING"),
+        ("finding-3", "INVALID", "INVALID_FINDING"),
+        ("finding-4", "OPEN", "CURRENT_OPEN_FINDING"),
+    ):
+        assert f"{finding_id} [{status}]" in reviewer_prompt
+        assert summary in reviewer_prompt
+    assert "CURRENT_OPEN_RATIONALE" not in reviewer_prompt
+    assert "SIBLING_FINDING" not in reviewer_prompt
 
 
 def test_postponed_journal_resumes_on_same_task_without_sibling_leakage() -> None:
@@ -324,6 +470,6 @@ def test_postponed_journal_resumes_on_same_task_without_sibling_leakage() -> Non
     resumed_prompt = executor.build_continuation(session)
 
     assert store.active_task_id == first.task_id
-    assert "TASK_A_EVENT_SUMMARY" in resumed_prompt
+    assert "TASK_A_EVENT_SUMMARY" not in resumed_prompt
     assert "TASK_A_OPEN_FINDING" in resumed_prompt
-    assert "TASK_A_FULL_RATIONALE" not in resumed_prompt
+    assert "TASK_A_FULL_RATIONALE" in resumed_prompt

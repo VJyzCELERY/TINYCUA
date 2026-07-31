@@ -1107,6 +1107,18 @@ class TaskStateStore:
             updated_ids.add(finding_id)
             finding_updates.append({"finding_id": finding_id, "status": status})
 
+        if decision in {
+            ReviewerDecision.NEEDS_REVISION,
+            ReviewerDecision.REJECTED,
+        } and not (
+            new_findings
+            or any(update["status"] == "OPEN" for update in finding_updates)
+        ):
+            raise ValueError(
+                "needs_revision requires a new OPEN finding or an existing finding "
+                "update with status OPEN."
+            )
+
         if decision == ReviewerDecision.APPROVED and self._has_open_findings_after(
             task, new_findings, finding_updates
         ):

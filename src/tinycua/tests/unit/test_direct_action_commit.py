@@ -308,6 +308,10 @@ async def test_reviewer_decision_stays_staged_until_validation_then_commits_once
     llm = _SequenceLLM(
         [
             {
+                "content": "",
+                "tool_calls": [_tool_call("task_inspect", {})],
+            },
+            {
                 "content": "approved",
                 "tool_calls": [
                     _tool_call(
@@ -332,7 +336,7 @@ async def test_reviewer_decision_stays_staged_until_validation_then_commits_once
 
     await loop._execute_node(node, agent, [])
 
-    assert len(llm.calls) == 2
+    assert len(llm.calls) == 3
     assert llm.calls[1]["tool_names"] == ["task_review_decision"]
     assert task.reviewer_decisions == [
         {

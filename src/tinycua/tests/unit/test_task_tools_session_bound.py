@@ -427,7 +427,11 @@ def test_review_tool_stages_corrections_until_reviewer_termination() -> None:
         is True
     )
     assert (
-        review(decision="needs_revision", rationale="The report has a gap.")["staged"]
+        review(
+            decision="needs_revision",
+            rationale="The report has a gap.",
+            new_findings=["Repair the report gap."],
+        )["staged"]
         is True
     )
     assert store.get_task(task_id).reviewer_decisions == []

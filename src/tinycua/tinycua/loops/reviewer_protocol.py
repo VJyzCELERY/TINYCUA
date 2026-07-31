@@ -6,6 +6,7 @@ from typing import Any
 from uuid import uuid4
 
 from tinycua.loops.node_contract import LifecyclePhase
+from tinycua.loops.review_context import render_reviewer_finding_ledger
 from tinycua.loops.trace_state_mixin import normalize_tool_outcome
 
 
@@ -160,6 +161,17 @@ def advance_lifecycle_phase(node: Any, result: Any) -> bool:
         return True
     if node.progress.lifecycle_phase != LifecyclePhase.ACTION:
         return False
+    if node.node_id == "result_reviewer" and result.tool_calls:
+        tool_results = result.metadata.get("tool_results", [])
+        current_results = tool_results[-len(result.tool_calls) :]
+        if len(current_results) != len(result.tool_calls) or any(
+            not normalize_tool_outcome(call, item)["success"]
+            for call, item in zip(result.tool_calls, current_results, strict=True)
+        ):
+            return False
+        node.progress.advance_lifecycle(LifecyclePhase.SUMMARY, result.content.strip())
+        node.progress.advance_lifecycle(LifecyclePhase.COMMIT)
+        return True
     commit_tools = set(node.contract.required_tools)
     for group in node.contract.any_of_tools:
         commit_tools.update(group)
@@ -181,9 +193,11 @@ def review_action_directive(node: Any) -> str:
     active = node.session.task_store.get_active_task()
     report = active.result.content.strip() if active and active.result else ""
     suffix = f"\nExecutor outcome report:\n{report}" if report else ""
+    ledger = "\n".join(render_reviewer_finding_ledger(active)) if active else ""
+    ledger_suffix = f"\n{ledger}" if ledger else ""
     return (
         "PLAN committed. Independently execute the planned falsification checks now. "
-        f"Executor claims are context, not observations.{suffix}"
+        f"Executor claims are context, not observations.{suffix}{ledger_suffix}"
     )
 
 

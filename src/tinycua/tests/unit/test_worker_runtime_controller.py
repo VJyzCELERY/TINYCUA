@@ -13,7 +13,11 @@ def test_worker_runtime_retry_keeps_same_active_task() -> None:
     root = store.create_task("Root")
     active = store.create_task("Active", parent_id=root.task_id)
     store.transition(active.task_id, TaskStatus.IN_PROGRESS)
-    store.record_reviewer_decision(active.task_id, ReviewerDecision.NEEDS_REVISION)
+    store.record_reviewer_decision(
+        active.task_id,
+        ReviewerDecision.NEEDS_REVISION,
+        metadata={"new_findings": ["The task needs revision."]},
+    )
     queue = NodeQueue()
 
     WorkerRuntimeController(store).schedule_after_review(
@@ -35,8 +39,19 @@ def test_worker_runtime_repeated_revision_never_routes_to_response() -> None:
     store.transition(active.task_id, TaskStatus.IN_PROGRESS)
     # Use 3 rejections — below the default replan_threshold of 5, so this
     # still routes to executor+reviewer (retry), not replan.
-    for _ in range(3):
-        store.record_reviewer_decision(active.task_id, ReviewerDecision.NEEDS_REVISION)
+    store.record_reviewer_decision(
+        active.task_id,
+        ReviewerDecision.NEEDS_REVISION,
+        metadata={"new_findings": ["The task needs revision."]},
+    )
+    for _ in range(2):
+        store.record_reviewer_decision(
+            active.task_id,
+            ReviewerDecision.NEEDS_REVISION,
+            metadata={
+                "finding_updates": [{"finding_id": "finding-1", "status": "OPEN"}]
+            },
+        )
     queue = NodeQueue()
 
     WorkerRuntimeController(store).schedule_after_review(

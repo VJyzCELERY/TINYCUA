@@ -75,11 +75,7 @@ class ScriptedAgentResponses:
                     }
                 ],
             }
-        if "list_files" in tool_names and not any(
-            message.get("role") == "tool"
-            and "list_files" in str(message.get("content", ""))
-            for message in messages
-        ):
+        if "list_files" in tool_names:
             return {
                 "content": "",
                 "tool_calls": [{"function": {"name": "list_files", "arguments": "{}"}}],
@@ -106,8 +102,7 @@ class ScriptedAgentResponses:
                             '"limitations":"Scripted judgment only."}]}'
                         ),
                     }
-                },
-                {"function": {"name": "task_inspect", "arguments": "{}"}},
+                }
             ],
         }
 
@@ -194,7 +189,11 @@ class ScriptedAgentResponses:
                     }
                 ],
             }
-        if tool_names & {"task_review_plan", "task_review_decision"}:
+        if tool_names & {"task_review_plan", "task_review_decision"} or any(
+            "ResultReviewer" in str(message.get("content", ""))
+            for message in messages
+            if message.get("role") == "system"
+        ):
             return self._review_response(messages, tool_names)
         if "task_assessment_decision" in tool_names:
             if any(

@@ -375,6 +375,9 @@ class NodeRetryMixin:
                 last_result, all_tool_results, retry_tool_results
             )
             if self._advance_lifecycle_phase(node, last_result):
+                attempt_tools = self._tools_for_lifecycle_result(
+                    node, last_result, resolved_tools
+                )
                 retry_tool_results = self._tool_results_from_llm_result(last_result)
                 retry_message = self._lifecycle_phase_directive(node, resolved_tools)
                 retry_feedback = self._tool_feedback_messages(last_result)

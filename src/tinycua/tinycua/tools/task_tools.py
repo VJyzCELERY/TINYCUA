@@ -866,8 +866,8 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
                     "review_summary": {
                         "type": "string",
                         "description": (
-                            "Comprehensive review retained in the task journal. "
-                            "Default prompts show a bounded navigable preview."
+                            "Concise index summary retained without a length limit. "
+                            "Put complete supporting detail in rationale."
                         ),
                     },
                     "new_findings": {
@@ -974,7 +974,7 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
             task_id: Optional active-task reference for non-reviewer callers.
             decision: Required reviewer decision. Must not be omitted.
             rationale: Full review rationale supporting the decision.
-            review_summary: Comprehensive review retained with the decision.
+            review_summary: Concise index summary retained with the decision.
             new_findings: New active-task findings, initially OPEN.
             finding_updates: Status changes for existing active-task findings.
             context_updates: Optional claim handoffs for unfinished future tasks.

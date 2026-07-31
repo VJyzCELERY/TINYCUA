@@ -83,7 +83,13 @@ class RuntimeContractScript:
         except Exception:
             return {}
 
-    def _detect_node(self, tool_names: set[str]) -> str:
+    def _detect_node(self, tool_names: set[str], messages: list[dict[str, Any]]) -> str:
+        if any(
+            "ResultReviewer" in str(message.get("content", ""))
+            for message in messages
+            if message.get("role") == "system"
+        ):
+            return "result_reviewer"
         if "final_response_synthesis" in tool_names:
             return "final"
         if "select_query_route" in tool_names:
@@ -314,10 +320,7 @@ class RuntimeContractScript:
                     ],
                 }
             # First call: inspect workspace
-            if "list_files" in tool_names and not any(
-                m.get("role") == "tool" and "list_files" in str(m.get("content", ""))
-                for m in messages
-            ):
+            if "list_files" in tool_names:
                 return {
                     "content": "",
                     "tool_calls": [
@@ -334,8 +337,7 @@ class RuntimeContractScript:
                 for m in messages
             ):
                 return {"content": "Review recorded.", "tool_calls": []}
-            # Decide-then-inspect: record the decision and inspect the roadmap in
-            # the same response so the node can terminate.
+            # COMMIT exposes only the decision tool.
             # First time seeing this task: approve
             if task_id not in self.reviewer_approved_tasks:
                 self.reviewer_approved_tasks.add(task_id)
@@ -347,8 +349,7 @@ class RuntimeContractScript:
                                 "name": "task_review_decision",
                                 "arguments": f'{{"decision":"approved","rationale":"Task {task_id} completed successfully","task_id":"{task_id}","criterion_assessments":[{{"criterion_id":"acceptance-1","result":"supported","evidence_ids":["review-observation"],"inference":"The request is met.","limitations":"One scripted observation."}}]}}',
                             }
-                        },
-                        {"function": {"name": "task_inspect", "arguments": "{}"}},
+                        }
                     ],
                 }
             return {
@@ -359,8 +360,7 @@ class RuntimeContractScript:
                             "name": "task_review_decision",
                             "arguments": f'{{"decision":"approved","rationale":"Verified","task_id":"{task_id}","criterion_assessments":[{{"criterion_id":"acceptance-1","result":"supported","evidence_ids":["review-observation"],"inference":"The request is met.","limitations":"One scripted observation."}}]}}',
                         }
-                    },
-                    {"function": {"name": "task_inspect", "arguments": "{}"}},
+                    }
                 ],
             }
         if node == "result_aggregation":
@@ -377,7 +377,7 @@ class RuntimeContractScript:
         stream: bool = False,  # noqa: ANN001, ARG002
     ) -> dict[str, Any]:
         tool_names = {t.name for t in tools}
-        node = self._detect_node(tool_names)
+        node = self._detect_node(tool_names, messages)
         # Check bad BEFORE incrementing so count==0 triggers on first call
         is_bad = self._is_bad_call(node)
         self.calls_by_node[node] = self.calls_by_node.get(node, 0) + 1

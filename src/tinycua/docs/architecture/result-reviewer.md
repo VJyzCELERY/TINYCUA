@@ -44,7 +44,7 @@ Tool execution establishes observation provenance, not semantic proof. The runti
 - Bounded executor evidence — tool names, command/path/URL/query identifiers, outcomes,
   and audit references from the Task Executor. Full tool output bodies are not replayed.
 - `shallow_task_list` — task IDs and names from the Task Tree for scope awareness (no full task details).
-- The active task's bounded review digest: open/deferred/recently addressed findings and navigable recent-event previews. `task_inspect(event_id=...)` returns the full event; adding `field`, `offset`, and `limit` pages the complete `review_summary` or `rationale`.
+- The active task's compact finding ledger: every stable finding ID, current status, summary, and latest event ID. This lets Reviewer reuse or reopen findings instead of rediscovering them. `task_inspect(event_id=...)` returns the full event; adding `field`, `offset`, and `limit` pages the complete `review_summary` or `rationale`.
 
 The Result Reviewer should not receive a broad accumulated context dump by default. Cross-task context changes happen only through explicit validated `context_updates`.
 
@@ -101,6 +101,8 @@ flowchart TD
 ## Context Propagation
 
 Review events and findings stay on the active task across retry, replan, postponement, and resume. They never enter sibling prompts automatically. Approval is rejected while that task owns unresolved `OPEN` findings.
+
+Reviewer ACTION exposes only inspection and evidence tools. After that batch, COMMIT exposes only `task_review_decision`, preventing inspection and verdict payloads from competing in one tool set. A retry verdict must create or explicitly touch an `OPEN` finding so the next Executor receives an actionable, event-linked correction.
 
 Root review events also retain the precommitted plan, criterion assessments, and assurance status. Empirical support cites successful current-review observations. Only successful, citable Reviewer ACTION observations expose `evidence_id`; failed observations, `task_inspect`, task-state commits, decisions, and termination retain call provenance but cannot masquerade as independent evidence. Judgment-only criteria require explicit limitations and no fabricated observation reference.
 

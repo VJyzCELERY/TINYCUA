@@ -377,6 +377,10 @@ async def test_streamed_lifecycle_action_summary_enters_commit(
     node_type,
 ) -> None:
     """A completed streamed action batch advances every lifecycle node to commit."""
+    class SuccessfulTool(Tool):
+        def __call__(self) -> dict[str, bool]:
+            return {"success": True}
+
     loop = TinyCUALoop()
     node = node_type(
         node_id=node_id,
@@ -389,7 +393,7 @@ async def test_streamed_lifecycle_action_summary_enters_commit(
         Agent(llm_model=LanguageModel()),
         ["Action Summary: wrote the requested file."],
         [{"function": {"name": "write_file", "arguments": "{}"}}],
-        [Tool(name="write_file")],
+        [SuccessfulTool(name="write_file")],
     )
 
     assert node.progress.lifecycle_phase is LifecyclePhase.COMMIT
@@ -730,7 +734,7 @@ def test_task_executor_renders_reviewer_verify_only_context() -> None:
 def test_lifecycle_action_prompts_expose_owned_commit_without_terminate(
     node: str, owned_commit_tools: set[str]
 ) -> None:
-    """ACTION prompts advertise direct commit but never termination."""
+    """ACTION prompts expose only the node's intended phase tools."""
     loop = TinyCUALoop()
     task_node = {
         "task_analyzer": TinyCUATaskAnalyzerNode,
@@ -742,7 +746,10 @@ def test_lifecycle_action_prompts_expose_owned_commit_without_terminate(
     messages, _ = loop._prepare_node(task_node, [])
 
     rendered = json.dumps(messages)
-    assert all(tool_name in rendered for tool_name in owned_commit_tools)
+    if node == "result_reviewer":
+        assert all(tool_name not in rendered for tool_name in owned_commit_tools)
+    else:
+        assert all(tool_name in rendered for tool_name in owned_commit_tools)
     assert "terminate" not in rendered
 
 
@@ -922,6 +929,7 @@ def test_result_reviewer_updates_unified_task_context_without_context_append() -
         task.task_id,
         ReviewerDecision.REJECTED,
         rationale="needs retry",
+        metadata={"new_findings": ["The failed attempt needs revision."]},
     )
     reviewer.parse_loop_result(
         LLMResult(
@@ -943,6 +951,9 @@ def test_result_reviewer_updates_unified_task_context_without_context_append() -
         task.task_id,
         ReviewerDecision.APPROVED,
         rationale="accepted",
+        metadata={
+            "finding_updates": [{"finding_id": "finding-1", "status": "ADDRESSED"}]
+        },
     )
     reviewer.parse_loop_result(
         LLMResult(
