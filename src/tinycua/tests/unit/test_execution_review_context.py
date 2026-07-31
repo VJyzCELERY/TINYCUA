@@ -328,6 +328,107 @@ def test_executor_deduplicates_rationale_shared_by_open_findings() -> None:
     assert prompt.count("SHARED_COMPLETE_RATIONALE") == 1
 
 
+def test_reviewer_receives_full_report_and_labeled_executor_evidence() -> None:
+    """Reviewer sees the full claim separately from bounded Executor evidence."""
+    session = Session()
+    store = session.task_store
+    task = store.create_task("Verify source")
+    url = "https://benchlm.ai/models/" + "frontier-model-" * 40
+    report = f"Fetched the complete model profile from {url}"
+    store.record_result(
+        task.task_id,
+        TaskResult(
+            content=report,
+            metadata={
+                "tool_results": [
+                    {
+                        "name": "fetch_url",
+                        "artifact_path": "artifacts/tool-calls/0001-fetch_url.json",
+                        "outcome": {
+                            "call_id": "executor-call-1",
+                            "tool_name": "fetch_url",
+                            "success": True,
+                            "invocation": {"url": url},
+                            "truncated": True,
+                        },
+                    }
+                ]
+            },
+        ),
+    )
+    reviewer = TinyCUAResultReviewerNode(
+        "result_reviewer", create_node_config("result_reviewer")
+    )
+    reviewer.ensure_session(session)
+
+    prompt = reviewer.build_continuation(session)
+
+    assert "## Executor report (primary review target)" in prompt
+    assert report in prompt
+    assert "## Executor tool-call evidence" in prompt
+    assert "not independent Reviewer observations" in prompt
+    assert "output_preview_truncated=True" in prompt
+    assert f"url={url}" in prompt
+
+
+def test_reviewer_evidence_bounds_pathological_url_preview() -> None:
+    """Runtime provenance keeps the URL while its prompt projection stays bounded."""
+    session = Session()
+    store = session.task_store
+    task = store.create_task("Verify source")
+    url = "https://example.test/" + "x" * 250_000
+    outcome = {
+        "call_id": "executor-call-1",
+        "tool_name": "fetch_url",
+        "success": True,
+        "invocation": {"url": url},
+    }
+    store.record_result(
+        task.task_id,
+        TaskResult(
+            content="Fetched the model profile.",
+            metadata={"tool_results": [{"name": "fetch_url", "outcome": outcome}]},
+        ),
+    )
+    reviewer = TinyCUAResultReviewerNode(
+        "result_reviewer", create_node_config("result_reviewer")
+    )
+    reviewer.ensure_session(session)
+
+    prompt = reviewer.build_continuation(session)
+    evidence_line = next(
+        line for line in prompt.splitlines() if line.startswith("- fetch_url:")
+    )
+
+    assert outcome["invocation"]["url"] == url
+    assert len(evidence_line) <= 3500
+    assert "prompt preview truncated" in evidence_line
+    assert "total_chars=" in evidence_line
+    assert "sha256=" in evidence_line
+
+
+def test_reviewer_task_inspect_does_not_replace_report_with_silent_preview() -> None:
+    """Reviewer detail preserves the report; compact callers get explicit bounds."""
+    store = TaskStateStore()
+    task = store.create_task("Verify source")
+    url = "https://benchlm.ai/models/" + "frontier-model-" * 40
+    report = f"Fetched the complete model profile from {url}"
+    store.record_result(task.task_id, TaskResult(content=report))
+    inspect = TaskInspectTool()
+    inspect.bind_task_store(store)
+
+    compact = inspect(task_id=task.task_id)
+    inspect.bind_source_node("result_reviewer")
+    reviewer_detail = inspect(task_id=task.task_id)
+
+    assert compact["result"]["content"] == report[:200]
+    assert compact["result"]["content_truncated"] is True
+    assert compact["result"]["content_total_chars"] == len(report)
+    assert reviewer_detail["result"]["content"] == report
+    assert reviewer_detail["result"]["content_truncated"] is False
+    assert reviewer_detail["result"]["content_total_chars"] == len(report)
+
+
 def test_role_specific_review_context_is_complete_and_relevant() -> None:
     """Executor gets current remediation detail; Reviewer gets the status ledger."""
     session = Session()

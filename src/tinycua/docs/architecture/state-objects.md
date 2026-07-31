@@ -3,7 +3,7 @@
 > **Category:** Reference Spec
 
 > **File:** `architecture/state-objects.md`
-> **Last Updated:** 2026-05-30
+> **Last Updated:** 2026-07-31
 > **Status:** Implemented
 > **See also:** [session-architecture.md](session-architecture.md), [overview.md](overview.md), [query-analyst.md](query-analyst.md), [information-digestion.md](information-digestion.md), [worker-orchestration.md](worker-orchestration.md), [task-creation.md](task-creation.md), [task-analysis.md](task-analysis.md), [task-execution.md](task-execution.md), [result-reviewer.md](result-reviewer.md), [primary-agent.md](primary-agent.md)
 
@@ -203,12 +203,24 @@ Additional fields may be introduced if justified by a later design decision.
 task_result:
   task_id: "<task id>"
   status: completed | failed | blocked
-  result: "..."
+  result: "<complete Executor report; primary review target>"
+  executor_tool_evidence:
+    - call_id: "<runtime call id>"
+      tool_name: "<tool name>"
+      invocation: "<exact URL or bounded command/path/query>"
+      success: true | false
+      output_preview_truncated: true | false
+      audit_path: "<optional full audit artifact>"
   discovered_sequence_issues:
     - "..."
   uncertainty_notes:
     - "..."
 ```
+
+Executor tool evidence is runtime-owned supporting context, not an independently
+verified fact. Compact task views mark report previews with truncation and total-length
+metadata; ResultReviewer inspection retains the complete report. Exact URLs remain in
+runtime state; only pathological prompt projections are bounded with explicit length and hash.
 
 ---
 

@@ -95,6 +95,9 @@ def test_review_guidance_protects_exact_and_observable_requirements() -> None:
     assert "exact path" in instruction
     assert "public workflow" in instruction
     assert "generated task" in instruction
+    assert "primary review target" in instruction
+    assert "not independent reviewer observations" in instruction.lower()
+    assert "preview truncation" in instruction.lower()
     assert "explicitly requested verification" in guidance.lower()
 
 

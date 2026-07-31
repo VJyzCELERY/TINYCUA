@@ -628,6 +628,47 @@ async def test_execute_tool_calls_unwraps_provider_nested_arguments() -> None:
 
 
 @pytest.mark.asyncio
+async def test_execute_tool_calls_preserves_full_normalized_url_provenance() -> None:
+    """Evidence records the exact executed URL after provider argument unwrapping."""
+    loop = TinyCUALoop()
+    calls = []
+    url = "https://example.test/models/" + "frontier-model-" * 40
+
+    class FetchLikeTool(Tool):
+        def __init__(self) -> None:
+            super().__init__(
+                name="fetch_url",
+                parameters={
+                    "type": "object",
+                    "properties": {"url": {"type": "string"}},
+                    "required": ["url"],
+                    "additionalProperties": False,
+                },
+            )
+
+        def __call__(self, url: str) -> dict[str, object]:
+            calls.append(url)
+            return {"success": True, "content": "model profile"}
+
+    results = await loop._execute_tool_calls(
+        Agent(llm_model=LanguageModel()),
+        [
+            {
+                "type": "function",
+                "function": {
+                    "name": "fetch_url",
+                    "arguments": {"arguments": {"url": url}},
+                },
+            }
+        ],
+        [FetchLikeTool()],
+    )
+
+    assert calls == [url]
+    assert results[0]["outcome"]["invocation"]["url"] == url
+
+
+@pytest.mark.asyncio
 async def test_execute_tool_calls_preserves_real_arguments_parameter() -> None:
     """Nested unwrapping must not break tools with a genuine arguments kwarg."""
     loop = TinyCUALoop()

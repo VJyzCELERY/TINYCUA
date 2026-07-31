@@ -1324,7 +1324,7 @@ class TaskStateStore:
         """Return one task with compacted detail (FR-012), or None if not found.
 
         - Review history reduced to a bounded task-local digest.
-        - ``result.content``/``result.summary`` truncated to 200 chars.
+        - ``result.content``/``result.summary`` use marked 200-character previews.
         - Empty ``metadata``/``artifacts``/``children`` omitted.
         """
         task = self.tasks.get(task_id)
@@ -1346,7 +1346,11 @@ class TaskStateStore:
             detail["result"] = {
                 "success": result.success,
                 "content": result.content[:200],
+                "content_truncated": len(result.content) > 200,
+                "content_total_chars": len(result.content),
                 "summary": result.summary[:200],
+                "summary_truncated": len(result.summary) > 200,
+                "summary_total_chars": len(result.summary),
             }
             if result.artifacts:
                 detail["result"]["artifacts"] = result.artifacts

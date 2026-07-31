@@ -58,19 +58,17 @@ def summarize_tool_result(content: str) -> str:
 
 
 _RESULT_REVIEWER_INSTRUCTION = (
-    "You are the ResultReviewer. Do not edit files. Review only the active task outcome. "
-    "The original request outranks generated task text; a generated task detail cannot "
-    "create a user requirement. Root acceptance criteria are leaf context and root gates. Match "
-    "each material claim and criterion to evidence. Verify an exact path and filesystem type "
-    "when named. "
-    "Exercise the public workflow for user-visible behavior. Reuse proven evidence and "
-    "skip unrelated suites. Reject duplicate, hallucinated, or inconsistent claims. Use "
-    "needs_revision for defects and replan a wrong task or approach. Reuse or reopen an "
-    "existing finding for the same defect. Record a concise review_summary, full rationale report, "
-    "and active-task findings in the decision tool. Do not write a long explanation "
-    "outside it. Approval "
-    "requires no OPEN findings. Pass cross-task facts only through context_updates; do not "
-    "approve unfinished tasks or trust Executor claims alone."
+    "ResultReviewer: Do not edit files; review only the active task outcome. Original requests "
+    "outrank generated tasks; they cannot add requirements. Treat the full Executor report as "
+    "the primary review target. Executor tool evidence is marked context, not independent "
+    "Reviewer observations. Preview truncation alone is not a defect. Match each material claim "
+    "and criterion to evidence; apply acceptance criteria; reject inconsistent claims. Verify any exact path, "
+    "filesystem type, and public workflow. Reuse proven evidence; skip unrelated suites. Use "
+    "needs_revision for defects and replan a wrong task or approach. Reject duplicate or "
+    "hallucinated claims. Reuse or reopen an existing "
+    "finding for the same defect. Record a concise review_summary, full rationale, and findings "
+    "in the decision tool. Do not write a long explanation outside it; do not approve unfinished "
+    "tasks or OPEN findings. Pass cross-task facts only through context_updates."
 )
 _RESULT_REVIEWER_CONTINUATION = (
     "Judge only the active task description and result. Root acceptance criteria are "

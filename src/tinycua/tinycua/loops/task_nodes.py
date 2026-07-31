@@ -16,6 +16,7 @@ from tinycua.loops.node_guidance import (
 )
 from tinycua.loops.reviewer_protocol import ReviewerProtocolMixin
 from tinycua.loops.review_context import (
+    render_executor_tool_evidence,
     render_executor_review_context,
     render_reviewer_finding_ledger,
 )
@@ -1027,39 +1028,6 @@ class TinyCUAResultReviewerNode(ReviewerProtocolMixin, ProcessNode):
             transcript_lines[-10:]
         )
 
-    @staticmethod
-    def _executor_evidence(task: Task) -> str:
-        """Render bounded executor tool evidence without replaying tool output."""
-        if task.result is None:
-            return ""
-        evidence = task.result.metadata.get("tool_results", [])
-        if not isinstance(evidence, list):
-            return ""
-        lines = []
-        for item in evidence[-16:]:
-            if not isinstance(item, dict):
-                continue
-            outcome = item.get("outcome")
-            if not isinstance(outcome, dict):
-                continue
-            name = str(outcome.get("tool_name") or item.get("name") or "tool")
-            bits = [f"success={outcome.get('success')}"]
-            if outcome.get("exit_code") is not None:
-                bits.append(f"exit_code={outcome['exit_code']}")
-            if outcome.get("error"):
-                bits.append(f"error={outcome['error']}")
-            invocation = outcome.get("invocation")
-            if isinstance(invocation, dict):
-                bits.extend(f"{key}={value}" for key, value in invocation.items())
-            if item.get("artifact_path"):
-                bits.append(f"audit={item['artifact_path']}")
-            lines.append(f"- {name}: " + "; ".join(bits))
-        if not lines:
-            return ""
-        omitted = max(0, len(evidence) - 16)
-        suffix = f"\n- ({omitted} earlier tool results omitted)" if omitted else ""
-        return "## Executor evidence\n" + "\n".join(lines) + suffix
-
     def build_continuation(self, session: Session | None = None) -> str:
         """Build reviewer continuation with latest result and unified context."""
         base = super().build_continuation(session)
@@ -1080,7 +1048,7 @@ class TinyCUAResultReviewerNode(ReviewerProtocolMixin, ProcessNode):
         mission = _render_mission_block(session)
         mission_prefix = f"{mission}\n\n" if mission else ""
         context_blocks = self._reviewer_context_blocks(task, session)
-        evidence_block = self._executor_evidence(task)
+        evidence_block = "\n".join(render_executor_tool_evidence(task))
         cancellation_block = (
             _render_approved_cancellations(session.task_store)
             if task.task_id == session.task_store.root_task_id
@@ -1109,7 +1077,8 @@ class TinyCUAResultReviewerNode(ReviewerProtocolMixin, ProcessNode):
             f"{mission_prefix}Task under review: {task.task_id} — {task.title}\n"
             f"Active task description: {description}\n"
             f"Task status: {task.status.value}\n"
-            f"Outcome report: {result_content}\n"
+            "## Executor report (primary review target)\n"
+            f"{result_content}\n"
             f"{_render_request_contract(session)}\n"
             "Unified task context:\n"
             f"{_render_task_tree_markdown(_task_context_snapshot(session), include_results=False)}\n"

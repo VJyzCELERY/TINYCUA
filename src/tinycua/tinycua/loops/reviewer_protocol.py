@@ -6,7 +6,10 @@ from typing import Any
 from uuid import uuid4
 
 from tinycua.loops.node_contract import LifecyclePhase
-from tinycua.loops.review_context import render_reviewer_finding_ledger
+from tinycua.loops.review_context import (
+    render_executor_tool_evidence,
+    render_reviewer_finding_ledger,
+)
 from tinycua.loops.trace_state_mixin import normalize_tool_outcome
 
 
@@ -192,12 +195,20 @@ def review_action_directive(node: Any) -> str:
         return ""
     active = node.session.task_store.get_active_task()
     report = active.result.content.strip() if active and active.result else ""
-    suffix = f"\nExecutor outcome report:\n{report}" if report else ""
+    suffix = (
+        f"\n## Executor report (primary review target)\n{report}" if report else ""
+    )
+    evidence = "\n".join(render_executor_tool_evidence(active)) if active else ""
+    evidence_suffix = f"\n{evidence}" if evidence else ""
     ledger = "\n".join(render_reviewer_finding_ledger(active)) if active else ""
     ledger_suffix = f"\n{ledger}" if ledger else ""
     return (
         "PLAN committed. Independently execute the planned falsification checks now. "
-        f"Executor claims are context, not observations.{suffix}{ledger_suffix}"
+        "The Executor report is the primary review target. Executor tool-call evidence "
+        "is supporting context and may contain marked output previews; it is not an "
+        "independent Reviewer observation. "
+        f"Executor claims are context, not observations.{suffix}{evidence_suffix}"
+        f"{ledger_suffix}"
     )
 
 
