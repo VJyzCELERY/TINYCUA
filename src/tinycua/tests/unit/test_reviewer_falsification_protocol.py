@@ -92,7 +92,12 @@ def test_failed_reviewer_action_remains_retryable() -> None:
             ]
         },
     )
-    assert advance_lifecycle_phase(node, succeeded) is True
+    assert advance_lifecycle_phase(node, succeeded) is False
+    assert node.progress.lifecycle_phase is LifecyclePhase.ACTION
+
+    summary = LLMResult(content="All planned checks are complete.")
+
+    assert advance_lifecycle_phase(node, summary) is True
     assert node.progress.lifecycle_phase is LifecyclePhase.COMMIT
 
 
@@ -376,6 +381,11 @@ async def test_root_reviewer_plan_unlocks_action_and_decision() -> None:
                 "tool_calls": [_tool_call("run_shell", {"command": "check outcome"})],
             },
             {
+                "content": "Checked task state independently.",
+                "tool_calls": [_tool_call("task_inspect", {})],
+            },
+            {"content": "All planned checks are complete.", "tool_calls": []},
+            {
                 "content": "approved",
                 "tool_calls": [
                     _tool_call(
@@ -413,6 +423,14 @@ async def test_root_reviewer_plan_unlocks_action_and_decision() -> None:
         "run_shell",
     }
     assert set(llm.calls[2]["tool_names"]) == {
+        "task_inspect",
+        "run_shell",
+    }
+    assert set(llm.calls[3]["tool_names"]) == {
+        "task_inspect",
+        "run_shell",
+    }
+    assert set(llm.calls[4]["tool_names"]) == {
         "task_review_decision",
         "json_draft_create",
         "json_draft_commit",
@@ -500,6 +518,7 @@ async def test_root_reviewer_retries_unknown_observation_reference() -> None:
                 "content": "",
                 "tool_calls": [_tool_call("run_shell", {"command": "check"})],
             },
+            {"content": "All planned checks are complete.", "tool_calls": []},
             {
                 "content": "approved",
                 "tool_calls": [
@@ -519,7 +538,7 @@ async def test_root_reviewer_retries_unknown_observation_reference() -> None:
 
     await loop._execute_node(node, agent, [_ObserveTool()])
 
-    assert len(llm.calls) == 4
+    assert len(llm.calls) == 5
     assert set(llm.calls[-1]["tool_names"]) == {
         "task_review_decision",
         "json_draft_create",
@@ -884,6 +903,7 @@ async def test_recovery_reentry_rebuilds_blind_plan_context() -> None:
                 "content": "",
                 "tool_calls": [_tool_call("run_shell", {"command": "check"})],
             },
+            {"content": "All planned checks are complete.", "tool_calls": []},
             {
                 "content": "approved",
                 "tool_calls": [

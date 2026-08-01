@@ -516,9 +516,22 @@ def test_role_specific_review_context_is_complete_and_relevant() -> None:
         ("finding-4", "OPEN", "CURRENT_OPEN_FINDING"),
     ):
         assert f"{finding_id} [{status}]" in reviewer_prompt
+        assert f"finding_id={finding_id}" in reviewer_prompt
         assert summary in reviewer_prompt
+    assert "source_event_id=" in reviewer_prompt
+    assert "Use the exact finding_id value" in reviewer_prompt
     assert "CURRENT_OPEN_RATIONALE" not in reviewer_prompt
     assert "SIBLING_FINDING" not in reviewer_prompt
+
+
+def test_reviewer_finding_update_schema_names_task_local_ids() -> None:
+    """Reviewer updates distinguish findings from task, event, and evidence IDs."""
+    finding_id = TaskReviewDecisionTool().parameters["properties"]["finding_updates"][
+        "items"
+    ]["properties"]["finding_id"]
+
+    assert "finding-N" in finding_id["description"]
+    assert "event" in finding_id["description"]
 
 
 def test_postponed_journal_resumes_on_same_task_without_sibling_leakage() -> None:

@@ -58,7 +58,9 @@ def normalize_tool_outcome(
             value = arguments.get(key)
             if value is not None:
                 rendered_value = sanitize_internal_reprs(str(value))
-                invocation[key] = rendered_value if key == "url" else rendered_value[:500]
+                invocation[key] = (
+                    rendered_value if key == "url" else rendered_value[:500]
+                )
     output = result.get("output") if isinstance(result, dict) else None
     details = output if isinstance(output, dict) else result
     raw_content = json.dumps(details, default=str)
@@ -184,7 +186,13 @@ class TraceStateMixin:
             "tool_name": tool_name,
             "attempt": 1,
             "content": content,
-            "delta": f"{prefix} {content}" if content else prefix,
+            "delta": (
+                prefix
+                if event_type == "transcript.node_call"
+                else f"{prefix} {content}"
+                if content
+                else prefix
+            ),
         }
         self._transcript_events.append(event)
         return event
@@ -259,7 +267,7 @@ class TraceStateMixin:
         store = self.root_session.task_store
         if not store.tasks:
             return None
-        return store.snapshot()
+        return store.snapshot_compact()
 
     def _json_safe(self, value: Any) -> Any:
         """Convert trace values to JSON-serializable primitives."""
@@ -492,8 +500,8 @@ class TraceStateMixin:
             trace_entry["retry_exhaustion"] = self._json_safe(retry_exhaustion)
         task_state = self._task_state_snapshot()
         if task_state is not None:
-            trace_entry["task_state"] = task_state
             trace_entry["task_tree"] = task_state
+            trace_entry["task_version"] = self.root_session.task_store.version
         return trace_entry
 
     def _apply_loop_result_hook(

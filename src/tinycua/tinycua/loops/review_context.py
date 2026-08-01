@@ -60,12 +60,15 @@ def render_reviewer_finding_ledger(task: Any) -> list[str]:
         return []
     lines = ["", "## Finding Ledger"]
     lines.extend(
-        f"- {finding['finding_id']} [{finding['status']}] "
-        f"(event {finding.get('updated_event_id', '?')}): {finding['summary']}"
+        f"- finding_id={finding['finding_id']} [{finding['status']}] "
+        f"(source_event_id={finding.get('updated_event_id', '?')}): "
+        f"{finding['summary']}"
         for finding in task.review_findings
     )
     lines.append(
-        "Reuse or reopen an existing finding for the same defect; do not create a duplicate."
+        "Use the exact finding_id value for finding_updates; never use a task, "
+        "event, or evidence ID. Reuse or reopen an existing finding for the same "
+        "defect; do not create a duplicate."
     )
     return lines
 

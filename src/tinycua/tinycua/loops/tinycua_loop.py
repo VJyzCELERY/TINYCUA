@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING, Any
 from tinycua_sdk.agent.executor import ToolExecutor
 from tinycua_sdk.agent.loop import BaseLoop
 
-from tinycua.agent.tools.native.output_persist import persist_if_oversized
 from tinycua.config.system_prompt import build_runtime_context
 from tinycua.config.types import LLMResult, ValidationResult
 from tinycua.loops.context_rendering import render_llm_content, sanitize_internal_reprs
@@ -36,8 +35,7 @@ from tinycua.loops.reviewer_protocol import (
 )
 from tinycua.loops.task_tree_rendering import render_task_tree
 from tinycua.loops.tool_call_normalization_mixin import ToolCallNormalizationMixin
-from tinycua.loops.trace_state_mixin import TraceStateMixin
-from tinycua.loops.trace_state_mixin import normalize_tool_outcome
+from tinycua.loops.trace_state_mixin import TraceStateMixin, normalize_tool_outcome
 from tinycua.loops.validation_retry_mixin import ValidationRetryMixin
 from tinycua.models.node_handoff import NodeHandoff
 from tinycua.models.session import Session
@@ -222,6 +220,7 @@ class TinyCUALoop(
         self._pending_handoffs: list[NodeHandoff] = []
         self._resolved_tools_for_prompt: list[Tool] | None = None
         self._draft_execution_id = ""
+        self._reset_tool_result_store()
 
     def get_usage_events(self) -> list[dict[str, Any]]:
         """Return the usage events captured during the last streaming run.
@@ -377,6 +376,7 @@ class TinyCUALoop(
         self._final_response_events = []
         self._transcript_events = []
         self._transcript_seen_node_contents = set()
+        self._reset_tool_result_store()
         for message in messages:
             if message.get("role") == "user":
                 self._record_transcript_event(
@@ -550,6 +550,7 @@ class TinyCUALoop(
                     self._draft_execution_id,
                 )
         self._bind_draft_file_tools(tools, node)
+        self._bind_tool_result_tools(tools, node)
 
     def _phase_tools(
         self,
@@ -762,10 +763,11 @@ class TinyCUALoop(
             def record(result: dict[str, Any]) -> None:
                 annotate_result_ids(result, call_id, evidence_id, tool_call)
                 history_result = self._redacted_tool_history(result)
-                prompt_content = persist_if_oversized(
+                prompt_content = self._persist_tool_result(
                     json.dumps(history_result, default=str),
                     call_id or name,
-                    tool_name=name,
+                    name,
+                    node,
                 )
                 result["prompt_content"] = prompt_content
                 outcome = normalize_tool_outcome(
@@ -946,10 +948,11 @@ class TinyCUALoop(
             if isinstance(tr, dict) and tr.get("name"):
                 prompt_content = tr.get("prompt_content")
                 if not isinstance(prompt_content, str):
-                    prompt_content = persist_if_oversized(
+                    prompt_content = self._persist_tool_result(
                         json.dumps(tr, default=str),
                         str(tr.get("call_id") or tr["name"]),
-                        tool_name=str(tr["name"]),
+                        str(tr["name"]),
+                        node,
                     )
                     tr["prompt_content"] = prompt_content
                     tr["outcome"] = normalize_tool_outcome(

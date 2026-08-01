@@ -1098,7 +1098,7 @@ class TaskStateStore:
             status = update.get("status")
             if not isinstance(finding_id, str) or finding_id not in existing:
                 raise ValueError(
-                    "Finding updates must target an existing task finding."
+                    "Finding updates must use an existing task-local finding-N ID."
                 )
             if status not in self._REVIEW_FINDING_STATUSES:
                 raise ValueError("Finding update status is invalid.")

@@ -895,7 +895,13 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
                         "items": {
                             "type": "object",
                             "properties": {
-                                "finding_id": {"type": "string"},
+                                "finding_id": {
+                                    "type": "string",
+                                    "description": (
+                                        "Exact existing finding-N ID from the Finding "
+                                        "Ledger; never a task, review-event, or evidence ID."
+                                    ),
+                                },
                                 "status": {
                                     "type": "string",
                                     "enum": [

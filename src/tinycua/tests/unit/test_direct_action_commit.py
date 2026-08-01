@@ -312,6 +312,10 @@ async def test_reviewer_decision_stays_staged_until_validation_then_commits_once
                 "tool_calls": [_tool_call("task_inspect", {})],
             },
             {
+                "content": "Inspection complete.",
+                "tool_calls": [],
+            },
+            {
                 "content": "approved",
                 "tool_calls": [
                     _tool_call(
@@ -336,8 +340,9 @@ async def test_reviewer_decision_stays_staged_until_validation_then_commits_once
 
     await loop._execute_node(node, agent, [])
 
-    assert len(llm.calls) == 3
-    assert set(llm.calls[1]["tool_names"]) == {
+    assert len(llm.calls) == 4
+    assert set(llm.calls[1]["tool_names"]) == {"task_inspect"}
+    assert set(llm.calls[2]["tool_names"]) == {
         "task_review_decision",
         "json_draft_create",
         "json_draft_commit",

@@ -262,6 +262,60 @@ class NodeRetryMixin:
                     node,
                 )
                 if not tool_results:
+                    if (
+                        node.node_id == "result_reviewer"
+                        and self._advance_lifecycle_phase(node, last_result)
+                    ):
+                        phase_before = LifecyclePhase.ACTION
+                        attempt_tools = self._tools_for_lifecycle_result(
+                            node, last_result, resolved_tools
+                        )
+                        attempt_messages.append(
+                            {"role": "assistant", "content": last_result.content}
+                        )
+                        self._append_lifecycle_phase_directive(
+                            attempt_messages, node, phase_before, attempt_tools
+                        )
+                        continuation_rounds += 1
+                        if continuation_rounds >= _MAX_TOOL_CONTINUATIONS:
+                            break
+                        raw_response = await self._call_llm_with_provider_retry(
+                            agent,
+                            node,
+                            attempt,
+                            attempt_messages,
+                            attempt_tools,
+                            base_messages,
+                            retry_feedback,
+                            retry_message,
+                            provider_retries_ref,
+                            break_on_error=True,
+                        )
+                        if raw_response is None:
+                            break
+                        last_result = LLMResult(
+                            content=sanitize_internal_reprs(
+                                raw_response.get("content") or ""
+                            ),
+                            role=raw_response.get("role", "assistant"),
+                            tool_calls=raw_response.get("tool_calls") or [],
+                            metadata={
+                                **raw_response.get("metadata", {}),
+                                "tool_results": list(all_tool_results),
+                            },
+                        )
+                        if (
+                            not node.is_terminal
+                            and node.node_id != "result_aggregation"
+                        ):
+                            self._coerce_structured_tool_calls(
+                                last_result, attempt_tools
+                            )
+                        self._coerce_terminate_only_response(attempt_tools, last_result)
+                        attempt_tools = self._tools_for_lifecycle_result(
+                            node, last_result, resolved_tools
+                        )
+                        continue
                     break
                 all_tool_results.extend(tool_results)
                 # Milestone 2: track visited + satisfied tools in node progress.
@@ -335,7 +389,11 @@ class NodeRetryMixin:
                 # High safety-net ceiling only — NOT a tight budget. Normal
                 # operation never hits it; it's an OOM guard for pathological
                 # runaway (e.g. 100 distinct large file reads).
-                enforce_turn_budget(attempt_messages)
+                enforce_turn_budget(
+                    attempt_messages,
+                    store=self._tool_result_store,
+                    owner_node_id=node.node_id,
+                )
                 continuation_rounds += 1
                 if continuation_rounds >= _MAX_TOOL_CONTINUATIONS:
                     break

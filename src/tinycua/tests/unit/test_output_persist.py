@@ -16,36 +16,89 @@ def test_under_threshold_passthrough() -> None:
     assert persist_if_oversized("small", "tc1") == "small"
 
 
-def test_over_threshold_persisted_with_preview(tmp_path, monkeypatch) -> None:
-    from tinycua.agent.tools.native import output_persist
-
-    monkeypatch.setattr(output_persist, "_RESULTS_DIR", tmp_path / "tool-results")
-    big = "A" * 150_000
-    out = output_persist.persist_if_oversized(big, "tc-2", tool_name="run_shell")
-
-    assert "<persisted-output>" in out
-    assert "150000 chars" in out
-    assert "read_file" in out
-    assert "tool=run_shell" in out
-    assert ("A" * 4_000) in out  # preview head
-    written = (tmp_path / "tool-results" / "tc-2.txt").read_text()
-    assert written == big
-
-
-def test_write_failure_returns_original_untruncated(tmp_path, monkeypatch) -> None:
-    """On disk write failure, never lose data — return the full content."""
-    from tinycua.agent.tools.native import output_persist
-
-    monkeypatch.setattr(
-        output_persist,
-        "_RESULTS_DIR",
-        tmp_path / "im_a_file" / "cant_make_parent",
+def test_over_threshold_persisted_with_authorized_opaque_handle() -> None:
+    from tinycua.agent.tools.native.output_persist import (
+        SessionToolResultStore,
+        bind_tool_result_access,
+        persist_if_oversized,
+        read_tool_result,
     )
-    (tmp_path / "im_a_file").write_text("blocker")
 
-    big = "B" * 150_000
-    out = output_persist.persist_if_oversized(big, "tc-3")
-    assert out == big
+    big = "A" * 150_000
+    store = SessionToolResultStore("session-1")
+    try:
+        out = persist_if_oversized(
+            big,
+            "tc-2",
+            tool_name="run_shell",
+            store=store,
+            owner_node_id="task_executor",
+        )
+        handle = out.split("handle=", 1)[1].splitlines()[0]
+        bind_tool_result_access(store, "session-1", "task_executor")
+
+        first_page = read_tool_result(handle, char_limit=4_000)
+        second_page = read_tool_result(handle, char_offset=4_000, char_limit=4_000)
+
+        assert "<persisted-output>" in out
+        assert "150000 chars" in out
+        assert "read_tool_result" in out
+        assert "tool=run_shell" in out
+        assert "/tmp/" not in out
+        assert ("A" * 4_000) in out  # preview head
+        assert first_page["content"] == "A" * 4_000
+        assert second_page["content"] == "A" * 4_000
+        assert first_page["next_offset"] == 4_000
+        assert second_page["next_offset"] == 8_000
+    finally:
+        store.cleanup()
+
+
+def test_persisted_result_rejects_foreign_node() -> None:
+    from tinycua.agent.tools.native.output_persist import (
+        SessionToolResultStore,
+        bind_tool_result_access,
+        persist_if_oversized,
+        read_tool_result,
+    )
+
+    store = SessionToolResultStore("session-1")
+    try:
+        persisted = persist_if_oversized(
+            "A" * 150_000,
+            "tc-2",
+            store=store,
+            owner_node_id="task_executor",
+        )
+        handle = persisted.split("handle=", 1)[1].splitlines()[0]
+        bind_tool_result_access(store, "session-1", "result_reviewer")
+
+        assert read_tool_result(handle) == {"error": "Tool result is unavailable."}
+        bind_tool_result_access(store, "foreign-session", "task_executor")
+        assert read_tool_result(handle) == {"error": "Tool result is unavailable."}
+    finally:
+        store.cleanup()
+
+
+def test_write_failure_returns_original_untruncated(monkeypatch) -> None:
+    """On disk write failure, never lose data — return the full content."""
+    from tinycua.agent.tools.native.output_persist import (
+        SessionToolResultStore,
+        persist_if_oversized,
+    )
+
+    store = SessionToolResultStore("session-1")
+    try:
+        monkeypatch.setattr(
+            store, "persist", lambda *_args: (_ for _ in ()).throw(OSError())
+        )
+        big = "B" * 150_000
+        out = persist_if_oversized(
+            big, "tc-3", store=store, owner_node_id="task_executor"
+        )
+        assert out == big
+    finally:
+        store.cleanup()
 
 
 # ---------------------------------------------------------------------------
@@ -250,11 +303,8 @@ def test_safety_net_stubs_oldest_when_overrun() -> None:
 def test_safety_net_persists_oversized_first() -> None:
     """A single 150K result gets persisted before the net fires."""
     from tinycua.agent.tools.native import output_persist
-    import os
 
-    # Use a temp dir for the persist target.
-    results_dir = os.path.join(os.path.dirname(__file__), "_test_results")
-    output_persist._RESULTS_DIR = type(output_persist._RESULTS_DIR)(results_dir)
+    store = output_persist.SessionToolResultStore("session-1")
     try:
         msgs = [
             {
@@ -264,12 +314,15 @@ def test_safety_net_persists_oversized_first() -> None:
                 "content": "A" * 150_000,
             },
         ]
-        output_persist.enforce_turn_budget(msgs, budget=200_000)
+        output_persist.enforce_turn_budget(
+            msgs,
+            budget=200_000,
+            store=store,
+            owner_node_id="task_executor",
+        )
         assert "<persisted-output>" in str(msgs[0]["content"])
     finally:
-        import shutil
-
-        shutil.rmtree(results_dir, ignore_errors=True)
+        store.cleanup()
 
 
 if __name__ == "__main__":

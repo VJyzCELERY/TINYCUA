@@ -7,7 +7,10 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from tinycua_sdk.agent.executor import ToolExecutor
-from tinycua.agent.tools.native.output_persist import persist_if_oversized
+from tinycua.agent.tools.native.output_persist import (
+    SessionToolResultStore,
+    persist_if_oversized,
+)
 
 if TYPE_CHECKING:
     from tinycua_sdk.tools.decorators import Tool
@@ -32,6 +35,34 @@ logger = logging.getLogger(__name__)
 
 class JsonDraftMixin:
     """Provide session-bound drafts without bloating the main loop."""
+
+    def _reset_tool_result_store(self) -> None:
+        """Start an isolated temporary result store for the root session."""
+        store = getattr(self, "_tool_result_store", None)
+        if store is not None:
+            store.cleanup()
+        self._tool_result_store = SessionToolResultStore(self.root_session.session_id)
+
+    def _bind_tool_result_tools(self, tools: list[Tool], node: Node) -> None:
+        """Authorize this node to retrieve only its own persisted results."""
+        for tool in tools:
+            binder = getattr(tool, "bind_tool_result_access", None)
+            if callable(binder):
+                binder(
+                    self._tool_result_store, self.root_session.session_id, node.node_id
+                )
+
+    def _persist_tool_result(
+        self, content: str, call_id: str, tool_name: str, node: Node | None
+    ) -> str:
+        """Persist oversized output for its producing node when available."""
+        return persist_if_oversized(
+            content,
+            call_id,
+            tool_name=tool_name,
+            store=self._tool_result_store,
+            owner_node_id=node.node_id if node is not None else "",
+        )
 
     def _bind_draft_file_tools(self, tools: list[Tool], node: Node) -> None:
         """Limit native file access to this execution's managed draft directory."""

@@ -38,6 +38,7 @@ from tinycua.tools.todo_tools import TodoReadTool, TodoWriteTool
 # without a separate neutered "readonly" tool. The gate is in shell.py.
 EXPLORATORY_AGENT_TOOLS: list[str] = [
     "read_file",
+    "read_tool_result",
     "list_files",
     "search_files",
     "run_shell",
