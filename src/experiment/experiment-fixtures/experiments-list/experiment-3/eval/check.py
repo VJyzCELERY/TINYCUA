@@ -3,6 +3,7 @@
 import json
 import math
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
@@ -76,8 +77,9 @@ INSTRUMENTATION = r"""
   };
   prototype.stroke = function(...args) {
     const canvas = this.canvas;
-    window.__clockStrokes.push({
-      width: canvas.width,
+     window.__clockStrokes.push({
+       surface: `canvas:${Array.from(document.querySelectorAll('canvas')).indexOf(canvas)}`,
+       width: canvas.width,
       height: canvas.height,
       points: paths.get(this) || []
     });
@@ -144,7 +146,7 @@ def browser_sample(page: Page, timestamp: int) -> dict[str, object]:
           window.__clockStrokes.length = 0;
           window.__flushClock();
           const svgLines = [];
-          for (const svg of document.querySelectorAll('svg')) {
+          for (const [index, svg] of Array.from(document.querySelectorAll('svg')).entries()) {
             const box = svg.getBoundingClientRect();
             for (const line of svg.querySelectorAll('line')) {
               const matrix = line.getScreenCTM();
@@ -157,8 +159,9 @@ def browser_sample(page: Page, timestamp: int) -> dict[str, object]:
                 Number(line.getAttribute('x2') || 0),
                 Number(line.getAttribute('y2') || 0)
               ).matrixTransform(matrix);
-              svgLines.push({
-                width: box.width,
+               svgLines.push({
+                 surface: `svg:${index}`,
+                 width: box.width,
                 height: box.height,
                 center: [box.x + box.width / 2, box.y + box.height / 2],
                 points: [[start.x, start.y], [end.x, end.y]]
@@ -185,10 +188,19 @@ def _distance(point: list[float], center: tuple[float, float]) -> float:
     return math.hypot(point[0] - center[0], point[1] - center[1])
 
 
-def rendered_angles(sample: dict[str, object]) -> list[float]:
-    """Extract center-originating line angles clockwise from twelve o'clock."""
+@dataclass(frozen=True)
+class HandObservation:
+    """One likely hand observed in a rendered Canvas or SVG clock."""
+
+    surface: str
+    angle: float
+    normalized_length: float
+
+
+def rendered_hands(sample: dict[str, object]) -> list[HandObservation]:
+    """Extract center-originating hand geometry clockwise from twelve o'clock."""
     segments = [*sample["strokes"], *sample["svgLines"]]
-    angles: list[float] = []
+    hands: list[HandObservation] = []
     for segment in segments:
         points = segment["points"]
         if len(points) < 2:
@@ -206,16 +218,48 @@ def rendered_angles(sample: dict[str, object]) -> list[float]:
                 math.degrees(math.atan2(target[0] - center[0], center[1] - target[1]))
                 % 360
             )
-            angles.append(angle)
-    return angles
+            hands.append(
+                HandObservation(
+                    str(segment.get("surface", "unknown")),
+                    angle,
+                    max(distances) / radius,
+                )
+            )
+    return hands
 
 
-def has_angle(sample: dict[str, object], expected: float, tolerance: float = 4) -> bool:
-    """Return whether rendered geometry contains one expected hand angle."""
-    return any(
-        min((angle - expected) % 360, (expected - angle) % 360) <= tolerance
-        for angle in rendered_angles(sample)
-    )
+def _angle_distance(angle: float, expected: float) -> float:
+    """Return the shortest circular distance between two clockwise angles."""
+    return min((angle - expected) % 360, (expected - angle) % 360)
+
+
+def _matching_hands(
+    sample: dict[str, object], expected: tuple[float, ...], tolerance: float = 4
+) -> list[HandObservation]:
+    """Return observed hands at one of the supplied upright clock angles."""
+    return [
+        hand
+        for hand in rendered_hands(sample)
+        if any(_angle_distance(hand.angle, angle) <= tolerance for angle in expected)
+    ]
+
+
+def hand_moves_clockwise(
+    initial: dict[str, object],
+    updated: dict[str, object],
+    initial_angles: tuple[float, ...],
+    updated_angle: float,
+) -> bool:
+    """Return whether one upright hand moves forward without cross-matching another."""
+    for before in _matching_hands(initial, initial_angles):
+        for after in _matching_hands(updated, (updated_angle,)):
+            if before.surface != after.surface:
+                continue
+            if abs(before.normalized_length - after.normalized_length) > 0.08:
+                continue
+            if 0 < (after.angle - before.angle) % 360 < 180:
+                return True
+    return False
 
 
 def probe_clock(clock: Path) -> tuple[dict[str, dict[str, object]], list[str]]:
@@ -267,26 +311,28 @@ def main() -> int:
             probes()["base"]["surfaces"] > 0, "a visible Canvas or SVG surface renders"
         ),
         "second_hand": lambda: require(
-            has_angle(probes()["base"], 60), "second hand renders at 60 degrees"
+            hand_moves_clockwise(probes()["base"], probes()["second"], (60,), 66),
+            "second hand renders at 60 degrees",
         ),
         "minute_hand": lambda: require(
-            has_angle(probes()["base"], 120) or has_angle(probes()["base"], 121),
+            hand_moves_clockwise(probes()["base"], probes()["minute"], (120, 121), 126),
             "minute hand renders from the frozen current time",
         ),
         "hour_hand": lambda: require(
-            has_angle(probes()["base"], 90) or has_angle(probes()["base"], 100),
+            hand_moves_clockwise(probes()["base"], probes()["hour"], (90, 100), 150),
             "hour hand renders from the frozen current time",
         ),
         "second_updates_clockwise": lambda: require(
-            probes()["base"]["scheduled"] > 0 and has_angle(probes()["second"], 66),
+            probes()["base"]["scheduled"] > 0
+            and hand_moves_clockwise(probes()["base"], probes()["second"], (60,), 66),
             "scheduled update moves the second hand clockwise",
         ),
         "minute_updates_clockwise": lambda: require(
-            has_angle(probes()["minute"], 126),
+            hand_moves_clockwise(probes()["base"], probes()["minute"], (120, 121), 126),
             "forward time moves the minute hand clockwise",
         ),
         "hour_updates_clockwise": lambda: require(
-            has_angle(probes()["hour"], 150),
+            hand_moves_clockwise(probes()["base"], probes()["hour"], (90, 100), 150),
             "forward time moves the hour hand clockwise",
         ),
         "self_contained": lambda: require(

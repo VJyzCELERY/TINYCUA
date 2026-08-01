@@ -20,10 +20,10 @@ Evidence labels:
 
 | Harness | Experiment 2 | Experiment 3 | Experiment 4 | Experiment 5 | Narrowest defensible profile |
 |---|---:|---:|---:|---:|---|
-| TinyCUA | 19/32 pass | 5/9 fail | 1/9 fail | 13/14 pass | Compact checklist coverage; weak executable and semantic verification. |
-| Hermes | 16/32 fail | 9/9 pass | 1/9 fail | 14/14 pass | Strong direct clock implementation; broad but technically weak documentation. |
-| OpenCode | 17/32 fail | 3/9 fail | 1/9 fail | 13/14 pass | Strongest observed direct web-acquisition loop; unreliable factual synthesis. |
-| OpenClaw | 17/32 fail | 3/9 fail | 3/9 fail | 2/14 fail | Best exported startup portability in Experiment 4; weakest completion reliability. |
+| TinyCUA | 19/32 pass | 3/9 fail | 1/11 fail | 13/14 pass | Compact checklist coverage; weak executable and semantic verification. |
+| Hermes | 16/32 fail | 9/9 pass | 3/11 fail | 14/14 pass | Strong direct clock implementation; broad but technically weak documentation. |
+| OpenCode | 17/32 fail | 3/9 fail | 3/11 fail | 13/14 pass | Strongest observed direct web-acquisition loop; unreliable factual synthesis. |
+| OpenClaw | 17/32 fail | 3/9 fail | 4/11 fail | 2/14 fail | Best exported startup portability in Experiment 4; weakest completion reliability. |
 
 Source: `src/experiment/template-results/outcomes.json` and each pair's `result.json`.
 
@@ -136,7 +136,7 @@ Paths are under `src/experiment/template-results/experiment-3/<harness>/`.
 
 **[I]** Experiment 3 supports a narrow conclusion: direct, conventional code outperformed more elaborate or narrated implementations. It does not establish that Hermes is generally better at coding.
 
-## Experiment 4: is OpenClaw's 3/9 genuinely better?
+## Experiment 4: is OpenClaw's 4/11 genuinely better?
 
 ### Yes for startup portability
 
@@ -165,11 +165,11 @@ OpenClaw's extra points are therefore not evaluator noise.
 
 The frontend also never calls page creation, confuses block indexes with database IDs, and does not persist textarea edits (`src/experiment/template-results/experiment-4/openclaw/workdir/app/static/js/app.js:119-180`; backend endpoints at `src/experiment/template-results/experiment-4/openclaw/workdir/app/app.py:45-62,124-213`).
 
-The three points are correlated startup layers, not three working user features.
+Three of OpenClaw's four points are correlated startup layers; the fourth is static Python compilation, not a working user feature.
 
 ### Experiment 4 conclusion
 
-> OpenClaw is demonstrably better at exported startup portability than full TinyCUA. Its 3/9 does not establish a better Notion-like product: both score zero on CRUD and persistence.
+> OpenClaw is demonstrably better at exported startup portability than full TinyCUA. Its 4/11 includes one static compilation point and does not establish a better Notion-like product: both score zero on CRUD and persistence.
 
 TinyCUA contains more intended UI/backend behavior and locally recorded API activity, but final exported code that cannot start is not a usable alternative. The evaluator appropriately prioritizes the public executable boundary.
 
@@ -277,7 +277,7 @@ All three submitted guides contain code defects:
 
 **Not established**
 
-- Better Notion-like functionality from its 3/9 score.
+- Better Notion-like functionality from its 4/11 score.
 - Reliable long-form completion.
 
 ## Limits

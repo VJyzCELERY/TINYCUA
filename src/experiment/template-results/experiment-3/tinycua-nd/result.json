@@ -95,5 +95,294 @@
       "self_contained"
     ]
   },
-  "failure_stage": "evaluator"
+  "original_evaluation": {
+    "score": {
+      "categories": {
+        "clock_loads": {
+          "points": 0,
+          "max_points": 1,
+          "evidence": [
+            "failed: clock.html loads in Chromium"
+          ]
+        },
+        "clock_surface": {
+          "points": 0,
+          "max_points": 1,
+          "evidence": [
+            "failed: [Errno 21] Is a directory: '/submission/clock.html'"
+          ]
+        },
+        "second_hand": {
+          "points": 0,
+          "max_points": 1,
+          "evidence": [
+            "failed: [Errno 21] Is a directory: '/submission/clock.html'"
+          ]
+        },
+        "minute_hand": {
+          "points": 0,
+          "max_points": 1,
+          "evidence": [
+            "failed: [Errno 21] Is a directory: '/submission/clock.html'"
+          ]
+        },
+        "hour_hand": {
+          "points": 0,
+          "max_points": 1,
+          "evidence": [
+            "failed: [Errno 21] Is a directory: '/submission/clock.html'"
+          ]
+        },
+        "second_updates_clockwise": {
+          "points": 0,
+          "max_points": 1,
+          "evidence": [
+            "failed: [Errno 21] Is a directory: '/submission/clock.html'"
+          ]
+        },
+        "minute_updates_clockwise": {
+          "points": 0,
+          "max_points": 1,
+          "evidence": [
+            "failed: [Errno 21] Is a directory: '/submission/clock.html'"
+          ]
+        },
+        "hour_updates_clockwise": {
+          "points": 0,
+          "max_points": 1,
+          "evidence": [
+            "failed: [Errno 21] Is a directory: '/submission/clock.html'"
+          ]
+        },
+        "self_contained": {
+          "points": 0,
+          "max_points": 1,
+          "evidence": [
+            "failed: [Errno 21] Is a directory: '/submission/clock.html'"
+          ]
+        }
+      },
+      "total": 0,
+      "pass_threshold": 9,
+      "critical_categories": [
+        "clock_loads",
+        "clock_surface",
+        "second_hand",
+        "minute_hand",
+        "hour_hand",
+        "second_updates_clockwise",
+        "minute_updates_clockwise",
+        "hour_updates_clockwise",
+        "self_contained"
+      ]
+    },
+    "passed": false,
+    "status": "failed",
+    "evaluator_outcome": "failed",
+    "evaluator_exit_code": 1,
+    "failure_stage": "evaluator"
+  },
+  "evaluator_results": [
+    {
+      "evaluator_version": "d496664d8b658e11f09dd6b869f69b8cbfa1db26d07db707b46d911cd11b0526",
+      "evaluator_fixture_revision": "dab948e9e5b1b1e39ba62ab4fd26d9624dcf96aa9c272a4fe05816e6bd077426",
+      "evaluator_image": {
+        "reference": "tinycua-template-reeval-experiment-3-dab948e9e5b1",
+        "id": "sha256:a88265c28506be3140728ea583f5938294585b67abaf91a6aafdb61f5f3c61a0",
+        "repo_digests": [
+          "tinycua-template-reeval-experiment-3-dab948e9e5b1@sha256:a88265c28506be3140728ea583f5938294585b67abaf91a6aafdb61f5f3c61a0"
+        ]
+      },
+      "eval_command": [
+        "sh",
+        "/eval/run.sh",
+        "/submission"
+      ],
+      "evaluated_at": "2026-08-01T17:39:25.533011+00:00",
+      "evaluator_exit_code": 1,
+      "passed": false,
+      "status": "failed",
+      "score": {
+        "categories": {
+          "clock_loads": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: clock.html loads in Chromium"
+            ]
+          },
+          "clock_surface": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: [Errno 21] Is a directory: '/submission/clock.html'"
+            ]
+          },
+          "second_hand": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: [Errno 21] Is a directory: '/submission/clock.html'"
+            ]
+          },
+          "minute_hand": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: [Errno 21] Is a directory: '/submission/clock.html'"
+            ]
+          },
+          "hour_hand": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: [Errno 21] Is a directory: '/submission/clock.html'"
+            ]
+          },
+          "second_updates_clockwise": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: [Errno 21] Is a directory: '/submission/clock.html'"
+            ]
+          },
+          "minute_updates_clockwise": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: [Errno 21] Is a directory: '/submission/clock.html'"
+            ]
+          },
+          "hour_updates_clockwise": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: [Errno 21] Is a directory: '/submission/clock.html'"
+            ]
+          },
+          "self_contained": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: [Errno 21] Is a directory: '/submission/clock.html'"
+            ]
+          }
+        },
+        "total": 0,
+        "pass_threshold": 9,
+        "critical_categories": [
+          "clock_loads",
+          "clock_surface",
+          "second_hand",
+          "minute_hand",
+          "hour_hand",
+          "second_updates_clockwise",
+          "minute_updates_clockwise",
+          "hour_updates_clockwise",
+          "self_contained"
+        ]
+      }
+    },
+    {
+      "evaluator_version": "0c34c9958c44e496225486d7e55997a366d8779e5ebc4a31f092798c980642a3",
+      "evaluator_fixture_revision": "e8341958fcc4df9bc25d11dfe26a291af2ddc1f94eac1b7efe8c4bb2f1999927",
+      "evaluator_image": {
+        "reference": "tinycua-template-reeval-experiment-3-e8341958fcc4",
+        "id": "sha256:a88265c28506be3140728ea583f5938294585b67abaf91a6aafdb61f5f3c61a0",
+        "repo_digests": [
+          "tinycua-template-reeval-experiment-3-dab948e9e5b1@sha256:a88265c28506be3140728ea583f5938294585b67abaf91a6aafdb61f5f3c61a0",
+          "tinycua-template-reeval-experiment-3-e8341958fcc4@sha256:a88265c28506be3140728ea583f5938294585b67abaf91a6aafdb61f5f3c61a0"
+        ]
+      },
+      "eval_command": [
+        "sh",
+        "/eval/run.sh",
+        "/submission"
+      ],
+      "evaluated_at": "2026-08-01T17:42:51.033276+00:00",
+      "evaluator_exit_code": 1,
+      "passed": false,
+      "status": "failed",
+      "score": {
+        "categories": {
+          "clock_loads": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: clock.html loads in Chromium"
+            ]
+          },
+          "clock_surface": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: [Errno 21] Is a directory: '/submission/clock.html'"
+            ]
+          },
+          "second_hand": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: [Errno 21] Is a directory: '/submission/clock.html'"
+            ]
+          },
+          "minute_hand": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: [Errno 21] Is a directory: '/submission/clock.html'"
+            ]
+          },
+          "hour_hand": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: [Errno 21] Is a directory: '/submission/clock.html'"
+            ]
+          },
+          "second_updates_clockwise": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: [Errno 21] Is a directory: '/submission/clock.html'"
+            ]
+          },
+          "minute_updates_clockwise": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: [Errno 21] Is a directory: '/submission/clock.html'"
+            ]
+          },
+          "hour_updates_clockwise": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: [Errno 21] Is a directory: '/submission/clock.html'"
+            ]
+          },
+          "self_contained": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: [Errno 21] Is a directory: '/submission/clock.html'"
+            ]
+          }
+        },
+        "total": 0,
+        "pass_threshold": 9,
+        "critical_categories": [
+          "clock_loads",
+          "clock_surface",
+          "second_hand",
+          "minute_hand",
+          "hour_hand",
+          "second_updates_clockwise",
+          "minute_updates_clockwise",
+          "hour_updates_clockwise",
+          "self_contained"
+        ]
+      }
+    }
+  ]
 }

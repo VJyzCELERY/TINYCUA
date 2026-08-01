@@ -25,8 +25,8 @@ An evaluator can be perfectly deterministic and still reward the wrong thing. Ex
 |---|---|---|---|
 | 1, exact reply | The expected literal response pattern was detected. | Conversational quality, absence of extra output, reasoning quality. | Only as a narrow 0/1 compliance signal. |
 | 2, frontier report | Structural, lexical, URL-presence, bundled-name, and integrity predicates. | Currency, factual correctness, source authority, claim-source entailment, arithmetic, coherence. | **No.** One point may mean an arbitrary H2, URL string, or hidden name. |
-| 3, clock | At 9/9, Chromium observed the expected line geometry/scheduling in four frozen-time cases. | Visual polish, accessibility, hand identity, general animation correctness. | Perfect/non-perfect is useful; partial ordering is weak because geometry checks overlap and cascade. |
-| 4, app | At 9/9, one evaluator-defined startup/CRUD/reload/SQLite/restart workflow passed. | General product quality, Notion-like UX, robust modeling, security, maintainability. | Partial ordering is weak because startup and browser categories are dependent failure frontiers. |
+| 3, clock | At 9/9, Chromium observed expected hand geometry and same-hand motion in four frozen-time cases. | Visual polish, accessibility, numeral placement, general animation correctness. | Perfect/non-perfect is useful; partial ordering is weak because geometry checks overlap and cascade. |
+| 4, app | At 9 functional points, one evaluator-defined startup/CRUD/reload/SQLite/restart workflow passed; two extra static signals record Python compilation and Ruff lint. | General product quality, Notion-like UX, robust modeling, security, maintainability. | Partial ordering is weak because startup and browser categories are dependent failure frontiers; static points do not prove a workflow. |
 | 5, guide | Markdown structure, topic-word presence, code fences, plan words, and integrity. | Factual explanations, mathematical correctness, runnable code, pedagogy, coherence. | **No.** More predicates do not imply a better guide. |
 
 Evaluator sources:
@@ -225,11 +225,11 @@ TinyCUA's guide is not reliably correct, but it is materially more usable than H
 
 ### Experiment 3
 
-A perfect 9/9 is meaningful evidence that the expected line geometry and scheduled movement were observed in four frozen-time cases. Partial scores are less meaningful because `has_angle` accepts any center-originating segment, allowing cross-matches (`src/experiment/experiment-fixtures/experiments-list/experiment-3/eval/check.py:188-218`). Static lines containing all expected angles plus a no-op scheduler could also exploit the design.
+A perfect 9/9 is meaningful evidence that expected hand geometry and scheduled movement were observed in four frozen-time cases. Re-evaluation records each candidate's surface and normalized length, then requires the same candidate to move from its base angle to the expected later angle; this removes prior cross-hand false positives (`src/experiment/experiment-fixtures/experiments-list/experiment-3/eval/check.py:188-286`). Partial scores remain failure frontiers rather than visual-quality ratings, and numeral placement remains intentionally unscored.
 
 ### Experiment 4
 
-A perfect 9/9 would support one end-to-end workflow. Partial scores are failure frontiers, not independent quality increments:
+A perfect 9/9 functional score would support one end-to-end workflow. Python compilation and Ruff lint add two non-critical static signals, so the displayed total is now out of 11; they do not make a non-running app functionally better. Functional partial scores are failure frontiers, not independent quality increments:
 
 - all four browser categories share one create→edit→delete→reload execution path;
 - SQLite/restart checks depend on that path producing marker text; and
@@ -237,7 +237,7 @@ A perfect 9/9 would support one end-to-end workflow. Partial scores are failure 
 
 Sources: `src/experiment/experiment-fixtures/experiments-list/experiment-4/eval/check.py:175-233,291-297,329-334`.
 
-OpenClaw's 3/9 therefore proves deeper startup progress than TinyCUA's 1/9, not a three-point product-quality advantage.
+OpenClaw's 4/11 includes three functional startup checks and one compilation check, while TinyCUA's 1/11 is script existence only. This proves deeper startup progress, not a four-point product-quality advantage.
 
 ## Required interpretation language
 
@@ -248,8 +248,8 @@ Use:
 Per fixture:
 
 - **Experiment 2:** “Satisfied N of 32 structural, lexical, URL-presence, bundled-model, and integrity checks; currency and factual correctness were not verified.”
-- **Experiment 3:** “Chromium observed/did not observe expected line geometry and scheduling at four frozen timestamps; general visual quality was not assessed.”
-- **Experiment 4:** “Reached this evaluator-defined startup/CRUD/persistence failure frontier; general application quality was not rated.”
+- **Experiment 3:** “Chromium observed/did not observe expected same-hand geometry and scheduling at four frozen timestamps; numeral placement and general visual quality were not assessed.”
+- **Experiment 4:** “Reached this evaluator-defined startup/CRUD/persistence failure frontier; Python compilation and Ruff lint are static signals, and general application quality was not rated.”
 - **Experiment 5:** “Satisfied N of 14 Markdown and topic-presence checks; explanation and code correctness were not tested.”
 
 Avoid:

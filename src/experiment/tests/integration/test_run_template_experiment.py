@@ -665,8 +665,30 @@ def test_experiment_one_evaluator_rejects_seed_and_accepts_correct_submission(
     assert [score["total"] for score in scores] == [0, 1]
 
 
-def test_clock_evaluator_browser_executes_time_derived_hands(tmp_path: Path) -> None:
-    """The clock passes only when Chromium observes correct hand geometry."""
+@pytest.mark.parametrize(
+    (
+        "angle_offset",
+        "time_source",
+        "expected_exit_code",
+        "expected_second",
+        "expected_hour_update",
+    ),
+    (
+        (0, "new Date()", 0, 1, 1),
+        (90, "new Date()", 1, 0, 0),
+        (0, "fixedNow", 1, 0, 0),
+    ),
+    ids=("upright_clock", "clock_rotated_clockwise", "static_clock"),
+)
+def test_clock_evaluator_browser_executes_time_derived_hands(
+    tmp_path: Path,
+    angle_offset: int,
+    time_source: str,
+    expected_exit_code: int,
+    expected_second: int,
+    expected_hour_update: int,
+) -> None:
+    """The evaluator tracks each upright hand across browser time samples."""
     fixture = FIXTURES / "experiment-3"
     submission = tmp_path / "submission"
     result_directory = tmp_path / "result"
@@ -678,14 +700,15 @@ def test_clock_evaluator_browser_executes_time_derived_hands(tmp_path: Path) -> 
 const canvas = document.querySelector('canvas');
 const context = canvas.getContext('2d');
 function hand(angle, length) {
-  const radians = angle * Math.PI / 180;
+  const radians = (angle + ANGLE_OFFSET) * Math.PI / 180;
   context.beginPath();
   context.moveTo(150, 150);
   context.lineTo(150 + Math.sin(radians) * length, 150 - Math.cos(radians) * length);
   context.stroke();
 }
+const fixedNow = new Date();
 function draw() {
-  const now = new Date();
+  const now = TIME_SOURCE;
   context.clearRect(0, 0, 300, 300);
   hand(now.getSeconds() * 6, 120);
   hand(now.getMinutes() * 6, 100);
@@ -694,6 +717,8 @@ function draw() {
 draw();
 setInterval(draw, 1000);
 </script></body></html>"""
+        .replace("ANGLE_OFFSET", str(angle_offset))
+        .replace("TIME_SOURCE", time_source)
     )
     image = "tinycua-test-browser-evaluator"
     build = subprocess.run(
@@ -737,9 +762,12 @@ setInterval(draw, 1000);
     )
 
     score = json.loads((result_directory / "score.json").read_text())
-    assert completed.returncode == 0, completed.stderr
-    assert score["total"] == len(score["categories"])
-    assert set(score["critical_categories"]) == set(score["categories"])
+    assert completed.returncode == expected_exit_code, completed.stderr
+    assert score["categories"]["second_hand"]["points"] == expected_second
+    assert score["categories"]["hour_updates_clockwise"]["points"] == expected_hour_update
+    if expected_exit_code == 0:
+        assert score["total"] == len(score["categories"])
+        assert set(score["critical_categories"]) == set(score["categories"])
 
 
 def test_research_evaluator_accepts_model_name_variants(

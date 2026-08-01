@@ -55,7 +55,7 @@ The new evaluator is a third, separate effect. It copies the submission, runs `s
 - **Generation effect:** changes visible in plans, logs, files, task trees, and artifact scope before evaluation.
 - **Measurement effect:** changes in score or ranking caused by a different judge, hidden gate, executable test, or cascading evaluator dependency.
 
-For example, Experiment 4's smaller files are a generation observation. A score of 1/9 is primarily a failure-frontier observation: once startup fails, CRUD and persistence cannot be exercised as independent checks.
+For example, Experiment 4's smaller files are a generation observation. TinyCUA's current 1/11 is primarily a failure-frontier observation: it earns only script existence, while compilation, lint, CRUD, and persistence do not establish independent user value once startup fails.
 
 ### 2. Use other harnesses as pattern controls
 
@@ -239,7 +239,7 @@ Those differences could arise from harness changes, fixture interaction, or gene
 
 ### Evaluator effect: HIGH
 
-The new evaluator freezes time and inspects rendered geometry and movement (`src/experiment/experiment-fixtures/experiments-list/experiment-3/eval/check.py:24-94,221-297`). It exposes defects that source narration and Reviewer approval miss. Its permissive segment matcher can cross-match lines, so TinyCUA's 5/9 still overstates styled-hand correctness (`src/experiment/experiment-fixtures/experiments-list/experiment-3/eval/check.py:188-218`).
+The new evaluator freezes time and inspects rendered geometry and movement (`src/experiment/experiment-fixtures/experiments-list/experiment-3/eval/check.py:24-94,286-319`). It exposes defects that source narration and Reviewer approval miss. Its re-evaluated same-surface, same-length matcher removes the old cross-hand false positives, reducing TinyCUA from 5/9 to 3/9 (`src/experiment/experiment-fixtures/experiments-list/experiment-3/eval/check.py:188-286`).
 
 ## Experiment 5 attribution
 

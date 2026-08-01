@@ -18,7 +18,7 @@
       },
       "tinycua": {
         "passed": false,
-        "score": 5,
+        "score": 3,
         "metrics": {}
       },
       "tinycua-nd": {

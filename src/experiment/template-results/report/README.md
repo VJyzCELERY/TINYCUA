@@ -49,7 +49,7 @@ See [the causal diagnosis](why-orchestration-did-not-improve-quality.md).
 
 - Experiment 2 checks structure, keywords, URLs, and hidden model-name strings without verifying source authority, dates, or claim entailment.
 - Experiment 5 checks Markdown structure, topic words, code fences, and a plan without validating mathematics or executing code.
-- Experiments 3 and 4 provide stronger behavioral evidence at 9/9, but their partial points are dependent failure-frontier signals rather than equal quality increments.
+- Experiment 3 provides stronger behavioral evidence at 9/9. Experiment 4 retains nine functional critical checks and adds two non-critical static signals; their partial points are dependent failure-frontier signals rather than equal quality increments.
 
 The clearest score reversal is Experiment 5: Hermes scores 14/14 because it has a valid table of contents, but static technical audit finds many more severe equation, API, shape, and runtime defects than in the 13/14 TinyCUA and OpenCode guides. The supported static ordering is **TinyCUA approximately equals OpenCode, both above Hermes**, not the deterministic total ordering.
 
@@ -205,11 +205,11 @@ This environment mismatch is only one failure class. Experiment 3 is a semantic 
 |---|---:|---:|---:|---:|
 | 1, exact reply | 1/1 P | 1/1 P | 1/1 P | 1/1 P |
 | 2, frontier report | 19/32 P | 16/32 F | 17/32 F | 17/32 F |
-| 3, analog clock | 5/9 F | 9/9 P | 3/9 F | 3/9 F |
-| 4, Notion-like app | 1/9 F | 1/9 F | 1/9 F | 3/9 F |
+| 3, analog clock | 3/9 F | 9/9 P | 3/9 F | 3/9 F |
+| 4, Notion-like app | 1/11 F | 3/11 F | 3/11 F | 4/11 F |
 | 5, study guide | 13/14 P | 14/14 P | 13/14 P | 2/14 F |
 
-Source: `src/experiment/template-results/outcomes.json` and the individual `result.json` files.
+Source: `src/experiment/template-results/outcomes.json` and the individual `result.json` files. Experiment 4's two static categories do not change its nine-category functional pass gate.
 
 ## Implications for further discussion
 

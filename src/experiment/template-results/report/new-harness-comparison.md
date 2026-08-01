@@ -23,12 +23,12 @@ That controls the base model but not the complete agent environment. The harness
 |---|---:|---:|---:|---:|
 | 1. Exact greeting | 1/1 P | 1/1 P | 1/1 P | 1/1 P |
 | 2. Frontier LLM report | 19/32 P | 16/32 F | 17/32 F | 17/32 F |
-| 3. Analog clock | 5/9 F | 9/9 P | 3/9 F | 3/9 F |
-| 4. Notion-like app | 1/9 F | 1/9 F | 1/9 F | 3/9 F |
+| 3. Analog clock | 3/9 F | 9/9 P | 3/9 F | 3/9 F |
+| 4. Notion-like app | 1/11 F | 3/11 F | 3/11 F | 4/11 F |
 | 5. Neural-network guide | 13/14 P | 14/14 P | 13/14 P | 2/14 F |
 | Passed fixtures | 3/5 | 3/5 | 2/5 | 1/5 |
 
-The source of each score and pass state is the checked-in aggregate. [D] `src/experiment/template-results/outcomes.json:2-235`
+The source of each score and pass state is the checked-in aggregate. Experiment 4's two added static categories (Python compilation and Ruff lint) are non-critical; its nine functional categories remain the pass gate. [D] `src/experiment/template-results/outcomes.json:2-235`
 
 The headline is not that one harness won. TinyCUA and Hermes each passed three fixtures, but on different work: TinyCUA alone passed the evaluator's unusual research relevancy gate, while Hermes alone rendered an evaluator-correct clock. OpenCode produced substantial artifacts but missed critical hidden or deployment constraints. OpenClaw was the only app submission that actually started after export, yet it failed the initial browser workflow and produced no study guide after a length-truncated turn. [I]
 
@@ -89,7 +89,7 @@ Line, word, and byte counts were computed with `wc -l -w -c` over the checked-in
 
 [D] `src/experiment/template-results/experiment-5/tinycua/workdir/study-guide.md:1-667`, `src/experiment/template-results/experiment-5/hermes/workdir/study-guide.md:1-1236`, `src/experiment/template-results/experiment-5/opencode/workdir/study-guide.md:1-669`; OpenClaw's exported workspace has no `study-guide.md`, as confirmed by `src/experiment/template-results/experiment-5/openclaw/result.json:20-25`.
 
-Experiment 4 has no comparable single artifact because each harness chose a different application layout. A `du -sb` count over the four exported `src/experiment/template-results/experiment-4/<harness>/workdir/` directories gave 149,512 bytes for TinyCUA, 30,180 for Hermes, 53,082 for OpenCode, and 82,457 for OpenClaw. These totals include databases, harness state, fixture files, and auxiliary files, so they are inventory measurements only. TinyCUA's largest workspace still scored 1/9; OpenClaw's smaller, launchable but workflow-incomplete app scored 3/9. [D] `src/experiment/template-results/experiment-4/tinycua/result.json:18-96`, `src/experiment/template-results/experiment-4/openclaw/result.json:18-96`
+Experiment 4 has no comparable single artifact because each harness chose a different application layout. A `du -sb` count over the four exported `src/experiment/template-results/experiment-4/<harness>/workdir/` directories gave 149,512 bytes for TinyCUA, 30,180 for Hermes, 53,082 for OpenCode, and 82,457 for OpenClaw. These totals include databases, harness state, fixture files, and auxiliary files, so they are inventory measurements only. TinyCUA's largest workspace still scores 1/11; OpenClaw's smaller, launchable but workflow-incomplete app scores 4/11, including one static compilation point. [D] `src/experiment/template-results/experiment-4/tinycua/result.json:18-96`, `src/experiment/template-results/experiment-4/openclaw/result.json:18-96`
 
 ## Experiment 1: Exact Greeting
 
@@ -157,7 +157,7 @@ TinyCUA created the largest clock file and repeatedly approved it as correct. It
 
 The artifact contradicts that review. `animate()` computes fresh `currentHandStates` but never uses it; all three rendered hands continue using the one-time outer `handStates` object. [D] `src/experiment/template-results/experiment-3/tinycua/workdir/clock.html:109-140`, `src/experiment/template-results/experiment-3/tinycua/workdir/clock.html:156-217` It also converts angles with `PI/2 - angle` while drawing through `cos`/`sin`, reversing the intended clock direction. [D] `src/experiment/template-results/experiment-3/tinycua/workdir/clock.html:72-106`
 
-The 5/9 result passed load, surface, self-containment, and nominal second/minute initial angles, but failed the hour angle and all motion checks. [D] `src/experiment/template-results/experiment-3/tinycua/result.json:18-98` The evaluator's `has_angle` function accepts any center-originating line at the expected angle rather than identifying hands by style. [D] `src/experiment/experiment-fixtures/experiments-list/experiment-3/eval/check.py:188-218` At 03:20:10, TinyCUA's reversed minute geometry is near the evaluator's expected second angle and its reversed second geometry is near the expected minute angle. The two initial hand points are therefore likely cross-matches, not evidence that those specific hands were correct. [I]
+The re-evaluated 3/9 result passes only load, surface, and self-containment. The revised evaluator requires a same-surface, same-length hand to move from its base angle to the later expected angle, so TinyCUA's reversed minute and second geometry can no longer cross-match the other hand's initial-angle category. [D] `src/experiment/template-results/experiment-3/tinycua/result.json:18-98` `src/experiment/experiment-fixtures/experiments-list/experiment-3/eval/check.py:188-286`
 
 This is the clearest failure of TinyCUA's review architecture in the campaign: multiple review passes verified source-level intent but did not execute the deterministic behavior that mattered. [I]
 
@@ -185,7 +185,7 @@ All four submissions failed. The differences are in how early they failed.
 
 ### TinyCUA
 
-TinyCUA scored only for having `start.sh`; the script exited before serving a page. [D] `src/experiment/template-results/experiment-4/tinycua/result.json:18-98`
+TinyCUA scored only for having `start.sh`; Python compilation fails and the script exits before serving a page. [D] `src/experiment/template-results/experiment-4/tinycua/result.json:18-98`
 
 The submission contains three independent blockers:
 
@@ -197,7 +197,7 @@ TinyCUA's reviewer nevertheless described the database as preserving data and ap
 
 ### Hermes
 
-Hermes also scored only for the script's existence. The evaluator deliberately invokes `sh start.sh`, but the script uses Bash-only `${BASH_SOURCE[0]}`, `&>`, and `source`; it fails before launching Python under a POSIX shell. [D] `src/experiment/template-results/experiment-4/hermes/workdir/start.sh:1-18`, `src/experiment/template-results/experiment-4/hermes/result.json:18-98`
+Hermes earns three static checks—Python compilation, Ruff lint, and script existence—but no functional category. The evaluator deliberately invokes `sh start.sh`, while the script uses Bash-only `${BASH_SOURCE[0]}`, `&>`, and `source`; it fails before launching Python under a POSIX shell. [D] `src/experiment/template-results/experiment-4/hermes/workdir/start.sh:1-18`, `src/experiment/template-results/experiment-4/hermes/result.json:18-98`
 
 The backend also hard-codes `/workspace/data.db`, so relocation and durable data ownership would remain fragile after fixing the shell syntax. [D] `src/experiment/template-results/experiment-4/hermes/workdir/app.py:4-16` Hermes built the app quickly but did not test the exact documented `sh start.sh` interface. [I]
 
@@ -205,11 +205,11 @@ The backend also hard-codes `/workspace/data.db`, so relocation and durable data
 
 OpenCode spent substantial effort repeatedly starting the app in `/workspace`, exercising CRUD endpoints with `curl`, inspecting SQLite, and restarting its development server. [D] `src/experiment/template-results/experiment-4/opencode/stderr.log:78-141`, `src/experiment/template-results/experiment-4/opencode/stderr.log:191-226`, `src/experiment/template-results/experiment-4/opencode/stderr.log:299-345`
 
-The final app still fixes its database at `/workspace/workspace.db`. [D] `src/experiment/template-results/experiment-4/opencode/workdir/app.py:1-14` The exported evaluator copy runs elsewhere, and `start.sh` exited with code 1 before the root page appeared. [D] `src/experiment/template-results/experiment-4/opencode/result.json:18-98` OpenCode's API-focused local checks validated behavior in the construction directory but missed portability through the required public entrypoint. [I]
+The final app still fixes its database at `/workspace/workspace.db`. [D] `src/experiment/template-results/experiment-4/opencode/workdir/app.py:1-14` It earns compilation, lint, and script-existence points, but the exported evaluator copy runs elsewhere and `start.sh` exits with code 1 before the root page appears. [D] `src/experiment/template-results/experiment-4/opencode/result.json:18-98` OpenCode's API-focused local checks validated behavior in the construction directory but missed portability through the required public entrypoint. [I]
 
 ### OpenClaw
 
-OpenClaw was the only harness to clear startup and process checks: the exported root responded and the process group contained Python. It scored 3/9. [D] `src/experiment/template-results/experiment-4/openclaw/result.json:18-39`
+OpenClaw was the only harness to clear startup and process checks: the exported root responded and the process group contained Python. It scores 4/11 after also passing Python compilation; its Ruff lint fails. [D] `src/experiment/template-results/experiment-4/openclaw/result.json:18-53`
 
 Its initial browser state has no usable path into the editor. The editor, page-title textbox, and Add Block button are inside a hidden `<main>`. When there are no pages, JavaScript renders only `Create a new page to get started`; it creates no page button or form. [D] `src/experiment/template-results/experiment-4/openclaw/workdir/app/templates/index.html:10-23`, `src/experiment/template-results/experiment-4/openclaw/workdir/app/static/js/app.js:29-48` The evaluator therefore found no visible accessible textbox and could not establish retained text for subsequent checks. [D] `src/experiment/template-results/experiment-4/openclaw/stderr.log:17-22`
 

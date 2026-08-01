@@ -49,8 +49,8 @@ This report analyzes campaign `1eb78b68-d840-4e0d-9437-3a674c0194d3` across the 
 |---|---:|---|---|
 | 1 | 1 | Exact response, threshold 1 | Exercises passthrough only. |
 | 2 | 32 | At least 12 points and all three critical categories | `model_relevancy` is critical, so a 16-point report can still fail ([`experiment-2/eval/check.py:13-19`](../../experiment-fixtures/experiments-list/experiment-2/eval/check.py#L13-L19), [`experiment-2/eval/check.py:109-119`](../../experiment-fixtures/experiments-list/experiment-2/eval/check.py#L109-L119)). |
-| 3 | 9 | 9/9; every category is critical | Browser-observed rendering and time movement are mandatory ([`experiment-3/eval/check.py:12-23`](../../experiment-fixtures/experiments-list/experiment-3/eval/check.py#L12-L23), [`experiment-3/eval/check.py:262-297`](../../experiment-fixtures/experiments-list/experiment-3/eval/check.py#L262-L297)). |
-| 4 | 9 | 9/9; every category is critical | Startup, Python process, browser CRUD, reload, SQLite, and restart persistence are mandatory ([`experiment-4/eval/check.py:22-33`](../../experiment-fixtures/experiments-list/experiment-4/eval/check.py#L22-L33), [`experiment-4/eval/check.py:323-336`](../../experiment-fixtures/experiments-list/experiment-4/eval/check.py#L323-L336)). |
+| 3 | 9 | 9/9; every category is critical | Browser-observed rendering and time movement are mandatory; each hand must retain its identity across frozen-time samples ([`experiment-3/eval/check.py:12-23`](../../experiment-fixtures/experiments-list/experiment-3/eval/check.py#L12-L23), [`experiment-3/eval/check.py:188-286`](../../experiment-fixtures/experiments-list/experiment-3/eval/check.py#L188-L286)). |
+| 4 | 11 | 9/9 functional categories, all critical | Python compilation and Ruff lint are recorded static signals; startup, Python process, browser CRUD, reload, SQLite, and restart persistence remain the mandatory functional checks ([`experiment-4/eval/check.py:22-33`](../../experiment-fixtures/experiments-list/experiment-4/eval/check.py#L22-L33), [`experiment-4/eval/check.py:236-263`](../../experiment-fixtures/experiments-list/experiment-4/eval/check.py#L236-L263)). |
 | 5 | 14 | At least 9 points and three critical categories | Most topic checks are substring/structure checks; technical correctness is not a gate ([`experiment-5/eval/check.py:13-18`](../../experiment-fixtures/experiments-list/experiment-5/eval/check.py#L13-L18), [`experiment-5/eval/check.py:124-170`](../../experiment-fixtures/experiments-list/experiment-5/eval/check.py#L124-L170)). |
 
 ## Aggregate outcomes
@@ -70,8 +70,8 @@ Positive values favor the named role. These are score-point differences within o
 
 | Controlled contrast | Exp. 2 | Exp. 3 | Exp. 4 | Exp. 5 |
 |---|---:|---:|---:|---:|
-| Reviewer on vs. off, Digester on: `tinycua - tinycua-nr` | -1 | +5 | 0 | 0 |
-| Reviewer on vs. off, Digester off: `tinycua-nd - tinycua-nd-nr` | +5 | -3 | +2 | +1 |
+| Reviewer on vs. off, Digester on: `tinycua - tinycua-nr` | -1 | +3 | -1 | 0 |
+| Reviewer on vs. off, Digester off: `tinycua-nd - tinycua-nd-nr` | +5 | -3 | +3 | +1 |
 | Digester on vs. off, Reviewer on: `tinycua - tinycua-nd` | -2 | +5 | -2 | 0 |
 | Digester on vs. off, Reviewer off: `tinycua-nr - tinycua-nd-nr` | +4 | -3 | 0 | +1 |
 
@@ -150,7 +150,7 @@ The task requires one self-contained `clock.html`, current-time-derived hands, s
 
 | Configuration | Score / pass | Runtime | Artifact | Decisive evaluator result |
 |---|---|---:|---|---|
-| `tinycua` | 5/9, fail | [324.75 s](../experiment-3/tinycua/result.json#L6-L17) | 237-line `clock.html` | Loads, surface, two nominal angle matches, and self-contained pass; hour and all movement checks fail ([`result.json:20-96`](../experiment-3/tinycua/result.json#L20-L96)). |
+| `tinycua` | 3/9, fail | [324.75 s](../experiment-3/tinycua/result.json#L6-L17) | 237-line `clock.html` | Loads, surface, and self-contained pass; distinct-hand tracking removes the old cross-matched initial-angle points ([`result.json:20-96`](../experiment-3/tinycua/result.json#L20-L96)). |
 | `tinycua-nd` | 0/9, fail | [301.08 s](../experiment-3/tinycua-nd/result.json#L6-L17) | `clock.html/clock.html` | Required path is a directory; all checks fail ([`result.json:20-96`](../experiment-3/tinycua-nd/result.json#L20-L96)). |
 | `tinycua-nr` | 0/9, fail | [196.10 s](../experiment-3/tinycua-nr/result.json#L6-L17) | `clock.html/clock.html` | Same directory-path failure ([`result.json:20-96`](../experiment-3/tinycua-nr/result.json#L20-L96)). |
 | `tinycua-nd-nr` | 3/9, fail | [131.30 s](../experiment-3/tinycua-nd-nr/result.json#L6-L17) | 179-line `clock.html` | Loads, surface, self-contained pass; no hand or movement check passes ([`result.json:20-96`](../experiment-3/tinycua-nd-nr/result.json#L20-L96)). |
@@ -159,7 +159,7 @@ The task requires one self-contained `clock.html`, current-time-derived hands, s
 
 **[D]** Full TinyCUA computes `currentHandStates` inside the animation loop but then draws all hands from the initial `handStates` constant, so the rendered hands never update ([`tinycua/workdir/clock.html:156-217`](../experiment-3/tinycua/workdir/clock.html#L156-L217)). The Reviewer nevertheless approved it as having a smooth `requestAnimationFrame` update and satisfying all root criteria ([`tinycua/stdout.log:247-255`](../experiment-3/tinycua/stdout.log#L247-L255)). The deterministic browser evaluator then failed every movement category ([`tinycua/result.json:55-74`](../experiment-3/tinycua/result.json#L55-L74)).
 
-**[D]** The two initial-angle points do not prove that the styled second and minute hands were correct. The evaluator's permissive `has_angle` helper accepts any center-originating segment at the requested angle, allowing TinyCUA's reversed second and minute geometries to cross-match each other's expected categories ([`experiment-3/eval/check.py:188-218`](../../experiment-fixtures/experiments-list/experiment-3/eval/check.py#L188-L218)).
+**[D]** The original two initial-angle points were cross-matches: the evaluator accepted any center-originating segment at the requested angle. The re-evaluator now requires a same-surface, same-length hand to move from its base angle to its later expected angle, removing both points ([`experiment-3/eval/check.py:188-286`](../../experiment-fixtures/experiments-list/experiment-3/eval/check.py#L188-L286)).
 
 **[I]** The Reviewer checked for the presence of time formulas and an animation loop but did not verify that updated state reached the draw calls. This is a concrete semantic false positive.
 
@@ -170,7 +170,7 @@ The task requires one self-contained `clock.html`, current-time-derived hands, s
 
 ### Interpretation
 
-**[D]** Full TinyCUA earned the highest score, but no cell produced a working clock. The Reviewer did not catch a direct data-flow defect or the wrong-path artifact in no-Digester. **[I]** Experiment 3 provides no evidence that either role is sufficient for coding correctness; it instead shows the need for evaluator-equivalent browser execution before approval.
+**[D]** Full TinyCUA now ties both-off at 3/9; no cell except Hermes produced a working clock. The Reviewer did not catch a direct data-flow defect or the wrong-path artifact in no-Digester. **[I]** Experiment 3 provides no evidence that either role is sufficient for coding correctness; it instead shows the need for evaluator-equivalent browser execution before approval.
 
 ## Experiment 4 case study: Notion-like Python/SQLite app
 
@@ -178,10 +178,10 @@ The required public workflow is start through `PORT=8765 sh start.sh`, create/ed
 
 | Configuration | Score / pass | Runtime | Artifact | Decisive evaluator result |
 |---|---|---:|---|---|
-| `tinycua` | 1/9, fail | [929.91 s](../experiment-4/tinycua/result.json#L6-L17) | Flask/SQLite app | `start.sh` exists but exits 1; every runtime workflow check fails ([`result.json:20-96`](../experiment-4/tinycua/result.json#L20-L96)). |
-| `tinycua-nd` | 3/9, fail | [769.23 s](../experiment-4/tinycua-nd/result.json#L6-L17) | Self-generating Flask app | App and Python process start; browser finds no visible accessible text field ([`result.json:20-96`](../experiment-4/tinycua-nd/result.json#L20-L96)). |
-| `tinycua-nr` | 1/9, fail | [1,374.20 s](../experiment-4/tinycua-nr/result.json#L6-L17) | FastAPI/SQLite app | `start.sh` exits 2; all runtime workflow checks fail ([`result.json:20-96`](../experiment-4/tinycua-nr/result.json#L20-L96)). |
-| `tinycua-nd-nr` | 1/9, fail | [269.64 s](../experiment-4/tinycua-nd-nr/result.json#L6-L17) | Flask-SQLAlchemy app | `start.sh` exits 127; all runtime workflow checks fail ([`result.json:20-96`](../experiment-4/tinycua-nd-nr/result.json#L20-L96)). |
+| `tinycua` | 1/11, fail | [929.91 s](../experiment-4/tinycua/result.json#L6-L17) | Flask/SQLite app | `start.sh` exists but Python does not compile; every runtime workflow check fails ([`result.json:20-96`](../experiment-4/tinycua/result.json#L20-L96)). |
+| `tinycua-nd` | 5/11, fail | [769.23 s](../experiment-4/tinycua-nd/result.json#L6-L17) | Self-generating Flask app | Compiles and lints; app and Python process start, but the browser finds no visible accessible text field ([`result.json:20-96`](../experiment-4/tinycua-nd/result.json#L20-L96)). |
+| `tinycua-nr` | 2/11, fail | [1,374.20 s](../experiment-4/tinycua-nr/result.json#L6-L17) | FastAPI/SQLite app | Compiles and has `start.sh`, but exits 2; every runtime workflow check fails ([`result.json:20-96`](../experiment-4/tinycua-nr/result.json#L20-L96)). |
+| `tinycua-nd-nr` | 2/11, fail | [269.64 s](../experiment-4/tinycua-nd-nr/result.json#L6-L17) | Flask-SQLAlchemy app | Compiles and has `start.sh`, but exits 127; every runtime workflow check fails ([`result.json:20-96`](../experiment-4/tinycua-nd-nr/result.json#L20-L96)). |
 
 ### Full-role portability failure
 
@@ -200,7 +200,7 @@ The required public workflow is start through `PORT=8765 sh start.sh`, create/ed
 
 ### Interpretation
 
-**[D]** No-Digester scored two points above the other cells only because it started and had a Python process. No role configuration completed any browser CRUD or persistence category. **[I]** The dominant failure is deliverable-level integration testing, not missing architecture or code volume. Reviewer value cannot be claimed when its strongest approvals contradict the evaluator's first executable check.
+**[D]** No-Digester scores three points above full TinyCUA: two static hygiene signals plus startup and Python-process checks. No role configuration completed any browser CRUD or persistence category. **[I]** The dominant failure is deliverable-level integration testing, not missing architecture or code volume. Reviewer value cannot be claimed when its strongest approvals contradict the evaluator's first executable check.
 
 ## Experiment 5 case study: neural-network study guide
 

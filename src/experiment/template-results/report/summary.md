@@ -10,6 +10,8 @@ The controlled campaign compared TinyCUA, Hermes, OpenCode, and OpenClaw on five
 
 TinyCUA was also evaluated in a 2x2 role ablation: full TinyCUA, no Information Digester, no Result Reviewer, and neither role.
 
+Post-campaign evaluator-only re-evaluation updates the published artifact scores without rerunning agents. Experiment 3 now follows the same rendered hand across frozen-time samples, removing prior cross-hand false positives; Experiment 4 displays 11 categories, with Python compilation and Ruff lint recorded as non-critical static signals beside its nine functional checks. Original execution evaluations remain preserved in each `result.json`.
+
 ## Reproducibility anchor
 
 The TinyCUA implementation evaluated in this campaign is anchored to the annotated Git tag `prototype-stable-2026-07-30`, which resolves to commit `404ee446916caf76db3cc870987e4a8cfaaaea5f`. The tag identifies the stable prototype snapshot before later Reviewer falsification work.
@@ -53,7 +55,7 @@ The deterministic totals should be interpreted as counts of fixture-specific acc
 
 - The research evaluator primarily checks structure, keywords, URL presence, and hidden model-name strings. It does not validate publication dates, source authority, factual correctness, or whether a citation supports its associated claim.
 - The study-guide evaluator checks Markdown structure, topic words, code fences, and the presence of a practical plan. It does not validate equations, tensor shapes, API usage, or whether examples execute.
-- The clock and application evaluators provide stronger behavioral evidence because they execute the artifacts. Their partial scores still represent dependent failure frontiers rather than equal increments of product quality.
+- The clock and application evaluators provide stronger behavioral evidence because they execute the artifacts. Clock checks now follow one rendered hand across time; the app's two static compilation/lint points do not alter its nine-category functional gate. Their partial scores still represent dependent failure frontiers rather than equal increments of product quality.
 
 This distinction changes the interpretation of the ranking. TinyCUA's 19/32 research score does not establish better research than OpenCode's 17/32. Hermes' 14/14 study-guide score also does not establish a better guide than the 13/14 TinyCUA and OpenCode artifacts.
 
