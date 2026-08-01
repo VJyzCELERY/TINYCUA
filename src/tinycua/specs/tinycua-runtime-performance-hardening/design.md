@@ -195,9 +195,9 @@ def __call__(self, *, task_id: str | None = None, summary: bool = False) -> dict
    - **Reason**: The read/write distinction is per-command, not per-tool. A separate readonly tool forced the broad regex that caused the false positives. One tool + one gate function is simpler and lets the reviewer use the same capable shell.
    - **Alternatives Considered**: Command-prefix allowlist for the reviewer (`ls/cat/grep/test/...` only) — rejected because `python -c "..."` verification still false-positives on an allowlist, and the gate is more flexible.
 
-3. **Decision**: Persist oversized tool results to `./tmp/tool-results/` rather than truncating aggressively.
-   - **Reason**: Head+tail truncation alone loses the middle; the reviewer may need the full output (e.g. a long `pytest` log). Persisting to a file + `read_file(offset, limit)` preserves access while keeping the message small. Hermes' `maybe_persist_tool_result` pattern.
-   - **Alternatives Considered**: LLM-based summarization of oversized output — rejected (adds an LLM call; the ponytail ladder says don't build what a file+read_file can do).
+3. **Decision**: Persist oversized tool results in a session-owned system temporary directory behind opaque handles rather than truncating aggressively.
+   - **Reason**: Head+tail truncation alone loses the middle; the producing node may need the full output. Handle-based `read_tool_result(char_offset, char_limit)` preserves access, avoids workspace disclosure, and rejects sibling-node access.
+   - **Alternatives Considered**: Workspace files + `read_file` — rejected because workspace tools expose the result to other nodes. LLM summarization — rejected because it adds an LLM call.
 
 4. **Decision**: `task_inspect` list mode returns `[{id,title,status,has_result}]`, not the full snapshot.
    - **Reason**: The 40-call sprawl in experiment-4 came from the model full-inspecting every task. A compact list lets it scan once and drill down only into tasks it wants to annotate. The continuation already has the full tree as markdown.

@@ -164,17 +164,6 @@ def advance_lifecycle_phase(node: Any, result: Any) -> bool:
         return True
     if node.progress.lifecycle_phase != LifecyclePhase.ACTION:
         return False
-    if node.node_id == "result_reviewer" and result.tool_calls:
-        tool_results = result.metadata.get("tool_results", [])
-        current_results = tool_results[-len(result.tool_calls) :]
-        if len(current_results) != len(result.tool_calls) or any(
-            not normalize_tool_outcome(call, item)["success"]
-            for call, item in zip(result.tool_calls, current_results, strict=True)
-        ):
-            return False
-        node.progress.advance_lifecycle(LifecyclePhase.SUMMARY, result.content.strip())
-        node.progress.advance_lifecycle(LifecyclePhase.COMMIT)
-        return True
     commit_tools = set(node.contract.required_tools)
     for group in node.contract.any_of_tools:
         commit_tools.update(group)
@@ -195,9 +184,7 @@ def review_action_directive(node: Any) -> str:
         return ""
     active = node.session.task_store.get_active_task()
     report = active.result.content.strip() if active and active.result else ""
-    suffix = (
-        f"\n## Executor report (primary review target)\n{report}" if report else ""
-    )
+    suffix = f"\n## Executor report (primary review target)\n{report}" if report else ""
     evidence = "\n".join(render_executor_tool_evidence(active)) if active else ""
     evidence_suffix = f"\n{evidence}" if evidence else ""
     ledger = "\n".join(render_reviewer_finding_ledger(active)) if active else ""
@@ -207,6 +194,8 @@ def review_action_directive(node: Any) -> str:
         "The Executor report is the primary review target. Executor tool-call evidence "
         "is supporting context and may contain marked output previews; it is not an "
         "independent Reviewer observation. "
+        "Keep using ACTION tools until every planned check is complete, then respond "
+        "with a concise tool-free inspection summary to enter COMMIT. "
         f"Executor claims are context, not observations.{suffix}{evidence_suffix}"
         f"{ledger_suffix}"
     )

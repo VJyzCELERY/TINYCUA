@@ -76,6 +76,12 @@ class ScriptedAgentResponses:
                 ],
             }
         if "list_files" in tool_names:
+            if any(
+                message.get("role") == "tool"
+                and "list_files" in str(message.get("content", ""))
+                for message in messages
+            ):
+                return {"content": "Inspection complete.", "tool_calls": []}
             return {
                 "content": "",
                 "tool_calls": [{"function": {"name": "list_files", "arguments": "{}"}}],

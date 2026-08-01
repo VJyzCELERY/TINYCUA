@@ -9,10 +9,10 @@ This module implements two bounds (adapted from hermes-agent's
 ``tool_result_storage.py`` three-layer defense):
 
 1. ``persist_if_oversized`` — if a single tool result's serialized content
-   exceeds ``_PERSIST_THRESHOLD`` chars, write the full content to
-   ``./tmp/tool-results/{tool_call_id}.txt`` and return a ``<persisted-output>``
-   block containing a 4K preview, the file path, and a "use read_file with
-   offset/limit" instruction. Under the threshold, return the content unchanged.
+   exceeds ``_PERSIST_THRESHOLD`` chars, write it to a session-owned system
+   temporary directory and return a ``<persisted-output>`` block containing a
+   4K preview and opaque handle. The producing node can retrieve bounded pages
+   through ``read_tool_result``. Under the threshold, return content unchanged.
 
 2. ``enforce_turn_budget`` — after a batch of tool results is collected, if the
    cumulative tool-result chars in the messages exceed ``_TURN_BUDGET``, spill
@@ -28,7 +28,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import tempfile
+from contextvars import ContextVar
 from pathlib import Path
+from uuid import uuid4
+
+from tinycua_sdk.tools.decorators import tool
 
 _PERSIST_THRESHOLD = 100_000  # persist a single result above this
 _PREVIEW_CHARS = 4_000  # preview kept in-message when persisted
@@ -38,6 +43,7 @@ _PREVIEW_CHARS = 4_000  # preview kept in-message when persisted
 # legitimate multi-file exploration is never trimmed. The PRIMARY bound is
 # evict_superseded_file_reads (staleness, not size).
 _TURN_SAFETY_NET = 200_000
+_MAX_PAGE_CHARS = 8_000
 # Tools that operate on a file path and whose older results are superseded by
 # a newer result for the same path. read_file/edit_file/write_file on path X
 # are stale once a newer read/edit/write of X exists — the file changed.
@@ -46,15 +52,97 @@ _FILE_PATH_TOOLS = frozenset(
 )
 _MUTATION_TOOLS = frozenset({"str_replace", "append_file", "write_file"})
 
-# ponytail: write to ./tmp/tool-results/ (gitignored, repo-local). Per-session
-# subdirectory would isolate runs; upgrade path if concurrent runs collide.
-_RESULTS_DIR = Path("tmp") / "tool-results"
+
+class SessionToolResultStore:
+    """Own opaque persisted results for one runtime session."""
+
+    def __init__(self, session_id: str) -> None:
+        self.session_id = session_id
+        self._temporary_dir = tempfile.TemporaryDirectory(
+            prefix=f"tinycua-{_safe_id(session_id)}-"
+        )
+        self._results_dir = Path(self._temporary_dir.name) / "tool-results"
+        self._records: dict[str, tuple[str, Path, int]] = {}
+
+    def persist(self, content: str, owner_node_id: str) -> str:
+        """Store content and return an unguessable, node-owned handle."""
+        self._results_dir.mkdir(parents=True, exist_ok=True)
+        handle = f"result-{uuid4().hex}"
+        path = self._results_dir / f"{handle}.txt"
+        path.write_text(content, encoding="utf-8")
+        self._records[handle] = (owner_node_id, path, len(content))
+        return handle
+
+    def read(
+        self, handle: str, owner_node_id: str, char_offset: int, char_limit: int
+    ) -> dict[str, int | str | bool]:
+        """Return one bounded page only when the caller owns the result."""
+        record = self._records.get(handle)
+        if record is None or record[0] != owner_node_id:
+            return {"error": "Tool result is unavailable."}
+        _owner, path, total_chars = record
+        try:
+            content = path.read_text(encoding="utf-8")
+        except OSError:
+            return {"error": "Tool result is unavailable."}
+        end = min(char_offset + char_limit, total_chars)
+        return {
+            "content": content[char_offset:end],
+            "char_offset": char_offset,
+            "next_offset": end,
+            "has_more": end < total_chars,
+            "total_chars": total_chars,
+        }
+
+    def cleanup(self) -> None:
+        """Remove all session-owned temporary data."""
+        self._records.clear()
+        self._temporary_dir.cleanup()
 
 
-def _ensure_results_dir() -> Path:
-    """Create (idempotently) and return the tool-results directory."""
-    _RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    return _RESULTS_DIR
+_TOOL_RESULT_ACCESS: ContextVar[tuple[SessionToolResultStore, str, str] | None] = (
+    ContextVar("tool_result_access", default=None)
+)
+
+
+def bind_tool_result_access(
+    store: SessionToolResultStore, session_id: str, node_id: str
+) -> None:
+    """Bind one node's session-scoped persisted-result access."""
+    _TOOL_RESULT_ACCESS.set((store, session_id, node_id))
+
+
+@tool
+def read_tool_result(
+    handle: str, char_offset: int = 0, char_limit: int = _MAX_PAGE_CHARS
+) -> dict[str, int | str | bool]:
+    """Read a bounded page of a tool result owned by this node.
+
+    Args:
+        handle: Opaque handle reported by a prior persisted tool output.
+        char_offset: Zero-indexed character offset to begin reading.
+        char_limit: Character count to return, from one through 8000.
+
+    Returns:
+        The requested content page and its next offset, or an unavailable error.
+    """
+    try:
+        char_offset = int(char_offset)
+        char_limit = int(char_limit)
+    except (TypeError, ValueError):
+        return {"error": "char_offset and char_limit must be integers."}
+    if char_offset < 0 or not 1 <= char_limit <= _MAX_PAGE_CHARS:
+        return {"error": "Invalid tool-result page range."}
+    access = _TOOL_RESULT_ACCESS.get()
+    if access is None:
+        return {"error": "Tool result is unavailable."}
+    store, session_id, node_id = access
+    if session_id != store.session_id:
+        return {"error": "Tool result is unavailable."}
+    return store.read(handle, node_id, char_offset, char_limit)
+
+
+setattr(read_tool_result, "bind_tool_result_access", bind_tool_result_access)
 
 
 def _safe_id(tool_call_id: str) -> str:
@@ -73,24 +161,22 @@ def persist_if_oversized(
     *,
     threshold: int = _PERSIST_THRESHOLD,
     tool_name: str = "",
+    store: SessionToolResultStore | None = None,
+    owner_node_id: str = "",
 ) -> str:
     """Return a compact in-message representation when content is oversized.
 
-    If ``len(content) > threshold``, write the full content to
-    ``./tmp/tool-results/{tool_call_id}.txt`` and return a
-    ``<persisted-output>`` block with a preview + path + re-read hint.
-    Otherwise return ``content`` unchanged.
+    If ``len(content) > threshold``, persist through the supplied session store
+    and return a ``<persisted-output>`` block with a preview + handle + re-read
+    hint. Otherwise return ``content`` unchanged.
 
     On write failure, return the original content untruncated (never lose
     data; the caller's own head+tail truncation still applies separately).
     """
-    if len(content) <= threshold:
+    if len(content) <= threshold or store is None or not owner_node_id:
         return content
     try:
-        results_dir = _ensure_results_dir()
-        filename = f"{_safe_id(tool_call_id)}.txt"
-        dest = results_dir / filename
-        dest.write_text(content, encoding="utf-8")
+        handle = store.persist(content, owner_node_id)
     except OSError:
         # Disk full / permission / path issue — fall back to the full content.
         # The per-tool truncation (e.g. shell.py head+tail) is the backstop.
@@ -102,8 +188,8 @@ def persist_if_oversized(
     name_hint = f" (tool={tool_name})" if tool_name else ""
     return (
         f"<persisted-output>{name_hint}\n"
-        f"Full output ({len(content)} chars) saved to: {dest}\n"
-        f"Use the read_file tool with offset and limit to access specific sections.\n"
+        f"Full output ({len(content)} chars) is available as handle={handle}\n"
+        "Use read_tool_result with char_offset and char_limit to access specific sections.\n"
         f"Preview:\n{preview}\n"
         f"</persisted-output>"
     )
@@ -269,6 +355,8 @@ def enforce_turn_budget(
     tool_messages: list[dict],
     *,
     budget: int = _TURN_SAFETY_NET,
+    store: SessionToolResultStore | None = None,
+    owner_node_id: str = "",
 ) -> list[dict]:
     """High safety-net ceiling — NOT a tight budget.
 
@@ -290,7 +378,13 @@ def enforce_turn_budget(
             continue
         tool_call_id = str(msg.get("tool_call_id") or msg.get("name") or f"msg-{i}")
         tool_name = str(msg.get("name") or "")
-        persisted = persist_if_oversized(original, tool_call_id, tool_name=tool_name)
+        persisted = persist_if_oversized(
+            original,
+            tool_call_id,
+            tool_name=tool_name,
+            store=store,
+            owner_node_id=owner_node_id,
+        )
         if persisted is not original:
             msg["content"] = persisted
 
@@ -325,13 +419,19 @@ def _self_check() -> None:
     # Under threshold → passthrough
     assert persist_if_oversized("small", "tc1") == "small"
 
-    # Over threshold → persisted file + preview block
+    # Over threshold → opaque handle + preview block
     big = "A" * 150_000
-    out = persist_if_oversized(big, "tc-2")
-    assert "<persisted-output>" in out
-    assert "150000 chars" in out
-    assert "read_file" in out
-    assert ("A" * 4_000) in out  # preview head
+    store = SessionToolResultStore("self-check")
+    try:
+        out = persist_if_oversized(
+            big, "tc-2", store=store, owner_node_id="task_executor"
+        )
+        assert "<persisted-output>" in out
+        assert "150000 chars" in out
+        assert "read_tool_result" in out
+        assert ("A" * 4_000) in out  # preview head
+    finally:
+        store.cleanup()
 
     # Staleness eviction: 3 read_file of the SAME path → oldest 2 stubbed,
     # latest kept verbatim. Distinct-file reads stay verbatim.

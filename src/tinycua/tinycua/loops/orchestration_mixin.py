@@ -680,6 +680,7 @@ class OrchestrationMixin:
                 self.queue.advance(handoff)
         finally:
             self._working_messages = all_messages
+            self._tool_result_store.cleanup()
 
     def _prepend_cancellation_review(self) -> bool:
         """Fail closed when a pending cancellation escaped before execution."""

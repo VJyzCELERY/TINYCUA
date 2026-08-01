@@ -263,11 +263,20 @@ class TestOnCompleteFiresAfterRecovery:
         agent.skills = []
         agent.tool_permissions = {}
         agent.policy = MagicMock(max_tool_calls=100)
+        inspected = False
 
         async def mock_stream(_messages, tools, **kwargs):
+            nonlocal inspected
             del kwargs
             tool_names = {tool.name for tool in tools}
             if "task_review_decision" not in tool_names:
+                if inspected:
+                    yield {
+                        "type": "response.output_text.delta",
+                        "delta": "Inspection complete.",
+                    }
+                    return
+                inspected = True
                 yield {
                     "type": "tool_call.ready",
                     "id": "inspect",

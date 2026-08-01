@@ -329,6 +329,7 @@ def test_forwarded_output_is_not_duplicated_in_next_node_prompt() -> None:
 async def test_streamed_task_executor_trace_keeps_native_tools() -> None:
     """Streaming finalization records resolved outer native tools in traces."""
     loop = TinyCUALoop()
+    loop.root_session.task_store.create_task("Root")
     node = TinyCUATaskExecutorNode(
         node_id="task_executor",
         config=create_node_config("task_executor"),
@@ -344,7 +345,11 @@ async def test_streamed_task_executor_trace_keeps_native_tools() -> None:
         node.config.tool_policy.resolve_tools([Tool(name="write_file")]),
     )
 
-    assert "write_file" in loop.get_execution_trace()[-1]["resolved_tool_names"]
+    trace = loop.get_execution_trace()[-1]
+    assert "write_file" in trace["resolved_tool_names"]
+    assert "task_state" not in trace
+    assert trace["task_tree"]["tasks"][0]["title"] == "Root"
+    assert trace["task_version"] == loop.root_session.task_store.version
 
 
 @pytest.mark.parametrize(("node_id", "node_type"), _LIFECYCLE_NODE_TYPES)
@@ -376,7 +381,7 @@ async def test_streamed_lifecycle_action_summary_enters_commit(
     node_id: str,
     node_type,
 ) -> None:
-    """A completed streamed action batch advances every lifecycle node to commit."""
+    """Reviewer inspection stays in ACTION; other nodes advance to COMMIT."""
 
     class SuccessfulTool(Tool):
         def __call__(self) -> dict[str, bool]:
@@ -397,7 +402,10 @@ async def test_streamed_lifecycle_action_summary_enters_commit(
         [SuccessfulTool(name="run_shell")],
     )
 
-    assert node.progress.lifecycle_phase is LifecyclePhase.COMMIT
+    expected_phase = (
+        LifecyclePhase.ACTION if node_id == "result_reviewer" else LifecyclePhase.COMMIT
+    )
+    assert node.progress.lifecycle_phase is expected_phase
 
 
 def test_terminate_phase_hides_terminate_without_executor_commit() -> None:

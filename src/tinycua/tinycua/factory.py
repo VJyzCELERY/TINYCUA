@@ -122,6 +122,7 @@ def _native_tools(policy: NativeToolPolicy | None = None) -> list[Any]:
         fetch_url,
         list_files,
         read_file,
+        read_tool_result,
         run_python,
         run_shell,
         search_files,
@@ -133,6 +134,7 @@ def _native_tools(policy: NativeToolPolicy | None = None) -> list[Any]:
     tool_policy = policy or NativeToolPolicy()
     tools = [
         read_file,
+        read_tool_result,
         write_file,
         str_replace,
         append_file,
