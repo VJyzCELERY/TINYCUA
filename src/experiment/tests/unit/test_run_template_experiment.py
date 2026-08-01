@@ -463,6 +463,16 @@ def test_parse_args_requires_a_positive_timeout() -> None:
         parse_args(["--order-by", "unknown"])
 
 
+def test_parse_args_accepts_evaluator_only_mode() -> None:
+    """Evaluator-only mode is explicit and cannot replace agent results."""
+    args = parse_args(["--re-evaluate", "--fixtures", "experiment-4"])
+
+    assert args.re_evaluate is True
+    assert args.fixtures == "experiment-4"
+    with pytest.raises(SystemExit):
+        parse_args(["--re-evaluate", "--overwrite"])
+
+
 def test_run_disconnects_child_stdin(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -764,6 +774,64 @@ def test_write_result_embeds_optional_score(tmp_path: Path) -> None:
     result = json.loads(result_path.read_text())
     assert result["score"] == score.as_dict()
     assert result["passed"] is True
+
+
+def test_apply_reevaluation_preserves_original_and_sets_current_score() -> None:
+    """A new evaluator result updates current fields without losing v1 evidence."""
+    original = {
+        "fixture": "experiment-4",
+        "agent": "tinycua",
+        "passed": True,
+        "status": "passed",
+        "evaluator_outcome": "passed",
+        "evaluator_exit_code": 0,
+        "score": {
+            "categories": {
+                "browser": {"points": 1, "max_points": 1, "evidence": ["ok"]}
+            },
+            "total": 1,
+            "pass_threshold": 1,
+            "critical_categories": ["browser"],
+        },
+    }
+    score = parse_score(
+        {
+            "categories": {
+                "python_compile": {
+                    "points": 1,
+                    "max_points": 1,
+                    "evidence": ["all Python files compile"],
+                },
+                "ruff_lint": {
+                    "points": 0,
+                    "max_points": 1,
+                    "evidence": ["ruff found violations"],
+                },
+            },
+            "total": 1,
+            "pass_threshold": 1,
+            "critical_categories": ["python_compile"],
+        }
+    )
+
+    updated = runner.apply_reevaluation(
+        original,
+        evaluator_version="eval-v2",
+        evaluator_fixture_revision="fixture-v2",
+        evaluator_image={"reference": "image", "id": "sha256:abc", "repo_digests": []},
+        eval_command=("sh", "/eval/run.sh", "/submission"),
+        evaluator_exit_code=0,
+        score=score,
+        score_error=None,
+        failure_stage=None,
+        evaluated_at="2026-08-01T00:00:00+00:00",
+    )
+
+    assert updated["original_evaluation"]["score"] == original["score"]
+    assert updated["score"] == score.as_dict()
+    assert updated["passed"] is True
+    assert updated["evaluator_results"][-1]["evaluator_version"] == "eval-v2"
+    assert updated["evaluator_results"][-1]["score"] == score.as_dict()
 
 
 def test_write_result_replaces_json_atomically(

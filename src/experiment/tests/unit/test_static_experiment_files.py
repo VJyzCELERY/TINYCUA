@@ -240,7 +240,8 @@ def test_web_app_fixture_uses_a_free_form_start_contract() -> None:
     assert "os.killpg(server.process.pid" in evaluator
     assert '"/blocks"' not in evaluator
     assert '"/health"' not in evaluator
-    assert "ruff" not in evaluator
+    assert '"python_compile"' in evaluator
+    assert '"ruff_lint"' in evaluator
     assert "coverage" not in evaluator
 
 

@@ -40,17 +40,17 @@
     "experiment-4": {
       "hermes": {
         "passed": false,
-        "score": 1,
+        "score": 3,
         "metrics": {}
       },
       "openclaw": {
         "passed": false,
-        "score": 3,
+        "score": 4,
         "metrics": {}
       },
       "opencode": {
         "passed": false,
-        "score": 1,
+        "score": 3,
         "metrics": {}
       },
       "tinycua": {
@@ -60,17 +60,17 @@
       },
       "tinycua-nd": {
         "passed": false,
-        "score": 3,
+        "score": 5,
         "metrics": {}
       },
       "tinycua-nd-nr": {
         "passed": false,
-        "score": 1,
+        "score": 2,
         "metrics": {}
       },
       "tinycua-nr": {
         "passed": false,
-        "score": 1,
+        "score": 2,
         "metrics": {}
       }
     }

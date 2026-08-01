@@ -866,5 +866,155 @@
     "experiment-3/openclaw": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
     "experiment-4/openclaw": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
     "experiment-5/openclaw": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8"
-  }
+  },
+  "reevaluation_invocations": [
+    {
+      "id": "60fc2cab-f74c-445a-85ce-859ab11059ff",
+      "started_at": "2026-08-01T04:43:15.709823+00:00",
+      "ended_at": "2026-08-01T04:44:18.264009+00:00",
+      "pairs": [
+        {
+          "fixture": "experiment-4",
+          "agent": "hermes"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "openclaw"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "opencode"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua-nd"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua-nd-nr"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua-nr"
+        }
+      ],
+      "status": "failed",
+      "exit_code": 1
+    },
+    {
+      "id": "a33894fc-9a8e-4441-8c3f-a784f3bdbbed",
+      "started_at": "2026-08-01T04:45:49.020042+00:00",
+      "ended_at": "2026-08-01T04:46:42.645502+00:00",
+      "pairs": [
+        {
+          "fixture": "experiment-4",
+          "agent": "hermes"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "openclaw"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "opencode"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua-nd"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua-nd-nr"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua-nr"
+        }
+      ],
+      "status": "failed",
+      "exit_code": 1
+    },
+    {
+      "id": "3fbfa70a-c183-4046-b3ed-33717a30a831",
+      "started_at": "2026-08-01T04:48:01.423287+00:00",
+      "ended_at": "2026-08-01T04:48:54.972114+00:00",
+      "pairs": [
+        {
+          "fixture": "experiment-4",
+          "agent": "hermes"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "openclaw"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "opencode"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua-nd"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua-nd-nr"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua-nr"
+        }
+      ],
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "id": "3c5a4881-0d69-401f-b41a-1a566cc4d833",
+      "started_at": "2026-08-01T04:49:45.051062+00:00",
+      "ended_at": "2026-08-01T04:50:37.349917+00:00",
+      "pairs": [
+        {
+          "fixture": "experiment-4",
+          "agent": "hermes"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "openclaw"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "opencode"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua-nd"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua-nd-nr"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua-nr"
+        }
+      ],
+      "status": "passed",
+      "exit_code": 0
+    }
+  ]
 }

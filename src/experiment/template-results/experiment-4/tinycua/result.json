@@ -17,6 +17,20 @@
   "status": "failed",
   "score": {
     "categories": {
+      "python_compile": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: Python compilation failed"
+        ]
+      },
+      "ruff_lint": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: app.py:121:46: SyntaxError: Expected a newline after line continuation character\n    |\n119 |     return jsonify({'selected_block_id': selected_id}), 200\n120 |\n121 | @app.route('/api/selected', methods=['POST'])\\ndef set_selected():\n    |                                              ^\n122 |     \"\"\"Set selected block ID via cookie.\"\"\"\n123 |     data = request.get_json()\n    |\n\napp.py:121:52: SyntaxError: Simple statements must be separated by newlines or semicolons\n    |\n119 |     return jsonify({'selected_block_id': selected_id}), 200\n120 |\n121 | @app.route('/api/selected', methods=['POST'])\\ndef set_selected():\n    |                                                    ^^^^^^^^^^^^\n122 |     \"\"\"Set selected block ID via cookie.\"\"\"\n123 |     data = request.get_json()\n    |\n\napp.py:121:67: SyntaxError: Expected an expression\n    |\n119 |     return jsonify({'selected_block_id': selected_id}), 200\n120 |\n121 | @app.route('/api/selected', methods=['POST'])\\ndef set_selected():\n    |                                                                   ^\n122 |     \"\"\"Set selected block ID via cookie.\"\"\"\n123 |     data = request.get_json()\n124 |     selected_id = data.get('id')\n    |\n\napp.py:122:1: SyntaxError: Unexpected indentation\n    |\n121 | @app.route('/api/selected', methods=['POST'])\\ndef set_selected():\n122 |     \"\"\"Set selected block ID via cookie.\"\"\"\n    | ^^^^\n123 |     data = request.get_json()\n124 |     selected_id = data.get('id')\n    |\n\napp.py:129:1: SyntaxError: Expected a statement\n    |\n127 |     return response, 200\n128 |\n129 | @app.route('/api/blocks/clear', methods=['POST'])\\ndef clear_blocks():\n    | ^\n130 |     \"\"\"Delete all blocks.\"\"\"\n131 |     conn = get_db()\n    |\n\napp.py:129:50: SyntaxError: Expected a newline after line continuation character\n    |\n127 |     return response, 200\n128 |\n129 | @app.route('/api/blocks/clear', methods=['POST'])\\ndef clear_blocks():\n    |                                                  ^\n130 |     \"\"\"Delete all blocks.\"\"\"\n131 |     conn = get_db()\n    |\n\napp.py:129:56: SyntaxError: Simple statements must be separated by newlines or semicolons\n    |\n127 |     return response, 200\n128 |\n129 | @app.route('/api/blocks/clear', methods=['POST'])\\ndef clear_blocks():\n    |                                                        ^^^^^^^^^^^^\n130 |     \"\"\"Delete all blocks.\"\"\"\n131 |     conn = get_db()\n    |\n\napp.py:129:71: SyntaxError: Expected an expression\n    |\n127 |     return response, 200\n128 |\n129 | @app.route('/api/blocks/clear', methods=['POST'])\\ndef clear_blocks():\n    |                                                                       ^\n130 |     \"\"\"Delete all blocks.\"\"\"\n131 |     conn = get_db()\n132 |     cursor = conn.cursor()\n    |\n\napp.py:130:1: SyntaxError: Unexpected indentation\n    |\n129 | @app.route('/api/blocks/clear', methods=['POST'])\\ndef clear_blocks():\n130 |     \"\"\"Delete all blocks.\"\"\"\n    | ^^^^\n131 |     conn = get_db()\n132 |     cursor = conn.cursor()\n    |\n\napp.py:138:1: SyntaxError: Expected a statement\n    |\n136 |     return jsonify({'cleared': True})\n137 |\n138 | if __name__ == '__main__':\n    | ^\n139 |     init_db()\n140 |     port = int(os.environ.get('PORT', 8765))\n    |\n\nFound 10 errors.\n"
+        ]
+      },
       "start_script": {
         "points": 1,
         "max_points": 1,
@@ -42,35 +56,35 @@
         "points": 0,
         "max_points": 1,
         "evidence": [
-          "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:52895/\nCall log:\n  - navigating to \"http://127.0.0.1:52895/\", waiting until \"domcontentloaded\"\n"
+          "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:43789/\nCall log:\n  - navigating to \"http://127.0.0.1:43789/\", waiting until \"domcontentloaded\"\n"
         ]
       },
       "block_edit": {
         "points": 0,
         "max_points": 1,
         "evidence": [
-          "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:52895/\nCall log:\n  - navigating to \"http://127.0.0.1:52895/\", waiting until \"domcontentloaded\"\n"
+          "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:43789/\nCall log:\n  - navigating to \"http://127.0.0.1:43789/\", waiting until \"domcontentloaded\"\n"
         ]
       },
       "block_delete": {
         "points": 0,
         "max_points": 1,
         "evidence": [
-          "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:52895/\nCall log:\n  - navigating to \"http://127.0.0.1:52895/\", waiting until \"domcontentloaded\"\n"
+          "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:43789/\nCall log:\n  - navigating to \"http://127.0.0.1:43789/\", waiting until \"domcontentloaded\"\n"
         ]
       },
       "reload_persistence": {
         "points": 0,
         "max_points": 1,
         "evidence": [
-          "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:52895/\nCall log:\n  - navigating to \"http://127.0.0.1:52895/\", waiting until \"domcontentloaded\"\n"
+          "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:43789/\nCall log:\n  - navigating to \"http://127.0.0.1:43789/\", waiting until \"domcontentloaded\"\n"
         ]
       },
       "sqlite_persistence": {
         "points": 0,
         "max_points": 1,
         "evidence": [
-          "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:52895/\nCall log:\n  - navigating to \"http://127.0.0.1:52895/\", waiting until \"domcontentloaded\"\n"
+          "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:43789/\nCall log:\n  - navigating to \"http://127.0.0.1:43789/\", waiting until \"domcontentloaded\"\n"
         ]
       },
       "restart_persistence": {
@@ -95,5 +109,326 @@
       "restart_persistence"
     ]
   },
-  "failure_stage": "evaluator"
+  "original_evaluation": {
+    "score": {
+      "categories": {
+        "start_script": {
+          "points": 1,
+          "max_points": 1,
+          "evidence": [
+            "root start.sh exists"
+          ]
+        },
+        "application_starts": {
+          "points": 0,
+          "max_points": 1,
+          "evidence": [
+            "failed: start.sh exited with code 1"
+          ]
+        },
+        "python_backend": {
+          "points": 0,
+          "max_points": 1,
+          "evidence": [
+            "failed: start.sh process group includes a Python backend"
+          ]
+        },
+        "block_create": {
+          "points": 0,
+          "max_points": 1,
+          "evidence": [
+            "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:52895/\nCall log:\n  - navigating to \"http://127.0.0.1:52895/\", waiting until \"domcontentloaded\"\n"
+          ]
+        },
+        "block_edit": {
+          "points": 0,
+          "max_points": 1,
+          "evidence": [
+            "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:52895/\nCall log:\n  - navigating to \"http://127.0.0.1:52895/\", waiting until \"domcontentloaded\"\n"
+          ]
+        },
+        "block_delete": {
+          "points": 0,
+          "max_points": 1,
+          "evidence": [
+            "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:52895/\nCall log:\n  - navigating to \"http://127.0.0.1:52895/\", waiting until \"domcontentloaded\"\n"
+          ]
+        },
+        "reload_persistence": {
+          "points": 0,
+          "max_points": 1,
+          "evidence": [
+            "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:52895/\nCall log:\n  - navigating to \"http://127.0.0.1:52895/\", waiting until \"domcontentloaded\"\n"
+          ]
+        },
+        "sqlite_persistence": {
+          "points": 0,
+          "max_points": 1,
+          "evidence": [
+            "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:52895/\nCall log:\n  - navigating to \"http://127.0.0.1:52895/\", waiting until \"domcontentloaded\"\n"
+          ]
+        },
+        "restart_persistence": {
+          "points": 0,
+          "max_points": 1,
+          "evidence": [
+            "failed: start.sh exited with code 1"
+          ]
+        }
+      },
+      "total": 1,
+      "pass_threshold": 9,
+      "critical_categories": [
+        "start_script",
+        "application_starts",
+        "python_backend",
+        "block_create",
+        "block_edit",
+        "block_delete",
+        "reload_persistence",
+        "sqlite_persistence",
+        "restart_persistence"
+      ]
+    },
+    "passed": false,
+    "status": "failed",
+    "evaluator_outcome": "failed",
+    "evaluator_exit_code": 1,
+    "failure_stage": "evaluator"
+  },
+  "evaluator_results": [
+    {
+      "evaluator_version": "30e192efa6e84ca98cd991894776fb085bb83f30eaa1153ab97fbb45d57873a2",
+      "evaluator_fixture_revision": "39b6ef15e8acb561b21c91fe1fa9af6cfe534e1185510b726ede87f807e2d749",
+      "evaluator_image": {
+        "reference": "tinycua-template-reeval-experiment-4-39b6ef15e8ac",
+        "id": "sha256:4754c394ab1bbdfdd6c54da087f75a90d994cb9ad57cd0f59e47b131aa07dc2a",
+        "repo_digests": [
+          "tinycua-template-browser-evaluator-experiment-3@sha256:4754c394ab1bbdfdd6c54da087f75a90d994cb9ad57cd0f59e47b131aa07dc2a",
+          "tinycua-template-browser-evaluator-experiment-4@sha256:4754c394ab1bbdfdd6c54da087f75a90d994cb9ad57cd0f59e47b131aa07dc2a",
+          "tinycua-template-reeval-experiment-4-39b6ef15e8ac@sha256:4754c394ab1bbdfdd6c54da087f75a90d994cb9ad57cd0f59e47b131aa07dc2a"
+        ]
+      },
+      "eval_command": [
+        "sh",
+        "/eval/run.sh",
+        "/submission"
+      ],
+      "evaluated_at": "2026-08-01T04:43:59.583377+00:00",
+      "evaluator_exit_code": 1,
+      "passed": false,
+      "status": "failed",
+      "score": {
+        "categories": {
+          "python_compile": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: Python compilation failed"
+            ]
+          },
+          "ruff_lint": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: app.py:121:46: SyntaxError: Expected a newline after line continuation character\n    |\n119 |     return jsonify({'selected_block_id': selected_id}), 200\n120 |\n121 | @app.route('/api/selected', methods=['POST'])\\ndef set_selected():\n    |                                              ^\n122 |     \"\"\"Set selected block ID via cookie.\"\"\"\n123 |     data = request.get_json()\n    |\n\napp.py:121:52: SyntaxError: Simple statements must be separated by newlines or semicolons\n    |\n119 |     return jsonify({'selected_block_id': selected_id}), 200\n120 |\n121 | @app.route('/api/selected', methods=['POST'])\\ndef set_selected():\n    |                                                    ^^^^^^^^^^^^\n122 |     \"\"\"Set selected block ID via cookie.\"\"\"\n123 |     data = request.get_json()\n    |\n\napp.py:121:67: SyntaxError: Expected an expression\n    |\n119 |     return jsonify({'selected_block_id': selected_id}), 200\n120 |\n121 | @app.route('/api/selected', methods=['POST'])\\ndef set_selected():\n    |                                                                   ^\n122 |     \"\"\"Set selected block ID via cookie.\"\"\"\n123 |     data = request.get_json()\n124 |     selected_id = data.get('id')\n    |\n\napp.py:122:1: SyntaxError: Unexpected indentation\n    |\n121 | @app.route('/api/selected', methods=['POST'])\\ndef set_selected():\n122 |     \"\"\"Set selected block ID via cookie.\"\"\"\n    | ^^^^\n123 |     data = request.get_json()\n124 |     selected_id = data.get('id')\n    |\n\napp.py:129:1: SyntaxError: Expected a statement\n    |\n127 |     return response, 200\n128 |\n129 | @app.route('/api/blocks/clear', methods=['POST'])\\ndef clear_blocks():\n    | ^\n130 |     \"\"\"Delete all blocks.\"\"\"\n131 |     conn = get_db()\n    |\n\napp.py:129:50: SyntaxError: Expected a newline after line continuation character\n    |\n127 |     return response, 200\n128 |\n129 | @app.route('/api/blocks/clear', methods=['POST'])\\ndef clear_blocks():\n    |                                                  ^\n130 |     \"\"\"Delete all blocks.\"\"\"\n131 |     conn = get_db()\n    |\n\napp.py:129:56: SyntaxError: Simple statements must be separated by newlines or semicolons\n    |\n127 |     return response, 200\n128 |\n129 | @app.route('/api/blocks/clear', methods=['POST'])\\ndef clear_blocks():\n    |                                                        ^^^^^^^^^^^^\n130 |     \"\"\"Delete all blocks.\"\"\"\n131 |     conn = get_db()\n    |\n\napp.py:129:71: SyntaxError: Expected an expression\n    |\n127 |     return response, 200\n128 |\n129 | @app.route('/api/blocks/clear', methods=['POST'])\\ndef clear_blocks():\n    |                                                                       ^\n130 |     \"\"\"Delete all blocks.\"\"\"\n131 |     conn = get_db()\n132 |     cursor = conn.cursor()\n    |\n\napp.py:130:1: SyntaxError: Unexpected indentation\n    |\n129 | @app.route('/api/blocks/clear', methods=['POST'])\\ndef clear_blocks():\n130 |     \"\"\"Delete all blocks.\"\"\"\n    | ^^^^\n131 |     conn = get_db()\n132 |     cursor = conn.cursor()\n    |\n\napp.py:138:1: SyntaxError: Expected a statement\n    |\n136 |     return jsonify({'cleared': True})\n137 |\n138 | if __name__ == '__main__':\n    | ^\n139 |     init_db()\n140 |     port = int(os.environ.get('PORT', 8765))\n    |\n\nFound 10 errors.\n"
+            ]
+          },
+          "start_script": {
+            "points": 1,
+            "max_points": 1,
+            "evidence": [
+              "root start.sh exists"
+            ]
+          },
+          "application_starts": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: start.sh exited with code 1"
+            ]
+          },
+          "python_backend": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: start.sh process group includes a Python backend"
+            ]
+          },
+          "block_create": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:52577/\nCall log:\n  - navigating to \"http://127.0.0.1:52577/\", waiting until \"domcontentloaded\"\n"
+            ]
+          },
+          "block_edit": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:52577/\nCall log:\n  - navigating to \"http://127.0.0.1:52577/\", waiting until \"domcontentloaded\"\n"
+            ]
+          },
+          "block_delete": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:52577/\nCall log:\n  - navigating to \"http://127.0.0.1:52577/\", waiting until \"domcontentloaded\"\n"
+            ]
+          },
+          "reload_persistence": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:52577/\nCall log:\n  - navigating to \"http://127.0.0.1:52577/\", waiting until \"domcontentloaded\"\n"
+            ]
+          },
+          "sqlite_persistence": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:52577/\nCall log:\n  - navigating to \"http://127.0.0.1:52577/\", waiting until \"domcontentloaded\"\n"
+            ]
+          },
+          "restart_persistence": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: start.sh exited with code 1"
+            ]
+          }
+        },
+        "total": 1,
+        "pass_threshold": 9,
+        "critical_categories": [
+          "start_script",
+          "application_starts",
+          "python_backend",
+          "block_create",
+          "block_edit",
+          "block_delete",
+          "reload_persistence",
+          "sqlite_persistence",
+          "restart_persistence"
+        ]
+      }
+    },
+    {
+      "evaluator_version": "27ddbfc28615f644fb27e4bce3ea544b1695e03a50dacca322b88658dc191cbb",
+      "evaluator_fixture_revision": "f5a41dc036d33db3df68e27b8b5a8345278cc450b357d960cde99e9fa91568ed",
+      "evaluator_image": {
+        "reference": "tinycua-template-reeval-experiment-4-f5a41dc036d3",
+        "id": "sha256:4754c394ab1bbdfdd6c54da087f75a90d994cb9ad57cd0f59e47b131aa07dc2a",
+        "repo_digests": [
+          "tinycua-template-browser-evaluator-experiment-3@sha256:4754c394ab1bbdfdd6c54da087f75a90d994cb9ad57cd0f59e47b131aa07dc2a",
+          "tinycua-template-browser-evaluator-experiment-4@sha256:4754c394ab1bbdfdd6c54da087f75a90d994cb9ad57cd0f59e47b131aa07dc2a",
+          "tinycua-template-reeval-experiment-4-39b6ef15e8ac@sha256:4754c394ab1bbdfdd6c54da087f75a90d994cb9ad57cd0f59e47b131aa07dc2a",
+          "tinycua-template-reeval-experiment-4-f5a41dc036d3@sha256:4754c394ab1bbdfdd6c54da087f75a90d994cb9ad57cd0f59e47b131aa07dc2a"
+        ]
+      },
+      "eval_command": [
+        "sh",
+        "/eval/run.sh",
+        "/submission"
+      ],
+      "evaluated_at": "2026-08-01T04:46:25.473989+00:00",
+      "evaluator_exit_code": 1,
+      "passed": false,
+      "status": "failed",
+      "score": {
+        "categories": {
+          "python_compile": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: Python compilation failed"
+            ]
+          },
+          "ruff_lint": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: app.py:121:46: SyntaxError: Expected a newline after line continuation character\n    |\n119 |     return jsonify({'selected_block_id': selected_id}), 200\n120 |\n121 | @app.route('/api/selected', methods=['POST'])\\ndef set_selected():\n    |                                              ^\n122 |     \"\"\"Set selected block ID via cookie.\"\"\"\n123 |     data = request.get_json()\n    |\n\napp.py:121:52: SyntaxError: Simple statements must be separated by newlines or semicolons\n    |\n119 |     return jsonify({'selected_block_id': selected_id}), 200\n120 |\n121 | @app.route('/api/selected', methods=['POST'])\\ndef set_selected():\n    |                                                    ^^^^^^^^^^^^\n122 |     \"\"\"Set selected block ID via cookie.\"\"\"\n123 |     data = request.get_json()\n    |\n\napp.py:121:67: SyntaxError: Expected an expression\n    |\n119 |     return jsonify({'selected_block_id': selected_id}), 200\n120 |\n121 | @app.route('/api/selected', methods=['POST'])\\ndef set_selected():\n    |                                                                   ^\n122 |     \"\"\"Set selected block ID via cookie.\"\"\"\n123 |     data = request.get_json()\n124 |     selected_id = data.get('id')\n    |\n\napp.py:122:1: SyntaxError: Unexpected indentation\n    |\n121 | @app.route('/api/selected', methods=['POST'])\\ndef set_selected():\n122 |     \"\"\"Set selected block ID via cookie.\"\"\"\n    | ^^^^\n123 |     data = request.get_json()\n124 |     selected_id = data.get('id')\n    |\n\napp.py:129:1: SyntaxError: Expected a statement\n    |\n127 |     return response, 200\n128 |\n129 | @app.route('/api/blocks/clear', methods=['POST'])\\ndef clear_blocks():\n    | ^\n130 |     \"\"\"Delete all blocks.\"\"\"\n131 |     conn = get_db()\n    |\n\napp.py:129:50: SyntaxError: Expected a newline after line continuation character\n    |\n127 |     return response, 200\n128 |\n129 | @app.route('/api/blocks/clear', methods=['POST'])\\ndef clear_blocks():\n    |                                                  ^\n130 |     \"\"\"Delete all blocks.\"\"\"\n131 |     conn = get_db()\n    |\n\napp.py:129:56: SyntaxError: Simple statements must be separated by newlines or semicolons\n    |\n127 |     return response, 200\n128 |\n129 | @app.route('/api/blocks/clear', methods=['POST'])\\ndef clear_blocks():\n    |                                                        ^^^^^^^^^^^^\n130 |     \"\"\"Delete all blocks.\"\"\"\n131 |     conn = get_db()\n    |\n\napp.py:129:71: SyntaxError: Expected an expression\n    |\n127 |     return response, 200\n128 |\n129 | @app.route('/api/blocks/clear', methods=['POST'])\\ndef clear_blocks():\n    |                                                                       ^\n130 |     \"\"\"Delete all blocks.\"\"\"\n131 |     conn = get_db()\n132 |     cursor = conn.cursor()\n    |\n\napp.py:130:1: SyntaxError: Unexpected indentation\n    |\n129 | @app.route('/api/blocks/clear', methods=['POST'])\\ndef clear_blocks():\n130 |     \"\"\"Delete all blocks.\"\"\"\n    | ^^^^\n131 |     conn = get_db()\n132 |     cursor = conn.cursor()\n    |\n\napp.py:138:1: SyntaxError: Expected a statement\n    |\n136 |     return jsonify({'cleared': True})\n137 |\n138 | if __name__ == '__main__':\n    | ^\n139 |     init_db()\n140 |     port = int(os.environ.get('PORT', 8765))\n    |\n\nFound 10 errors.\n"
+            ]
+          },
+          "start_script": {
+            "points": 1,
+            "max_points": 1,
+            "evidence": [
+              "root start.sh exists"
+            ]
+          },
+          "application_starts": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: start.sh exited with code 1"
+            ]
+          },
+          "python_backend": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: start.sh process group includes a Python backend"
+            ]
+          },
+          "block_create": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:43789/\nCall log:\n  - navigating to \"http://127.0.0.1:43789/\", waiting until \"domcontentloaded\"\n"
+            ]
+          },
+          "block_edit": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:43789/\nCall log:\n  - navigating to \"http://127.0.0.1:43789/\", waiting until \"domcontentloaded\"\n"
+            ]
+          },
+          "block_delete": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:43789/\nCall log:\n  - navigating to \"http://127.0.0.1:43789/\", waiting until \"domcontentloaded\"\n"
+            ]
+          },
+          "reload_persistence": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:43789/\nCall log:\n  - navigating to \"http://127.0.0.1:43789/\", waiting until \"domcontentloaded\"\n"
+            ]
+          },
+          "sqlite_persistence": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:43789/\nCall log:\n  - navigating to \"http://127.0.0.1:43789/\", waiting until \"domcontentloaded\"\n"
+            ]
+          },
+          "restart_persistence": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: start.sh exited with code 1"
+            ]
+          }
+        },
+        "total": 1,
+        "pass_threshold": 9,
+        "critical_categories": [
+          "start_script",
+          "application_starts",
+          "python_backend",
+          "block_create",
+          "block_edit",
+          "block_delete",
+          "reload_persistence",
+          "sqlite_persistence",
+          "restart_persistence"
+        ]
+      }
+    }
+  ]
 }

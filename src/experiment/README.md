@@ -110,6 +110,15 @@ settings, timeouts, fixture revisions, or agent configurations fail before Docke
 work. Migrated schema-v1 results remain readable but are sealed against new pair
 execution because their historical runner inputs cannot be verified.
 
+To apply changed evaluators to saved workdirs without rerunning agents, use
+`--re-evaluate` (optionally with the same fixture and agent selectors). It records
+the new evaluator result alongside the original evaluation and rebuilds
+`outcomes.json`:
+
+```bash
+uv run python run_template_experiment.py --re-evaluate --fixtures experiment-4
+```
+
 Each completed pair retains only `result.json`, `stdout.log`, `stderr.log`,
 `environment.json`, and a cleaned `workdir/`. Evaluator scores are embedded in
 `result.json`; generated environments, caches, helper scripts, transfer logs,

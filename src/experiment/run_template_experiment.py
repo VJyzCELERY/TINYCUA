@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import fcntl
 import hashlib
 import json
@@ -809,6 +810,85 @@ def write_result(
     if failure_stage is not None:
         result["failure_stage"] = failure_stage
     _atomic_write_json(path, result)
+
+
+def apply_reevaluation(
+    result: dict[str, object],
+    *,
+    evaluator_version: str,
+    evaluator_fixture_revision: str,
+    evaluator_image: dict[str, object],
+    eval_command: tuple[str, ...],
+    evaluator_exit_code: int,
+    score: Score | None,
+    score_error: str | None,
+    failure_stage: str | None,
+    evaluated_at: str,
+) -> dict[str, object]:
+    """Return a result updated with one versioned evaluator-only outcome."""
+    updated = copy.deepcopy(result)
+    if "original_evaluation" not in updated:
+        updated["original_evaluation"] = {
+            key: copy.deepcopy(updated[key])
+            for key in (
+                "score",
+                "passed",
+                "status",
+                "evaluator_outcome",
+                "evaluator_exit_code",
+                "failure_stage",
+                "score_error",
+            )
+            if key in updated
+        }
+    passed = (
+        evaluator_exit_code == 0
+        and score_error is None
+        and (score is None or score.passed)
+        and failure_stage is None
+    )
+    evaluation: dict[str, object] = {
+        "evaluator_version": evaluator_version,
+        "evaluator_fixture_revision": evaluator_fixture_revision,
+        "evaluator_image": copy.deepcopy(evaluator_image),
+        "eval_command": list(eval_command),
+        "evaluated_at": evaluated_at,
+        "evaluator_exit_code": evaluator_exit_code,
+        "passed": passed,
+        "status": "passed" if passed else "failed",
+    }
+    if score is not None:
+        evaluation["score"] = score.as_dict()
+    if score_error is not None:
+        evaluation["score_error"] = score_error
+    if failure_stage is not None:
+        evaluation["failure_stage"] = failure_stage
+    evaluations = updated.setdefault("evaluator_results", [])
+    if not isinstance(evaluations, list):
+        raise ValueError("result evaluator_results must be a list")
+    if any(
+        isinstance(item, dict) and item.get("evaluator_version") == evaluator_version
+        for item in evaluations
+    ):
+        raise ValueError(f"evaluator version already recorded: {evaluator_version}")
+    evaluations.append(evaluation)
+    updated["evaluator_exit_code"] = evaluator_exit_code
+    updated["passed"] = passed
+    updated["status"] = evaluation["status"]
+    updated["evaluator_outcome"] = evaluation["status"]
+    if score is not None:
+        updated["score"] = score.as_dict()
+    else:
+        updated.pop("score", None)
+    if score_error is not None:
+        updated["score_error"] = score_error
+    else:
+        updated.pop("score_error", None)
+    if failure_stage is not None:
+        updated["failure_stage"] = failure_stage
+    else:
+        updated.pop("failure_stage", None)
+    return updated
 
 
 def _atomic_write_json(path: Path, value: object) -> None:
@@ -2173,6 +2253,172 @@ def _evaluate_submission(
         shutil.rmtree(evaluator_result, ignore_errors=True)
 
 
+def _reevaluation_agent_stdout(run_root: Path, scratch: Path) -> Path:
+    """Extract the original agent stream for evaluators that consume it."""
+    text = (run_root / "stdout.log").read_text()
+    marker = "=== agent ===\n"
+    if marker in text:
+        text = text.split(marker, 1)[1]
+        text = text.split("\n=== ", 1)[0]
+    path = scratch / "agent.stdout.log"
+    path.write_text(text)
+    return path
+
+
+def _reevaluation_image_tag(prefix: str, revision: str) -> str:
+    """Return a local image tag scoped to one immutable reevaluation revision."""
+    return f"tinycua-template-reeval-{prefix}-{revision[:12]}"
+
+
+def _prepare_reevaluation_images(
+    fixtures: tuple[Fixture, ...],
+    scratch: Path,
+    timeout_seconds: int,
+    secret_values: tuple[str, ...],
+) -> dict[str, tuple[str, dict[str, object]]]:
+    """Build or pull only evaluator images, never agent candidate images."""
+    stdout = scratch / "images.stdout.log"
+    stderr = scratch / "images.stderr.log"
+    needs_tinycua_base = any(
+        fixture.evaluator_dockerfile is not None
+        or fixture.eval_image == LOCAL_PYTHON_EVALUATOR_IMAGE
+        for fixture in fixtures
+    )
+    base_image = ""
+    if needs_tinycua_base:
+        base_image = _reevaluation_image_tag("tinycua-base", _execution_revision())
+        code, _ = _run(
+            build_base_command("tinycua", base_image),
+            stdout,
+            stderr,
+            timeout_seconds,
+            secret_values,
+            stage="reevaluation/build-base",
+        )
+        if code:
+            raise OSError(f"reevaluation base image build failed exit_code={code}")
+    images: dict[str, tuple[str, dict[str, object]]] = {}
+    for fixture in fixtures:
+        evaluator_revision = tree_revision(fixture.root / "eval")
+        if fixture.evaluator_dockerfile is not None:
+            image = _reevaluation_image_tag(fixture.name, evaluator_revision)
+            code, _ = _run(
+                build_decorator_command(fixture.evaluator_dockerfile, base_image, image),
+                stdout,
+                stderr,
+                timeout_seconds,
+                secret_values,
+                stage=f"reevaluation/build-evaluator/{fixture.name}",
+            )
+            if code:
+                raise OSError(
+                    f"reevaluation evaluator image build failed for {fixture.name} "
+                    f"exit_code={code}"
+                )
+        elif fixture.eval_image == LOCAL_PYTHON_EVALUATOR_IMAGE:
+            image = base_image
+        else:
+            image = fixture.eval_image
+            code, _ = _run(
+                ["docker", "pull", image],
+                stdout,
+                stderr,
+                timeout_seconds,
+                secret_values,
+                stage=f"reevaluation/pull-evaluator/{fixture.name}",
+            )
+            if code:
+                raise OSError(
+                    f"reevaluation evaluator image pull failed for {fixture.name} "
+                    f"exit_code={code}"
+                )
+        identity = _image_identity(image)
+        if not isinstance(identity.get("id"), str):
+            raise OSError(f"reevaluation evaluator image has no ID: {image}")
+        images[fixture.name] = (image, identity)
+    return images
+
+
+def _reevaluation_version(
+    fixture: Fixture, image: dict[str, object]
+) -> str:
+    """Fingerprint evaluator inputs independently from the original campaign."""
+    payload = {
+        "runner_revision": _execution_revision(),
+        "fixture_revision": tree_revision(fixture.root),
+        "evaluator_fixture_revision": tree_revision(fixture.root / "eval"),
+        "eval_command": fixture.eval_command,
+        "image": image,
+    }
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
+def _evaluate_existing_pair(
+    fixture: Fixture,
+    agent: str,
+    run_root: Path,
+    image: str,
+    image_identity: dict[str, object],
+    scratch: Path,
+    timeout_seconds: int,
+    secret_values: tuple[str, ...],
+    invocation_id: str,
+) -> dict[str, object]:
+    """Run an evaluator against one saved workdir without invoking its agent."""
+    pair_scratch = scratch / fixture.name / agent
+    pair_scratch.mkdir(parents=True)
+    agent_stdout = _reevaluation_agent_stdout(run_root, pair_scratch)
+    evaluator_result = pair_scratch / "result"
+    evaluator_result.mkdir()
+    stdout = pair_scratch / "stdout.log"
+    stderr = pair_scratch / "stderr.log"
+    dependency_files = (
+        ()
+        if fixture.entrypoint_manages_dependencies
+        else _existing_submission_dependency_files(
+            run_root / "workdir", fixture.submission_dependency_files
+        )
+    )
+    command = build_evaluator_command(
+        image,
+        fixture.eval_command,
+        run_root / "workdir",
+        fixture.root / "eval",
+        container_name(fixture.name, agent, "reevaluator", invocation_id),
+        dependency_files,
+        agent_stdout,
+        evaluator_result,
+        not fixture.entrypoint_manages_dependencies,
+    )
+    evaluator_code, cleanup_error = _run(
+        command,
+        stdout,
+        stderr,
+        timeout_seconds,
+        secret_values,
+        container_name(fixture.name, agent, "reevaluator", invocation_id),
+        "reevaluation/evaluator",
+    )
+    if cleanup_error:
+        raise OSError(cleanup_error)
+    try:
+        score = read_score(evaluator_result / "score.json")
+    except ValueError as error:
+        raise OSError(f"reevaluation produced no valid score: {error}") from error
+    return {
+        "evaluator_version": _reevaluation_version(fixture, image_identity),
+        "evaluator_fixture_revision": tree_revision(fixture.root / "eval"),
+        "evaluator_image": image_identity,
+        "eval_command": fixture.eval_command,
+        "evaluator_exit_code": evaluator_code,
+        "score": score,
+        "score_error": None,
+        "failure_stage": None,
+    }
+
+
 def _execute_pair(
     fixture: Fixture,
     agent: str,
@@ -2749,6 +2995,139 @@ def _continue_campaign(
     return int(_selected_campaign_failed(output_root, fixtures, agents))
 
 
+def _reevaluation_pairs(
+    metadata: dict[str, object],
+    fixtures_raw: str | None,
+    agents_raw: str | None,
+) -> tuple[tuple[Fixture, str], ...]:
+    """Resolve registered saved pairs selected for evaluator-only execution."""
+    pairs = metadata.get("pairs")
+    if not isinstance(pairs, list):
+        raise ValueError("run_metadata.json pairs has the wrong type")
+    registered = {
+        (str(pair.get("fixture")), str(pair.get("agent")))
+        for pair in pairs
+        if isinstance(pair, dict)
+        and isinstance(pair.get("fixture"), str)
+        and isinstance(pair.get("agent"), str)
+    }
+    if not registered:
+        raise ValueError("campaign has no registered pairs to re-evaluate")
+    fixtures = (
+        tuple(item.strip() for item in fixtures_raw.split(",") if item.strip())
+        if fixtures_raw is not None
+        else tuple(sorted({fixture for fixture, _agent in registered}))
+    )
+    agents = (
+        parse_agents(agents_raw)
+        if agents_raw is not None
+        else tuple(sorted({agent for _fixture, agent in registered}))
+    )
+    if not fixtures or len(set(fixtures)) != len(fixtures):
+        raise ValueError("fixtures must select unique registered fixtures")
+    selected = tuple(
+        (fixture, agent)
+        for fixture, agent in sorted(registered)
+        if fixture in fixtures and agent in agents
+    )
+    if not selected:
+        raise ValueError("no registered pairs match the reevaluation selectors")
+    if any(fixture not in {name for name, _agent in registered} for fixture in fixtures):
+        raise ValueError("reevaluation selected an unregistered fixture")
+    return tuple((_load_fixture(FIXTURE_ROOT, fixture), agent) for fixture, agent in selected)
+
+
+def _run_reevaluation_campaign(
+    output_root: Path,
+    fixtures_raw: str | None,
+    agents_raw: str | None,
+    timeout_seconds: int,
+) -> int:
+    """Re-evaluate saved artifacts without starting any harness agent."""
+    metadata, migrated = _load_campaign(output_root)
+    if metadata is None or migrated or metadata.get("schema_version") != SCHEMA_VERSION:
+        raise ValueError("--re-evaluate requires an existing schema-v2 campaign")
+    selected = _reevaluation_pairs(metadata, fixtures_raw, agents_raw)
+    for fixture, agent in selected:
+        result_path = output_root / fixture.name / agent / "result.json"
+        if _valid_pair_result(result_path, fixture.name, agent) is None:
+            raise ValueError(f"invalid saved pair result: {result_path}")
+    invocation_id = str(uuid4())
+    scratch = output_root / f".reevaluation-{invocation_id}"
+    raw_environment, environment = _agent_compose_environments(Path(".env"), "")
+    secret_values = _secret_values(raw_environment, environment)
+    started_at = datetime.now(timezone.utc)
+    try:
+        scratch.mkdir()
+        unique_fixtures = tuple(dict.fromkeys(fixture for fixture, _agent in selected))
+        images = _prepare_reevaluation_images(
+            unique_fixtures, scratch, timeout_seconds, secret_values
+        )
+        updates: list[tuple[Path, dict[str, object]]] = []
+        any_failed = False
+        for fixture, agent in selected:
+            result_path = output_root / fixture.name / agent / "result.json"
+            original = _valid_pair_result(result_path, fixture.name, agent)
+            assert original is not None
+            image, identity = images[fixture.name]
+            outcome = _evaluate_existing_pair(
+                fixture,
+                agent,
+                result_path.parent,
+                image,
+                identity,
+                scratch,
+                timeout_seconds,
+                secret_values,
+                invocation_id,
+            )
+            evaluator_version = str(outcome["evaluator_version"])
+            prior = original.get("evaluator_results", [])
+            if any(
+                isinstance(item, dict) and item.get("evaluator_version") == evaluator_version
+                for item in prior
+                if isinstance(prior, list)
+            ):
+                continue
+            updated = apply_reevaluation(
+                original,
+                evaluator_version=evaluator_version,
+                evaluator_fixture_revision=str(outcome["evaluator_fixture_revision"]),
+                evaluator_image=identity,
+                eval_command=fixture.eval_command,
+                evaluator_exit_code=int(outcome["evaluator_exit_code"]),
+                score=outcome["score"] if isinstance(outcome["score"], Score) else None,
+                score_error=outcome["score_error"] if isinstance(outcome["score_error"], str) else None,
+                failure_stage=outcome["failure_stage"] if isinstance(outcome["failure_stage"], str) else None,
+                evaluated_at=datetime.now(timezone.utc).isoformat(),
+            )
+            any_failed = any_failed or not bool(updated["passed"])
+            updates.append((result_path, updated))
+        for result_path, updated in updates:
+            _atomic_write_json(result_path, updated)
+        write_outcomes(output_root / "outcomes.json", output_root, metadata)
+        records = metadata.setdefault("reevaluation_invocations", [])
+        if not isinstance(records, list):
+            raise ValueError("run_metadata.json reevaluation_invocations has the wrong type")
+        records.append(
+            {
+                "id": invocation_id,
+                "started_at": started_at.isoformat(),
+                "ended_at": datetime.now(timezone.utc).isoformat(),
+                "pairs": [
+                    {"fixture": fixture.name, "agent": agent}
+                    for fixture, agent in selected
+                ],
+                "status": "failed" if any_failed else "passed",
+                "exit_code": int(any_failed),
+            }
+        )
+        _save_metadata(output_root / "run_metadata.json", metadata)
+        return int(any_failed)
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+
+
 def _run_campaign(
     fixtures: tuple[Fixture, ...],
     agents: tuple[str, ...],
@@ -2820,6 +3199,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--overwrite", action="store_true", help="Replace selected output directories."
     )
     parser.add_argument(
+        "--re-evaluate",
+        action="store_true",
+        help="Run current evaluators against saved workdirs without invoking agents.",
+    )
+    parser.add_argument(
         "--timeout-seconds",
         type=int,
         default=DEFAULT_TIMEOUT_SECONDS,
@@ -2828,6 +3212,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     args = parser.parse_args(argv)
     if args.timeout_seconds < 1:
         parser.error("--timeout-seconds must be positive")
+    if args.re_evaluate and args.overwrite:
+        parser.error("--re-evaluate cannot be combined with --overwrite")
     return args
 
 
@@ -2835,9 +3221,19 @@ def main(argv: list[str] | None = None) -> int:
     """Run selected controlled coding experiments."""
     args = parse_args(argv)
     try:
+        output_root = args.output_root.resolve()
+        if args.re_evaluate:
+            if not output_root.is_dir():
+                raise ValueError("--re-evaluate requires an existing --output-root")
+            with campaign_lock(output_root):
+                return _run_reevaluation_campaign(
+                    output_root,
+                    args.fixtures,
+                    args.agents,
+                    args.timeout_seconds,
+                )
         fixtures = discover_fixtures(FIXTURE_ROOT, args.fixtures)
         agents = parse_agents(args.agents)
-        output_root = args.output_root.resolve()
         output_root.mkdir(parents=True, exist_ok=True)
         with campaign_lock(output_root):
             return _run_campaign(

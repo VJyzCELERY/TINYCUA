@@ -233,6 +233,26 @@ def sqlite_contains(workspace: Path, marker: str) -> str:
     raise ValueError("no SQLite database retained the browser-created block")
 
 
+def python_compile(workspace: Path) -> str:
+    """Compile submitted Python files before exercising the application."""
+    completed = subprocess.run(
+        [sys.executable, "-m", "compileall", "-q", "."],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+    )
+    require(completed.returncode == 0, completed.stderr or "Python compilation failed")
+    return "Python compilation succeeded"
+
+
+def ruff_lint(workspace: Path) -> str:
+    """Run the evaluator's pinned Ruff linter on the submitted application."""
+    completed = subprocess.run(
+        ["ruff", "check", "."], cwd=workspace, capture_output=True, text=True
+    )
+    return require(completed.returncode == 0, completed.stdout or "Ruff lint failed")
+
+
 def evaluate(checks: dict[str, Callable[[], str]], result: Path) -> int:
     """Run binary checks and write category evidence."""
     outcomes: dict[str, bool] = {}
@@ -321,6 +341,8 @@ def main() -> int:
 
     try:
         checks: dict[str, Callable[[], str]] = {
+            "python_compile": lambda: python_compile(workspace),
+            "ruff_lint": lambda: ruff_lint(workspace),
             "start_script": lambda: require(
                 (workspace / "start.sh").is_file(), "root start.sh exists"
             ),

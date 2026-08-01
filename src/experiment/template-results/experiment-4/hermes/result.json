@@ -17,6 +17,20 @@
   "status": "failed",
   "score": {
     "categories": {
+      "python_compile": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "Python compilation succeeded"
+        ]
+      },
+      "ruff_lint": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "All checks passed!\n"
+        ]
+      },
       "start_script": {
         "points": 1,
         "max_points": 1,
@@ -42,35 +56,35 @@
         "points": 0,
         "max_points": 1,
         "evidence": [
-          "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:44993/\nCall log:\n  - navigating to \"http://127.0.0.1:44993/\", waiting until \"domcontentloaded\"\n"
+          "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:57443/\nCall log:\n  - navigating to \"http://127.0.0.1:57443/\", waiting until \"domcontentloaded\"\n"
         ]
       },
       "block_edit": {
         "points": 0,
         "max_points": 1,
         "evidence": [
-          "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:44993/\nCall log:\n  - navigating to \"http://127.0.0.1:44993/\", waiting until \"domcontentloaded\"\n"
+          "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:57443/\nCall log:\n  - navigating to \"http://127.0.0.1:57443/\", waiting until \"domcontentloaded\"\n"
         ]
       },
       "block_delete": {
         "points": 0,
         "max_points": 1,
         "evidence": [
-          "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:44993/\nCall log:\n  - navigating to \"http://127.0.0.1:44993/\", waiting until \"domcontentloaded\"\n"
+          "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:57443/\nCall log:\n  - navigating to \"http://127.0.0.1:57443/\", waiting until \"domcontentloaded\"\n"
         ]
       },
       "reload_persistence": {
         "points": 0,
         "max_points": 1,
         "evidence": [
-          "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:44993/\nCall log:\n  - navigating to \"http://127.0.0.1:44993/\", waiting until \"domcontentloaded\"\n"
+          "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:57443/\nCall log:\n  - navigating to \"http://127.0.0.1:57443/\", waiting until \"domcontentloaded\"\n"
         ]
       },
       "sqlite_persistence": {
         "points": 0,
         "max_points": 1,
         "evidence": [
-          "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:44993/\nCall log:\n  - navigating to \"http://127.0.0.1:44993/\", waiting until \"domcontentloaded\"\n"
+          "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:57443/\nCall log:\n  - navigating to \"http://127.0.0.1:57443/\", waiting until \"domcontentloaded\"\n"
         ]
       },
       "restart_persistence": {
@@ -81,7 +95,7 @@
         ]
       }
     },
-    "total": 1,
+    "total": 3,
     "pass_threshold": 9,
     "critical_categories": [
       "start_script",
@@ -95,5 +109,326 @@
       "restart_persistence"
     ]
   },
-  "failure_stage": "evaluator"
+  "original_evaluation": {
+    "score": {
+      "categories": {
+        "start_script": {
+          "points": 1,
+          "max_points": 1,
+          "evidence": [
+            "root start.sh exists"
+          ]
+        },
+        "application_starts": {
+          "points": 0,
+          "max_points": 1,
+          "evidence": [
+            "failed: start.sh exited with code 1"
+          ]
+        },
+        "python_backend": {
+          "points": 0,
+          "max_points": 1,
+          "evidence": [
+            "failed: start.sh process group includes a Python backend"
+          ]
+        },
+        "block_create": {
+          "points": 0,
+          "max_points": 1,
+          "evidence": [
+            "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:44993/\nCall log:\n  - navigating to \"http://127.0.0.1:44993/\", waiting until \"domcontentloaded\"\n"
+          ]
+        },
+        "block_edit": {
+          "points": 0,
+          "max_points": 1,
+          "evidence": [
+            "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:44993/\nCall log:\n  - navigating to \"http://127.0.0.1:44993/\", waiting until \"domcontentloaded\"\n"
+          ]
+        },
+        "block_delete": {
+          "points": 0,
+          "max_points": 1,
+          "evidence": [
+            "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:44993/\nCall log:\n  - navigating to \"http://127.0.0.1:44993/\", waiting until \"domcontentloaded\"\n"
+          ]
+        },
+        "reload_persistence": {
+          "points": 0,
+          "max_points": 1,
+          "evidence": [
+            "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:44993/\nCall log:\n  - navigating to \"http://127.0.0.1:44993/\", waiting until \"domcontentloaded\"\n"
+          ]
+        },
+        "sqlite_persistence": {
+          "points": 0,
+          "max_points": 1,
+          "evidence": [
+            "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:44993/\nCall log:\n  - navigating to \"http://127.0.0.1:44993/\", waiting until \"domcontentloaded\"\n"
+          ]
+        },
+        "restart_persistence": {
+          "points": 0,
+          "max_points": 1,
+          "evidence": [
+            "failed: start.sh exited with code 1"
+          ]
+        }
+      },
+      "total": 1,
+      "pass_threshold": 9,
+      "critical_categories": [
+        "start_script",
+        "application_starts",
+        "python_backend",
+        "block_create",
+        "block_edit",
+        "block_delete",
+        "reload_persistence",
+        "sqlite_persistence",
+        "restart_persistence"
+      ]
+    },
+    "passed": false,
+    "status": "failed",
+    "evaluator_outcome": "failed",
+    "evaluator_exit_code": 1,
+    "failure_stage": "evaluator"
+  },
+  "evaluator_results": [
+    {
+      "evaluator_version": "30e192efa6e84ca98cd991894776fb085bb83f30eaa1153ab97fbb45d57873a2",
+      "evaluator_fixture_revision": "39b6ef15e8acb561b21c91fe1fa9af6cfe534e1185510b726ede87f807e2d749",
+      "evaluator_image": {
+        "reference": "tinycua-template-reeval-experiment-4-39b6ef15e8ac",
+        "id": "sha256:4754c394ab1bbdfdd6c54da087f75a90d994cb9ad57cd0f59e47b131aa07dc2a",
+        "repo_digests": [
+          "tinycua-template-browser-evaluator-experiment-3@sha256:4754c394ab1bbdfdd6c54da087f75a90d994cb9ad57cd0f59e47b131aa07dc2a",
+          "tinycua-template-browser-evaluator-experiment-4@sha256:4754c394ab1bbdfdd6c54da087f75a90d994cb9ad57cd0f59e47b131aa07dc2a",
+          "tinycua-template-reeval-experiment-4-39b6ef15e8ac@sha256:4754c394ab1bbdfdd6c54da087f75a90d994cb9ad57cd0f59e47b131aa07dc2a"
+        ]
+      },
+      "eval_command": [
+        "sh",
+        "/eval/run.sh",
+        "/submission"
+      ],
+      "evaluated_at": "2026-08-01T04:43:29.570060+00:00",
+      "evaluator_exit_code": 1,
+      "passed": false,
+      "status": "failed",
+      "score": {
+        "categories": {
+          "python_compile": {
+            "points": 1,
+            "max_points": 1,
+            "evidence": [
+              "Python compilation failed"
+            ]
+          },
+          "ruff_lint": {
+            "points": 1,
+            "max_points": 1,
+            "evidence": [
+              "All checks passed!\n"
+            ]
+          },
+          "start_script": {
+            "points": 1,
+            "max_points": 1,
+            "evidence": [
+              "root start.sh exists"
+            ]
+          },
+          "application_starts": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: start.sh exited with code 1"
+            ]
+          },
+          "python_backend": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: start.sh process group includes a Python backend"
+            ]
+          },
+          "block_create": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:36335/\nCall log:\n  - navigating to \"http://127.0.0.1:36335/\", waiting until \"domcontentloaded\"\n"
+            ]
+          },
+          "block_edit": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:36335/\nCall log:\n  - navigating to \"http://127.0.0.1:36335/\", waiting until \"domcontentloaded\"\n"
+            ]
+          },
+          "block_delete": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:36335/\nCall log:\n  - navigating to \"http://127.0.0.1:36335/\", waiting until \"domcontentloaded\"\n"
+            ]
+          },
+          "reload_persistence": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:36335/\nCall log:\n  - navigating to \"http://127.0.0.1:36335/\", waiting until \"domcontentloaded\"\n"
+            ]
+          },
+          "sqlite_persistence": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:36335/\nCall log:\n  - navigating to \"http://127.0.0.1:36335/\", waiting until \"domcontentloaded\"\n"
+            ]
+          },
+          "restart_persistence": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: start.sh exited with code 1"
+            ]
+          }
+        },
+        "total": 3,
+        "pass_threshold": 9,
+        "critical_categories": [
+          "start_script",
+          "application_starts",
+          "python_backend",
+          "block_create",
+          "block_edit",
+          "block_delete",
+          "reload_persistence",
+          "sqlite_persistence",
+          "restart_persistence"
+        ]
+      }
+    },
+    {
+      "evaluator_version": "27ddbfc28615f644fb27e4bce3ea544b1695e03a50dacca322b88658dc191cbb",
+      "evaluator_fixture_revision": "f5a41dc036d33db3df68e27b8b5a8345278cc450b357d960cde99e9fa91568ed",
+      "evaluator_image": {
+        "reference": "tinycua-template-reeval-experiment-4-f5a41dc036d3",
+        "id": "sha256:4754c394ab1bbdfdd6c54da087f75a90d994cb9ad57cd0f59e47b131aa07dc2a",
+        "repo_digests": [
+          "tinycua-template-browser-evaluator-experiment-3@sha256:4754c394ab1bbdfdd6c54da087f75a90d994cb9ad57cd0f59e47b131aa07dc2a",
+          "tinycua-template-browser-evaluator-experiment-4@sha256:4754c394ab1bbdfdd6c54da087f75a90d994cb9ad57cd0f59e47b131aa07dc2a",
+          "tinycua-template-reeval-experiment-4-39b6ef15e8ac@sha256:4754c394ab1bbdfdd6c54da087f75a90d994cb9ad57cd0f59e47b131aa07dc2a",
+          "tinycua-template-reeval-experiment-4-f5a41dc036d3@sha256:4754c394ab1bbdfdd6c54da087f75a90d994cb9ad57cd0f59e47b131aa07dc2a"
+        ]
+      },
+      "eval_command": [
+        "sh",
+        "/eval/run.sh",
+        "/submission"
+      ],
+      "evaluated_at": "2026-08-01T04:45:58.338263+00:00",
+      "evaluator_exit_code": 1,
+      "passed": false,
+      "status": "failed",
+      "score": {
+        "categories": {
+          "python_compile": {
+            "points": 1,
+            "max_points": 1,
+            "evidence": [
+              "Python compilation succeeded"
+            ]
+          },
+          "ruff_lint": {
+            "points": 1,
+            "max_points": 1,
+            "evidence": [
+              "All checks passed!\n"
+            ]
+          },
+          "start_script": {
+            "points": 1,
+            "max_points": 1,
+            "evidence": [
+              "root start.sh exists"
+            ]
+          },
+          "application_starts": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: start.sh exited with code 1"
+            ]
+          },
+          "python_backend": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: start.sh process group includes a Python backend"
+            ]
+          },
+          "block_create": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:57443/\nCall log:\n  - navigating to \"http://127.0.0.1:57443/\", waiting until \"domcontentloaded\"\n"
+            ]
+          },
+          "block_edit": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:57443/\nCall log:\n  - navigating to \"http://127.0.0.1:57443/\", waiting until \"domcontentloaded\"\n"
+            ]
+          },
+          "block_delete": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:57443/\nCall log:\n  - navigating to \"http://127.0.0.1:57443/\", waiting until \"domcontentloaded\"\n"
+            ]
+          },
+          "reload_persistence": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:57443/\nCall log:\n  - navigating to \"http://127.0.0.1:57443/\", waiting until \"domcontentloaded\"\n"
+            ]
+          },
+          "sqlite_persistence": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:57443/\nCall log:\n  - navigating to \"http://127.0.0.1:57443/\", waiting until \"domcontentloaded\"\n"
+            ]
+          },
+          "restart_persistence": {
+            "points": 0,
+            "max_points": 1,
+            "evidence": [
+              "failed: start.sh exited with code 1"
+            ]
+          }
+        },
+        "total": 3,
+        "pass_threshold": 9,
+        "critical_categories": [
+          "start_script",
+          "application_starts",
+          "python_backend",
+          "block_create",
+          "block_edit",
+          "block_delete",
+          "reload_persistence",
+          "sqlite_persistence",
+          "restart_persistence"
+        ]
+      }
+    }
+  ]
 }
