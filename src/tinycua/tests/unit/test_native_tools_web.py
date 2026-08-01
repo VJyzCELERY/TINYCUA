@@ -123,3 +123,35 @@ def test_fetch_url_truncation_exact_boundary(httpx_mock):
     assert result["success"] is True
     assert result["content"] == body
     assert result["source_truncated"] is False
+
+
+def test_fetch_url_uses_cached_success_after_http_403(httpx_mock):
+    """A transient fetch failure returns the exact session cache with provenance."""
+    from tinycua.agent.tools.native.output_persist import SessionToolResultStore
+    from tinycua.agent.tools.native.web import bind_web_cache, fetch_url
+
+    store = SessionToolResultStore("web-cache-test")
+    bind_web_cache(store)
+    try:
+        httpx_mock.add_response(
+            method="GET",
+            url="https://example.com/cached",
+            text="saved",
+            status_code=200,
+        )
+        cached = fetch_url("https://example.com/cached")
+        httpx_mock.add_response(
+            method="GET", url="https://example.com/cached", status_code=403
+        )
+        fallback = fetch_url("https://example.com/cached")
+        loaded = fetch_url("https://example.com/cached", load_cache=True)
+
+        assert cached["cache_id"]
+        assert fallback["success"] is True
+        assert fallback["source"] == "cache_fallback"
+        assert fallback["network_error"].startswith("HTTP 403")
+        assert loaded["source"] == "cache"
+        assert loaded["content"] == "saved"
+    finally:
+        bind_web_cache(None)
+        store.cleanup()

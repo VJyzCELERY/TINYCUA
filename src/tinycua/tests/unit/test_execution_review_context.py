@@ -344,6 +344,10 @@ def test_reviewer_receives_full_report_and_labeled_executor_evidence() -> None:
                     {
                         "name": "fetch_url",
                         "artifact_path": "artifacts/tool-calls/0001-fetch_url.json",
+                        "output": {
+                            "cache_id": "cache-fetch-1",
+                            "captured_at": "2026-08-02T00:00:00+00:00",
+                        },
                         "outcome": {
                             "call_id": "executor-call-1",
                             "tool_name": "fetch_url",
@@ -369,6 +373,8 @@ def test_reviewer_receives_full_report_and_labeled_executor_evidence() -> None:
     assert "not independent Reviewer observations" in prompt
     assert "output_preview_truncated=True" in prompt
     assert f"url={url}" in prompt
+    assert "cache_id=cache-fetch-1" in prompt
+    assert "load_cache=true" in prompt
 
 
 def test_reviewer_evidence_bounds_pathological_url_preview() -> None:

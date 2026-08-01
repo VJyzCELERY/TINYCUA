@@ -200,3 +200,38 @@ def test_web_search_empty_results_no_unresponsive_field(httpx_mock) -> None:
     result = web_search("zzz no match")
     assert result["success"] is True
     assert result["results"] == []
+
+
+def test_web_search_falls_back_to_compatible_cached_result(httpx_mock) -> None:
+    """A failed broader search exposes a labeled prior same-query result."""
+    from tinycua.agent.tools.native.output_persist import SessionToolResultStore
+    from tinycua.agent.tools.native.web_search import bind_web_cache, web_search
+
+    store = SessionToolResultStore("web-cache-test")
+    bind_web_cache(store)
+    try:
+        httpx_mock.add_response(
+            method="GET",
+            url="http://localhost:8080/search?q=eggs&format=json",
+            json={
+                "results": [{"title": "Eggs", "url": "https://eg.gs", "content": "x"}]
+            },
+        )
+        cached = web_search("eggs", max_results=5)
+        httpx_mock.add_exception(
+            httpx.ConnectError("rate limited"),
+            url="http://localhost:8080/search?q=eggs&format=json",
+        )
+        fallback = web_search("eggs", max_results=15)
+        missing = web_search("eggs", max_results=15, load_cache=True)
+
+        assert cached["cache_id"]
+        assert fallback["success"] is True
+        assert fallback["source"] == "cache_fallback"
+        assert fallback["cached_max_results"] == 5
+        assert fallback["partial"] is True
+        assert missing["success"] is False
+        assert "cache" in missing["error"].lower()
+    finally:
+        bind_web_cache(None)
+        store.cleanup()
