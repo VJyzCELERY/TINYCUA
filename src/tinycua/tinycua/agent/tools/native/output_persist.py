@@ -30,7 +30,9 @@ import hashlib
 import json
 import tempfile
 from contextvars import ContextVar
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 from tinycua_sdk.tools.decorators import tool
@@ -63,6 +65,7 @@ class SessionToolResultStore:
         )
         self._results_dir = Path(self._temporary_dir.name) / "tool-results"
         self._records: dict[str, tuple[str, Path, int]] = {}
+        self._web_cache: list[tuple[str, dict[str, Any], str, str, Path]] = []
 
     def persist(self, content: str, owner_node_id: str) -> str:
         """Store content and return an unguessable, node-owned handle."""
@@ -94,9 +97,71 @@ class SessionToolResultStore:
             "total_chars": total_chars,
         }
 
+    def cache_web(
+        self, kind: str, key: dict[str, Any], result: dict[str, Any]
+    ) -> dict[str, str] | None:
+        """Store one successful web observation and return its opaque metadata."""
+        cache_id = f"cache-{uuid4().hex}"
+        captured_at = datetime.now(timezone.utc).isoformat()
+        path = Path(self._temporary_dir.name) / "web-cache" / f"{cache_id}.json"
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(result), encoding="utf-8")
+        except (OSError, TypeError):
+            return None
+        self._web_cache.append((kind, dict(key), cache_id, captured_at, path))
+        return {"cache_id": cache_id, "captured_at": captured_at}
+
+    def load_web(self, kind: str, key: dict[str, Any]) -> dict[str, Any] | None:
+        """Return the newest exact web-cache entry for a request key."""
+        for entry in reversed(self._web_cache):
+            if entry[0] == kind and entry[1] == key:
+                return self._read_web(entry)
+        return None
+
+    def fallback_web_search(
+        self, query: str, max_results: int
+    ) -> dict[str, Any] | None:
+        """Return the nearest same-query cached search after a network failure."""
+        entries = [
+            entry
+            for entry in self._web_cache
+            if entry[0] == "web_search" and entry[1].get("query") == query
+        ]
+        if not entries:
+            return None
+        lower = [entry for entry in entries if entry[1]["max_results"] <= max_results]
+        if lower:
+            target = max(entry[1]["max_results"] for entry in lower)
+        else:
+            target = min(entry[1]["max_results"] for entry in entries)
+        for entry in reversed(entries):
+            if entry[1]["max_results"] == target:
+                return self._read_web(entry)
+        return None
+
+    @staticmethod
+    def _read_web(
+        entry: tuple[str, dict[str, Any], str, str, Path],
+    ) -> dict[str, Any] | None:
+        """Read one cached web result without exposing its temporary path."""
+        kind, key, cache_id, captured_at, path = entry
+        try:
+            result = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        return {
+            "kind": kind,
+            "key": key,
+            "cache_id": cache_id,
+            "captured_at": captured_at,
+            "result": result,
+        }
+
     def cleanup(self) -> None:
         """Remove all session-owned temporary data."""
         self._records.clear()
+        self._web_cache.clear()
         self._temporary_dir.cleanup()
 
 

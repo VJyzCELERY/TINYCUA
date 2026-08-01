@@ -8,11 +8,14 @@ HTML responses are converted to markdown before pagination.
 from __future__ import annotations
 
 import logging
+from contextvars import ContextVar
 from typing import Any
 
 import httpx
 import html2text
 from tinycua_sdk.tools.decorators import tool
+
+from tinycua.agent.tools.native.output_persist import SessionToolResultStore
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +40,28 @@ _MAX_RETRIES = 3
 
 _DEFAULT_LIMIT = 50_000
 _MAX_LIMIT = 50_000
+_WEB_CACHE: ContextVar[SessionToolResultStore | None] = ContextVar(
+    "fetch_url_web_cache", default=None
+)
+
+
+def bind_web_cache(store: SessionToolResultStore | None) -> None:
+    """Bind session-local web cache storage to this native tool."""
+    _WEB_CACHE.set(store)
+
+
+def _fetch_cache_key(
+    url: str, method: str, headers: dict[str, str], max_size: int
+) -> dict[str, Any]:
+    """Return the exact cache key for a fetch request."""
+    return {
+        "url": url,
+        "method": method.upper(),
+        "headers": tuple(
+            sorted((key.lower(), value) for key, value in headers.items())
+        ),
+        "max_size": max_size,
+    }
 
 
 def _page_metadata(
@@ -202,7 +227,79 @@ def _process_response(
             source_truncated=source_truncated,
             final_url=final_url,
         ),
+        "_cache_content": body,
     }
+
+
+def _cached_fetch_result(
+    cached: dict[str, Any],
+    offset: int,
+    limit: int,
+    source: str,
+    network_error: str = "",
+) -> dict[str, Any]:
+    """Render a requested page from one cached full fetch response."""
+    payload = cached["result"]
+    content = str(payload["content"])
+    page = content[offset : offset + limit]
+    result = {
+        "success": True,
+        "content": page,
+        "error": None,
+        "url": payload["url"],
+        "content_type": payload["content_type"],
+        "status": payload["status"],
+        **_page_metadata(
+            offset,
+            limit,
+            returned_chars=len(page),
+            total_chars=len(content),
+            source_truncated=bool(payload["source_truncated"]),
+            final_url=payload["final_url"],
+        ),
+        "source": source,
+        "cache_id": cached["cache_id"],
+        "cached_at": cached["captured_at"],
+    }
+    if network_error:
+        result["network_error"] = network_error
+    return result
+
+
+def _cache_fetch_result(
+    result: dict[str, Any],
+    store: SessionToolResultStore | None,
+    key: dict[str, Any],
+    offset: int,
+    limit: int,
+) -> dict[str, Any]:
+    """Cache a network success or use exact cached evidence after failure."""
+    full_content = result.pop("_cache_content", None)
+    if result.get("success") is True and isinstance(full_content, str) and store:
+        metadata = store.cache_web(
+            "fetch_url",
+            key,
+            {
+                "content": full_content,
+                "url": result["url"],
+                "content_type": result["content_type"],
+                "status": result["status"],
+                "source_truncated": result["source_truncated"],
+                "final_url": result["final_url"],
+            },
+        )
+        if metadata:
+            result.update(metadata)
+        return result
+    if (
+        result.get("success") is False
+        and store
+        and (cached := store.load_web("fetch_url", key))
+    ):
+        return _cached_fetch_result(
+            cached, offset, limit, "cache_fallback", str(result["error"])
+        )
+    return result
 
 
 @tool
@@ -214,6 +311,7 @@ def fetch_url(
     max_size: int = 102400,
     offset: int = 0,
     limit: int = _DEFAULT_LIMIT,
+    load_cache: bool = False,
 ) -> dict[str, Any]:
     """Fetch a character page of a URL's model-visible content.
 
@@ -232,6 +330,7 @@ def fetch_url(
         max_size: Maximum response body size in bytes (default: 102400).
         offset: Zero-based character offset into converted output (default: 0).
         limit: Characters to return, from 1 through 50000 (default: 50000).
+        load_cache: Return an exact session-cached response without a network call.
 
     Returns:
         Dict preserving success, content, error, url, content_type, and status,
@@ -255,11 +354,19 @@ def fetch_url(
         )
     if not isinstance(max_size, int) or isinstance(max_size, bool) or max_size < 1:
         return _error_result("max_size must be a positive integer", url, offset, limit)
+    if not isinstance(load_cache, bool):
+        return _error_result("load_cache must be a boolean", url, offset, limit)
 
     # Add default User-Agent if not provided.
     req_headers = dict(headers or {})
     if "user-agent" not in {k.lower() for k in req_headers}:
         req_headers["User-Agent"] = _DEFAULT_USER_AGENT
+    key = _fetch_cache_key(url, method, req_headers, max_size)
+    store = _WEB_CACHE.get()
+    if load_cache:
+        if store and (cached := store.load_web("fetch_url", key)):
+            return _cached_fetch_result(cached, offset, limit, "cache")
+        return _error_result("No matching cached fetch result.", url, offset, limit)
 
     last_error: dict[str, Any] | None = None
     for attempt in range(_MAX_RETRIES + 1):
@@ -299,17 +406,35 @@ def fetch_url(
                         final_url=str(response.url),
                     )
                     continue
-                return _process_response(response, max_size, url, offset, limit)
+                return _cache_fetch_result(
+                    _process_response(response, max_size, url, offset, limit),
+                    store,
+                    key,
+                    offset,
+                    limit,
+                )
 
         except httpx.TimeoutException:
-            return _error_result(
-                f"Request timed out after {timeout}s for URL: {url}",
-                url,
+            return _cache_fetch_result(
+                _error_result(
+                    f"Request timed out after {timeout}s for URL: {url}",
+                    url,
+                    offset,
+                    limit,
+                ),
+                store,
+                key,
                 offset,
                 limit,
             )
         except httpx.InvalidURL:
-            return _error_result(f"Invalid URL: {url}", url, offset, limit)
+            return _cache_fetch_result(
+                _error_result(f"Invalid URL: {url}", url, offset, limit),
+                store,
+                key,
+                offset,
+                limit,
+            )
         except httpx.HTTPError as exc:
             last_error = _error_result(f"HTTP error: {exc}", url, offset, limit)
             if attempt < _MAX_RETRIES:
@@ -317,8 +442,23 @@ def fetch_url(
 
                 time.sleep(min(2**attempt, 10))
                 continue
-            return last_error
+            return _cache_fetch_result(last_error, store, key, offset, limit)
         except Exception as exc:
-            return _error_result(str(exc), url, offset, limit)
+            return _cache_fetch_result(
+                _error_result(str(exc), url, offset, limit),
+                store,
+                key,
+                offset,
+                limit,
+            )
 
-    return last_error or _error_result("unknown error", url, offset, limit)
+    return _cache_fetch_result(
+        last_error or _error_result("unknown error", url, offset, limit),
+        store,
+        key,
+        offset,
+        limit,
+    )
+
+
+setattr(fetch_url, "bind_web_cache", bind_web_cache)

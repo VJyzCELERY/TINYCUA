@@ -51,6 +51,9 @@ class JsonDraftMixin:
                 binder(
                     self._tool_result_store, self.root_session.session_id, node.node_id
                 )
+            web_cache_binder = getattr(tool, "bind_web_cache", None)
+            if callable(web_cache_binder):
+                web_cache_binder(self._tool_result_store)
 
     def _persist_tool_result(
         self, content: str, call_id: str, tool_name: str, node: Node | None

@@ -62,6 +62,14 @@ another character page exists. Out-of-range offsets return a successful empty fi
 and errors retain the pagination metadata. Each page refetches the URL, so pagination
 cannot recover source bytes excluded by `max_size`.
 
+`fetch_url` and `web_search` accept `load_cache=false` by default. Successful
+session-local observations receive an opaque `cache_id`. With `load_cache=true`,
+the tool returns only an exact cached request without contacting the network.
+Default calls contact the network first and, on failure, return clearly labeled
+cached fallback evidence when available. Search exact loads require the same
+normalized query and `max_results`; automatic fallback may use a compatible
+same-query cached result and reports its cached result count and timestamp.
+
 ## Related
 
 - [`../config/node_config.md`](../config/node_config.md)
