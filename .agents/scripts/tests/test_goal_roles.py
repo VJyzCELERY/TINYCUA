@@ -66,6 +66,7 @@ def test_goal_configuration_is_initialized_per_goal(tmp_path):
         "model": "opaque-model",
         "role": "worker",
         "source": "local",
+        "variant": None,
     }
 
     code, result, error = run(root, "preflight", "Owner/Repo#43")

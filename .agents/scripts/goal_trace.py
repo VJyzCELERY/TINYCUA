@@ -192,7 +192,7 @@ def _validate_template(root: Path) -> dict:
     if path.is_symlink() or not path.is_file():
         raise TraceError("default template is missing or unsafe")
     template = _load_json(path, "default template")
-    template = _exact_object(template, {"schema_version", "permissions"}, "default template")
+    template = _exact_object(template, {"schema_version", "permissions", "additional_config"}, "default template")
     if template["schema_version"] != SCHEMA_VERSION or isinstance(
         template["schema_version"], bool
     ):
@@ -201,15 +201,15 @@ def _validate_template(root: Path) -> dict:
     for permission in PERMISSIONS:
         if not isinstance(permissions[permission], bool):
             raise TraceError("permissions values must be booleans")
+    if not isinstance(template["additional_config"], dict):
+        raise TraceError("additional_config must be an object")
     return template
 
 
 def _validate_config(value: object, goal: str) -> dict:
-    config = _exact_object(
-        value,
-        {"schema_version", "goal", "recorded_at", "permissions"},
-        "goals.config.json",
-    )
+    if isinstance(value, dict) and "additional_config" not in value:
+        value = value | {"additional_config": {}}
+    config = _exact_object(value, {"schema_version", "goal", "recorded_at", "permissions", "additional_config"}, "goals.config.json")
     if config["schema_version"] != SCHEMA_VERSION or isinstance(
         config["schema_version"], bool
     ):
@@ -221,6 +221,8 @@ def _validate_config(value: object, goal: str) -> dict:
     for permission in PERMISSIONS:
         if not isinstance(permissions[permission], bool):
             raise TraceError("goals.config.json permissions must be booleans")
+    if not isinstance(config["additional_config"], dict):
+        raise TraceError("goals.config.json additional_config must be an object")
     return config
 
 
@@ -372,6 +374,7 @@ def _init(args: argparse.Namespace, root: Path, goal: str, key: str) -> dict:
                 "goal": goal,
                 "recorded_at": _now(),
                 "permissions": permissions,
+                "additional_config": existing_config["additional_config"] if existing_config else template["additional_config"],
             },
         )
     for name, value in ((FILES[1], []), (FILES[2], [])):

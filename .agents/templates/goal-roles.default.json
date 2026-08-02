@@ -1,8 +1,8 @@
 {
   "roles": {
-    "planner": {"harness": "current", "model": null},
-    "reviewer": {"harness": "current", "model": null},
-    "worker": {"harness": "current", "model": null}
+    "planner": {"harness": "current", "model": null, "variant": null},
+    "reviewer": {"harness": "current", "model": null, "variant": null},
+    "worker": {"harness": "current", "model": null, "variant": null}
   },
-  "schema_version": 1
+  "schema_version": 2
 }

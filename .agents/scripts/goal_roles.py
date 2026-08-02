@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 from typing import Callable
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 ROLES = ("planner", "worker", "reviewer")
 HARNESSES = ("current", "opencode", "codex", "claude")
 PROVIDER_COMMANDS = {"opencode": "opencode", "codex": "codex", "claude": "claude"}
@@ -104,24 +104,27 @@ def _load_json(path: Path, field: str) -> object:
 
 
 def _selection(value: object, field: str) -> dict[str, str | None]:
-    if not isinstance(value, dict) or set(value) != {"harness", "model"}:
+    if not isinstance(value, dict) or set(value) not in ({"harness", "model"}, {"harness", "model", "variant"}):
         raise RoleError(f"{field} has unknown or missing fields")
     harness = _text(value["harness"], "harness", 32)
     if harness not in HARNESSES:
         raise RoleError("harness is unsupported")
     model = value["model"]
+    variant = value.get("variant")
     if harness == "current":
-        if model is not None:
-            raise RoleError("current harness requires a null model")
+        if model is not None or variant is not None:
+            raise RoleError("current harness requires null model and variant")
     else:
         model = _text(model, "model")
-    return {"harness": harness, "model": model}
+    if variant is not None:
+        variant = _text(variant, "variant", 64)
+    return {"harness": harness, "model": model, "variant": variant}
 
 
 def _parse_configuration(value: object, field: str) -> dict[str, dict[str, str | None]]:
     if not isinstance(value, dict) or set(value) != {"schema_version", "roles"}:
         raise RoleError(f"{field} has unknown or missing fields")
-    if value["schema_version"] != SCHEMA_VERSION or isinstance(value["schema_version"], bool):
+    if value["schema_version"] not in {1, SCHEMA_VERSION} or isinstance(value["schema_version"], bool):
         raise RoleError(f"{field} schema_version is invalid")
     roles = value["roles"]
     if not isinstance(roles, dict) or set(roles) != set(ROLES):
@@ -161,7 +164,7 @@ def _configuration(root: Path, goal: dict[str, str]) -> dict[str, dict[str, str 
     value = _load_json(path, "goal role configuration")
     if not isinstance(value, dict) or set(value) != {"schema_version", "roles"}:
         raise RoleError("goal role configuration has unknown or missing fields")
-    if value["schema_version"] != SCHEMA_VERSION or isinstance(value["schema_version"], bool):
+    if value["schema_version"] not in {1, SCHEMA_VERSION} or isinstance(value["schema_version"], bool):
         raise RoleError("goal role configuration schema_version is invalid")
     roles = value["roles"]
     if not isinstance(roles, dict) or set(roles) != set(ROLES):
@@ -198,11 +201,12 @@ def _selections(
     for role in ROLES:
         harness = getattr(args, role)
         model = getattr(args, f"{role}_model")
+        variant = getattr(args, f"{role}_variant")
         if harness is None:
-            if model is not None:
-                raise RoleError(f"{role} model requires a selected harness")
+            if model is not None or variant is not None:
+                raise RoleError(f"{role} model or variant requires a selected harness")
             continue
-        selections[role] = _selection({"harness": harness, "model": model}, role)
+        selections[role] = _selection({"harness": harness, "model": model, "variant": variant}, role)
     return selections
 
 
@@ -245,6 +249,7 @@ def _parser() -> argparse.ArgumentParser:
     for role in ROLES:
         init.add_argument(f"--{role}", choices=HARNESSES)
         init.add_argument(f"--{role}-model")
+        init.add_argument(f"--{role}-variant")
     verify = actions.add_parser("verify")
     verify.add_argument("goal")
     verify.add_argument("role", choices=ROLES)
