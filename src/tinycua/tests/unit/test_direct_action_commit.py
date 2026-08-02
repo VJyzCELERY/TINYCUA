@@ -345,7 +345,6 @@ async def test_reviewer_decision_stays_staged_until_validation_then_commits_once
     assert set(llm.calls[2]["tool_names"]) == {
         "task_review_decision",
         "json_draft_create",
-        "json_draft_commit",
     }
     assert task.reviewer_decisions == [
         {

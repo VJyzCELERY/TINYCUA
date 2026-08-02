@@ -1062,7 +1062,6 @@ async def test_commit_retries_until_reviewer_decision_then_auto_completes() -> N
     assert tool_sets[1] == {
         "task_review_decision",
         "json_draft_create",
-        "json_draft_commit",
     }
     assert not store._staged_reviewer_decisions
     assert task.reviewer_decisions[-1]["decision"] == "needs_revision"

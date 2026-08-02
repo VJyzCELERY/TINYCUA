@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import copy
 import json
 import logging
 from typing import TYPE_CHECKING, Any
@@ -11,6 +12,7 @@ from tinycua.agent.tools.native.output_persist import (
     SessionToolResultStore,
     persist_if_oversized,
 )
+from tinycua.loops.node_contract import LifecyclePhase, phase_tool_names
 
 if TYPE_CHECKING:
     from tinycua_sdk.tools.decorators import Tool
@@ -29,6 +31,37 @@ DRAFTABLE_TOOL_NAMES = {
     "task_review_decision",
     "digest_information",
     "node_handoff",
+}
+_MANAGED_DRAFT_EDITORS = {
+    "json_draft_write": (
+        "write_file",
+        "Write content to the current managed JSON draft. This cannot write workspace files.",
+        {
+            "type": "object",
+            "properties": {
+                "content": {"type": "string", "description": "Full draft content."}
+            },
+            "required": ["content"],
+            "additionalProperties": False,
+        },
+    ),
+    "json_draft_replace": (
+        "str_replace",
+        "Replace text in the current managed JSON draft. This cannot edit workspace files.",
+        {
+            "type": "object",
+            "properties": {
+                "old_string": {"type": "string", "description": "Text to replace."},
+                "new_string": {"type": "string", "description": "Replacement text."},
+                "replace_all": {
+                    "type": "boolean",
+                    "description": "Replace every occurrence when true.",
+                },
+            },
+            "required": ["old_string", "new_string"],
+            "additionalProperties": False,
+        },
+    ),
 }
 logger = logging.getLogger(__name__)
 
@@ -86,6 +119,94 @@ class JsonDraftMixin:
             binder = getattr(tool, "bind_managed_draft_dir", None)
             if callable(binder):
                 binder(draft_dir)
+
+    @staticmethod
+    def _managed_draft_editors(tools: list[Tool]) -> list[Tool]:
+        """Return path-free, per-call aliases for managed draft editing."""
+        available = {tool.name: tool for tool in tools}
+        editors: list[Tool] = []
+        for alias, (canonical_name, description, parameters) in _MANAGED_DRAFT_EDITORS.items():
+            canonical = available.get(canonical_name)
+            if canonical is None:
+                continue
+            editor = copy(canonical)
+            editor.name = alias
+            editor.description = description
+            editor.parameters = parameters
+            setattr(editor, "_tinycua_canonical_tool", canonical)
+            editors.append(editor)
+        return editors
+
+    @staticmethod
+    def _canonical_tool(tool: Tool) -> Tool:
+        """Return a managed-draft alias's canonical execution tool."""
+        return getattr(tool, "_tinycua_canonical_tool", tool)
+
+    @staticmethod
+    def _phase_draft_creator(
+        tools: list[Tool], targets: set[str]
+    ) -> list[Tool]:
+        """Return a draft creator limited to this lifecycle phase's targets."""
+        creator = next((tool for tool in tools if tool.name == "json_draft_create"), None)
+        if creator is None:
+            return []
+        creator = copy(creator)
+        creator.parameters = {
+            "type": "object",
+            "properties": {
+                "target_tool": {"type": "string", "enum": sorted(targets)}
+            },
+            "required": ["target_tool"],
+            "additionalProperties": False,
+        }
+        creator._allowed_targets = set(targets)
+        return [creator]
+
+    def _inject_draft_path(
+        self, node: Node | None, tool: Tool, arguments: dict[str, Any]
+    ) -> str | None:
+        """Inject a managed draft path for a canonical editor."""
+        return self._inject_managed_draft_path(node, tool.name, arguments)
+
+    def _reviewer_draft_phase_tools(
+        self,
+        node: Node,
+        phase: Any,
+        phase_targets: set[str],
+        tools: list[Tool],
+        phase_tools: list[Tool],
+    ) -> list[Tool]:
+        """Restrict reviewer mutation to a created managed draft."""
+        if node.node_id != "result_reviewer":
+            return phase_tools
+        phase_tools = [
+            tool for tool in phase_tools if tool.name not in {"write_file", "str_replace"}
+        ]
+        if getattr(phase, "value", phase) not in {"plan", "commit"} or not phase_targets:
+            return phase_tools
+        if self._managed_draft_path(node):
+            phase_tools = [
+                tool for tool in phase_tools if tool.name != "json_draft_create"
+            ]
+            return [*phase_tools, *self._managed_draft_editors(tools)]
+        phase_tools = [
+            tool
+            for tool in phase_tools
+            if tool.name not in {"json_draft_commit", "json_draft_create"}
+        ]
+        return [*phase_tools, *self._phase_draft_creator(tools, phase_targets)]
+
+    def _phase_tool_names(
+        self, node: Node, tools: list[Tool], phase: LifecyclePhase
+    ) -> tuple[LifecyclePhase, set[str]]:
+        """Resolve the phase and its canonical tool names."""
+        if phase == LifecyclePhase.TERMINATE and not self._can_terminate(node):
+            phase = LifecyclePhase.COMMIT
+        return phase, phase_tool_names(
+            node.node_id,
+            {tool.name for tool in tools if not tool.name.startswith("json_draft_")},
+            phase,
+        )
 
     def _managed_draft_path(self, node: Node | None) -> str | None:
         """Return the sole active draft path for this node execution."""

@@ -15,8 +15,8 @@ MAX_DRAFT_BYTES = 64 * 1024
 class _JsonDraftTool(Tool):
     """Base class for tools bound to one node execution's draft store."""
 
-    def __init__(self, name: str, parameters: dict[str, Any]) -> None:
-        super().__init__(name=name, parameters=parameters)
+    def __init__(self, name: str, description: str, parameters: dict[str, Any]) -> None:
+        super().__init__(name=name, description=description, parameters=parameters)
         self._drafts: dict[str, dict[str, Any]] = {}
         self._session_id = ""
         self._node_id = ""
@@ -71,6 +71,7 @@ class JsonDraftCreateTool(_JsonDraftTool):
     def __init__(self) -> None:
         super().__init__(
             "json_draft_create",
+            "Create a managed JSON draft for a structured tool call.",
             {
                 "type": "object",
                 "properties": {"target_tool": {"type": "string"}},
@@ -131,6 +132,7 @@ class JsonDraftCommitTool(_JsonDraftTool):
     def __init__(self) -> None:
         super().__init__(
             "json_draft_commit",
+            "Commit the current managed JSON draft as its selected structured tool call.",
             {
                 "type": "object",
                 "properties": {"draft_id": {"type": "string"}},
