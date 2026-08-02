@@ -90,7 +90,7 @@ class RuntimeContractScript:
             if message.get("role") == "system"
         ):
             return "result_reviewer"
-        if "final_response_synthesis" in tool_names:
+        if "todo_read" in tool_names and "task_result_update" not in tool_names:
             return "final"
         if "select_query_route" in tool_names:
             return "query_analyst"

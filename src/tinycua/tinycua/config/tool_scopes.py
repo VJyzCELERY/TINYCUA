@@ -18,7 +18,6 @@ from tinycua.tools.handoff_tools import TaskAssessmentDecisionTool
 from tinycua.tools.query_context_summary import QueryContextSummaryTool
 from tinycua.tools.routing import QueryRouteSelectionTool, WorkerRouteSelectionTool
 from tinycua.tools.task_tools import (
-    FinalResponseSynthesisTool,
     TaskCreateTool,
     TaskDecomposeTool,
     TaskInitTool,
@@ -241,11 +240,10 @@ def deterministic_controller_tool_scope() -> NodeToolPolicy:
 
 
 def response_tool_scope(allow_digest: bool = True) -> NodeToolPolicy:
-    """Same base as TaskExecutor + final response synthesis + optional digest.
+    """Response tools plus optional information digestion.
 
-    ResponseNode has the same base toolset as TaskExecutor, plus
-    enhanced_context_retrieval and optional information-digestion
-    request capability.
+    ResponseNode receives task inspection, enhanced_context_retrieval, todo
+    tools, and optional information-digestion request capability.
 
     Args:
         allow_digest: When True, includes digest_information tool.
@@ -254,7 +252,7 @@ def response_tool_scope(allow_digest: bool = True) -> NodeToolPolicy:
         NodeToolPolicy for ResponseNode.
     """
     node_tools = [
-        FinalResponseSynthesisTool(),
+        TaskInspectTool(),
         EnhancedContextRetrievalTool(),
         TodoReadTool(),
         TodoWriteTool(),

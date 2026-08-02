@@ -13,7 +13,6 @@ Implemented names:
 - `task_decompose`
 - `task_execute`
 - `task_result_update`
-- `final_response_synthesis`
 
 Evidence: `src/tinycua/tinycua/tools/task_tools.py:12-65`.
 

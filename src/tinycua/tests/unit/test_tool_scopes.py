@@ -383,11 +383,17 @@ class TestResponseToolScope:
         policy = response_tool_scope()
         assert isinstance(policy, NodeToolPolicy)
 
-    def test_includes_final_response_synthesis(self) -> None:
-        """Includes FinalResponseSynthesisTool."""
+    def test_has_only_response_tools(self) -> None:
+        """Includes only the response node's concrete tools."""
         policy = response_tool_scope()
         tool_names = [t.name for t in policy.node_tools]
-        assert "final_response_synthesis" in tool_names
+        assert set(tool_names) == {
+            "digest_information",
+            "enhanced_context_retrieval",
+            "task_inspect",
+            "todo_read",
+            "todo_write",
+        }
 
     def test_includes_enhanced_context_retrieval(self) -> None:
         """Includes EnhancedContextRetrievalTool."""

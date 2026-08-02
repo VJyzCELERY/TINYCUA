@@ -92,10 +92,10 @@ class TestTaskAnalyzerIncludesTaskInitInRecreationMode:
 
 
 class TestResponseNodeIncludesEnhancedContextRetrieval:
-    """ResponseNode receives final response tools + enhanced_context_retrieval."""
+    """ResponseNode receives enhanced_context_retrieval."""
 
     def test_response_node_includes_enhanced_context_retrieval(self) -> None:
-        """ResponseNode includes final_response_synthesis and enhanced_context_retrieval."""
+        """ResponseNode includes enhanced_context_retrieval."""
         # Arrange
         policy = response_tool_scope(allow_digest=True)
 
@@ -104,7 +104,6 @@ class TestResponseNodeIncludesEnhancedContextRetrieval:
 
         # Assert
         tool_names = [t.name for t in resolved]
-        assert "final_response_synthesis" in tool_names
         assert "enhanced_context_retrieval" in tool_names
 
 
