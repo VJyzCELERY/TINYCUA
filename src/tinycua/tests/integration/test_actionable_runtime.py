@@ -121,10 +121,7 @@ class AppCreationScript:
                     },
                 ],
             }
-        if (
-            "digest_information" in tool_names
-            and "final_response_synthesis" not in tool_names
-        ):
+        if "digest_information" in tool_names and "todo_read" not in tool_names:
             return _digest_commit_response()
         if "task_init" in tool_names:
             if any(
@@ -348,10 +345,7 @@ class PlannerOnlyScript:
                     },
                 ],
             }
-        if (
-            "digest_information" in tool_names
-            and "final_response_synthesis" not in tool_names
-        ):
+        if "digest_information" in tool_names and "todo_read" not in tool_names:
             return _digest_commit_response()
         return {"content": self.planner_text, "tool_calls": []}
 
@@ -391,10 +385,7 @@ class PromptEchoScript:
                     }
                 ],
             }
-        if (
-            "digest_information" in tool_names
-            and "final_response_synthesis" not in tool_names
-        ):
+        if "digest_information" in tool_names and "todo_read" not in tool_names:
             return _digest_commit_response()
         return {
             "content": "\n\n".join(

@@ -1057,17 +1057,3 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
             "status": task.status.value,
             "staged": True,
         }
-
-
-class FinalResponseSynthesisTool(SessionTaskToolMixin, Tool):
-    """Tool for exposing task state to final response synthesis."""
-
-    def __init__(self) -> None:
-        SessionTaskToolMixin.__init__(self)
-        Tool.__init__(self, name="final_response_synthesis")
-
-    def __call__(self) -> dict:
-        """Return task state for final response synthesis."""
-        tool = TaskInspectTool()
-        tool.bind_task_store(self._store)
-        return tool()

@@ -56,7 +56,7 @@ class _RouteMatrixScript:
         self._bad_emitted: set[str] = set()
 
     def _detect_node(self, tool_names: set[str]) -> str:
-        if "final_response_synthesis" in tool_names:
+        if "todo_read" in tool_names and "task_result_update" not in tool_names:
             return "response"
         if "select_query_route" in tool_names:
             return "query_analyst"

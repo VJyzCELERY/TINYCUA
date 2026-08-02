@@ -145,10 +145,7 @@ class ScriptedAgentResponses:
                     }
                 ],
             }
-        if (
-            "digest_information" in tool_names
-            and "final_response_synthesis" not in tool_names
-        ):
+        if "digest_information" in tool_names and "todo_read" not in tool_names:
             return {
                 "content": "",
                 "tool_calls": [
