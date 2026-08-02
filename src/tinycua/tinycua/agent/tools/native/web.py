@@ -40,6 +40,7 @@ _MAX_RETRIES = 3
 
 _DEFAULT_LIMIT = 50_000
 _MAX_LIMIT = 50_000
+_CHALLENGE_ERROR = "Page returned an anti-bot challenge instead of requested content."
 _WEB_CACHE: ContextVar[SessionToolResultStore | None] = ContextVar(
     "fetch_url_web_cache", default=None
 )
@@ -160,6 +161,17 @@ def _process_response(
             final_url=final_url,
         )
 
+    if response.headers.get("cf-mitigated", "").strip().casefold() == "challenge":
+        return _error_result(
+            _CHALLENGE_ERROR,
+            url,
+            offset,
+            limit,
+            content_type=content_type,
+            status=response.status_code,
+            final_url=final_url,
+        )
+
     # Refuse binary content — returning mangled text is worse than a clear error.
     if any(content_type.startswith(bt) for bt in _BINARY_CONTENT_TYPES):
         return _error_result(
@@ -188,6 +200,22 @@ def _process_response(
         h.ignore_images = True
         h.body_width = 0  # no line wrapping
         body = h.handle(body)
+
+    normalized_body = " ".join(body.casefold().split())
+    if "quick verification" in normalized_body and (
+        "confirm you're human" in normalized_body
+        or "confirm you are human" in normalized_body
+    ):
+        return _error_result(
+            _CHALLENGE_ERROR,
+            url,
+            offset,
+            limit,
+            content_type=content_type,
+            status=response.status_code,
+            source_truncated=source_truncated,
+            final_url=final_url,
+        )
 
     # FR-072: detect empty bodies (JS-rendered pages, auth-walled, etc.)
     # and return failure so the model knows to try a different source.
