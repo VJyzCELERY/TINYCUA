@@ -20,8 +20,12 @@ from tinycua_sdk.models.attachment import FileAttachment
 from tinycua_sdk.tools.decorators import tool
 
 from tinycua.agent.tools.native.context import (
+    authorize_file_mutation,
+    bind_file_execution_to_tool,
     bind_workspace_to_tool,
     is_hidden_workspace_path,
+    record_file_read,
+    record_file_result,
     resolve_workspace_path,
     to_workspace_relative,
 )
@@ -54,7 +58,6 @@ def _hidden_draft_error(resolved: Path) -> dict[str, str] | None:
     return None
 
 
-# --- Helper functions for read_file ---
 
 
 def _detect_literal_newline_warning(content: str) -> str:
@@ -106,7 +109,9 @@ def _truncate_content(content_bytes: bytes, max_bytes: int, start_line: int = 1)
     )
 
 
-def _read_lines(path: str) -> tuple[list[str], str, bool] | dict[str, Any]:
+def _read_lines(
+    path: str,
+) -> tuple[list[str], str, bool, bytes] | dict[str, Any]:
     """Read a file and split into lines, returning (lines, content, trailing_newline).
 
     Returns an error dict if the file cannot be read.
@@ -124,7 +129,8 @@ def _read_lines(path: str) -> tuple[list[str], str, bool] | dict[str, Any]:
         return {"error": f"Not a file: {path}"}
 
     try:
-        content = resolved.read_text()
+        raw_content = resolved.read_bytes()
+        content = raw_content.decode("utf-8")
         content = content.replace("\r\n", "\n")
     except PermissionError:
         return {"error": f"Permission denied: {path}"}
@@ -135,7 +141,29 @@ def _read_lines(path: str) -> tuple[list[str], str, bool] | dict[str, Any]:
     lines = content.split("\n")
     if trailing_newline:
         lines = lines[:-1]
-    return (lines, content, trailing_newline)
+    return (lines, content, trailing_newline, raw_content)
+
+
+def _validate_image(image: Any, size: int) -> tuple[str, int, int] | dict[str, str]:
+    """Validate one opened image and return its format and dimensions."""
+    image_format = image.format or ""
+    if image_format not in _IMAGE_MIME_TYPES:
+        return {"error": f"Unsupported image format: {image_format or 'unknown'}."}
+    if size > _MAX_IMAGE_BYTES:
+        return {"error": f"Image exceeds {_MAX_IMAGE_BYTES} byte limit."}
+    width, height = image.size
+    if getattr(image, "n_frames", 1) != 1:
+        return {"error": "Animated images are not supported."}
+    if (
+        width < 1
+        or height < 1
+        or width > _MAX_IMAGE_SIDE
+        or height > _MAX_IMAGE_SIDE
+        or width * height > _MAX_IMAGE_PIXELS
+    ):
+        return {"error": "Image dimensions exceed the supported limit."}
+    image.verify()
+    return image_format, width, height
 
 
 def _read_image(
@@ -160,26 +188,10 @@ def _read_image(
         with warnings.catch_warnings():
             warnings.simplefilter("error", Image.DecompressionBombWarning)
             with Image.open(resolved) as image:
-                image_format = image.format or ""
-                if image_format not in _IMAGE_MIME_TYPES:
-                    return {
-                        "error": f"Unsupported image format: {image_format or 'unknown'}."
-                    }
-                if size > _MAX_IMAGE_BYTES:
-                    return {"error": f"Image exceeds {_MAX_IMAGE_BYTES} byte limit."}
-                width, height = image.size
-                frames = getattr(image, "n_frames", 1)
-                if frames != 1:
-                    return {"error": "Animated images are not supported."}
-                if (
-                    width < 1
-                    or height < 1
-                    or width > _MAX_IMAGE_SIDE
-                    or height > _MAX_IMAGE_SIDE
-                    or width * height > _MAX_IMAGE_PIXELS
-                ):
-                    return {"error": "Image dimensions exceed the supported limit."}
-                image.verify()
+                validated = _validate_image(image, size)
+                if isinstance(validated, dict):
+                    return validated
+                image_format, width, height = validated
     except UnidentifiedImageError:
         guessed, _encoding = mimetypes.guess_type(resolved.name)
         if guessed and guessed.startswith("image/"):
@@ -194,6 +206,7 @@ def _read_image(
     if start is not None or offset is not None:
         return {"error": "Line ranges are not supported for images."}
     data = resolved.read_bytes()
+    record_file_read(resolved, data, 0, complete=True)
     mime_type = _IMAGE_MIME_TYPES[image_format]
     relative_path = to_workspace_relative(resolved)
     return {
@@ -211,7 +224,6 @@ def _read_image(
     }
 
 
-# --- read_file ---
 
 
 def _read_bounded_range(
@@ -273,6 +285,77 @@ def _read_full_file(content: str) -> str:
     return _truncate_content(content.encode("utf-8"), _FULL_FILE_TRUNCATION_BYTES)
 
 
+def _text_line_count(content: bytes) -> int:
+    """Return the line count used by the native text reader."""
+    text = content.decode("utf-8").replace("\r\n", "\n")
+    lines = text.split("\n")
+    if text.endswith("\n"):
+        lines = lines[:-1]
+    return len(lines)
+
+
+def _read_text_file(
+    path: str, start: int | None, offset: int | None
+) -> str | dict[str, Any]:
+    """Read text and record only the complete ranges returned to the caller."""
+    result = _read_lines(path)
+    if isinstance(result, dict):
+        return result
+    lines, content, trailing_newline, raw_content = result
+    total_lines = len(lines)
+    resolved = _resolve_path(path)
+    if offset is not None:
+        bounded = _read_bounded_range(
+            lines, trailing_newline, start, offset, total_lines
+        )
+        if isinstance(bounded, str) and offset > 0:
+            actual_start = start if start is not None else 1
+            record_file_read(
+                resolved,
+                raw_content,
+                total_lines,
+                actual_start,
+                actual_start + offset - 1,
+            )
+        return bounded
+    if start is not None:
+        untruncated = "\n".join(lines[start - 1 :])
+        if trailing_newline:
+            untruncated += "\n"
+        start_result = _read_start_only(lines, trailing_newline, start, total_lines)
+        if isinstance(start_result, str):
+            if len(untruncated.encode("utf-8")) <= _FULL_FILE_TRUNCATION_BYTES:
+                end = total_lines
+            else:
+                prefix = untruncated.encode("utf-8")[:_FULL_FILE_TRUNCATION_BYTES]
+                prefix_text = prefix.decode("utf-8", errors="ignore")
+                complete_lines = prefix_text.count("\n")
+                if prefix_text and not prefix_text.endswith("\n"):
+                    complete_lines -= 1
+                end = start + max(complete_lines, 0) - 1
+            if end >= start:
+                record_file_read(resolved, raw_content, total_lines, start, end)
+        return start_result
+    full_result = _read_full_file(content)
+    if len(content.encode("utf-8")) <= _FULL_FILE_TRUNCATION_BYTES:
+        record_file_read(resolved, raw_content, total_lines, 1, total_lines)
+    else:
+        prefix = content.encode("utf-8")[:_FULL_FILE_TRUNCATION_BYTES]
+        prefix_text = prefix.decode("utf-8", errors="ignore")
+        complete_lines = prefix_text.count("\n")
+        if prefix_text and not prefix_text.endswith("\n"):
+            complete_lines -= 1
+        if complete_lines > 0:
+            record_file_read(
+                resolved,
+                raw_content,
+                total_lines,
+                1,
+                min(complete_lines, total_lines),
+            )
+    return full_result
+
+
 @tool
 def read_file(
     path: str, start: int | None = None, offset: int | None = None
@@ -308,38 +391,23 @@ def read_file(
     image_result = _read_image(path, start, offset)
     if image_result is not None:
         return image_result
-    result = _read_lines(path)
-    if isinstance(result, dict):
-        return result  # error dict
-    lines, content, trailing_newline = result
-
-    total_lines = len(lines)
-
-    # --- Bounded range mode: offset is explicitly set ---
-    # Only bounded ranges (start + offset) bypass the truncation limit.
-    if offset is not None:
-        return _read_bounded_range(lines, trailing_newline, start, offset, total_lines)
-
-    # --- Start-only mode: unbounded read from N to end ---
-    # This is still subject to truncation since the range is open-ended.
-    if start is not None:
-        return _read_start_only(lines, trailing_newline, start, total_lines)
-
-    # --- Full-file mode: no start, no offset ---
-    return _read_full_file(content)
+    return _read_text_file(path, start, offset)
 
 
-# --- write_file ---
 
 
 @tool
-def write_file(path: str, content: str) -> dict[str, Any]:
+def write_file(
+    path: str, content: str, replace: bool = False
+) -> dict[str, Any]:
     """Write content to a file when its parent directory exists.
 
     Args:
         path: Path to the file. Absolute paths start with '/', relative
             paths are resolved from the current working directory.
         content: The content to write to the file.
+        replace: Whether to replace an existing file after reading its current
+            revision. Defaults to False.
 
     Returns:
         A dict with keys: success, path, chars_written, error.
@@ -373,9 +441,32 @@ def write_file(path: str, content: str) -> dict[str, Any]:
             "diff_preview": None,
             "error": f"Parent directory does not exist: {resolved.parent}",
         }
-
+    if resolved.exists():
+        if not replace:
+            return {
+                "success": False,
+                "path": str(resolved),
+                "rel_path": to_workspace_relative(resolved),
+                "chars_written": 0,
+                "new_file_size": 0,
+                "diff_preview": None,
+                "error": "File exists. Pass replace=True to replace it.",
+            }
+        _current, authorization_error = authorize_file_mutation(resolved)
+        if authorization_error:
+            return {
+                "success": False,
+                "path": str(resolved),
+                "rel_path": to_workspace_relative(resolved),
+                "chars_written": 0,
+                "new_file_size": 0,
+                "diff_preview": None,
+                "error": authorization_error,
+            }
     try:
         chars_written = resolved.write_text(content, encoding="utf-8")
+        encoded_content = content.encode("utf-8")
+        record_file_result(resolved, encoded_content, _text_line_count(encoded_content))
         result: dict[str, Any] = {
             "success": True,
             "path": str(resolved),
@@ -408,7 +499,6 @@ def write_file(path: str, content: str) -> dict[str, Any]:
         }
 
 
-# --- str_replace (content-based edit with fuzzy matching) ---
 
 
 def _find_all(haystack: str, needle: str) -> list[tuple[int, int]]:
@@ -746,16 +836,6 @@ def str_replace(
         A dict with keys: success, path, replacements_made, bytes_written,
         diff_preview, error.
     """
-    if old_string == new_string:
-        return {
-            "success": False,
-            "path": path,
-            "rel_path": path,
-            "replacements_made": 0,
-            "bytes_written": 0,
-            "diff_preview": None,
-            "error": "old_string and new_string are identical.",
-        }
     try:
         resolved = _resolve_path(path)
     except ValueError as exc:
@@ -778,9 +858,29 @@ def str_replace(
             "diff_preview": None,
             "error": error["error"],
         }
-    # Empty old_string = create new file.
     if not old_string:
         if resolved.exists():
+            _current, authorization_error = authorize_file_mutation(resolved)
+            if authorization_error:
+                return {
+                    "success": False,
+                    "path": str(resolved),
+                    "rel_path": to_workspace_relative(resolved),
+                    "replacements_made": 0,
+                    "bytes_written": 0,
+                    "diff_preview": None,
+                    "error": authorization_error,
+                }
+            if old_string == new_string:
+                return {
+                    "success": False,
+                    "path": str(resolved),
+                    "rel_path": to_workspace_relative(resolved),
+                    "replacements_made": 0,
+                    "bytes_written": 0,
+                    "diff_preview": None,
+                    "error": "old_string and new_string are identical.",
+                }
             return {
                 "success": False,
                 "path": str(resolved),
@@ -793,6 +893,10 @@ def str_replace(
         try:
             resolved.parent.mkdir(parents=True, exist_ok=True)
             resolved.write_text(new_string, encoding="utf-8")
+            encoded_content = new_string.encode("utf-8")
+            record_file_result(
+                resolved, encoded_content, _text_line_count(encoded_content)
+            )
             return {
                 "success": True,
                 "path": str(resolved),
@@ -812,8 +916,17 @@ def str_replace(
                 "diff_preview": None,
                 "error": str(exc),
             }
-    # Read the file.
     if not resolved.exists():
+        if old_string == new_string:
+            return {
+                "success": False,
+                "path": path,
+                "rel_path": path,
+                "replacements_made": 0,
+                "bytes_written": 0,
+                "diff_preview": None,
+                "error": "old_string and new_string are identical.",
+            }
         return {
             "success": False,
             "path": str(resolved),
@@ -823,9 +936,19 @@ def str_replace(
             "diff_preview": None,
             "error": f"File not found: {path}",
         }
+    current_bytes, authorization_error = authorize_file_mutation(resolved)
+    if authorization_error or current_bytes is None:
+        return {
+            "success": False,
+            "path": str(resolved),
+            "rel_path": to_workspace_relative(resolved),
+            "replacements_made": 0,
+            "bytes_written": 0,
+            "diff_preview": None,
+            "error": authorization_error,
+        }
     try:
-        content = resolved.read_text(encoding="utf-8")
-        content = content.replace("\r\n", "\n")
+        content = current_bytes.decode("utf-8").replace("\r\n", "\n")
     except Exception as exc:
         return {
             "success": False,
@@ -836,7 +959,16 @@ def str_replace(
             "diff_preview": None,
             "error": str(exc),
         }
-    # Fuzzy find and replace.
+    if old_string == new_string:
+        return {
+            "success": False,
+            "path": str(resolved),
+            "rel_path": to_workspace_relative(resolved),
+            "replacements_made": 0,
+            "bytes_written": 0,
+            "diff_preview": None,
+            "error": "old_string and new_string are identical.",
+        }
     new_content, match_count, error = _fuzzy_find_and_replace(
         content, old_string, new_string, replace_all
     )
@@ -850,9 +982,12 @@ def str_replace(
             "diff_preview": None,
             "error": error,
         }
-    # Write the result.
     try:
         resolved.write_text(new_content, encoding="utf-8")
+        encoded_content = new_content.encode("utf-8")
+        record_file_result(
+            resolved, encoded_content, _text_line_count(encoded_content)
+        )
     except Exception as exc:
         return {
             "success": False,
@@ -863,8 +998,6 @@ def str_replace(
             "diff_preview": None,
             "error": str(exc),
         }
-    # FR-058: build a real unified-diff snippet (first ~500 chars) so the
-    # model can see what actually changed, not just new_string[:200].
     import difflib
 
     diff_lines = list(
@@ -889,7 +1022,6 @@ def str_replace(
     return result
 
 
-# --- append_file ---
 
 
 @tool
@@ -925,19 +1057,31 @@ def append_file(path: str, content: str) -> dict[str, Any]:
             "bytes_appended": 0,
             "error": error["error"],
         }
+    existing_bytes: bytes | None = None
+    if resolved.exists():
+        existing_bytes, authorization_error = authorize_file_mutation(resolved)
+        if authorization_error:
+            return {
+                "success": False,
+                "path": str(resolved),
+                "rel_path": to_workspace_relative(resolved),
+                "bytes_appended": 0,
+                "error": authorization_error,
+            }
+    else:
+        try:
+            resolved.parent.mkdir(parents=True, exist_ok=True)
+        except PermissionError:
+            return {
+                "success": False,
+                "path": str(resolved),
+                "rel_path": to_workspace_relative(resolved),
+                "bytes_appended": 0,
+                "error": f"Permission denied creating directory: {resolved.parent}",
+            }
     try:
-        resolved.parent.mkdir(parents=True, exist_ok=True)
-    except PermissionError:
-        return {
-            "success": False,
-            "path": str(resolved),
-            "rel_path": to_workspace_relative(resolved),
-            "bytes_appended": 0,
-            "error": f"Permission denied creating directory: {resolved.parent}",
-        }
-    try:
-        if resolved.exists():
-            existing = resolved.read_text(encoding="utf-8")
+        if existing_bytes is not None:
+            existing = existing_bytes.decode("utf-8")
             # Ensure newline separator between existing and appended content.
             if existing and not existing.endswith("\n"):
                 existing += "\n"
@@ -945,6 +1089,10 @@ def append_file(path: str, content: str) -> dict[str, Any]:
         else:
             combined = content
         resolved.write_text(combined, encoding="utf-8")
+        encoded_content = combined.encode("utf-8")
+        record_file_result(
+            resolved, encoded_content, _text_line_count(encoded_content)
+        )
         bytes_appended = len(content.encode("utf-8"))
         result: dict[str, Any] = {
             "success": True,
@@ -978,7 +1126,6 @@ def append_file(path: str, content: str) -> dict[str, Any]:
         }
 
 
-# --- list_files ---
 
 
 @tool
@@ -1042,7 +1189,6 @@ def list_files(
         return {"error": str(exc)}
 
 
-# --- search_files ---
 
 
 _MAX_SEARCH_FILE_SIZE = 1_048_576  # 1 MB — skip larger files to avoid OOM.
@@ -1351,3 +1497,4 @@ for _native_file_tool in (
     search_files,
 ):
     bind_workspace_to_tool(_native_file_tool)
+    bind_file_execution_to_tool(_native_file_tool)

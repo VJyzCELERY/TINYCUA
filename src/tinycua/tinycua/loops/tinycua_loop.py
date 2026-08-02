@@ -474,6 +474,8 @@ class TinyCUALoop(
             workspace_binder = getattr(tool, "bind_workspace", None)
             if callable(workspace_binder):
                 workspace_binder(self.workspace_dir)
+            if callable(file_execution_binder := getattr(tool, "bind_file_execution", None)):
+                file_execution_binder(self._draft_execution_id)
             context_binder = getattr(tool, "bind_session_context", None)
             if callable(context_binder):
                 context = [
@@ -501,7 +503,6 @@ class TinyCUALoop(
                     }
                     for entry in self.root_session.session_context
                 )
-
                 context.extend(
                     {
                         "role": record.role,

@@ -6,7 +6,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from tinycua.agent.tools.native.context import bind_workspace
+from tinycua.agent.tools.native.context import bind_file_execution, bind_workspace
 
 
 class TestAppendFileDiffPreview:
@@ -17,8 +17,10 @@ class TestAppendFileDiffPreview:
             bind_workspace(tmpdir)
             filepath = os.path.join(tmpdir, "report.md")
             Path(filepath).write_text("existing content\n")
-            from tinycua.agent.tools.native.files import append_file
+            from tinycua.agent.tools.native.files import append_file, read_file
 
+            bind_file_execution("append-diff")
+            assert read_file(filepath) == "existing content\n"
             result = append_file(filepath, content="new section\n")
             assert result["success"] is True
             assert "diff_preview" in result
@@ -33,8 +35,10 @@ class TestAppendFileDiffPreview:
             bind_workspace(tmpdir)
             filepath = os.path.join(tmpdir, "report.md")
             Path(filepath).write_text("base\n")
-            from tinycua.agent.tools.native.files import append_file
+            from tinycua.agent.tools.native.files import append_file, read_file
 
+            bind_file_execution("append-marker")
+            assert read_file(filepath) == "base\n"
             result = append_file(filepath, content="appended\n")
             assert result["success"] is True
             # The diff_preview should have a marker indicating appended content.
@@ -78,8 +82,10 @@ class TestStrReplaceDiffPreview:
             bind_workspace(tmpdir)
             filepath = os.path.join(tmpdir, "code.py")
             Path(filepath).write_text("def foo():\n    return 1\n")
-            from tinycua.agent.tools.native.files import str_replace
+            from tinycua.agent.tools.native.files import read_file, str_replace
 
+            bind_file_execution("str-diff")
+            assert read_file(filepath) == "def foo():\n    return 1\n"
             result = str_replace(
                 filepath,
                 old_string="return 1",

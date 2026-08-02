@@ -8,7 +8,9 @@ cwd (which caused the experiment-4 path-mismatch failures).
 
 from __future__ import annotations
 
+import hashlib
 from contextvars import ContextVar
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -17,6 +19,30 @@ _WORKSPACE_DIR: ContextVar[Path | None] = ContextVar(
 )
 _MANAGED_DRAFT_DIR: ContextVar[Path | None] = ContextVar(
     "native_managed_draft_dir", default=None
+)
+
+
+@dataclass
+class _FileRevision:
+    """Read authorization for one exact file revision."""
+
+    sha256: str
+    total_lines: int
+    ranges: list[tuple[int, int]] = field(default_factory=list)
+    complete: bool = False
+
+
+@dataclass
+class _FileLedger:
+    """Execution-scoped file read authorizations."""
+
+    workspace: Path
+    execution_id: str
+    revisions: dict[Path, _FileRevision] = field(default_factory=dict)
+
+
+_FILE_LEDGER: ContextVar[_FileLedger | None] = ContextVar(
+    "native_file_ledger", default=None
 )
 
 
@@ -40,12 +66,16 @@ def bind_workspace(workspace_dir: str | Path | None) -> None:
     if workspace_dir is None:
         _WORKSPACE_DIR.set(None)
         _MANAGED_DRAFT_DIR.set(None)
+        _FILE_LEDGER.set(None)
         return
     workspace = Path(workspace_dir).expanduser().resolve()
     # ponytail: directory creation belongs to the CLI layer, not the tool
     # binding. Silently recreating a deleted workspace masks bugs.
     _WORKSPACE_DIR.set(workspace)
     _MANAGED_DRAFT_DIR.set(None)
+    ledger = _FILE_LEDGER.get()
+    if ledger is not None and ledger.workspace != workspace:
+        _FILE_LEDGER.set(None)
 
 
 def get_workspace_dir() -> Path | None:
@@ -158,6 +188,121 @@ def bind_managed_draft_dir(draft_dir: str | Path | None) -> None:
     _MANAGED_DRAFT_DIR.set(Path(draft_dir).resolve() if draft_dir else None)
 
 
+def bind_file_execution(execution_id: str | None) -> None:
+    """Bind file-read authorization to one node execution.
+
+    A different execution ID starts with an empty ledger. Rebinding the same
+    ID in the same workspace preserves its successful reads.
+    """
+    workspace = get_workspace_dir()
+    normalized_id = str(execution_id or "")
+    if workspace is None or not normalized_id:
+        _FILE_LEDGER.set(None)
+        return
+    ledger = _FILE_LEDGER.get()
+    if (
+        ledger is None
+        or ledger.workspace != workspace
+        or ledger.execution_id != normalized_id
+    ):
+        _FILE_LEDGER.set(_FileLedger(workspace=workspace, execution_id=normalized_id))
+
+
+def _sha256(content: bytes) -> str:
+    return hashlib.sha256(content).hexdigest()
+
+
+def _merged_ranges(
+    ranges: list[tuple[int, int]], new_range: tuple[int, int]
+) -> list[tuple[int, int]]:
+    """Merge one inclusive line range into sorted, non-overlapping ranges."""
+    merged: list[tuple[int, int]] = []
+    for start, end in sorted([*ranges, new_range]):
+        if not merged or start > merged[-1][1] + 1:
+            merged.append((start, end))
+        else:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+    return merged
+
+
+def record_file_read(
+    path: Path,
+    content: bytes,
+    total_lines: int,
+    start: int | None = None,
+    end: int | None = None,
+    complete: bool = False,
+) -> None:
+    """Record successful coverage for one canonical file revision."""
+    ledger = _FILE_LEDGER.get()
+    if ledger is None:
+        return
+    digest = _sha256(content)
+    revision = ledger.revisions.get(path)
+    if (
+        revision is None
+        or revision.sha256 != digest
+        or revision.total_lines != total_lines
+    ):
+        revision = _FileRevision(digest, total_lines)
+        ledger.revisions[path] = revision
+    if complete:
+        revision.complete = True
+        revision.ranges = [(1, total_lines)] if total_lines else []
+        return
+    if start is None or end is None or start > end:
+        return
+    revision.ranges = _merged_ranges(revision.ranges, (start, end))
+    revision.complete = total_lines <= 0 or (
+        bool(revision.ranges)
+        and revision.ranges[0][0] <= 1
+        and revision.ranges[-1][1] >= total_lines
+        and all(
+            previous[1] + 1 >= current[0]
+            for previous, current in zip(revision.ranges, revision.ranges[1:])
+        )
+    )
+
+
+def record_file_result(path: Path, content: bytes, total_lines: int) -> None:
+    """Record a successful mutation result as fully observed."""
+    record_file_read(path, content, total_lines, complete=True)
+
+
+def authorize_file_mutation(path: Path) -> tuple[bytes | None, str | None]:
+    """Return current bytes when this execution may mutate ``path``."""
+    try:
+        content = path.read_bytes()
+    except PermissionError:
+        return None, f"Permission denied: {path}"
+    except OSError as exc:
+        return None, f"Failed to read current file revision: {exc}"
+
+    ledger = _FILE_LEDGER.get()
+    revision = ledger.revisions.get(path) if ledger is not None else None
+    if revision is None:
+        return (
+            None,
+            "Read the complete current file revision with this node execution "
+            "before mutating it.",
+        )
+    digest = _sha256(content)
+    if digest != revision.sha256:
+        ledger.revisions.pop(path, None)
+        return (
+            None,
+            "File changed since it was read; read the current revision before "
+            "mutating it.",
+        )
+    if not revision.complete:
+        return (
+            None,
+            "Read the complete current file revision with this node execution "
+            "before mutating it.",
+        )
+    return content, None
+
+
 def is_hidden_workspace_path(path: Path) -> bool:
     """Return whether an internal draft path is unavailable to this node."""
     workspace = get_workspace_dir()
@@ -174,3 +319,8 @@ def bind_workspace_to_tool(tool: object) -> None:
     """Attach the common workspace binder to an SDK Tool instance."""
     setattr(tool, "bind_workspace", bind_workspace)
     setattr(tool, "bind_managed_draft_dir", bind_managed_draft_dir)
+
+
+def bind_file_execution_to_tool(tool: object) -> None:
+    """Attach the execution-scoped file ledger binder to an SDK Tool."""
+    setattr(tool, "bind_file_execution", bind_file_execution)

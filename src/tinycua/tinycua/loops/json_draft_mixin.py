@@ -166,7 +166,12 @@ class JsonDraftMixin:
         self, node: Node | None, tool: Tool, arguments: dict[str, Any]
     ) -> str | None:
         """Inject a managed draft path for a canonical editor."""
-        return self._inject_managed_draft_path(node, tool.name, arguments)
+        return self._inject_managed_draft_path(
+            node,
+            tool.name,
+            arguments,
+            native_write=hasattr(tool, "bind_file_execution"),
+        )
 
     def _reviewer_draft_phase_tools(
         self,
@@ -224,13 +229,20 @@ class JsonDraftMixin:
         return paths[0] if len(paths) == 1 else None
 
     def _inject_managed_draft_path(
-        self, node: Node | None, name: str, arguments: dict[str, Any]
+        self,
+        node: Node | None,
+        name: str,
+        arguments: dict[str, Any],
+        *,
+        native_write: bool = False,
     ) -> str | None:
         """Route draft edits to their runtime-selected path."""
         if name not in {"read_file", "write_file", "str_replace"}:
             return None
         if path := self._managed_draft_path(node):
             arguments["path"] = path
+            if native_write and name == "write_file":
+                arguments["replace"] = True
             return None
         if (
             node is not None
