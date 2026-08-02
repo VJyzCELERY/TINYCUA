@@ -69,6 +69,9 @@ Default calls contact the network first and, on failure, return clearly labeled
 cached fallback evidence when available. Search exact loads require the same
 normalized query and `max_results`; automatic fallback may use a compatible
 same-query cached result and reports its cached result count and timestamp.
+`fetch_url` rejects Cloudflare responses with `cf-mitigated: challenge` and
+the paired `Quick verification` / `Confirm you're human` interstitial text as
+failed observations, so they are never cached as page evidence.
 
 ## Related
 

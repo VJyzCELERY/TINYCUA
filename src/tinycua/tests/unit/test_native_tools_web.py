@@ -125,6 +125,55 @@ def test_fetch_url_truncation_exact_boundary(httpx_mock):
     assert result["source_truncated"] is False
 
 
+def test_fetch_url_rejects_cloudflare_challenge_header(httpx_mock):
+    """Cloudflare's authoritative challenge header makes a 200 response fail."""
+    httpx_mock.add_response(
+        method="GET",
+        url="https://example.com/challenge",
+        status_code=200,
+        text="Requested article content",
+        headers={"cf-mitigated": "challenge"},
+    )
+    from tinycua.agent.tools.native.web import fetch_url
+
+    result = fetch_url("https://example.com/challenge")
+
+    assert result["success"] is False
+    assert "challenge" in result["error"].lower()
+    assert "cache_id" not in result
+
+
+def test_fetch_url_rejects_human_verification_interstitial(httpx_mock):
+    """A paired human-verification message is not treated as page evidence."""
+    httpx_mock.add_response(
+        method="GET",
+        url="https://example.com/challenge",
+        status_code=200,
+        text="Quick verification\nConfirm you're human to keep going.",
+    )
+    from tinycua.agent.tools.native.web import fetch_url
+
+    result = fetch_url("https://example.com/challenge")
+
+    assert result["success"] is False
+    assert "challenge" in result["error"].lower()
+
+
+def test_fetch_url_keeps_single_human_phrase_as_content(httpx_mock):
+    """One human-verification phrase alone is not enough to reject an article."""
+    httpx_mock.add_response(
+        method="GET",
+        url="https://example.com/article",
+        status_code=200,
+        text="This guide explains how to confirm you're human during account setup.",
+    )
+    from tinycua.agent.tools.native.web import fetch_url
+
+    result = fetch_url("https://example.com/article")
+
+    assert result["success"] is True
+
+
 def test_fetch_url_uses_cached_success_after_http_403(httpx_mock):
     """A transient fetch failure returns the exact session cache with provenance."""
     from tinycua.agent.tools.native.output_persist import SessionToolResultStore
@@ -152,6 +201,39 @@ def test_fetch_url_uses_cached_success_after_http_403(httpx_mock):
         assert fallback["network_error"].startswith("HTTP 403")
         assert loaded["source"] == "cache"
         assert loaded["content"] == "saved"
+    finally:
+        bind_web_cache(None)
+        store.cleanup()
+
+
+def test_fetch_url_uses_cached_success_after_challenge(httpx_mock):
+    """A challenge response is rejected and replaced by prior valid evidence."""
+    from tinycua.agent.tools.native.output_persist import SessionToolResultStore
+    from tinycua.agent.tools.native.web import bind_web_cache, fetch_url
+
+    store = SessionToolResultStore("web-cache-test")
+    bind_web_cache(store)
+    try:
+        httpx_mock.add_response(
+            method="GET",
+            url="https://example.com/cached",
+            text="saved",
+            status_code=200,
+        )
+        cached = fetch_url("https://example.com/cached")
+        httpx_mock.add_response(
+            method="GET",
+            url="https://example.com/cached",
+            status_code=200,
+            text="Quick verification\nConfirm you're human to keep going.",
+        )
+        fallback = fetch_url("https://example.com/cached")
+
+        assert cached["cache_id"]
+        assert fallback["success"] is True
+        assert fallback["source"] == "cache_fallback"
+        assert "challenge" in fallback["network_error"].lower()
+        assert fallback["content"] == "saved"
     finally:
         bind_web_cache(None)
         store.cleanup()
