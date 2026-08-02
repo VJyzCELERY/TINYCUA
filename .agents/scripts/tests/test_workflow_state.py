@@ -27,6 +27,14 @@ INIT = (
 
 def run(root: Path, *args: str) -> tuple[int, str, str]:
     """Run the CLI against an isolated repository-local root."""
+    if args and args[0] in {"init", "init-pr"}:
+        templates = root / ".agents/templates"
+        templates.mkdir(parents=True, exist_ok=True)
+        source = Path(workflow_state.__file__).parent.parent / "templates"
+        for name in ("goal-state.default.json", "goal-pr-state.default.json"):
+            destination = templates / name
+            if not destination.exists():
+                destination.write_bytes((source / name).read_bytes())
     output: list[str] = []
     errors: list[str] = []
     code = workflow_state.main(
@@ -40,6 +48,19 @@ def initialized(root: Path) -> dict:
     code, output, error = run(root, *INIT)
     assert (code, error) == (0, "")
     return json.loads(output)
+
+
+def test_init_uses_goal_state_template(tmp_path):
+    templates = tmp_path / ".agents/templates"
+    templates.mkdir(parents=True)
+    source = Path(workflow_state.__file__).parent.parent / "templates/goal-state.default.json"
+    template = json.loads(source.read_text(encoding="utf-8"))
+    template["status"] = "paused"
+    (templates / source.name).write_text(json.dumps(template), encoding="utf-8")
+
+    state = initialized(tmp_path)
+
+    assert state["status"] == "paused"
 
 
 def advance(root: Path, phase: str) -> None:

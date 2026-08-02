@@ -50,8 +50,12 @@ def _print_human_header(os_info: dict[str, str], root: str) -> None:
         )
 
     print(f"[BOUNDARY] Project root: {root}")
-    print(f"[BOUNDARY] Approved temp directory: {root}/tmp/ (create when needed)")
-    print("[BOUNDARY] Do NOT use system /tmp/ for repo work; use ./tmp/ instead.")
+    print(f"[BOUNDARY] Agent scratch directory: {root}/tmp/ (create when needed)")
+    print("[BOUNDARY] Use ./tmp/ for agent-created repository scratch artifacts.")
+    print(
+        "[BOUNDARY] This restriction does not apply to project/runtime code, tests, "
+        "or build tools."
+    )
 
 
 def _optional_config(key: str, root: Path) -> str:

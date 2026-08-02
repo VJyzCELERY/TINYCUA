@@ -56,6 +56,8 @@ def test_main_is_read_only_and_uses_verified_root(monkeypatch, capsys):
 
     output = capsys.readouterr().out
     assert f"[BOUNDARY] Project root: {root}" in output
+    assert "Agent scratch directory" in output
+    assert "does not apply to project/runtime code" in output
     assert "Do NOT operate outside" not in output
     assert "[GIT] Branch: feature" in output
     assert "[GIT] Base branch: main" in output
@@ -119,6 +121,7 @@ def test_main_json_format_is_machine_readable(monkeypatch, capsys):
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["boundary"]["root"] == str(root)
+    assert payload["boundary"]["temp_directory"] == str(root / "tmp")
     assert payload["git"] == {"branch": "feature", "base_branch": "main", "pr": 12}
 
 

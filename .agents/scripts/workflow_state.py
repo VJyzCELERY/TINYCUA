@@ -46,6 +46,13 @@ STATE_KEYS = {
     "created_at",
     "updated_at",
 }
+STATE_TEMPLATE_KEYS = STATE_KEYS - {
+    "repository",
+    "issue",
+    "objective",
+    "created_at",
+    "updated_at",
+}
 LEGACY_STATE_KEYS = STATE_KEYS - {"environment_retry"}
 TRANSITIONS = {(phase, phase) for phase in PHASES} | set(zip(PHASES, PHASES[1:]))
 ISSUE_RE = re.compile(
@@ -59,6 +66,13 @@ PR_RE = re.compile(
     r"(?P<number>[1-9][0-9]*)\Z"
 )
 PR_STATE_KEYS = (LEGACY_STATE_KEYS - {"issue"}) | {"target", "plan_head"}
+PR_STATE_TEMPLATE_KEYS = PR_STATE_KEYS - {
+    "repository",
+    "target",
+    "objective",
+    "created_at",
+    "updated_at",
+}
 
 
 class StateError(ValueError):
@@ -562,31 +576,36 @@ def _render(state: dict, output_format: str) -> str:
     return f"{identity}: {state['phase']} ({state['status']})"
 
 
-def _new_state(args: argparse.Namespace, issue: dict[str, str | int]) -> dict:
+def _template_state(root: Path, name: str, keys: set[str]) -> dict:
+    """Load one immutable tracked workflow-state template."""
+    path = root / ".agents" / "templates" / name
+    try:
+        path.resolve(strict=True).relative_to(root)
+    except (OSError, ValueError) as exc:
+        raise StateError("state template is missing or unsafe") from exc
+    if path.is_symlink() or not path.is_file():
+        raise StateError("state template is missing or unsafe")
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise StateError("state template is malformed") from exc
+    return _object(value, keys, "state template")
+
+
+def _new_state(root: Path, args: argparse.Namespace, issue: dict[str, str | int]) -> dict:
     now = _now()
-    return {
-        "schema_version": SCHEMA_VERSION,
+    return _template_state(root, "goal-state.default.json", STATE_TEMPLATE_KEYS) | {
         "repository": f"{issue['owner']}/{issue['repo']}",
         "issue": {"number": issue["number"], "url": args.url, "title": args.title},
         "objective": args.objective,
-        "phase": "issue",
-        "status": "active",
-        "branch": {"name": None, "base": None},
-        "artifacts": dict.fromkeys(ARTIFACTS),
-        "specs": None,
-        "prs": [],
-        "review": None,
-        "pending_action": None,
-        "environment_retry": {"fingerprint": None, "consecutive_count": 0},
         "created_at": now,
         "updated_at": now,
     }
 
 
-def _new_pr_state(args: argparse.Namespace, target: dict[str, str | int]) -> dict:
+def _new_pr_state(root: Path, args: argparse.Namespace, target: dict[str, str | int]) -> dict:
     now = _now()
-    return {
-        "schema_version": 3,
+    return _template_state(root, "goal-pr-state.default.json", PR_STATE_TEMPLATE_KEYS) | {
         "repository": f"{target['owner']}/{target['repo']}",
         "target": {
             "number": target["number"],
@@ -595,15 +614,6 @@ def _new_pr_state(args: argparse.Namespace, target: dict[str, str | int]) -> dic
             "head": args.head,
         },
         "objective": args.title,
-        "phase": "issue",
-        "status": "active",
-        "branch": {"name": None, "base": None},
-        "artifacts": dict.fromkeys(ARTIFACTS),
-        "specs": None,
-        "prs": [],
-        "review": None,
-        "pending_action": None,
-        "plan_head": None,
         "created_at": now,
         "updated_at": now,
     }
@@ -734,7 +744,7 @@ def _run(args: argparse.Namespace, root: Path) -> dict | None:
         if args.action == "init-pr":
             if path.exists():
                 return _load_pr(root, target)[1]
-            state = _new_pr_state(args, target)
+            state = _new_pr_state(root, args, target)
             _validate_pr(root, state, target)
             _write(root, path, state)
             return state
@@ -756,7 +766,7 @@ def _run(args: argparse.Namespace, root: Path) -> dict | None:
     if args.action == "init":
         if path.exists():
             return _load(root, issue)[1]
-        state = _new_state(args, issue)
+        state = _new_state(root, args, issue)
         _validate(root, state, issue)
         _write(root, path, state)
         return state

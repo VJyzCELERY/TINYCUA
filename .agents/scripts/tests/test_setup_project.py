@@ -380,7 +380,7 @@ def test_apply_requires_confirmation_and_preserves_existing_alias(
 ) -> None:
     """Apply is confirmation-gated and never replaces an existing harness alias."""
     project, source = fixture
-    alias = project / ".opencode"
+    alias = project / ".kilo"
     alias.write_text("local alias\n", encoding="utf-8")
     preview = setup_project.prepare_update(str(source))
     monkeypatch.setattr(setup_project, "run_preflight", lambda: None)
@@ -391,6 +391,21 @@ def test_apply_requires_confirmation_and_preserves_existing_alias(
 
     assert alias.read_text() == "local alias\n"
     assert (project / ".codex").is_symlink()
+
+
+def test_apply_creates_missing_kilo_alias(
+    fixture: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A confirmed update creates the Kilo alias when the project lacks it."""
+    project, source = fixture
+    preview = setup_project.prepare_update(str(source))
+    monkeypatch.setattr(setup_project, "run_preflight", lambda: None)
+
+    setup_project.apply_update(preview, confirmed=True)
+
+    alias = project / ".kilo"
+    assert alias.is_symlink()
+    assert alias.readlink() == Path(".agents")
 
 
 def test_setup_project_command_replaces_inline_guide_lookup() -> None:
@@ -416,5 +431,7 @@ def test_setup_project_command_replaces_inline_guide_lookup() -> None:
 
     assert lookup in command
     assert command.index(lookup) < command.index("Preview through the version-driven updater")
+    assert 'TEMPLATE_URL=${2:-"https://github.com/VJyzCELERY/MAIN-PROJECT-TEMPLATE"}' in command
+    assert "optional custom-fork URL" in command
     assert 'uv run python .agents/scripts/setup_project.py preview . "$TEMPLATE_URL"' in command
     assert "uv run python .agents/scripts/setup_project.py apply . --confirm" in command

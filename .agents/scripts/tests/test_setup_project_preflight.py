@@ -324,6 +324,7 @@ def test_setup_project_command_uses_one_line_preflight() -> None:
 
     assert command.count(preflight) == 1
     assert command.index(preflight) < command.index("Preview through the version-driven updater")
+    assert 'TEMPLATE_URL=${2:-"https://github.com/VJyzCELERY/MAIN-PROJECT-TEMPLATE"}' in command
     assert 'uv run python .agents/scripts/setup_project.py preview . "$TEMPLATE_URL"' in command
     assert "uv run python .agents/scripts/setup_project.py apply . --confirm" in command
     assert "gh repo clone" not in command

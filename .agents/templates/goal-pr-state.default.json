@@ -1,0 +1,19 @@
+{
+  "artifacts": {
+    "branch_breakdown": null,
+    "design": null,
+    "directory": null,
+    "plan": null,
+    "spec": null,
+    "task": null
+  },
+  "branch": {"base": null, "name": null},
+  "pending_action": null,
+  "phase": "issue",
+  "plan_head": null,
+  "prs": [],
+  "review": null,
+  "schema_version": 3,
+  "specs": null,
+  "status": "active"
+}

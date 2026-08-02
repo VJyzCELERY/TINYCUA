@@ -131,15 +131,34 @@ class TestRepoRoot:
 
 class TestAgentWorkspace:
     def test_supported_agent_aliases_target_canonical_workspace(self):
-        for alias in (".opencode", ".codex", ".claude", ".hermes"):
+        for alias in (".opencode", ".codex", ".claude", ".hermes", ".kilo"):
             path = PROJECT_ROOT / alias
             assert path.is_symlink(), f"{alias} must be a symlink"
             assert path.readlink() == Path(".agents")
 
-    def test_local_agent_artifacts_are_ignored(self):
-        result = subprocess.run(
-            ["git", "check-ignore", "-q", ".agents/local/example-artifact"],
-            cwd=PROJECT_ROOT,
-            check=False,
+    def test_agent_ignore_policy_allows_only_managed_content(self):
+        managed = (
+            ".agents/commands/example.md",
+            ".agents/docs/example.md",
+            ".agents/rules/example.md",
+            ".agents/scripts/example.py",
+            ".agents/skills/example.md",
+            ".agents/templates/example.md",
+            ".agents/template-version.json",
         )
-        assert result.returncode == 0
+        ignored = (".agents/plans/example.md", ".agents/local/example-artifact")
+
+        for path in managed:
+            result = subprocess.run(
+                ["git", "check-ignore", "--no-index", "-q", path],
+                cwd=PROJECT_ROOT,
+                check=False,
+            )
+            assert result.returncode == 1, f"{path} must not be ignored"
+        for path in ignored:
+            result = subprocess.run(
+                ["git", "check-ignore", "--no-index", "-q", path],
+                cwd=PROJECT_ROOT,
+                check=False,
+            )
+            assert result.returncode == 0, f"{path} must be ignored"

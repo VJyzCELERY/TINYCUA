@@ -1,0 +1,19 @@
+{
+  "artifacts": {
+    "branch_breakdown": null,
+    "design": null,
+    "directory": null,
+    "plan": null,
+    "spec": null,
+    "task": null
+  },
+  "branch": {"base": null, "name": null},
+  "environment_retry": {"consecutive_count": 0, "fingerprint": null},
+  "pending_action": null,
+  "phase": "issue",
+  "prs": [],
+  "review": null,
+  "schema_version": 4,
+  "specs": null,
+  "status": "active"
+}

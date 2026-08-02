@@ -156,7 +156,11 @@ def test_goal_and_implement_initialize_acquired_target_state_before_reading_it()
         content = command(name)
 
         acquire = content.index("resolve-target-worktree.py")
-        issue_init = content.index("workflow_state.py init OWNER/REPO#NUMBER")
+        issue_init = content.index(
+            "preflight-goal.py OWNER/REPO#NUMBER"
+            if name == "goal.md"
+            else "workflow_state.py init OWNER/REPO#NUMBER"
+        )
         issue_show = content.index("workflow_state.py show OWNER/REPO#NUMBER")
         pr_init = content.index("workflow_state.py init-pr OWNER/REPO!NUMBER")
         plan_head = content.index(
@@ -227,7 +231,7 @@ def test_goal_contract_is_resumable_autonomous_and_merge_ready():
 
     assert "<type>/<issue-number>-<lower-kebab-slug>" in content
     assert "use the acquired returned worktree" in content
-    assert "at most one" not in content
+    assert "at most one role run" in content
 
 
 def test_goal_keeps_local_targets_local_until_promotion():
@@ -240,6 +244,11 @@ def test_goal_keeps_local_targets_local_until_promotion():
 
     for phase in (planning, implementation, review, promotion):
         assert phase in content
+    assert "preflight-goal.py local:<lower-kebab-id>" in content
+    assert "confirm missing role configuration exactly as for remote goals" in content
+    assert "resolve the Planner for `local:<lower-kebab-id>`" in content
+    assert "resolve the Worker" in content
+    assert "resolve the Reviewer" in content
     assert content.index(planning) < content.index(implementation)
     assert content.index(implementation) < content.index(review)
     assert content.index(review) < content.index(promotion)
@@ -590,14 +599,14 @@ def test_goal_requires_main_agent_sibling_dispatch_without_harness_dependencies(
         assert text in content, text
 
     assert content.index("Run `/goal` only in the main agent") < content.index(
-        "workflow_state.py init OWNER/REPO#NUMBER"
+        "preflight-goal.py OWNER/REPO#NUMBER"
     )
 
 
 def test_goal_contract_records_validated_per_goal_trace_events():
     content = command("goal.md")
 
-    state_init = content.index("workflow_state.py init OWNER/REPO#NUMBER")
+    state_init = content.index("preflight-goal.py OWNER/REPO#NUMBER")
     trace_init = (
         "goal_trace.py init OWNER/REPO#NUMBER [--auto] [--commit] [--push] "
         "[--pr-create] [--pr-ready] [--merge] [--administrator-merge]"
@@ -628,3 +637,74 @@ def test_goal_contract_records_validated_per_goal_trace_events():
     assert content.index("goal_trace.py validate OWNER/REPO#NUMBER") < content.index(
         "goal_trace.py append-log OWNER/REPO#NUMBER"
     )
+
+
+def test_goal_role_routing_is_goal_only_and_evidence_gated():
+    goal = command("goal.md")
+    adaptation = ROOT / ".agents/skills/harness-adaptation/SKILL.md"
+
+    for text in (
+        "preflight-goal.py OWNER/REPO#NUMBER",
+        ".agents/templates/goal-roles.default.json",
+        ".agents/templates/goal-state.default.json",
+        "goal_roles.py init <goal>",
+        "--auto` still asks",
+        "Planner: planning, final Specs synchronization, and PR delivery",
+        "Worker: implementation and mechanical review remediation",
+        "Reviewer: baseline review and review validation",
+        "goal_roles.py resolve <goal>",
+        "run_agent.py fetch <run-id>",
+        "run_agent.py stop <run-id>",
+        "validated `--goal`, `--role`, `--phase`, `--harness`, `--model`",
+        "outstanding run ID",
+        "native sibling delegation",
+        "harness-adaptation",
+        "canonical repository evidence",
+        "run ID",
+        "no raw harness output",
+        "at most one role run",
+        "For remote phases, resolve the configured role before every dispatch",
+        "Before every baseline-review, remediation, validation, and remediation-delivery dispatch",
+    ):
+        assert text in goal, text
+
+    assert adaptation.is_file()
+    content = adaptation.read_text(encoding="utf-8")
+    for text in (
+        "opencode.md",
+        "codex.md",
+        "claude-code.md",
+        "selected provider guide",
+    ):
+        assert text in content, text
+    for provider in ("opencode.md", "codex.md", "claude-code.md"):
+        guide = adaptation.parent / provider
+        assert guide.is_file()
+        provider_guide = guide.read_text(encoding="utf-8")
+        assert "run_agent.py" in provider_guide
+        assert "goal_roles.py verify <goal> <role>" in provider_guide
+        assert "--goal <goal> --role <role> --phase <phase>" in provider_guide
+
+
+def test_provider_guides_document_native_unattended_role_execution():
+    guides = {
+        "opencode.md": ("opencode run", "--auto", "--variant", "--session"),
+        "codex.md": ("codex exec", "--sandbox", "workspace-write", "resume"),
+        "claude-code.md": ("claude -p", "--permission-mode dontAsk", "--effort", "--resume"),
+    }
+
+    for name, required in guides.items():
+        content = (ROOT / ".agents/skills/harness-adaptation" / name).read_text(
+            encoding="utf-8"
+        )
+        for text in required:
+            assert text in content, f"{name}: {text}"
+        assert "run_agent.py <worktree>" in content
+        assert "does not grant authorization" in content
+
+    assert "dangerously-bypass-approvals-and-sandbox" in (
+        ROOT / ".agents/skills/harness-adaptation/codex.md"
+    ).read_text(encoding="utf-8")
+    assert "--dangerously-skip-permissions" in (
+        ROOT / ".agents/skills/harness-adaptation/claude-code.md"
+    ).read_text(encoding="utf-8")

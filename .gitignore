@@ -36,6 +36,7 @@ htmlcov/
 dev/
 *.local
 /.agents/local/
+/.agents/plans/
 
 # Development Artifacts
 */research/*

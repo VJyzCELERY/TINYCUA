@@ -19,7 +19,7 @@ import repo_guard
 MARKER = Path(".agents/template-version.json")
 CLONE_NAME = "setup-project-template"
 PREVIEW_NAME = ".setup-project-preview.json"
-ALIASES = (".opencode", ".codex", ".claude", ".hermes")
+ALIASES = (".opencode", ".codex", ".claude", ".hermes", ".kilo")
 SEMVER_RE = re.compile(r"[1-9][0-9]*\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\Z")
 
 

@@ -5,9 +5,9 @@ subtask: true
 
 # Setup Project
 
-**Query**: `$1` must be `.`. **Source**: `$2` required template URL.
+**Query**: `$1` must be `.`. **Source**: `$2` optional custom-fork URL; defaults to `https://github.com/VJyzCELERY/MAIN-PROJECT-TEMPLATE`.
 
-Read root `AGENTS.md`. Set `TEMPLATE_URL=$2` and stop if it is empty. Reject any target other than the current repository root. This command updates the current repository only; it cannot bootstrap a nested or different repository.
+Read root `AGENTS.md`. Set `TEMPLATE_URL=${2:-"https://github.com/VJyzCELERY/MAIN-PROJECT-TEMPLATE"}`. Reject any target other than the current repository root. This command updates the current repository only; it cannot bootstrap a nested or different repository. Supply `$2` only to replace the canonical source with a custom fork.
 
 Preflight access to the canonical template wiki before updating:
 
@@ -35,7 +35,7 @@ uv run python .agents/scripts/setup_project.py apply . --confirm
 The updater writes clean merges and direct updates, and automatically records
 true conflicts under `.agents/local/template-stash/<update-id>/` before
 installing the incoming state. It reports the created stash path, creates missing
-`.opencode`, `.codex`, `.claude`, and `.hermes` relative aliases, writes the
+`.opencode`, `.codex`, `.claude`, `.hermes`, and `.kilo` relative aliases, writes the
 incoming marker last, removes only `./tmp/setup-project-template`, and runs
 preflight.
 
