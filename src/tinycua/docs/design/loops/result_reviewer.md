@@ -45,6 +45,7 @@ clause-proof protocol.
 |------------|-------------|
 | Review decision tools | Record the reviewer report and decision. |
 | Task result / context update tools | Update active task result and context based on decision. |
+| Managed JSON drafts | PLAN and COMMIT may create a path-free draft, edit only that draft, and commit it as the review plan or decision. ACTION exposes no file mutations. |
 
 ## Reviewer Decisions
 

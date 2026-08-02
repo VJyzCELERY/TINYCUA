@@ -559,20 +559,17 @@ class TinyCUALoop(
         phase: LifecyclePhase,
     ) -> list[Tool]:
         """Resolve existing node tools for one focused lifecycle phase."""
-        if phase == LifecyclePhase.TERMINATE and not self._can_terminate(node):
-            phase = LifecyclePhase.COMMIT
-        names = phase_tool_names(
-            node.node_id,
-            {tool.name for tool in tools if not tool.name.startswith("json_draft_")},
-            phase,
-        )
+        phase, names = self._phase_tool_names(node, tools, phase)
         phase_targets = names & DRAFTABLE_TOOL_NAMES
-        return [
+        phase_tools = [
             tool
             for tool in tools
             if tool.name in names
             or (tool.name.startswith("json_draft_") and phase_targets)
         ]
+        return self._reviewer_draft_phase_tools(
+            node, phase, phase_targets, tools, phase_tools
+        )
 
     def _attempt_tools(
         self,
@@ -799,6 +796,7 @@ class TinyCUALoop(
                 if name in commit_tools:
                     break
                 continue
+            execution_tool = self._canonical_tool(allowed_tools[name])
             arguments = function.get("arguments") or tool_call.get("arguments") or {}
             if isinstance(arguments, str):
                 try:
@@ -819,7 +817,7 @@ class TinyCUALoop(
             arguments = self._freeze_analyzer_task_references(
                 arguments, analyzer_task_refs
             )
-            if error := self._inject_managed_draft_path(node, name, arguments):
+            if error := self._inject_draft_path(node, execution_tool, arguments):
                 record({"name": name, "allowed": True, "error": error})
                 continue
             if name == "json_draft_commit":
@@ -834,15 +832,16 @@ class TinyCUALoop(
                 except Exception as exc:  # noqa: BLE001 - tool failures are feedback.
                     record({"name": name, "allowed": True, "error": str(exc)})
                     continue
+                execution_tool = allowed_tools[name]
             impacted_planning_targets = self._analyzer_planning_targets_for_call(
                 node, name, arguments
             )
             self._log_tool_call_args(name, arguments)
             # ponytail: async per-tool rate limit for shared backends.
-            await self._await_tool_rate_limit(name)
+            await self._await_tool_rate_limit(execution_tool.name)
             try:
                 output = await ToolExecutor.execute(
-                    allowed_tools[name], arguments, agent
+                    execution_tool, arguments, agent
                 )  # type: ignore[arg-type]
             except Exception as exc:  # noqa: BLE001 - recorded for trace/debugging.
                 record({"name": name, "allowed": True, "error": str(exc)})

@@ -414,7 +414,10 @@ async def test_root_reviewer_plan_unlocks_action_and_decision() -> None:
 
     await loop._execute_node(node, agent, [_ObserveTool()])
 
-    assert llm.calls[0]["tool_names"] == ["task_review_plan"]
+    assert set(llm.calls[0]["tool_names"]) == {
+        "task_review_plan",
+        "json_draft_create",
+    }
     assert "Executor says it works." not in json.dumps(llm.calls[0]["messages"])
     assert "task_review_plan" not in llm.calls[1]["tool_names"]
     assert "Executor says it works." in json.dumps(llm.calls[1]["messages"])
@@ -433,7 +436,6 @@ async def test_root_reviewer_plan_unlocks_action_and_decision() -> None:
     assert set(llm.calls[4]["tool_names"]) == {
         "task_review_decision",
         "json_draft_create",
-        "json_draft_commit",
     }
     assert root.reviewer_decisions[-1]["decision"] == "approved"
     assert root.reviewer_decisions[-1]["review_summary"] == review_summary.strip()
@@ -542,7 +544,6 @@ async def test_root_reviewer_retries_unknown_observation_reference() -> None:
     assert set(llm.calls[-1]["tool_names"]) == {
         "task_review_decision",
         "json_draft_create",
-        "json_draft_commit",
     }
     assert root.reviewer_decisions[-1]["metadata"]["assurance_status"] == "observed"
 
