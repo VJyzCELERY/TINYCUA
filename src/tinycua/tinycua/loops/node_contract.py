@@ -356,7 +356,7 @@ _NODE_CONTRACTS: dict[str, NodeContract] = {
         requires_terminate=True,
         early_stop_tool="digest_information",
         goal="Gather comprehensive context to ground downstream task planning.",
-        role_boundary="Only gather and digest context. Do not create tasks, execute work, or write deliverables.",
+        role_boundary="Only build broad orientation and known gaps. Do not create tasks, investigate task-specific depth, execute work, or write deliverables.",
         success_criteria="digest_information called with a concise structured summary of findings.",
         tool_rationale={
             "digest_information": "Records the gathered context. Downstream nodes (analyzer, executor) rely on this — without it, planning is ungrounded.",

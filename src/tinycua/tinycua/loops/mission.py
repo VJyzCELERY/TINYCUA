@@ -24,6 +24,7 @@ def _render_mission_block(session: Session) -> str:
     mission = str(root.metadata.get("mission", "") or "").strip()
     mission_context = str(root.metadata.get("mission_context", "") or "").strip()
     key_points = _string_list(root.metadata.get("mission_key_points", []))
+    known_gaps = _string_list(root.metadata.get("mission_known_gaps", []))
     constraints = _string_list(root.metadata.get("inherited_constraints", []))
     overlay = root.metadata.get("current_context_overlay", {})
     if not isinstance(overlay, dict):
@@ -36,6 +37,7 @@ def _render_mission_block(session: Session) -> str:
             mission,
             mission_context,
             key_points,
+            known_gaps,
             constraints,
             overlay_summary,
             overlay_points,
@@ -53,8 +55,11 @@ def _render_mission_block(session: Session) -> str:
     if mission_context:
         lines.append(mission_context)
     if key_points:
-        lines.append("Key findings:")
+        lines.append("Orientation anchors — starting points, not proof:")
         lines.extend(f"- {point}" for point in key_points)
+    if known_gaps:
+        lines.append("Downstream verification targets:")
+        lines.extend(f"- {gap}" for gap in known_gaps)
     if mission:
         lines.append(f"Original request: {mission}")
     if constraints:

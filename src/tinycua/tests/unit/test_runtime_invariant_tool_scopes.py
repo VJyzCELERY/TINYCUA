@@ -90,14 +90,13 @@ def test_information_digester_has_only_digest_and_managed_draft_tools() -> None:
     assert "task_decompose" not in names
     assert "task_result_update" not in names
     assert "task_review_decision" not in names
-    # write_file and str_replace are runtime-bound to one managed draft. run_shell is
-    # allowed — it is the
-    # gated exploratory shell (hardline blocks unrecoverable commands; recoverable
-    # destructive warns but executes). The digester uses it for read-only research.
+    # write_file and str_replace are runtime-bound to one managed draft. The
+    # orientation-only Digester does not receive arbitrary shell execution.
     assert "write_file" in names
     assert "str_replace" in names
     assert "append_file" not in names
     assert "run_python" not in names
+    assert "run_shell" not in names
 
 
 @pytest.mark.parametrize(

@@ -21,27 +21,34 @@ class DigestInformationTool(Tool):
         super().__init__(
             name="digest_information",
             description=(
-                "Commit gathered context for downstream planning. The runtime "
-                "preserves the original user query separately."
+                "Commit broad orientation for downstream planning. Anchors and "
+                "advice are non-binding; the runtime preserves the original query."
             ),
             parameters={
                 "type": "object",
                 "properties": {
-                    "context_summary": {"type": "string"},
+                    "context_summary": {
+                        "type": "string",
+                        "description": "Broad orientation map, not a solution or completion report.",
+                    },
                     "key_points": {
                         "type": "array",
+                        "description": "Non-binding orientation anchors, not proof.",
                         "items": {"type": "string"},
                     },
                     "advisory_instructions": {
                         "type": "array",
+                        "description": "Suggested downstream checks, not a binding plan.",
                         "items": {"type": "string"},
                     },
                     "constraints": {
                         "type": "array",
+                        "description": "Explicit requirements or verified non-negotiable limits only.",
                         "items": {"type": "string"},
                     },
                     "known_gaps": {
                         "type": "array",
+                        "description": "Assumptions downstream must verify before relying on them.",
                         "items": {"type": "string"},
                     },
                 },
@@ -61,11 +68,11 @@ class DigestInformationTool(Tool):
         """Validate and return a structured digest commit.
 
         Args:
-            context_summary: Concise summary of gathered context.
-            key_points: Important facts for downstream planning.
-            advisory_instructions: Non-binding guidance for downstream nodes.
-            constraints: Constraints discovered while gathering context.
-            known_gaps: Material information that remains unavailable.
+            context_summary: Broad orientation map of gathered context.
+            key_points: Non-binding starting anchors for downstream planning.
+            advisory_instructions: Suggested checks for downstream nodes.
+            constraints: Explicit or verified non-negotiable requirements.
+            known_gaps: Assumptions downstream must verify before relying on them.
 
         Returns:
             The validated digest or a failed commit result.

@@ -182,3 +182,21 @@ class TestInformationDigesterNode:
             session = prompt.index("session context")
             external = prompt.index("external research")
             assert workspace < session < external
+
+    def test_prompt_builds_broad_orientation_without_claiming_current_truth(
+        self,
+    ) -> None:
+        """Digestion preserves uncertainty for downstream task-specific verification."""
+        digester = TinyCUAInformationDigesterNode(
+            node_id="d",
+            config=create_node_config("information_digester"),
+        )
+
+        prompt = (
+            f"{digester.build_instruction()} {digester.build_continuation()}".lower()
+        )
+
+        assert "broad orientation" in prompt
+        assert "task-specific" in prompt
+        assert "known gaps" in prompt
+        assert "unknown until verified" in prompt

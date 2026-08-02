@@ -267,18 +267,18 @@ def create_node_config(
         retry_policy = replace(retry_policy, max_attempts=25)
     retry_guidance = {
         "digester": (
-            "Inspect explicitly referenced workspace files first, then use "
+            "Build broad orientation: inspect explicitly referenced workspace files first, then use "
             "enhanced_context_retrieval for session context, then web_search "
-            "if external research is needed. "
-            "Call digest_information with your findings. Do NOT attempt "
-            "to solve or write the task — you are gathering context only."
+            "if material facts remain uncertain. Record current claims as unknown until "
+            "verified and preserve known gaps. Call digest_information; do not investigate "
+            "task-specific depth, solve, or write the task."
         ),
         "information_digester": (
-            "Inspect explicitly referenced workspace files first, then use "
+            "Build broad orientation: inspect explicitly referenced workspace files first, then use "
             "enhanced_context_retrieval for session context, then web_search "
-            "if external research is needed. "
-            "Call digest_information with your findings. Do NOT attempt "
-            "to solve or write the task — you are gathering context only."
+            "if material facts remain uncertain. Record current claims as unknown until "
+            "verified and preserve known gaps. Call digest_information; do not investigate "
+            "task-specific depth, solve, or write the task."
         ),
         "query_analyst": (
             "Call summarize_query_context with a preliminary context summary, then "

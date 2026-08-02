@@ -39,6 +39,7 @@ def test_mission_populated_from_digested_information() -> None:
                 context_summary="Build a clock app.",
                 original_query="Make an analog clock animation in a single HTML file.",
                 constraints=["Deliver exactly one self-contained HTML file."],
+                known_gaps=["Verify browser support before choosing APIs."],
             ),
         )
     )
@@ -56,6 +57,9 @@ def test_mission_populated_from_digested_information() -> None:
     )
     assert root.metadata["inherited_constraints"] == [
         "Deliver exactly one self-contained HTML file.",
+    ]
+    assert root.metadata["mission_known_gaps"] == [
+        "Verify browser support before choosing APIs.",
     ]
 
 

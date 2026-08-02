@@ -100,18 +100,16 @@ class OrchestrationMixin:
         if digest is not None:
             root.metadata["mission"] = digest.original_query or ""
             root.metadata["inherited_constraints"] = list(digest.constraints)
-            # Carry the digester's comprehensive research into the mission
-            # so downstream nodes (Analyzer, Executor, Reviewer) see the
-            # first-layer exploration findings as context, not just the
-            # bare original query. Rendered by _render_mission_block as the
-            # structured {context}\n{query} mission prefix.
+            # Carry broad orientation, not a completed research conclusion.
             root.metadata["mission_context"] = digest.context_summary or ""
             root.metadata["mission_key_points"] = list(digest.key_points)
+            root.metadata["mission_known_gaps"] = list(digest.known_gaps)
         else:
             root.metadata["mission"] = self._latest_user_text().strip()
             root.metadata["inherited_constraints"] = []
             root.metadata["mission_context"] = ""
             root.metadata["mission_key_points"] = []
+            root.metadata["mission_known_gaps"] = []
 
     def _prepare_node(
         self,

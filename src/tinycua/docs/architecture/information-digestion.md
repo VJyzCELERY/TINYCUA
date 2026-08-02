@@ -11,17 +11,17 @@
 
 ## Role
 
-The Information Digester is an exploration agent. It receives what it treats as the user query (the `Context Enhanced Query` from the Query Analyst) and explores the current Session `Context` to find relevant lower-level, finer-detail context. It then compiles that context into precision-oriented `Digested Information`.
+The Information Digester is an exploration agent. It receives what it treats as the user query (the `Context Enhanced Query` from the Query Analyst) and builds a broad orientation map: relevant areas, likely entry points, explicit requirements, and material unknowns. It does not solve the request or perform task-specific investigation.
 
 It should preserve task-critical details and remove distracting context. The purpose is not merely token reduction; the purpose is reducing irrelevant context exposure.
 
-The Information Digester is a privileged narrowing boundary: it may explore broad session `Context` and perform deep retrieval, but downstream agents should receive only the consolidated output they need.
+The Information Digester is an orientation boundary: downstream agents receive concise context, non-binding anchors, and explicit verification gaps rather than a proposed solution.
 
 Key framing:
 
 - The Information Digester does **not** receive the full Session `Context` as its direct context. It accesses the Session `Context` through **Enhanced Context Retrieval** — a search tool that explores the Session `Context` as an external information source.
 - The Information Digester does not distinguish between a raw user query and a `Context Enhanced Query`. It treats whatever it receives as the query and explores for missing context.
-- The Information Digester is an **exploration agent** — its advised priority is: inspect explicitly referenced workspace files → search Session `Context` through Enhanced Context Retrieval → research externally only while material uncertainty remains → compile relevant findings into `Digested Information`.
+- The Information Digester is an **exploration agent** — its advised priority is: inspect explicitly referenced workspace files → search Session `Context` through Enhanced Context Retrieval → research externally only while material uncertainty remains → compile orientation anchors and known gaps into `Digested Information`.
 
 ---
 
@@ -39,7 +39,7 @@ The Information Digester does **not** receive the full Session `Context` as dire
 
 - **Enhanced Context Retrieval** — searches the current Session `Context` (structured markdown) as an external data store. See [context-retrieval.md](context-retrieval.md).
 - **Read-only file exploration** — inspects workspace files explicitly referenced by the request before broader retrieval.
-- **Web search/fetch** — resolves material external uncertainty using timeframe-appropriate authoritative sources.
+- **Web search/fetch** — resolves material external uncertainty using timeframe-appropriate authoritative sources; current claims remain unknown until verified.
 
 **Output:**
 
@@ -80,8 +80,8 @@ flowchart TD
 ```
 
 This priority is agent guidance rather than a deterministic tool-order gate. Exploration
-stops once downstream planning has reliable context; the digester does not execute or
-solve the task.
+stops before it becomes task-specific; the digester does not execute, solve, or establish
+completion evidence for the task.
 
 ---
 
@@ -105,8 +105,8 @@ The Task Analyzer can adapt the plan if the digest suggests a better task roadma
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Deep retrieval location | Information Digester | Query Analyst stays fast with high-level scan; deep, precise exploration of Session `Context` belongs in the exploration stage |
+| Broad orientation location | Information Digester | Query Analyst stays fast; Digester samples context and identifies gaps before downstream task-specific investigation |
 | Context access | Via Enhanced Context Retrieval tool | The Information Digester does not load the full Session `Context` directly — it searches it as an external source, keeping its own context window small |
-| Retrieval approach | Precision-first, LLM-judged | Generate search queries from identified gaps, search Session `Context`, use LLM to judge relevance semantically |
-| Instructions | Advisory, precision-oriented | Reduce irrelevant context exposure while allowing downstream agents to adapt without drifting from context |
+| Retrieval approach | Orientation-first, LLM-judged | Sample context needed to identify useful directions and unknowns, then leave depth to downstream nodes |
+| Instructions | Advisory, non-binding | Anchors guide initial inspection while downstream agents independently verify time-sensitive assumptions |
 | Known gaps | Explicitly signaled | Prevents downstream agents from hallucinating to fill missing information |
