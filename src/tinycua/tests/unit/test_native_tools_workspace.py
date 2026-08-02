@@ -19,6 +19,7 @@ def test_file_tools_resolve_relative_paths_inside_bound_workspace(
 
     for native_tool in (read_file, write_file, list_files):
         native_tool.bind_workspace(workspace)
+        native_tool.bind_file_execution("workspace-test")
     try:
         result = write_file("nested/example.txt", "workspace content")
         assert result["success"] is True
@@ -35,6 +36,7 @@ def test_file_tools_resolve_relative_paths_inside_bound_workspace(
         assert "outside workspace" in denied["error"]
     finally:
         for native_tool in (read_file, write_file, list_files):
+            native_tool.bind_file_execution(None)
             native_tool.bind_workspace(None)
 
 

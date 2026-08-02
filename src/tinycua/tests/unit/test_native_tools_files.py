@@ -7,7 +7,170 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from tinycua.agent.tools.native.context import bind_managed_draft_dir, bind_workspace
+from tinycua.agent.tools.native.context import (
+    bind_file_execution,
+    bind_managed_draft_dir,
+    bind_workspace,
+)
+from tinycua.agent.tools.native.files import (
+    append_file,
+    read_file,
+    str_replace,
+    write_file,
+)
+
+
+def _bind_file_tools(workspace: Path, execution_id: str = "execution-1") -> None:
+    bind_workspace(workspace)
+    bind_file_execution(execution_id)
+
+
+def test_existing_write_requires_explicit_replacement_and_fresh_read(
+    tmp_path: Path,
+) -> None:
+    """Existing writes require replacement opt-in and current read proof."""
+    path = tmp_path / "report.md"
+    path.write_text("old\n", encoding="utf-8")
+    _bind_file_tools(tmp_path)
+
+    missing_opt_in = write_file(str(path), "new\n")
+    assert missing_opt_in["success"] is False
+    assert "replace=True" in missing_opt_in["error"]
+    assert path.read_text(encoding="utf-8") == "old\n"
+
+    missing_read = write_file(str(path), "new\n", replace=True)
+    assert missing_read["success"] is False
+    assert "read" in missing_read["error"].lower()
+    assert path.read_text(encoding="utf-8") == "old\n"
+
+    assert read_file(str(path)) == "old\n"
+    assert write_file(str(path), "new\n", replace=True)["success"] is True
+    assert path.read_text(encoding="utf-8") == "new\n"
+
+
+@pytest.mark.parametrize("mutation", ["write", "replace", "append"])
+def test_existing_mutations_require_complete_current_read(
+    tmp_path: Path, mutation: str
+) -> None:
+    """Every existing-file mutation fails closed without read authorization."""
+    path = tmp_path / "report.md"
+    path.write_text("one\ntwo\n", encoding="utf-8")
+    _bind_file_tools(tmp_path)
+
+    if mutation == "write":
+        result = write_file(str(path), "replacement\n", replace=True)
+    elif mutation == "replace":
+        result = str_replace(str(path), "one", "changed")
+    else:
+        result = append_file(str(path), "three\n")
+
+    assert result["success"] is False
+    assert "read" in result["error"].lower()
+    assert path.read_text(encoding="utf-8") == "one\ntwo\n"
+
+
+def test_paginated_reads_merge_into_current_revision_authorization(
+    tmp_path: Path,
+) -> None:
+    """Disjoint complete ranges authorize a mutation after they are merged."""
+    path = tmp_path / "paged.txt"
+    path.write_text("one\ntwo\nthree\nfour\n", encoding="utf-8")
+    _bind_file_tools(tmp_path)
+
+    assert read_file(str(path), start=1, offset=2) == "one\ntwo\n"
+    blocked = append_file(str(path), "blocked\n")
+    assert blocked["success"] is False
+    assert read_file(str(path), start=3, offset=2) == "three\nfour\n"
+
+    allowed = append_file(str(path), "five\n")
+    assert allowed["success"] is True
+    assert path.read_text(encoding="utf-8") == "one\ntwo\nthree\nfour\nfive\n"
+
+
+def test_truncated_read_does_not_authorize_existing_mutation(tmp_path: Path) -> None:
+    """A truncated response records no false proof for the unread tail."""
+    path = tmp_path / "large.txt"
+    path.write_text("x" * (100 * 1024) + "\nlast line\n", encoding="utf-8")
+    _bind_file_tools(tmp_path)
+
+    result = read_file(str(path))
+    assert isinstance(result, str)
+    assert "[Truncated:" in result
+
+    blocked = append_file(str(path), "new line\n")
+    assert blocked["success"] is False
+    assert path.read_text(encoding="utf-8").endswith("last line\n")
+
+
+def test_changed_revision_invalidates_read_authorization(tmp_path: Path) -> None:
+    """Changing a file after a read invalidates its mutation authorization."""
+    path = tmp_path / "stale.txt"
+    path.write_text("original\n", encoding="utf-8")
+    _bind_file_tools(tmp_path)
+    assert read_file(str(path)) == "original\n"
+
+    path.write_text("changed externally\n", encoding="utf-8")
+    blocked = append_file(str(path), "blocked\n")
+    assert blocked["success"] is False
+    assert "changed" in blocked["error"].lower()
+    assert path.read_text(encoding="utf-8") == "changed externally\n"
+
+    assert read_file(str(path)) == "changed externally\n"
+    assert append_file(str(path), "allowed\n")["success"] is True
+
+
+def test_paginated_reads_from_different_revisions_do_not_combine(
+    tmp_path: Path,
+) -> None:
+    """Ranges from an older hash cannot complete a newer revision."""
+    path = tmp_path / "changing-pages.txt"
+    path.write_text("one\ntwo\nthree\nfour\n", encoding="utf-8")
+    _bind_file_tools(tmp_path, "changing-pages")
+
+    assert read_file(str(path), start=1, offset=2) == "one\ntwo\n"
+    path.write_text("ONE\ntwo\nthree\nfour\n", encoding="utf-8")
+    assert read_file(str(path), start=3, offset=2) == "three\nfour\n"
+
+    blocked = append_file(str(path), "five\n")
+    assert blocked["success"] is False
+
+
+def test_successful_mutations_authorize_same_execution_chaining_and_aliases(
+    tmp_path: Path,
+) -> None:
+    """A result revision is complete and canonical aliases share its proof."""
+    path = tmp_path / "chain.txt"
+    path.write_text("one\n", encoding="utf-8")
+    _bind_file_tools(tmp_path)
+    alias = str(tmp_path / "." / "chain.txt")
+
+    assert read_file(str(path)) == "one\n"
+    assert str_replace(alias, "one", "two")["success"] is True
+    assert append_file(str(path), "three\n")["success"] is True
+    assert write_file(alias, "four\n", replace=True)["success"] is True
+    assert path.read_text(encoding="utf-8") == "four\n"
+
+    bind_file_execution("fresh-execution")
+    blocked = append_file(str(path), "foreign\n")
+    assert blocked["success"] is False
+    assert path.read_text(encoding="utf-8") == "four\n"
+
+
+def test_successful_creates_authorize_follow_up_mutations(tmp_path: Path) -> None:
+    """Each creation path records its resulting revision for the execution."""
+    _bind_file_tools(tmp_path)
+    write_path = tmp_path / "write.txt"
+    append_path = tmp_path / "append.txt"
+    replace_path = tmp_path / "replace.txt"
+
+    assert write_file(str(write_path), "write\n")["success"] is True
+    assert append_file(str(write_path), "next\n")["success"] is True
+
+    assert append_file(str(append_path), "append\n")["success"] is True
+    assert str_replace(str(append_path), "append", "changed")["success"] is True
+
+    assert str_replace(str(replace_path), "", "created\n")["success"] is True
+    assert write_file(str(replace_path), "replaced\n", replace=True)["success"] is True
 
 
 # --- read_file edge cases ---
@@ -52,6 +215,18 @@ def test_read_file_returns_a_model_attachment_for_png(tmp_path: Path) -> None:
     }
     assert result["attachments"][0].mime_type == "image/png"
     assert "base64" not in result["content"]
+
+
+def test_full_image_read_authorizes_existing_file_replacement(tmp_path: Path) -> None:
+    """A successful whole-image read counts as complete revision coverage."""
+    image_path = tmp_path / "diagram.png"
+    Image.new("RGB", (2, 3), "red").save(image_path)
+    _bind_file_tools(tmp_path, "image-execution")
+
+    result = read_file("diagram.png")
+    assert isinstance(result, dict)
+    assert write_file("diagram.png", "replaced\n", replace=True)["success"] is True
+    assert image_path.read_text(encoding="utf-8") == "replaced\n"
 
 
 def test_read_file_rejects_line_ranges_for_images(tmp_path: Path) -> None:
@@ -232,6 +407,8 @@ def test_file_mutations_preserve_exact_decoded_content():
 
         replace_path = Path(tmpdir, "replace.txt")
         replace_path.write_text("replace me", encoding="utf-8")
+        bind_file_execution("decoded-content")
+        assert read_file(str(replace_path)) == "replace me"
         assert str_replace(str(replace_path), "replace me", content)["success"] is True
         assert replace_path.read_bytes() == content.encode("utf-8")
 
@@ -251,6 +428,8 @@ def test_str_replace_exact_match():
         Path(filepath).write_text("line 1\nline 2\nline 3\n")
         from tinycua.agent.tools.native.files import str_replace
 
+        bind_file_execution("exact-match")
+        assert read_file(filepath) == "line 1\nline 2\nline 3\n"
         result = str_replace(filepath, old_string="line 2", new_string="REPLACED")
         assert result["success"] is True
         assert result["replacements_made"] == 1
@@ -266,6 +445,8 @@ def test_str_replace_multiple_matches_error():
         Path(filepath).write_text("foo\nbar\nfoo\n")
         from tinycua.agent.tools.native.files import str_replace
 
+        bind_file_execution("multi-match")
+        assert read_file(filepath) == "foo\nbar\nfoo\n"
         result = str_replace(filepath, old_string="foo", new_string="baz")
         assert result["success"] is False
 
@@ -278,6 +459,8 @@ def test_str_replace_replace_all():
         Path(filepath).write_text("foo\nbar\nfoo\n")
         from tinycua.agent.tools.native.files import str_replace
 
+        bind_file_execution("replace-all")
+        assert read_file(filepath) == "foo\nbar\nfoo\n"
         result = str_replace(
             filepath, old_string="foo", new_string="baz", replace_all=True
         )
@@ -306,6 +489,8 @@ def test_str_replace_empty_old_string_existing_file_errors():
         Path(filepath).write_text("existing content")
         from tinycua.agent.tools.native.files import str_replace
 
+        bind_file_execution("empty-existing")
+        assert read_file(filepath) == "existing content"
         result = str_replace(filepath, old_string="", new_string="new")
         assert result["success"] is False
         assert "write_file" in result["error"]
@@ -317,8 +502,10 @@ def test_str_replace_not_found_returns_error():
         bind_workspace(tmpdir)
         filepath = os.path.join(tmpdir, "notfound.txt")
         Path(filepath).write_text("hello world")
-        from tinycua.agent.tools.native.files import str_replace
+        from tinycua.agent.tools.native.files import read_file, str_replace
 
+        bind_file_execution("not-found")
+        assert read_file(filepath) == "hello world"
         result = str_replace(filepath, old_string="nonexistent", new_string="x")
         assert result["success"] is False
         assert "Could not find" in result["error"]
@@ -332,6 +519,8 @@ def test_str_replace_identical_strings_error():
         Path(filepath).write_text("hello")
         from tinycua.agent.tools.native.files import str_replace
 
+        bind_file_execution("identical")
+        assert read_file(filepath) == "hello"
         result = str_replace(filepath, old_string="hello", new_string="hello")
         assert result["success"] is False
         assert "identical" in result["error"]
@@ -345,6 +534,8 @@ def test_str_replace_fuzzy_line_trimmed():
         Path(filepath).write_text("def foo():\n    pass  \n")
         from tinycua.agent.tools.native.files import str_replace
 
+        bind_file_execution("fuzzy")
+        assert read_file(filepath) == "def foo():\n    pass  \n"
         # old_string has no trailing spaces, file has trailing spaces on "pass" line
         result = str_replace(
             filepath,
@@ -363,6 +554,8 @@ def test_str_replace_diff_preview():
         Path(filepath).write_text("old text here")
         from tinycua.agent.tools.native.files import str_replace
 
+        bind_file_execution("diff-preview")
+        assert read_file(filepath) == "old text here"
         result = str_replace(filepath, old_string="old", new_string="new")
         assert result["success"] is True
         # FR-058: diff_preview is now a unified-diff snippet, not just new_string.
@@ -381,6 +574,8 @@ def test_append_file_to_existing():
         Path(filepath).write_text("line 1\nline 2\n")
         from tinycua.agent.tools.native.files import append_file
 
+        bind_file_execution("append-existing")
+        assert read_file(filepath) == "line 1\nline 2\n"
         result = append_file(filepath, content="line 3\n")
         assert result["success"] is True
         assert Path(filepath).read_text() == "line 1\nline 2\nline 3\n"
@@ -406,6 +601,8 @@ def test_append_file_adds_newline_separator():
         Path(filepath).write_text("no newline here")
         from tinycua.agent.tools.native.files import append_file
 
+        bind_file_execution("append-no-newline")
+        assert read_file(filepath) == "no newline here"
         result = append_file(filepath, content="appended")
         assert result["success"] is True
         content = Path(filepath).read_text()

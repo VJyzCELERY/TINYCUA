@@ -6,7 +6,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from tinycua.agent.tools.native.context import bind_workspace
+from tinycua.agent.tools.native.context import bind_file_execution, bind_workspace
 
 
 class TestStrReplaceMultiMatchError:
@@ -17,8 +17,10 @@ class TestStrReplaceMultiMatchError:
             bind_workspace(tmpdir)
             filepath = os.path.join(tmpdir, "multi.txt")
             Path(filepath).write_text("foo\nbar\nfoo\n")
-            from tinycua.agent.tools.native.files import str_replace
+            from tinycua.agent.tools.native.files import read_file, str_replace
 
+            bind_file_execution("multi-error")
+            assert read_file(filepath) == "foo\nbar\nfoo\n"
             result = str_replace(filepath, old_string="foo", new_string="baz")
             assert result["success"] is False
             error = result.get("error", "")
@@ -32,8 +34,10 @@ class TestStrReplaceMultiMatchError:
             bind_workspace(tmpdir)
             filepath = os.path.join(tmpdir, "all.txt")
             Path(filepath).write_text("foo\nbar\nfoo\n")
-            from tinycua.agent.tools.native.files import str_replace
+            from tinycua.agent.tools.native.files import read_file, str_replace
 
+            bind_file_execution("replace-all-error")
+            assert read_file(filepath) == "foo\nbar\nfoo\n"
             result = str_replace(
                 filepath, old_string="foo", new_string="baz", replace_all=True
             )
@@ -45,8 +49,10 @@ class TestStrReplaceMultiMatchError:
             bind_workspace(tmpdir)
             filepath = os.path.join(tmpdir, "single.txt")
             Path(filepath).write_text("foo\nbar\n")
-            from tinycua.agent.tools.native.files import str_replace
+            from tinycua.agent.tools.native.files import read_file, str_replace
 
+            bind_file_execution("zero-error")
+            assert read_file(filepath) == "foo\nbar\n"
             result = str_replace(filepath, old_string="nonexistent", new_string="x")
             assert result["success"] is False
             error = result.get("error", "")
@@ -60,8 +66,10 @@ class TestStrReplaceMultiMatchError:
             bind_workspace(tmpdir)
             filepath = os.path.join(tmpdir, "triple.txt")
             Path(filepath).write_text("foo\nfoo\nfoo\n")
-            from tinycua.agent.tools.native.files import str_replace
+            from tinycua.agent.tools.native.files import read_file, str_replace
 
+            bind_file_execution("triple-error")
+            assert read_file(filepath) == "foo\nfoo\nfoo\n"
             result = str_replace(filepath, old_string="foo", new_string="baz")
             assert result["success"] is False
             error = result.get("error", "")

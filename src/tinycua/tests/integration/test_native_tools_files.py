@@ -10,7 +10,7 @@ import pytest
 @pytest.fixture(autouse=True)
 def native_tools_workspace(tmp_path, monkeypatch):
     """Bind each test's temporary files to an isolated native-tools workspace."""
-    from tinycua.agent.tools.native.context import bind_workspace
+    from tinycua.agent.tools.native.context import bind_file_execution, bind_workspace
 
     original_chdir = os.chdir
 
@@ -22,7 +22,9 @@ def native_tools_workspace(tmp_path, monkeypatch):
     monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
     monkeypatch.setattr(os, "chdir", chdir)
     bind_workspace(tmp_path)
+    bind_file_execution("integration-test")
     yield
+    bind_file_execution(None)
     bind_workspace(None)
 
 
@@ -193,11 +195,30 @@ def test_write_file_overwrite():
     with tempfile.TemporaryDirectory() as tmpdir:
         filepath = os.path.join(tmpdir, "existing.txt")
         Path(filepath).write_text("old content")
-        from tinycua.agent.tools.native.files import write_file
+        from tinycua.agent.tools.native.files import read_file, write_file
 
-        result = write_file(filepath, "new content")
+        assert read_file(filepath) == "old content"
+        result = write_file(filepath, "new content", replace=True)
         assert result["success"] is True
         assert Path(filepath).read_text() == "new content"
+
+
+def test_existing_public_mutations_require_a_current_read():
+    """Public mutation tools reject an unobserved existing revision."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "existing.txt")
+        Path(filepath).write_text("old content")
+        from tinycua.agent.tools.native.files import append_file, str_replace, write_file
+
+        results = [
+            write_file(filepath, "new content", replace=True),
+            str_replace(filepath, old_string="old", new_string="new"),
+            append_file(filepath, content="appended"),
+        ]
+
+        assert all(result["success"] is False for result in results)
+        assert all("read" in result["error"].lower() for result in results)
+        assert Path(filepath).read_text() == "old content"
 
 
 def test_write_file_rejects_missing_parent_dirs():
@@ -240,8 +261,9 @@ def test_str_replace_single_line():
     with tempfile.TemporaryDirectory() as tmpdir:
         filepath = os.path.join(tmpdir, "replace.txt")
         Path(filepath).write_text("line 1\nline 2\nline 3\n")
-        from tinycua.agent.tools.native.files import str_replace
+        from tinycua.agent.tools.native.files import read_file, str_replace
 
+        assert read_file(filepath) == "line 1\nline 2\nline 3\n"
         result = str_replace(filepath, old_string="line 2", new_string="REPLACED")
         assert result["success"] is True
         assert result["replacements_made"] == 1
@@ -253,8 +275,9 @@ def test_str_replace_multiple_lines():
     with tempfile.TemporaryDirectory() as tmpdir:
         filepath = os.path.join(tmpdir, "replace_multi.txt")
         Path(filepath).write_text("line 1\nline 2\nline 3\nline 4\n")
-        from tinycua.agent.tools.native.files import str_replace
+        from tinycua.agent.tools.native.files import read_file, str_replace
 
+        assert read_file(filepath) == "line 1\nline 2\nline 3\nline 4\n"
         result = str_replace(filepath, old_string="line 2\nline 3", new_string="A\nB")
         assert result["success"] is True
         assert Path(filepath).read_text() == "line 1\nA\nB\nline 4\n"
@@ -287,8 +310,9 @@ def test_str_replace_fuzzy_whitespace():
     with tempfile.TemporaryDirectory() as tmpdir:
         filepath = os.path.join(tmpdir, "fuzzy.txt")
         Path(filepath).write_text("    def foo():\n        return 42\n")
-        from tinycua.agent.tools.native.files import str_replace
+        from tinycua.agent.tools.native.files import read_file, str_replace
 
+        assert read_file(filepath) == "    def foo():\n        return 42\n"
         # old_string with different indentation than the file
         result = str_replace(
             filepath,
@@ -308,8 +332,9 @@ def test_append_file_to_existing():
     with tempfile.TemporaryDirectory() as tmpdir:
         filepath = os.path.join(tmpdir, "append.txt")
         Path(filepath).write_text("original\n")
-        from tinycua.agent.tools.native.files import append_file
+        from tinycua.agent.tools.native.files import append_file, read_file
 
+        assert read_file(filepath) == "original\n"
         result = append_file(filepath, content="appended\n")
         assert result["success"] is True
         assert Path(filepath).read_text() == "original\nappended\n"

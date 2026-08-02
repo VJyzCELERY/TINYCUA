@@ -8,10 +8,15 @@ from tinycua.config.types import LLMResult, Tool
 from tinycua.config.node_config import create_node_config
 from tinycua.loops.node_contract import LifecyclePhase
 from tinycua.loops.node_queue import NodeQueue
-from tinycua.loops.task_nodes import TinyCUATaskAnalyzerNode, TinyCUATaskAssessorNode
+from tinycua.loops.task_nodes import (
+    TinyCUATaskAnalyzerNode,
+    TinyCUATaskAssessorNode,
+    TinyCUATaskExecutorNode,
+)
 from tinycua.loops.tinycua_loop import TinyCUALoop
 from tinycua.models.node_handoff import NodeHandoff
 from tinycua.models.task import TaskStateStore
+from tinycua.agent.tools.native.files import append_file, read_file
 from tinycua.tools.task_tools import (
     TaskCreateTool,
     TaskDecomposeTool,
@@ -859,3 +864,31 @@ def test_analyzer_commit_directive_requires_all_selected_targets() -> None:
     assert "all assessor-selected targets" in directive
     assert "exactly one" not in directive
     assert "no further tool calls" not in directive
+
+
+def test_file_read_authorization_survives_same_execution_binding_only(
+    tmp_path,
+) -> None:
+    """Loop binding preserves reads for one execution and isolates the next."""
+    path = tmp_path / "report.md"
+    path.write_text("draft\n", encoding="utf-8")
+    loop = TinyCUALoop()
+    loop.workspace_dir = tmp_path
+    node = TinyCUATaskExecutorNode(
+        node_id="task_executor", config=create_node_config("task_executor")
+    )
+    tools = [read_file, append_file]
+
+    loop._draft_execution_id = "execution-one"
+    loop._bind_session_tools(tools, node)
+    assert read_file(str(path)) == "draft\n"
+    assert append_file(str(path), "first\n")["success"] is True
+
+    loop._bind_session_tools(tools, node)
+    assert append_file(str(path), "second\n")["success"] is True
+
+    loop._draft_execution_id = "execution-two"
+    loop._bind_session_tools(tools, node)
+    blocked = append_file(str(path), "foreign\n")
+    assert blocked["success"] is False
+    assert "read" in blocked["error"].lower()

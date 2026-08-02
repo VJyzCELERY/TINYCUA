@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from tinycua.config.types import Tool
+from tinycua.agent.tools.native.context import record_file_result
 
 MAX_DRAFT_BYTES = 64 * 1024
 
@@ -108,6 +109,7 @@ class JsonDraftCreateTool(_JsonDraftTool):
             absolute_path.parent.mkdir(parents=True, exist_ok=True)
             with absolute_path.open("x", encoding="utf-8") as draft_file:
                 draft_file.write("{}\n")
+            record_file_result(absolute_path, b"{}\n", 1)
         except OSError as exc:
             return {"success": False, "error": f"draft_create_failed: {exc}"}
         self._drafts[draft_id] = {

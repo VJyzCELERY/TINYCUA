@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tinycua.agent.tools.native.context import bind_workspace, resolve_workspace_path
+from tinycua.agent.tools.native.context import (
+    bind_file_execution,
+    bind_workspace,
+    resolve_workspace_path,
+)
 
 
 def _doubled_path(workspace: Path, suffix: str = "report.md") -> str:
@@ -100,6 +104,7 @@ class TestToolResultsReturnRelPath:
 
     def test_write_file_returns_rel_path(self, tmp_path: Path):
         bind_workspace(tmp_path)
+        bind_file_execution("write-rel-path")
         try:
             from tinycua.agent.tools.native.files import write_file
 
@@ -112,10 +117,12 @@ class TestToolResultsReturnRelPath:
 
     def test_append_file_returns_rel_path(self, tmp_path: Path):
         bind_workspace(tmp_path)
+        bind_file_execution("append-rel-path")
         try:
-            from tinycua.agent.tools.native.files import append_file
+            from tinycua.agent.tools.native.files import append_file, read_file
 
             (tmp_path / "report.md").write_text("base\n")
+            assert read_file("report.md") == "base\n"
             result = append_file("report.md", "appended\n")
             assert result["success"] is True
             assert "rel_path" in result
@@ -125,10 +132,12 @@ class TestToolResultsReturnRelPath:
 
     def test_str_replace_returns_rel_path(self, tmp_path: Path):
         bind_workspace(tmp_path)
+        bind_file_execution("replace-rel-path")
         try:
-            from tinycua.agent.tools.native.files import str_replace
+            from tinycua.agent.tools.native.files import read_file, str_replace
 
             (tmp_path / "code.py").write_text("old text")
+            assert read_file("code.py") == "old text"
             result = str_replace("code.py", old_string="old", new_string="new")
             assert result["success"] is True
             assert "rel_path" in result
@@ -138,10 +147,12 @@ class TestToolResultsReturnRelPath:
 
     def test_str_replace_error_returns_rel_path(self, tmp_path: Path):
         bind_workspace(tmp_path)
+        bind_file_execution("replace-error-rel-path")
         try:
-            from tinycua.agent.tools.native.files import str_replace
+            from tinycua.agent.tools.native.files import read_file, str_replace
 
             (tmp_path / "code.py").write_text("some text")
+            assert read_file("code.py") == "some text"
             result = str_replace("code.py", old_string="nonexistent", new_string="x")
             assert result["success"] is False
             assert "rel_path" in result
