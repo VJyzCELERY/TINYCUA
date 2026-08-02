@@ -47,6 +47,7 @@ EXPLORATORY_AGENT_TOOLS: list[str] = [
 ]
 DRAFT_FILE_TOOLS = ["read_file", "write_file", "str_replace"]
 DRAFT_AGENT_TOOLS = [*EXPLORATORY_AGENT_TOOLS, "write_file", "str_replace"]
+DIGESTER_AGENT_TOOLS = [tool for tool in DRAFT_AGENT_TOOLS if tool != "run_shell"]
 
 
 def query_analyst_tool_scope() -> NodeToolPolicy:
@@ -84,7 +85,7 @@ def information_digester_tool_scope() -> NodeToolPolicy:
             DigestInformationTool(),
         ],
         include_agent_tools="selected",
-        allowed_agent_tool_names=DRAFT_AGENT_TOOLS,
+        allowed_agent_tool_names=DIGESTER_AGENT_TOOLS,
     )
 
 

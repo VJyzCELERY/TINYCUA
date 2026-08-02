@@ -284,7 +284,7 @@ def test_mission_block_includes_digester_context_and_key_points() -> None:
     assert "## Current Mission — Context Only" in prompt
     # Context (digester research) appears before the original request.
     assert "Frontier LLMs as of 2026" in prompt
-    assert "Key findings:" in prompt
+    assert "Orientation anchors — starting points, not proof:" in prompt
     assert "Claude Opus 4.8 leads on coding" in prompt
     assert "Original request: Research frontier LLMs." in prompt
     # Context should appear before the original request (the {context}\n{query} structure).
@@ -307,7 +307,7 @@ def test_mission_block_omits_empty_sections() -> None:
     assert "Original request: Build a clock." in prompt
     assert "single file" in prompt
     # No context / no key points → those sections are omitted entirely.
-    assert "Key findings:" not in prompt
+    assert "Orientation anchors — starting points, not proof:" not in prompt
 
 
 if __name__ == "__main__":

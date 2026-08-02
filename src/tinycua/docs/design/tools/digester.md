@@ -20,7 +20,9 @@ Primary tools:
 `digest_information` accepts a required `context_summary` plus optional arrays for
 `key_points`, `advisory_instructions`, `constraints`, and `known_gaps`. It validates
 those fields and returns them with `success=true`. The runtime preserves and attaches
-the original user query separately.
+the original user query separately. `context_summary` is broad orientation; `key_points`
+are non-binding anchors; `constraints` contain only explicit or verified requirements;
+and `known_gaps` identify assumptions downstream must verify.
 
 The tool is InformationDigester's required commit. File, session, and external
 exploration remain optional and model-directed; no specific source or tool order is

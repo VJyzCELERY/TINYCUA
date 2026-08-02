@@ -5,7 +5,7 @@
 
 ## Role
 
-`TinyCUAInformationDigesterNode` is a concrete `ProcessNode` that gathers and digests
+`TinyCUAInformationDigesterNode` is a concrete `ProcessNode` that builds broad orientation
 context for downstream nodes. It is spawned by `QueryAnalyst` before routing to
 `WorkerNode`, or by `ResponseNode` via `suspend_current_and_prepend` when context
 is insufficient for final synthesis.
@@ -69,9 +69,9 @@ digest commit completes the node directly.
 
 The prompt advises the digester to inspect explicitly referenced workspace files first,
 then search session context, then use external research only if material uncertainty
-remains. It honors the requested timeframe, prefers authoritative sources, and stops once
-planning has reliable context. This is guidance, not a deterministic tool-order gate;
-task execution remains downstream.
+remains. It honors the requested timeframe, treats current claims as unknown until verified,
+and stops before task-specific investigation. This is guidance, not a deterministic
+tool-order gate; task execution and detailed verification remain downstream.
 
 ### Enhanced Context Retrieval Cache Behavior
 

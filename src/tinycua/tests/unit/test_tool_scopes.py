@@ -89,6 +89,7 @@ class TestInformationDigesterToolScope:
         assert "fetch_url" in policy.allowed_agent_tool_names
         assert "read_file" in policy.allowed_agent_tool_names
         assert "write_file" in policy.allowed_agent_tool_names
+        assert "run_shell" not in policy.allowed_agent_tool_names
 
 
 class TestWorkerToolScope:
