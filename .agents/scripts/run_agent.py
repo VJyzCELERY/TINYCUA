@@ -16,10 +16,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-SCHEMA_VERSION = 3
-LEGACY_SCHEMA_VERSION = 2
+SCHEMA_VERSION = 4
+LEGACY_SCHEMA_VERSIONS = (2, 3)
 TERMINATION_GRACE_SECONDS = 1
 POLL_INTERVAL_SECONDS = 0.25
+POLL_HEARTBEAT_SECONDS = 30
 MONITOR_HEARTBEAT_SECONDS = 1
 SESSION_CAPTURE_CHUNK_SIZE = 4096
 SESSION_CAPTURE_LINE_LIMIT = 8192
@@ -122,6 +123,7 @@ class _SessionCapture:
         self._state = "provided" if session is not None else "unavailable"
         self._buffer = bytearray()
         self._discarding = False
+        self._last_provider_output_at: str | None = None
         self._lock = threading.Lock()
 
     def _candidate(self, value: object) -> str | None:
@@ -161,6 +163,8 @@ class _SessionCapture:
 
     def feed(self, chunk: bytes) -> None:
         """Consume output without retaining raw provider records."""
+        with self._lock:
+            self._last_provider_output_at = _now()
         for part in chunk.splitlines(keepends=True):
             if self._discarding:
                 if part.endswith(b"\n"):
@@ -181,10 +185,10 @@ class _SessionCapture:
             self._observe(bytes(self._buffer).strip())
         self._buffer.clear()
 
-    def result(self) -> tuple[str | None, str]:
+    def result(self) -> tuple[str | None, str, str | None]:
         """Return the safe session value and capture state."""
         with self._lock:
-            return self._session, self._state
+            return self._session, self._state, self._last_provider_output_at
 
 
 def _drain_stdout(stream: object, capture: _SessionCapture) -> None:
@@ -196,13 +200,19 @@ def _drain_stdout(stream: object, capture: _SessionCapture) -> None:
     capture.finish()
 
 
-def _apply_capture(record: dict, capture: _SessionCapture) -> bool:
-    session, state = capture.result()
+def _apply_capture(record: dict, capture: _SessionCapture, include_activity: bool = False) -> bool:
+    session, state, activity = capture.result()
+    changed = False
     if record["session"] == session and record["session_capture"] == state:
-        return False
-    record["session"] = session
-    record["session_capture"] = state
-    return True
+        changed = False
+    else:
+        record["session"] = session
+        record["session_capture"] = state
+        changed = True
+    if include_activity and record["last_provider_output_at"] != activity:
+        record["last_provider_output_at"] = activity
+        changed = True
+    return changed
 
 
 def _state_root(root: Path) -> Path:
@@ -251,7 +261,7 @@ def _active_record(root: Path, worktree: Path) -> tuple[Path, str, dict]:
     if (
         not isinstance(value, dict)
         or set(value) != {"schema_version", "run_id", "worktree"}
-        or value["schema_version"] not in {LEGACY_SCHEMA_VERSION, SCHEMA_VERSION}
+        or value["schema_version"] not in {*LEGACY_SCHEMA_VERSIONS, SCHEMA_VERSION}
         or isinstance(value["schema_version"], bool)
         or value["worktree"] != str(worktree)
     ):
@@ -372,29 +382,34 @@ def _record(root: Path, directory: Path) -> tuple[Path, dict]:
             raise RunError("agent run state is malformed") from exc
     if value is None:
         raise RunError("agent run state is missing or unsafe")
-    legacy_keys = {
+    version_two_keys = {
         "schema_version", "run_id", "worktree", "created_at", "updated_at", "status",
         "monitor_pid", "monitor_start", "child_pid", "child_start", "exit_code",
         "finished_at", *CONTEXT_KEYS,
     }
-    keys = {"session_capture", "resumed_from", *legacy_keys}
+    version_three_keys = {"session_capture", "resumed_from", *version_two_keys}
+    keys = {"last_provider_output_at", *version_three_keys}
     if not isinstance(value, dict):
         raise RunError("agent run state has unknown or missing fields")
     schema_version = value.get("schema_version")
     if isinstance(schema_version, bool) or schema_version not in {
-        LEGACY_SCHEMA_VERSION,
+        *LEGACY_SCHEMA_VERSIONS,
         SCHEMA_VERSION,
     }:
         raise RunError("agent run state schema_version is invalid")
-    if schema_version == LEGACY_SCHEMA_VERSION:
-        if set(value) != legacy_keys:
+    if schema_version == 2:
+        if set(value) != version_two_keys:
             raise RunError("agent run state has unknown or missing fields")
         value = {
             **value,
-            "schema_version": SCHEMA_VERSION,
+            "schema_version": 3,
             "session_capture": "provided" if value["session"] is not None else "unavailable",
             "resumed_from": None,
         }
+    if value["schema_version"] == 3:
+        if set(value) != version_three_keys:
+            raise RunError("agent run state has unknown or missing fields")
+        value = {**value, "schema_version": SCHEMA_VERSION, "last_provider_output_at": None}
     elif set(value) != keys:
         raise RunError("agent run state has unknown or missing fields")
     if value["run_id"] != directory.name or not RUN_ID_RE.fullmatch(value["run_id"]):
@@ -423,6 +438,11 @@ def _record(root: Path, directory: Path) -> tuple[Path, dict]:
         raise RunError("agent run session_capture is invalid")
     if value["resumed_from"] is not None:
         _run_id(value["resumed_from"])
+    if value["last_provider_output_at"] is not None and (
+        not isinstance(value["last_provider_output_at"], str)
+        or len(value["last_provider_output_at"]) > 64
+    ):
+        raise RunError("agent run last_provider_output_at is invalid")
     return path, value
 
 
@@ -440,6 +460,7 @@ def _collection(record: dict) -> dict:
         "created_at": record["created_at"],
         "updated_at": record["updated_at"],
         "finished_at": record["finished_at"],
+        "last_provider_output_at": record["last_provider_output_at"],
         "session_capture": record["session_capture"],
         "resumed_from": record["resumed_from"],
         **{field: record[field] for field in ("goal", "role", "phase", "harness", "session")},
@@ -550,11 +571,12 @@ def _monitor(root: Path, run_id: str) -> None:
                     stopped = _terminate_group(child.pid, child)
                     child.wait()
                     reader.join(TERMINATION_GRACE_SECONDS)
-                    _apply_capture(current, capture)
+                    _apply_capture(current, capture, include_activity=True)
                     _finish(root, path, current, "cancelled" if stopped else "failed", child.returncode)
                     break
                 changed = _apply_capture(current, capture)
                 if time.monotonic() >= next_heartbeat:
+                    changed = _apply_capture(current, capture, include_activity=True) or changed
                     current["updated_at"] = _now()
                     changed = True
                     next_heartbeat = time.monotonic() + MONITOR_HEARTBEAT_SECONDS
@@ -566,7 +588,7 @@ def _monitor(root: Path, run_id: str) -> None:
                 stopped = _terminate_group(child.pid, child)
                 reader.join(TERMINATION_GRACE_SECONDS)
                 _, current = _record(root, directory)
-                _apply_capture(current, capture)
+                _apply_capture(current, capture, include_activity=True)
                 _finish(
                     root,
                     path,
@@ -619,6 +641,7 @@ def _start(
         "child_start": None,
         "exit_code": None,
         "finished_at": None,
+        "last_provider_output_at": None,
         "session_capture": "provided" if context["session"] is not None else "unavailable",
         "resumed_from": resumed_from,
         **context,
@@ -705,8 +728,30 @@ def _stop(root: Path, run_id: str) -> dict:
     return _collection(record)
 
 
-def _poll(root: Path, run_id: str) -> dict:
+def _poll_heartbeat(record: dict, elapsed: float) -> str:
+    """Format safe progress metadata without provider output."""
+    liveness = _liveness(record)
+    activity = record["last_provider_output_at"] or "none"
+    return (
+        f"waiting for agent run {record['run_id']}: elapsed={int(elapsed)}s "
+        f"status={record['status']} monitor_alive={liveness['monitor_alive']} "
+        f"agent_alive={liveness['agent_alive']} session_capture={record['session_capture']} "
+        f"last_provider_output_at={activity}"
+    )
+
+
+def _stderr_progress(message: str) -> None:
+    """Render one poll heartbeat without contaminating terminal JSON stdout."""
+    if sys.stderr.isatty():
+        print(f"\r\033[2K{message}", end="", file=sys.stderr, flush=True)
+    else:
+        print(message, file=sys.stderr, flush=True)
+
+
+def _poll(root: Path, run_id: str, progress: Callable[[str], None]) -> dict:
     """Wait for a detached run without affecting its process lifecycle."""
+    started_at = time.monotonic()
+    next_heartbeat = started_at + POLL_HEARTBEAT_SECONDS
     while True:
         _, _, record = _load(root, run_id)
         if record["status"] in TERMINAL:
@@ -721,6 +766,10 @@ def _poll(root: Path, run_id: str) -> dict:
             if _process_matches(record["monitor_pid"], record["monitor_start"]):
                 continue
             raise RunError("agent monitor is no longer running")
+        now = time.monotonic()
+        if now >= next_heartbeat:
+            progress(_poll_heartbeat(record, now - started_at))
+            next_heartbeat = now + POLL_HEARTBEAT_SECONDS
         time.sleep(POLL_INTERVAL_SECONDS)
 
 
@@ -730,6 +779,7 @@ def _active(root: Path, worktree_value: str) -> dict:
     return {
         "run_id": run_id,
         "status": record["status"],
+        "last_provider_output_at": record["last_provider_output_at"],
         "session_capture": record["session_capture"],
         "resumed_from": record["resumed_from"],
         **{field: record[field] for field in ("goal", "role", "phase", "harness", "session")},
@@ -775,6 +825,7 @@ def main(
     root: Path | None = None,
     output: Callable[[str], None] = print,
     error: Callable[[str], None] = print,
+    progress: Callable[[str], None] | None = None,
 ) -> int:
     """Start, resume, fetch, poll, or stop a generic detached agent run."""
     arguments = list(sys.argv[1:] if argv is None else argv)
@@ -802,7 +853,7 @@ def main(
             directory, _, record = _load(repository, _run_id(values[0]))
             result = _collection(record)
         elif action == "poll":
-            result = _poll(repository, _run_id(values[0]))
+            result = _poll(repository, _run_id(values[0]), progress or _stderr_progress)
         elif action == "active":
             result = _active(repository, values[0])
         else:

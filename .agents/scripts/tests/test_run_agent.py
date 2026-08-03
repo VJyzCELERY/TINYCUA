@@ -14,11 +14,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import run_agent
 
 
-def run(root: Path, *args: str) -> tuple[int, dict | None, str]:
+def run(
+    root: Path, *args: str, progress=None
+) -> tuple[int, dict | None, str]:
     """Run the generic runner against an isolated repository root."""
     output: list[str] = []
     errors: list[str] = []
-    code = run_agent.main(list(args), root=root, output=output.append, error=errors.append)
+    code = run_agent.main(
+        list(args), root=root, output=output.append, error=errors.append, progress=progress
+    )
     return code, json.loads(output[0]) if output else None, "\n".join(errors)
 
 
@@ -84,6 +88,51 @@ def test_fetch_never_returns_or_persists_provider_output(tmp_path):
     directory = tmp_path / ".agents/local/state/agent-runs" / started["run_id"]
     assert not (directory / "stdout.log").exists()
     assert not (directory / "stderr.log").exists()
+
+
+def test_runner_exposes_only_the_last_provider_output_timestamp(tmp_path):
+    provider_output = "private provider progress"
+    code, started, error = run(
+        tmp_path,
+        str(tmp_path),
+        "--",
+        sys.executable,
+        "-c",
+        f"print({provider_output!r})",
+    )
+
+    assert (code, error) == (0, "")
+    assert started is not None
+    result = wait_for_terminal(tmp_path, started["run_id"])
+    assert result["last_provider_output_at"] is not None
+    assert provider_output not in json.dumps(result)
+    state = tmp_path / ".agents/local/state/agent-runs" / started["run_id"] / "state.json"
+    assert provider_output not in state.read_text(encoding="utf-8")
+
+
+def test_poll_emits_safe_interval_heartbeats(tmp_path, monkeypatch):
+    monkeypatch.setattr(run_agent, "POLL_HEARTBEAT_SECONDS", 0.01)
+    provider_output = "private provider progress"
+    code, started, error = run(
+        tmp_path,
+        str(tmp_path),
+        "--",
+        sys.executable,
+        "-c",
+        f"import time; print({provider_output!r}); time.sleep(0.15)",
+    )
+
+    assert (code, error) == (0, "")
+    assert started is not None
+    heartbeats: list[str] = []
+    code, result, error = run(tmp_path, "poll", started["run_id"], progress=heartbeats.append)
+
+    assert (code, error) == (0, "")
+    assert result is not None
+    assert heartbeats
+    assert all("monitor_alive=" in heartbeat for heartbeat in heartbeats)
+    assert all("last_provider_output_at=" in heartbeat for heartbeat in heartbeats)
+    assert all(provider_output not in heartbeat for heartbeat in heartbeats)
 
 
 def test_poll_waits_for_terminal_result_and_clears_active_run(tmp_path):

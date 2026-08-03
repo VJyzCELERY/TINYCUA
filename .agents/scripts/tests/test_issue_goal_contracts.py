@@ -660,6 +660,8 @@ def test_goal_role_routing_is_goal_only_and_evidence_gated():
         "never use sleep plus repeated fetch",
         "monitor-loss error",
         "shell-tool timeout interrupts only the waiter",
+        "heartbeats to stderr every 30 seconds",
+        "terminal lifecycle JSON remains stdout-only",
         "validated `--goal`, `--role`, `--phase`, `--harness`, `--model`",
         "outstanding run ID",
         "native sibling delegation",

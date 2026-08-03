@@ -26,6 +26,8 @@ Role routing applies only inside `/goal`: Planner: planning, final Specs synchro
 
 After a terminal failed external run, inspect its lifecycle metadata. Only when `session_capture` is `captured` or `provided` may the selected provider guide form native resume argv; start the linked attempt with `uv run python .agents/scripts/run_agent.py resume <failed-run-id> -- <provider-resume-argv>`. The generic runner reuses the opaque session and context but never forms or validates provider-specific resume syntax. Missing or conflicting session metadata blocks recovery rather than starting a fresh session.
 
+While `poll` waits, it writes safe liveness heartbeats to stderr every 30 seconds. Its terminal lifecycle JSON remains stdout-only; heartbeats never include provider output.
+
 For `local:<lower-kebab-id>`, retain that exact target and its recorded worktree branch through local planning, implementation, commits, and baseline review; do not acquire, initialize, claim, trace, or dispatch it as `OWNER/REPO#NUMBER` before promotion.
 
 1. Local planning: resolve the Planner for `local:<lower-kebab-id>` and dispatch its configured native or external role path with `Read root AGENTS.md first, then run @.agents/commands/plan.md local:<lower-kebab-id> $2 --auto.`
