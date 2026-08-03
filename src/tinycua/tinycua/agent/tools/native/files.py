@@ -254,35 +254,16 @@ def _read_bounded_range(
     return result_str
 
 
-def _read_start_only(
-    lines: list[str],
-    trailing_newline: bool,
-    start: int,
-    total_lines: int,
-) -> str:
-    """Read from start to end of file. Subject to truncation."""
-    if start < 1:
-        return {"error": f"Invalid start line: {start}. Must be >= 1."}
-    if start > total_lines:
-        return {
-            "error": f"Start line {start} exceeds file length ({total_lines} lines). Range out of bounds."
-        }
-    result_str = "\n".join(lines[start - 1 :])
-    if trailing_newline:
-        result_str += "\n"
-    result_str += _detect_literal_newline_warning(result_str)
-    result_bytes = result_str.encode("utf-8")
-    if len(result_bytes) <= _FULL_FILE_TRUNCATION_BYTES:
-        return result_str
-    return _truncate_content(result_bytes, _FULL_FILE_TRUNCATION_BYTES, start)
-
-
-def _read_full_file(content: str) -> str:
-    """Read the entire file. Subject to truncation."""
-    content += _detect_literal_newline_warning(content)
-    if len(content.encode("utf-8")) <= _FULL_FILE_TRUNCATION_BYTES:
-        return content
-    return _truncate_content(content.encode("utf-8"), _FULL_FILE_TRUNCATION_BYTES)
+def _render_read_content(content: str, start_line: int = 1) -> tuple[str, bytes]:
+    """Render text for a read and return its untruncated bytes for coverage."""
+    rendered = content + _detect_literal_newline_warning(content)
+    rendered_bytes = rendered.encode("utf-8")
+    if len(rendered_bytes) <= _FULL_FILE_TRUNCATION_BYTES:
+        return rendered, rendered_bytes
+    return (
+        _truncate_content(rendered_bytes, _FULL_FILE_TRUNCATION_BYTES, start_line),
+        rendered_bytes,
+    )
 
 
 def _text_line_count(content: bytes) -> int:
@@ -292,6 +273,35 @@ def _text_line_count(content: bytes) -> int:
     if text.endswith("\n"):
         lines = lines[:-1]
     return len(lines)
+
+
+def _record_read_coverage(
+    resolved: Path,
+    raw_content: bytes,
+    total_lines: int,
+    content: str,
+    rendered_bytes: bytes,
+    start: int,
+) -> None:
+    """Record only file lines fully covered by the rendered read response."""
+    if len(rendered_bytes) <= _FULL_FILE_TRUNCATION_BYTES:
+        record_file_read(resolved, raw_content, total_lines, start, total_lines)
+        return
+    if len(content.encode("utf-8")) <= _FULL_FILE_TRUNCATION_BYTES:
+        return
+    prefix = rendered_bytes[:_FULL_FILE_TRUNCATION_BYTES]
+    prefix_text = prefix.decode("utf-8", errors="ignore")
+    complete_lines = prefix_text.count("\n")
+    if prefix_text and not prefix_text.endswith("\n"):
+        complete_lines -= 1
+    if complete_lines > 0:
+        record_file_read(
+            resolved,
+            raw_content,
+            total_lines,
+            start,
+            min(start + complete_lines - 1, total_lines),
+        )
 
 
 def _read_text_file(
@@ -322,37 +332,21 @@ def _read_text_file(
         untruncated = "\n".join(lines[start - 1 :])
         if trailing_newline:
             untruncated += "\n"
-        start_result = _read_start_only(lines, trailing_newline, start, total_lines)
-        if isinstance(start_result, str):
-            if len(untruncated.encode("utf-8")) <= _FULL_FILE_TRUNCATION_BYTES:
-                end = total_lines
-            else:
-                prefix = untruncated.encode("utf-8")[:_FULL_FILE_TRUNCATION_BYTES]
-                prefix_text = prefix.decode("utf-8", errors="ignore")
-                complete_lines = prefix_text.count("\n")
-                if prefix_text and not prefix_text.endswith("\n"):
-                    complete_lines -= 1
-                end = start + max(complete_lines, 0) - 1
-            if end >= start:
-                record_file_read(resolved, raw_content, total_lines, start, end)
+        if start < 1:
+            return {"error": f"Invalid start line: {start}. Must be >= 1."}
+        if start > total_lines:
+            return {
+                "error": f"Start line {start} exceeds file length ({total_lines} lines). Range out of bounds."
+            }
+        start_result, rendered_bytes = _render_read_content(untruncated, start)
+        _record_read_coverage(
+            resolved, raw_content, total_lines, untruncated, rendered_bytes, start
+        )
         return start_result
-    full_result = _read_full_file(content)
-    if len(content.encode("utf-8")) <= _FULL_FILE_TRUNCATION_BYTES:
-        record_file_read(resolved, raw_content, total_lines, 1, total_lines)
-    else:
-        prefix = content.encode("utf-8")[:_FULL_FILE_TRUNCATION_BYTES]
-        prefix_text = prefix.decode("utf-8", errors="ignore")
-        complete_lines = prefix_text.count("\n")
-        if prefix_text and not prefix_text.endswith("\n"):
-            complete_lines -= 1
-        if complete_lines > 0:
-            record_file_read(
-                resolved,
-                raw_content,
-                total_lines,
-                1,
-                min(complete_lines, total_lines),
-            )
+    full_result, rendered_bytes = _render_read_content(content)
+    _record_read_coverage(
+        resolved, raw_content, total_lines, content, rendered_bytes, 1
+    )
     return full_result
 
 
@@ -441,6 +435,7 @@ def write_file(
             "diff_preview": None,
             "error": f"Parent directory does not exist: {resolved.parent}",
         }
+    file_mode = "x"
     if resolved.exists():
         if not replace:
             return {
@@ -463,8 +458,10 @@ def write_file(
                 "diff_preview": None,
                 "error": authorization_error,
             }
+        file_mode = "w"
     try:
-        chars_written = resolved.write_text(content, encoding="utf-8")
+        with resolved.open(file_mode, encoding="utf-8") as output:
+            chars_written = output.write(content)
         encoded_content = content.encode("utf-8")
         record_file_result(resolved, encoded_content, _text_line_count(encoded_content))
         result: dict[str, Any] = {
@@ -892,7 +889,8 @@ def str_replace(
             }
         try:
             resolved.parent.mkdir(parents=True, exist_ok=True)
-            resolved.write_text(new_string, encoding="utf-8")
+            with resolved.open("x", encoding="utf-8") as output:
+                output.write(new_string)
             encoded_content = new_string.encode("utf-8")
             record_file_result(
                 resolved, encoded_content, _text_line_count(encoded_content)
@@ -1088,7 +1086,9 @@ def append_file(path: str, content: str) -> dict[str, Any]:
             combined = existing + content
         else:
             combined = content
-        resolved.write_text(combined, encoding="utf-8")
+        file_mode = "w" if existing_bytes is not None else "x"
+        with resolved.open(file_mode, encoding="utf-8") as output:
+            output.write(combined)
         encoded_content = combined.encode("utf-8")
         record_file_result(
             resolved, encoded_content, _text_line_count(encoded_content)
