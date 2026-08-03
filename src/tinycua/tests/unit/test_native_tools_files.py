@@ -102,6 +102,23 @@ def test_truncated_read_does_not_authorize_existing_mutation(tmp_path: Path) -> 
     assert path.read_text(encoding="utf-8").endswith("last line\n")
 
 
+def test_warning_truncation_does_not_authorize_existing_mutation(
+    tmp_path: Path,
+) -> None:
+    """A warning that causes truncation cannot authorize a mutation."""
+    path = tmp_path / "near-limit.txt"
+    path.write_text("x" * 102300 + r"\n", encoding="utf-8")
+    _bind_file_tools(tmp_path)
+
+    result = read_file(str(path))
+    assert isinstance(result, str)
+    assert "[Truncated:" in result
+
+    blocked = append_file(str(path), "must not be written\n")
+    assert blocked["success"] is False
+    assert path.read_text(encoding="utf-8") == "x" * 102300 + r"\n"
+
+
 def test_changed_revision_invalidates_read_authorization(tmp_path: Path) -> None:
     """Changing a file after a read invalidates its mutation authorization."""
     path = tmp_path / "stale.txt"
@@ -171,6 +188,40 @@ def test_successful_creates_authorize_follow_up_mutations(tmp_path: Path) -> Non
 
     assert str_replace(str(replace_path), "", "created\n")["success"] is True
     assert write_file(str(replace_path), "replaced\n", replace=True)["success"] is True
+
+
+@pytest.mark.parametrize("mutation", ["write", "replace", "append"])
+def test_creation_mutations_fail_if_file_appears_before_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str
+) -> None:
+    """Creation paths do not overwrite a file created after their existence check."""
+    _bind_file_tools(tmp_path)
+    path = tmp_path / f"{mutation}.txt"
+    original_exists = Path.exists
+    raced = False
+
+    def raced_exists(candidate: Path) -> bool:
+        nonlocal raced
+        if candidate == path and not raced:
+            raced = True
+            descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+            try:
+                os.write(descriptor, b"external")
+            finally:
+                os.close(descriptor)
+            return False
+        return original_exists(candidate)
+
+    monkeypatch.setattr(Path, "exists", raced_exists)
+    if mutation == "write":
+        result = write_file(str(path), "tool")
+    elif mutation == "replace":
+        result = str_replace(str(path), "", "tool")
+    else:
+        result = append_file(str(path), "tool")
+
+    assert result["success"] is False
+    assert path.read_text(encoding="utf-8") == "external"
 
 
 # --- read_file edge cases ---
