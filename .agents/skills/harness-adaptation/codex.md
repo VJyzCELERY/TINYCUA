@@ -19,6 +19,7 @@ codex exec \
   --model "$MODEL" \
   --config 'model_reasoning_effort="high"' \
   --sandbox workspace-write \
+  --json \
   "Implement the requested change."
 ```
 
@@ -51,7 +52,7 @@ Network access is separate from workspace writes and must be enabled only for an
 Resume a known session with shared options before `resume`:
 
 ```bash
-codex exec -C "$WORKTREE" -m "$MODEL" --sandbox workspace-write \
+codex exec -C "$WORKTREE" -m "$MODEL" --sandbox workspace-write --json \
   resume "$SESSION_ID" "Continue the approved task."
 ```
 
@@ -63,7 +64,7 @@ Verify the configured long-form model selector:
 
 ```bash
 uv run python .agents/scripts/goal_roles.py verify "$GOAL" "$ROLE" -- \
-  codex exec --cd "$WORKTREE" --model "$MODEL" --sandbox workspace-write "$PROMPT"
+  codex exec --cd "$WORKTREE" --model "$MODEL" --sandbox workspace-write --json "$PROMPT"
 ```
 
 Then wrap the exact Codex argv:
@@ -73,10 +74,10 @@ uv run python .agents/scripts/run_agent.py "$WORKTREE" \
   --goal "$GOAL" --role "$ROLE" --phase "$PHASE" \
   --harness codex --model "$MODEL" --session "$SESSION_ID" -- \
   codex exec --cd "$WORKTREE" --model "$MODEL" \
-    --config 'model_reasoning_effort="high"' --sandbox workspace-write "$PROMPT"
+    --config 'model_reasoning_effort="high"' --sandbox workspace-write --json "$PROMPT"
 ```
 
-Omit `--session` when starting a new session. `run_agent.py` launches exact argv without a shell and retains lifecycle metadata only; it does not parse Codex flags, output, or sessions, and does not grant authorization.
+Omit `--session` when starting a new session. `--json` lets `run_agent.py` retain only a validated Codex `thread.started.thread_id` while discarding every raw event. On a failed run with a captured session, use `run_agent.py resume <failed-run-id> --` with the exact `resume "$SESSION_ID"` argv above. The runner does not parse Codex flags. This does not grant authorization.
 
 ## References
 

@@ -693,9 +693,15 @@ def test_goal_role_routing_is_goal_only_and_evidence_gated():
 
 def test_provider_guides_document_native_unattended_role_execution():
     guides = {
-        "opencode.md": ("opencode run", "--auto", "--variant", "--session"),
-        "codex.md": ("codex exec", "--sandbox", "workspace-write", "resume"),
-        "claude-code.md": ("claude -p", "--permission-mode dontAsk", "--effort", "--resume"),
+        "opencode.md": ("opencode run", "--auto", "--variant", "--session", "--format json"),
+        "codex.md": ("codex exec", "--sandbox", "workspace-write", "resume", "--json"),
+        "claude-code.md": (
+            "claude -p",
+            "--permission-mode dontAsk",
+            "--effort",
+            "--resume",
+            "--output-format stream-json",
+        ),
     }
 
     for name, required in guides.items():

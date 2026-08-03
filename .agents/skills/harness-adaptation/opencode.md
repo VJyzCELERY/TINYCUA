@@ -19,6 +19,7 @@ opencode run \
   --dir "$WORKTREE" \
   --model "provider/model" \
   --variant high \
+  --format json \
   --auto \
   "Implement the requested change."
 ```
@@ -51,7 +52,7 @@ There is no documented `--reasoning` flag. Variant names vary by provider, model
 For an explicit resume:
 
 ```bash
-opencode run --session "$SESSION_ID" --model "provider/model" --dir "$WORKTREE" \
+opencode run --session "$SESSION_ID" --model "provider/model" --dir "$WORKTREE" --format json \
   "Continue the approved task."
 ```
 
@@ -65,7 +66,7 @@ First require exact configured-model binding:
 
 ```bash
 uv run python .agents/scripts/goal_roles.py verify "$GOAL" "$ROLE" -- \
-  opencode run --auto --dir "$WORKTREE" --model "$MODEL" "$PROMPT"
+  opencode run --auto --dir "$WORKTREE" --model "$MODEL" --format json "$PROMPT"
 ```
 
 Then pass that unchanged OpenCode argv to the generic wrapper:
@@ -74,10 +75,10 @@ Then pass that unchanged OpenCode argv to the generic wrapper:
 uv run python .agents/scripts/run_agent.py "$WORKTREE" \
   --goal "$GOAL" --role "$ROLE" --phase "$PHASE" \
   --harness opencode --model "$MODEL" --session "$SESSION_ID" -- \
-  opencode run --auto --dir "$WORKTREE" --model "$MODEL" "$PROMPT"
+  opencode run --auto --dir "$WORKTREE" --model "$MODEL" --format json "$PROMPT"
 ```
 
-Omit `--session` when starting a new session. `run_agent.py` sets the process working directory, starts the exact argv without a shell, and retains lifecycle metadata only. It does not parse OpenCode flags, output, or session events, and does not grant authorization.
+Omit `--session` when starting a new session. `--format json` lets `run_agent.py` retain only one validated OpenCode `sessionID` while discarding every raw event. On a failed run with a captured session, use `run_agent.py resume <failed-run-id> --` with the exact `--session` argv above. The runner does not parse OpenCode flags or grant authorization.
 
 ## References
 

@@ -183,6 +183,158 @@ def test_poll_reports_monitor_loss_without_stopping_agent(tmp_path):
         waiter.join(1)
 
 
+def test_runner_captures_a_structured_session_and_resumes_failed_run(tmp_path):
+    code, started, error = run(
+        tmp_path,
+        str(tmp_path),
+        "--harness",
+        "codex",
+        "--model",
+        "configured-model",
+        "--",
+        sys.executable,
+        "-c",
+        "import json; print(json.dumps({'type': 'thread.started', 'thread_id': 'thread-42'})); raise SystemExit(7)",
+    )
+
+    assert (code, error) == (0, "")
+    assert started is not None
+    code, failed, error = run(tmp_path, "poll", started["run_id"])
+    assert (code, error) == (0, "")
+    assert failed is not None
+    assert failed["status"] == "failed"
+    assert failed["session"] == "thread-42"
+    assert failed["session_capture"] == "captured"
+    assert "stdout" not in failed
+    assert "stderr" not in failed
+
+    code, resumed, error = run(
+        tmp_path,
+        "resume",
+        started["run_id"],
+        "--",
+        sys.executable,
+        "-c",
+        "pass",
+    )
+
+    assert (code, error) == (0, "")
+    assert resumed is not None
+    assert resumed["resumed_from"] == started["run_id"]
+    result = wait_for_terminal(tmp_path, resumed["run_id"])
+    assert result["status"] == "succeeded"
+    assert result["session"] == "thread-42"
+    assert result["session_capture"] == "provided"
+    assert result["resumed_from"] == started["run_id"]
+
+
+@pytest.mark.parametrize(
+    ("harness", "event", "session"),
+    (
+        ("opencode", {"type": "step_start", "sessionID": "opencode-42"}, "opencode-42"),
+        (
+            "claude",
+            {"type": "system", "subtype": "init", "session_id": "claude-42"},
+            "claude-42",
+        ),
+    ),
+)
+def test_runner_captures_supported_harness_session_event(tmp_path, harness, event, session):
+    command = f"import json; print({json.dumps(event)!r}); raise SystemExit(7)"
+    code, started, error = run(
+        tmp_path,
+        str(tmp_path),
+        "--harness",
+        harness,
+        "--model",
+        "configured-model",
+        "--",
+        sys.executable,
+        "-c",
+        command,
+    )
+
+    assert (code, error) == (0, "")
+    assert started is not None
+    code, failed, error = run(tmp_path, "poll", started["run_id"])
+    assert (code, error) == (0, "")
+    assert failed is not None
+    assert failed["session"] == session
+    assert failed["session_capture"] == "captured"
+
+
+def test_runner_does_not_wait_for_an_orphaned_stdout_writer(tmp_path):
+    marker = tmp_path / "orphan-pid"
+    code, started, error = run(
+        tmp_path,
+        str(tmp_path),
+        "--",
+        sys.executable,
+        "-c",
+        "import pathlib, subprocess, sys; "
+        "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(10)'], "
+        "start_new_session=True); pathlib.Path('orphan-pid').write_text(str(child.pid))",
+    )
+
+    assert (code, error) == (0, "")
+    assert started is not None
+    for _ in range(100):
+        if marker.exists():
+            break
+        time.sleep(0.01)
+    else:
+        pytest.fail("orphaned stdout writer did not start")
+    orphan_pid = int(marker.read_text(encoding="utf-8"))
+    polled: list[tuple[int, dict | None, str]] = []
+    waiter = threading.Thread(target=lambda: polled.append(run(tmp_path, "poll", started["run_id"])))
+    waiter.start()
+    try:
+        waiter.join(2)
+        assert not waiter.is_alive()
+        assert polled[0][0] == 0
+    finally:
+        try:
+            os.kill(orphan_pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        waiter.join(2)
+
+
+def test_runner_rejects_resume_after_conflicting_structured_sessions(tmp_path):
+    code, started, error = run(
+        tmp_path,
+        str(tmp_path),
+        "--harness",
+        "codex",
+        "--model",
+        "configured-model",
+        "--",
+        sys.executable,
+        "-c",
+        "import json; print(json.dumps({'type': 'thread.started', 'thread_id': 'thread-1'})); "
+        "print(json.dumps({'type': 'thread.started', 'thread_id': 'thread-2'})); raise SystemExit(7)",
+    )
+
+    assert (code, error) == (0, "")
+    assert started is not None
+    code, failed, error = run(tmp_path, "poll", started["run_id"])
+    assert (code, error) == (0, "")
+    assert failed is not None
+    assert failed["session"] is None
+    assert failed["session_capture"] == "conflicting"
+    code, resumed, error = run(
+        tmp_path,
+        "resume",
+        started["run_id"],
+        "--",
+        sys.executable,
+        "-c",
+        "pass",
+    )
+    assert (code, resumed) == (1, None)
+    assert "not resumable" in error
+
+
 def test_runner_retains_safe_goal_role_metadata_without_command_argv(tmp_path):
     code, started, error = run(
         tmp_path,

@@ -9,18 +9,25 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
+LEGACY_SCHEMA_VERSION = 2
 TERMINATION_GRACE_SECONDS = 1
 POLL_INTERVAL_SECONDS = 0.25
 MONITOR_HEARTBEAT_SECONDS = 1
+SESSION_CAPTURE_CHUNK_SIZE = 4096
+SESSION_CAPTURE_LINE_LIMIT = 8192
+STATE_READ_ATTEMPTS = 3
+STATE_READ_RETRY_SECONDS = 0.01
 ACTIVE = ("pending", "running", "stopping")
 TERMINAL = ("succeeded", "failed", "cancelled")
+SESSION_CAPTURE_STATES = ("unavailable", "captured", "provided", "conflicting")
 RUN_ID_RE = re.compile(r"[0-9a-f]{32}\Z")
 PRIVATE_DIRECTORY_MODE = 0o700
 PRIVATE_FILE_MODE = 0o600
@@ -106,6 +113,98 @@ def _context(value: dict[str, object]) -> dict[str, str | None]:
     return context
 
 
+class _SessionCapture:
+    """Extract one opaque session ID from supported structured provider output."""
+
+    def __init__(self, harness: str | None, session: str | None) -> None:
+        self._harness = harness
+        self._session = session
+        self._state = "provided" if session is not None else "unavailable"
+        self._buffer = bytearray()
+        self._discarding = False
+        self._lock = threading.Lock()
+
+    def _candidate(self, value: object) -> str | None:
+        if not isinstance(value, dict):
+            return None
+        candidate = None
+        if self._harness == "opencode":
+            candidate = value.get("sessionID")
+        elif self._harness == "codex" and value.get("type") == "thread.started":
+            candidate = value.get("thread_id")
+        elif self._harness == "claude" and (
+            (value.get("type") == "system" and value.get("subtype") == "init")
+            or value.get("type") == "result"
+        ):
+            candidate = value.get("session_id")
+        try:
+            return _context_value(candidate, "session")
+        except RunError:
+            return None
+
+    def _observe(self, line: bytes) -> None:
+        try:
+            candidate = self._candidate(json.loads(line.decode("utf-8")))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return
+        if candidate is None:
+            return
+        with self._lock:
+            if self._state == "conflicting":
+                return
+            if self._session is None:
+                self._session = candidate
+                self._state = "captured"
+            elif self._session != candidate:
+                self._session = None
+                self._state = "conflicting"
+
+    def feed(self, chunk: bytes) -> None:
+        """Consume output without retaining raw provider records."""
+        for part in chunk.splitlines(keepends=True):
+            if self._discarding:
+                if part.endswith(b"\n"):
+                    self._discarding = False
+                continue
+            if len(self._buffer) + len(part) > SESSION_CAPTURE_LINE_LIMIT:
+                self._buffer.clear()
+                self._discarding = not part.endswith(b"\n")
+                continue
+            self._buffer.extend(part)
+            if part.endswith(b"\n"):
+                self._observe(bytes(self._buffer).strip())
+                self._buffer.clear()
+
+    def finish(self) -> None:
+        """Process a final bounded record after the provider exits."""
+        if not self._discarding and self._buffer:
+            self._observe(bytes(self._buffer).strip())
+        self._buffer.clear()
+
+    def result(self) -> tuple[str | None, str]:
+        """Return the safe session value and capture state."""
+        with self._lock:
+            return self._session, self._state
+
+
+def _drain_stdout(stream: object, capture: _SessionCapture) -> None:
+    """Drain provider output while retaining only recognized session metadata."""
+    if stream is None or not hasattr(stream, "read"):
+        return
+    while chunk := stream.read(SESSION_CAPTURE_CHUNK_SIZE):
+        capture.feed(chunk)
+    capture.finish()
+
+
+def _apply_capture(record: dict, capture: _SessionCapture) -> bool:
+    session, state = capture.result()
+    if record["session"] == session and record["session_capture"] == state:
+        return False
+    record["session"] = session
+    record["session_capture"] = state
+    return True
+
+
 def _state_root(root: Path) -> Path:
     path = root / ".agents/local/state/agent-runs"
     _safe_path(root, path, "agent run directory")
@@ -152,7 +251,7 @@ def _active_record(root: Path, worktree: Path) -> tuple[Path, str, dict]:
     if (
         not isinstance(value, dict)
         or set(value) != {"schema_version", "run_id", "worktree"}
-        or value["schema_version"] != SCHEMA_VERSION
+        or value["schema_version"] not in {LEGACY_SCHEMA_VERSION, SCHEMA_VERSION}
         or isinstance(value["schema_version"], bool)
         or value["worktree"] != str(worktree)
     ):
@@ -257,22 +356,47 @@ def _liveness(record: dict) -> dict[str, bool]:
 def _record(root: Path, directory: Path) -> tuple[Path, dict]:
     path = directory / "state.json"
     _safe_path(root, path, "agent run state")
-    if path.is_symlink() or not path.is_file():
+    if path.is_symlink():
         raise RunError("agent run state is missing or unsafe")
-    path.chmod(PRIVATE_FILE_MODE)
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise RunError("agent run state is malformed") from exc
-    keys = {
+    value = None
+    for _ in range(STATE_READ_ATTEMPTS):
+        try:
+            if not path.is_file():
+                raise FileNotFoundError
+            path.chmod(PRIVATE_FILE_MODE)
+            value = json.loads(path.read_text(encoding="utf-8"))
+            break
+        except FileNotFoundError:
+            time.sleep(STATE_READ_RETRY_SECONDS)
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise RunError("agent run state is malformed") from exc
+    if value is None:
+        raise RunError("agent run state is missing or unsafe")
+    legacy_keys = {
         "schema_version", "run_id", "worktree", "created_at", "updated_at", "status",
         "monitor_pid", "monitor_start", "child_pid", "child_start", "exit_code",
         "finished_at", *CONTEXT_KEYS,
     }
-    if not isinstance(value, dict) or set(value) != keys:
+    keys = {"session_capture", "resumed_from", *legacy_keys}
+    if not isinstance(value, dict):
         raise RunError("agent run state has unknown or missing fields")
-    if value["schema_version"] != SCHEMA_VERSION or isinstance(value["schema_version"], bool):
+    schema_version = value.get("schema_version")
+    if isinstance(schema_version, bool) or schema_version not in {
+        LEGACY_SCHEMA_VERSION,
+        SCHEMA_VERSION,
+    }:
         raise RunError("agent run state schema_version is invalid")
+    if schema_version == LEGACY_SCHEMA_VERSION:
+        if set(value) != legacy_keys:
+            raise RunError("agent run state has unknown or missing fields")
+        value = {
+            **value,
+            "schema_version": SCHEMA_VERSION,
+            "session_capture": "provided" if value["session"] is not None else "unavailable",
+            "resumed_from": None,
+        }
+    elif set(value) != keys:
+        raise RunError("agent run state has unknown or missing fields")
     if value["run_id"] != directory.name or not RUN_ID_RE.fullmatch(value["run_id"]):
         raise RunError("agent run state run_id is invalid")
     _worktree(root, value["worktree"])
@@ -291,6 +415,14 @@ def _record(root: Path, directory: Path) -> tuple[Path, dict]:
     if value["status"] in TERMINAL and value["finished_at"] is None:
         raise RunError("terminal agent run is missing finished_at")
     _context({field: value[field] for field in CONTEXT_KEYS})
+    if value["session_capture"] not in SESSION_CAPTURE_STATES:
+        raise RunError("agent run session_capture is invalid")
+    if value["session_capture"] in {"captured", "provided"} and value["session"] is None:
+        raise RunError("agent run session_capture is invalid")
+    if value["session_capture"] in {"unavailable", "conflicting"} and value["session"] is not None:
+        raise RunError("agent run session_capture is invalid")
+    if value["resumed_from"] is not None:
+        _run_id(value["resumed_from"])
     return path, value
 
 
@@ -308,6 +440,8 @@ def _collection(record: dict) -> dict:
         "created_at": record["created_at"],
         "updated_at": record["updated_at"],
         "finished_at": record["finished_at"],
+        "session_capture": record["session_capture"],
+        "resumed_from": record["resumed_from"],
         **{field: record[field] for field in ("goal", "role", "phase", "harness", "session")},
         **_liveness(record),
     }
@@ -394,11 +528,16 @@ def _monitor(root: Path, run_id: str) -> None:
             command,
             cwd=worktree,
             stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             close_fds=True,
             start_new_session=True,
         ) as child:
+            capture = _SessionCapture(record["harness"], record["session"])
+            reader = threading.Thread(
+                target=_drain_stdout, args=(child.stdout, capture), daemon=True
+            )
+            reader.start()
             record["child_pid"] = child.pid
             record["child_start"] = _process_start(child.pid)
             record["status"] = "running"
@@ -410,17 +549,24 @@ def _monitor(root: Path, run_id: str) -> None:
                 if current["status"] == "stopping":
                     stopped = _terminate_group(child.pid, child)
                     child.wait()
+                    reader.join(TERMINATION_GRACE_SECONDS)
+                    _apply_capture(current, capture)
                     _finish(root, path, current, "cancelled" if stopped else "failed", child.returncode)
                     break
+                changed = _apply_capture(current, capture)
                 if time.monotonic() >= next_heartbeat:
                     current["updated_at"] = _now()
-                    _atomic_write(root, path, current)
+                    changed = True
                     next_heartbeat = time.monotonic() + MONITOR_HEARTBEAT_SECONDS
+                if changed:
+                    _atomic_write(root, path, current)
                 time.sleep(0.05)
             else:
                 code = child.wait()
                 stopped = _terminate_group(child.pid, child)
+                reader.join(TERMINATION_GRACE_SECONDS)
                 _, current = _record(root, directory)
+                _apply_capture(current, capture)
                 _finish(
                     root,
                     path,
@@ -446,10 +592,13 @@ def _start(
     worktree_value: str,
     command: list[str],
     context: dict[str, str | None],
+    resumed_from: str | None = None,
 ) -> dict:
     worktree = _worktree(root, worktree_value)
     if not command:
         raise RunError("agent argv is required after --")
+    if resumed_from is not None:
+        _run_id(resumed_from)
     run_id = uuid.uuid4().hex
     _reserve_active_run(root, worktree, run_id)
     try:
@@ -470,6 +619,8 @@ def _start(
         "child_start": None,
         "exit_code": None,
         "finished_at": None,
+        "session_capture": "provided" if context["session"] is not None else "unavailable",
+        "resumed_from": resumed_from,
         **context,
     }
     path = directory / "state.json"
@@ -494,7 +645,22 @@ def _start(
     except (OSError, RunError):
         _finish(root, path, record, "failed", 127)
         raise
-    return {"run_id": run_id, "status": "pending"}
+    result = {"run_id": run_id, "status": "pending"}
+    if resumed_from is not None:
+        result["resumed_from"] = resumed_from
+    return result
+
+
+def _resume(root: Path, source_run_id: str, command: list[str]) -> dict:
+    """Start a linked run with the failed run's validated session context."""
+    _, _, source = _load(root, source_run_id)
+    if source["status"] != "failed":
+        raise RunError("agent run is not resumable")
+    if source["session"] is None or source["session_capture"] not in {"captured", "provided"}:
+        raise RunError("agent run is not resumable")
+    _clear_active_run(root, source_run_id)
+    context = {field: source[field] for field in CONTEXT_KEYS}
+    return _start(root, source["worktree"], command, context, resumed_from=source_run_id)
 
 
 def _wait_for_terminal(root: Path, run_id: str) -> tuple[Path, dict]:
@@ -548,6 +714,12 @@ def _poll(root: Path, run_id: str) -> dict:
         if record["monitor_pid"] is not None and record["monitor_start"] is not None and not _process_matches(
             record["monitor_pid"], record["monitor_start"]
         ):
+            time.sleep(0.05)
+            _, _, record = _load(root, run_id)
+            if record["status"] in TERMINAL:
+                return _collection(record)
+            if _process_matches(record["monitor_pid"], record["monitor_start"]):
+                continue
             raise RunError("agent monitor is no longer running")
         time.sleep(POLL_INTERVAL_SECONDS)
 
@@ -558,6 +730,8 @@ def _active(root: Path, worktree_value: str) -> dict:
     return {
         "run_id": run_id,
         "status": record["status"],
+        "session_capture": record["session_capture"],
+        "resumed_from": record["resumed_from"],
         **{field: record[field] for field in ("goal", "role", "phase", "harness", "session")},
         **_liveness(record),
     }
@@ -581,7 +755,15 @@ def _start_arguments(argv: list[str]) -> tuple[str, list[str], dict[str, str | N
     return argv[0], argv[delimiter + 1 :], _context(context)
 
 
+def _resume_arguments(argv: list[str]) -> tuple[str, list[str]]:
+    if len(argv) < 3 or argv[1] != "--":
+        raise RunError("agent argv is required after --")
+    return _run_id(argv[0]), argv[2:]
+
+
 def _arguments(argv: list[str]) -> tuple[str, list[str]]:
+    if argv[:1] == ["resume"]:
+        return "resume", argv[1:]
     if len(argv) == 2 and argv[0] in {"fetch", "poll", "stop", "active", "_monitor"}:
         return argv[0], argv[1:]
     return "start", argv
@@ -594,7 +776,7 @@ def main(
     output: Callable[[str], None] = print,
     error: Callable[[str], None] = print,
 ) -> int:
-    """Start, fetch, poll, or stop a generic detached agent run."""
+    """Start, resume, fetch, poll, or stop a generic detached agent run."""
     arguments = list(sys.argv[1:] if argv is None else argv)
     try:
         if arguments[:1] == ["--root"] and len(arguments) >= 3:
@@ -613,6 +795,9 @@ def main(
         if action == "start":
             worktree, command, context = _start_arguments(values)
             result = _start(repository, worktree, command, context)
+        elif action == "resume":
+            source_run_id, command = _resume_arguments(values)
+            result = _resume(repository, source_run_id, command)
         elif action == "fetch":
             directory, _, record = _load(repository, _run_id(values[0]))
             result = _collection(record)

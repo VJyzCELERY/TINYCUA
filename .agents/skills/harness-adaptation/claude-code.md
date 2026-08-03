@@ -18,7 +18,7 @@ claude -p "Implement the requested change." \
   --model "$MODEL" \
   --effort high \
   --permission-mode dontAsk \
-  --output-format json
+  --output-format stream-json
 ```
 
 Claude Code has no top-level execution `--cwd`; the wrapper runs it in the validated worktree. `--add-dir` grants additional access but does not change that primary directory.
@@ -56,7 +56,7 @@ Resume a known session instead of `--continue`:
 
 ```bash
 claude -p "Continue the approved task." --resume "$SESSION_ID" \
-  --model "$MODEL" --permission-mode dontAsk --output-format json
+  --model "$MODEL" --permission-mode dontAsk --output-format stream-json
 ```
 
 ## Wrap the exact command
@@ -77,10 +77,10 @@ uv run python .agents/scripts/run_agent.py "$WORKTREE" \
   --goal "$GOAL" --role "$ROLE" --phase "$PHASE" \
   --harness claude --model "$MODEL" --session "$SESSION_ID" -- \
   claude -p "$PROMPT" --model "$MODEL" --effort high \
-    --permission-mode dontAsk --output-format json
+    --permission-mode dontAsk --output-format stream-json
 ```
 
-Omit `--session` when starting a new session. `run_agent.py` launches exact argv without a shell and retains lifecycle metadata only; it does not parse Claude flags, output, or session events, and does not grant authorization.
+Omit `--session` when starting a new session. `--output-format stream-json` lets `run_agent.py` retain only a validated Claude `system/init.session_id` while discarding every raw event. On a failed run with a captured session, use `run_agent.py resume <failed-run-id> --` with the exact `--resume "$SESSION_ID"` argv above. The runner does not parse Claude flags. This does not grant authorization.
 
 ## References
 
