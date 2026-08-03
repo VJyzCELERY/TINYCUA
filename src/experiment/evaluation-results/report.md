@@ -64,39 +64,21 @@ This anonymization reduces direct name bias, but the judge harness is still herm
 
 ## Judge Score Summary
 
-Task types are reported separately because coding correctness, research quality,
-and conversational quality are not commensurate.
+| Harness | Exp1 | Exp2 | Exp3 | Exp4 | Exp5 | Average |
+|---|---:|---:|---:|---:|---:|---:|
+| opencode | 4.8 | 3.2 | 4.4 | 2.0 | 3.6 | **3.60** |
+| tinycua | 4.8 | 4.6 | 3.2 | 1.8 | 3.2 | **3.52** |
+| hermes | 4.6 | 4.2 | 1.8 | 1.6 | 4.4 | **3.32** |
+| openclaw | 2.8 | 2.6 | 3.4 | 1.6 | 1.6 | **2.40** |
 
-### Conversation outcome
+Ranking by average score:
 
-| Harness | Exp1 |
-|---|---:|
-| opencode | 4.8 |
-| tinycua | 4.8 |
-| hermes | 4.6 |
-| openclaw | 2.8 |
+1. opencode — 3.60
+2. tinycua — 3.52
+3. hermes — 3.32
+4. openclaw — 2.40
 
-### Research outcomes
-
-| Harness | Exp2 | Exp5 |
-|---|---:|---:|
-| opencode | 3.2 | 3.6 |
-| tinycua | 4.6 | 3.2 |
-| hermes | 4.2 | 4.4 |
-| openclaw | 2.6 | 1.6 |
-
-### Coding outcomes
-
-| Harness | Exp3 | Exp4 |
-|---|---:|---:|
-| opencode | 4.4 | 2.0 |
-| tinycua | 3.2 | 1.8 |
-| hermes | 1.8 | 1.6 |
-| openclaw | 3.4 | 1.6 |
-
-TinyCUA tied opencode on the conversation task and led Experiment 2, while
-opencode led both historical code-artifact judgments. These task-specific
-results are not combined into an overall rank.
+TinyCUA tied opencode on Experiment 1 (both 4.8) and won Experiment 2 outright (4.6 vs 4.2 for hermes). opencode retained the top average on the strength of Experiment 3 (analog clock) and Experiment 4 (Notion-like app). openclaw dropped to last place, dragged down by a near-empty deliverable on Experiment 5 and weak correctness across the board.
 
 ## Per-Experiment Findings
 
@@ -156,9 +138,7 @@ This is also why TinyCUA is slow on a small language model. Keeping the task tre
 
 ### 4. Competitive quality
 
-TinyCUA tied opencode on Experiment 1 and beat both hermes and openclaw on
-Experiment 2. On the separate coding tasks, it did not beat opencode. No single
-cross-task average is reported.
+TinyCUA ranked second overall by average judge score (3.52), narrowly behind opencode (3.60). It tied opencode on Experiment 1 and beat both hermes and openclaw on Experiment 2. It stayed competitive across task categories even though it did not beat opencode on the two code-artifact tasks (Experiments 3 and 4).
 
 ### 5. Self-supervising behavior
 
@@ -186,12 +166,12 @@ TinyCUA was much slower than the other harnesses on non-trivial tasks.
 
 The full runtime comparison shows that TinyCUA was consistently slower than the other harnesses, especially on broad research/documentation tasks and on the complex app task.
 
-| Harness | Exp1 | Exp2 | Exp3 | Exp4 | Exp5 |
-|---|---:|---:|---:|---:|---:|
-| opencode | 1.5s | 42.9s | 70.9s | 254.0s | 85.4s |
-| hermes | 5.5s | 99.1s | 31.8s | 1170.0s | 106.1s |
-| openclaw | 7.1s | 145.9s | 86.3s | 639.6s | 110.8s |
-| tinycua | 5.4s | 1135.0s | 584.7s | 8394.9s | 3004.3s |
+| Harness | Exp1 | Exp2 | Exp3 | Exp4 | Exp5 | Average |
+|---|---:|---:|---:|---:|---:|---:|
+| opencode | 1.5s | 42.9s | 70.9s | 254.0s | 85.4s | 91.0s |
+| hermes | 5.5s | 99.1s | 31.8s | 1170.0s | 106.1s | 282.5s |
+| openclaw | 7.1s | 145.9s | 86.3s | 639.6s | 110.8s | 197.9s |
+| tinycua | 5.4s | 1135.0s | 584.7s | 8394.9s | 3004.3s | 2624.9s |
 
 Compared with the fastest non-TinyCUA harness per experiment, TinyCUA was about 3.6× slower on the greeting task, 11.5× slower on the LLM report task, 18.4× slower on the clock app, 33.1× slower on the Notion-like app, and 35.2× slower on the neural-network documentation task.
 
