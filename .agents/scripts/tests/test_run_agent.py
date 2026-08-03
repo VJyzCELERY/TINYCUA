@@ -4,6 +4,7 @@ import json
 import os
 import signal
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -83,6 +84,103 @@ def test_fetch_never_returns_or_persists_provider_output(tmp_path):
     directory = tmp_path / ".agents/local/state/agent-runs" / started["run_id"]
     assert not (directory / "stdout.log").exists()
     assert not (directory / "stderr.log").exists()
+
+
+def test_poll_waits_for_terminal_result_and_clears_active_run(tmp_path):
+    code, started, error = run(
+        tmp_path,
+        str(tmp_path),
+        "--",
+        sys.executable,
+        "-c",
+        "import time; time.sleep(0.1); raise SystemExit(7)",
+    )
+
+    assert (code, error) == (0, "")
+    assert started is not None
+    started_at = time.monotonic()
+    code, result, error = run(tmp_path, "poll", started["run_id"])
+
+    assert (code, error) == (0, "")
+    assert time.monotonic() - started_at >= 0.05
+    assert result is not None
+    assert result["status"] == "failed"
+    assert result["exit_code"] == 7
+    assert "stdout" not in result
+    assert "stderr" not in result
+    code, active, error = run(tmp_path, "active", str(tmp_path))
+    assert (code, active) == (1, None)
+    assert "no agent run" in error
+
+
+def test_fetch_reports_healthy_nested_agent_work(tmp_path):
+    code, started, error = run(
+        tmp_path,
+        str(tmp_path),
+        "--",
+        sys.executable,
+        "-c",
+        "import subprocess, sys; subprocess.run([sys.executable, '-c', "
+        "'import time; time.sleep(0.3)'], check=True)",
+    )
+
+    assert (code, error) == (0, "")
+    assert started is not None
+    for _ in range(100):
+        code, result, error = run(tmp_path, "fetch", started["run_id"])
+        assert (code, error) == (0, "")
+        assert result is not None
+        if result["status"] == "running":
+            assert result["monitor_alive"] is True
+            assert result["agent_alive"] is True
+            break
+        time.sleep(0.01)
+    else:
+        pytest.fail("nested agent work did not become healthy")
+
+    code, result, error = run(tmp_path, "poll", started["run_id"])
+    assert (code, error) == (0, "")
+    assert result is not None
+    assert result["status"] == "succeeded"
+
+
+def test_poll_reports_monitor_loss_without_stopping_agent(tmp_path):
+    code, started, error = run(
+        tmp_path,
+        str(tmp_path),
+        "--",
+        sys.executable,
+        "-c",
+        "import time; time.sleep(10)",
+    )
+
+    assert (code, error) == (0, "")
+    assert started is not None
+    state_path = tmp_path / ".agents/local/state/agent-runs" / started["run_id"] / "state.json"
+    for _ in range(100):
+        try:
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            time.sleep(0.01)
+            continue
+        if state["status"] == "running" and state["monitor_pid"] and state["child_pid"]:
+            break
+        time.sleep(0.01)
+    else:
+        pytest.fail("monitor and agent did not start")
+    os.kill(state["monitor_pid"], signal.SIGKILL)
+
+    polled: list[tuple[int, dict | None, str]] = []
+    waiter = threading.Thread(target=lambda: polled.append(run(tmp_path, "poll", started["run_id"])))
+    waiter.start()
+    try:
+        waiter.join(1)
+        assert not waiter.is_alive()
+        assert polled == [(1, None, "agent monitor is no longer running")]
+        assert run_agent._process_matches(state["child_pid"], state["child_start"])
+    finally:
+        run(tmp_path, "stop", started["run_id"])
+        waiter.join(1)
 
 
 def test_runner_retains_safe_goal_role_metadata_without_command_argv(tmp_path):

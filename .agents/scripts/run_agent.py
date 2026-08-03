@@ -17,6 +17,8 @@ from typing import Callable
 
 SCHEMA_VERSION = 2
 TERMINATION_GRACE_SECONDS = 1
+POLL_INTERVAL_SECONDS = 0.25
+MONITOR_HEARTBEAT_SECONDS = 1
 ACTIVE = ("pending", "running", "stopping")
 TERMINAL = ("succeeded", "failed", "cancelled")
 RUN_ID_RE = re.compile(r"[0-9a-f]{32}\Z")
@@ -244,6 +246,14 @@ def _process_matches(pid: object, start: object) -> bool:
         return False
 
 
+def _liveness(record: dict) -> dict[str, bool]:
+    """Return safe lifecycle diagnostics without exposing process identities."""
+    return {
+        "monitor_alive": _process_matches(record["monitor_pid"], record["monitor_start"]),
+        "agent_alive": _process_matches(record["child_pid"], record["child_start"]),
+    }
+
+
 def _record(root: Path, directory: Path) -> tuple[Path, dict]:
     path = directory / "state.json"
     _safe_path(root, path, "agent run state")
@@ -299,6 +309,7 @@ def _collection(record: dict) -> dict:
         "updated_at": record["updated_at"],
         "finished_at": record["finished_at"],
         **{field: record[field] for field in ("goal", "role", "phase", "harness", "session")},
+        **_liveness(record),
     }
 
 
@@ -362,11 +373,7 @@ def _terminate_group(pgid: int, child: subprocess.Popen | None = None) -> bool:
 
 
 def _monitor(root: Path, run_id: str) -> None:
-    directory, path, record = _load(root, run_id)
-    record["monitor_pid"] = os.getpid()
-    record["monitor_start"] = _process_start(os.getpid())
-    record["updated_at"] = _now()
-    _atomic_write(root, path, record)
+    directory, path, _ = _load(root, run_id)
     try:
         payload = sys.stdin.buffer.read(65537)
         if len(payload) > 65536:
@@ -397,6 +404,7 @@ def _monitor(root: Path, run_id: str) -> None:
             record["status"] = "running"
             record["updated_at"] = _now()
             _atomic_write(root, path, record)
+            next_heartbeat = time.monotonic() + MONITOR_HEARTBEAT_SECONDS
             while child.poll() is None:
                 _, current = _record(root, directory)
                 if current["status"] == "stopping":
@@ -404,6 +412,10 @@ def _monitor(root: Path, run_id: str) -> None:
                     child.wait()
                     _finish(root, path, current, "cancelled" if stopped else "failed", child.returncode)
                     break
+                if time.monotonic() >= next_heartbeat:
+                    current["updated_at"] = _now()
+                    _atomic_write(root, path, current)
+                    next_heartbeat = time.monotonic() + MONITOR_HEARTBEAT_SECONDS
                 time.sleep(0.05)
             else:
                 code = child.wait()
@@ -471,6 +483,10 @@ def _start(
             close_fds=True,
             start_new_session=True,
         )
+        record["monitor_pid"] = monitor.pid
+        record["monitor_start"] = _process_start(monitor.pid)
+        record["updated_at"] = _now()
+        _atomic_write(root, path, record)
         if monitor.stdin is None:
             raise RunError("agent monitor could not receive argv")
         monitor.stdin.write(json.dumps(command).encode("utf-8"))
@@ -523,6 +539,19 @@ def _stop(root: Path, run_id: str) -> dict:
     return _collection(record)
 
 
+def _poll(root: Path, run_id: str) -> dict:
+    """Wait for a detached run without affecting its process lifecycle."""
+    while True:
+        _, _, record = _load(root, run_id)
+        if record["status"] in TERMINAL:
+            return _collection(record)
+        if record["monitor_pid"] is not None and record["monitor_start"] is not None and not _process_matches(
+            record["monitor_pid"], record["monitor_start"]
+        ):
+            raise RunError("agent monitor is no longer running")
+        time.sleep(POLL_INTERVAL_SECONDS)
+
+
 def _active(root: Path, worktree_value: str) -> dict:
     worktree = _worktree(root, worktree_value)
     _, run_id, record = _active_record(root, worktree)
@@ -530,6 +559,7 @@ def _active(root: Path, worktree_value: str) -> dict:
         "run_id": run_id,
         "status": record["status"],
         **{field: record[field] for field in ("goal", "role", "phase", "harness", "session")},
+        **_liveness(record),
     }
 
 
@@ -552,7 +582,7 @@ def _start_arguments(argv: list[str]) -> tuple[str, list[str], dict[str, str | N
 
 
 def _arguments(argv: list[str]) -> tuple[str, list[str]]:
-    if len(argv) == 2 and argv[0] in {"fetch", "stop", "active", "_monitor"}:
+    if len(argv) == 2 and argv[0] in {"fetch", "poll", "stop", "active", "_monitor"}:
         return argv[0], argv[1:]
     return "start", argv
 
@@ -564,7 +594,7 @@ def main(
     output: Callable[[str], None] = print,
     error: Callable[[str], None] = print,
 ) -> int:
-    """Start, fetch, or stop a generic detached agent run."""
+    """Start, fetch, poll, or stop a generic detached agent run."""
     arguments = list(sys.argv[1:] if argv is None else argv)
     try:
         if arguments[:1] == ["--root"] and len(arguments) >= 3:
@@ -586,11 +616,13 @@ def main(
         elif action == "fetch":
             directory, _, record = _load(repository, _run_id(values[0]))
             result = _collection(record)
+        elif action == "poll":
+            result = _poll(repository, _run_id(values[0]))
         elif action == "active":
             result = _active(repository, values[0])
         else:
             result = _stop(repository, _run_id(values[0]))
-        if action in {"fetch", "stop"} and result["status"] in TERMINAL:
+        if action in {"fetch", "poll", "stop"} and result["status"] in TERMINAL:
             _clear_active_run(repository, _run_id(values[0]))
         output(json.dumps(result, sort_keys=True))
         return 0
