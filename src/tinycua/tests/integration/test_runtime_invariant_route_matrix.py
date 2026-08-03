@@ -360,6 +360,7 @@ class _RouteMatrixScript:
                             "arguments": (
                                 '{"decision":"approved",'
                                 '"rationale":"The scripted result is acceptable.",'
+                                '"review_summary":"The scripted result is acceptable.",'
                                 '"criterion_assessments":[{'
                                 '"criterion_id":"acceptance-1",'
                                 '"result":"judgment_only","evidence_ids":[],'

@@ -24,7 +24,7 @@ from tinycua.models.node_input import NodeInput
 from tinycua.models.session import Session
 from tinycua.models.session_context_entry import SessionContextEntry
 from tinycua.models.digested_information import DigestedInformation
-from tinycua.models.task import TaskStateStore, TaskStatus
+from tinycua.models.task import ReviewerDecision, TaskResult, TaskStateStore, TaskStatus
 from tinycua.tools.task_tools import TaskDecomposeTool
 from tinycua.tools.task_tools import TaskResultUpdateTool
 from tinycua.tools.task_tools import TaskReviewDecisionTool
@@ -280,8 +280,10 @@ def test_task_node_prompts_are_action_first_not_phase_essays() -> None:
 
     # Prompts stay action-first (call a tool, no essay answers). The limit
     # accommodates the exploration-guidance additions + sibling propagation
-    # guidance (FR-067/FR-069) while still rejecting phase-essay bloat.
-    assert all(len(prompt) < 950 for prompt in prompts)
+    # guidance (FR-067/FR-069) and the incremental-review/transient-revalidation
+    # contract sentence (cumulative-review-artifact-history) while still
+    # rejecting phase-essay bloat.
+    assert all(len(prompt) < 1120 for prompt in prompts)
     combined = "\n".join(prompts)
     assert "Phase 1" not in combined
     assert "four phases" not in combined
@@ -741,3 +743,195 @@ async def test_reusing_session_preserves_in_memory_context(tmp_path: Path) -> No
     assert session.todo == [{"content": "continue work", "status": "pending"}]
     assert session.task_store.root_task_id is not None
     assert session.input_context[-1]["content"] == "Continue."
+
+
+# ---------------------------------------------------------------------------
+# Common tool-boundary revision capture (local:cumulative-review-artifact-history)
+# ---------------------------------------------------------------------------
+
+
+async def test_tool_boundary_records_workspace_revisions(tmp_path: Path) -> None:
+    """Workspace writes at the shared boundary become content-addressed revisions."""
+    model = LanguageModel(
+        provider="openai-chat-completions",
+        model_name="local-model",
+        base_url="http://localhost:1234/v1",
+        api_key="test",
+    )
+    agent = create_tinycua_agent(
+        llm_model=model,
+        session_config=SessionConfig(workspace_dir=tmp_path),
+    )
+    agent.loop.root_session.task_store.create_task("Create app.py")
+    node = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    node.ensure_session(agent.loop.root_session)
+    messages, tools = agent.loop._prepare_node(node, agent.tools, None)
+    responses = [
+        {
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_write_file",
+                    "type": "function",
+                    "function": {
+                        "name": "write_file",
+                        "arguments": '{"path":"app.py","content":"print(\\"ok\\")"}',
+                    },
+                }
+            ],
+        },
+        {"content": "Action complete", "tool_calls": []},
+        {
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_result_update",
+                    "type": "function",
+                    "function": {
+                        "name": "task_result_update",
+                        "arguments": '{"content":"Created app.py","success":true}',
+                    },
+                }
+            ],
+        },
+    ]
+
+    async def call_llm(messages, tools, stream: bool = False):  # noqa: ANN001, ARG001
+        return responses.pop(0)
+
+    agent._call_llm = call_llm  # type: ignore[method-assign]
+
+    result, _, validation = await agent.loop._call_node_with_retry(
+        node,
+        agent,
+        messages,
+        tools,
+    )
+
+    assert validation.is_valid
+    artifact_store = agent.loop.root_session.artifact_store
+    assert artifact_store is not None
+    assert artifact_store.revision_count() == 1
+    revision = artifact_store.revisions()[0]
+    assert revision["provenance"]["tool_name"] == "write_file"
+    assert revision["changes"][0]["path"] == "app.py"
+    assert revision["changes"][0]["after"]["blob_id"] is not None
+    assert result.content == "Created app.py"
+
+
+async def test_tool_boundary_noop_creates_no_revision(tmp_path: Path) -> None:
+    """A tool that changes nothing creates no workspace revision."""
+    model = LanguageModel(
+        provider="openai-chat-completions",
+        model_name="local-model",
+        base_url="http://localhost:1234/v1",
+        api_key="test",
+    )
+    agent = create_tinycua_agent(
+        llm_model=model,
+        session_config=SessionConfig(workspace_dir=tmp_path),
+    )
+    agent.loop.root_session.task_store.create_task("Create app.py")
+    node = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    node.ensure_session(agent.loop.root_session)
+    messages, tools = agent.loop._prepare_node(node, agent.tools, None)
+    responses = [
+        {
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_shell",
+                    "type": "function",
+                    "function": {
+                        "name": "run_shell",
+                        "arguments": '{"command":"true"}',
+                    },
+                }
+            ],
+        },
+        {
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_write_file",
+                    "type": "function",
+                    "function": {
+                        "name": "write_file",
+                        "arguments": '{"path":"app.py","content":"print(\\"ok\\")"}',
+                    },
+                }
+            ],
+        },
+        {"content": "Action complete", "tool_calls": []},
+        {
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_result_update",
+                    "type": "function",
+                    "function": {
+                        "name": "task_result_update",
+                        "arguments": '{"content":"Created app.py","success":true}',
+                    },
+                }
+            ],
+        },
+    ]
+
+    async def call_llm(messages, tools, stream: bool = False):  # noqa: ANN001, ARG001
+        return responses.pop(0)
+
+    agent._call_llm = call_llm  # type: ignore[method-assign]
+
+    _, _, validation = await agent.loop._call_node_with_retry(
+        node,
+        agent,
+        messages,
+        tools,
+    )
+
+    assert validation.is_valid
+    artifact_store = agent.loop.root_session.artifact_store
+    assert artifact_store is not None
+    # run_shell `true` changed nothing; only write_file produced a revision.
+    assert artifact_store.revision_count() == 1
+    assert artifact_store.revisions()[0]["provenance"]["tool_name"] == "write_file"
+
+
+def test_model_visible_state_never_exposes_session_storage_path(tmp_path: Path) -> None:
+    """Prompts, tool outcomes, and task metadata omit the internal directory."""
+    workspace = tmp_path / "workspace"
+    session_store = tmp_path / "session-store"
+    workspace.mkdir()
+    agent = create_tinycua_agent(
+        session_config=SessionConfig(
+            workspace_dir=workspace,
+            session_dir=session_store,
+        )
+    )
+    store = agent.loop.root_session.task_store
+    root = store.create_task("Root")
+    first = store.create_task("First", parent_id=root.task_id)
+    store.record_result(first.task_id, TaskResult(content="result"))
+    store.record_reviewer_decision(
+        first.task_id,
+        ReviewerDecision.APPROVED,
+        rationale="ok",
+        metadata={"review_summary": "SUMMARY"},
+    )
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="result_reviewer",
+        config=create_node_config("result_reviewer"),
+    )
+    reviewer.ensure_session(agent.loop.root_session)
+
+    prompt = reviewer.build_continuation(agent.loop.root_session)
+
+    assert str(session_store.resolve()) not in prompt
+    assert str(session_store.resolve()) not in str(agent.loop.get_state_snapshot())

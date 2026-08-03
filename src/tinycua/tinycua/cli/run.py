@@ -9,6 +9,7 @@ import logging
 import sys
 import time
 import threading
+import uuid
 from collections.abc import Coroutine
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -100,14 +101,33 @@ def _prepare_run_workspace(
     save_artifacts: bool,
     prompt: str,
     timeout: int,
-) -> tuple[Path, Path | None, Path | None, Path | None] | int:
-    """Resolve workspace + artifact dirs. Returns (workspace, artifact_dir, log_path, transcript_path) or 1 on error."""
+) -> tuple[Path, Path | None, Path | None, Path | None, Path | None] | int:
+    """Resolve workspace + artifact + session dirs.
+
+    Returns ``(workspace, artifact_dir, log_path, transcript_path, session_dir)``
+    or 1 on error. The session directory is always resolved outside the
+    workspace so TinyCUA's internal history never lands inside agent-visible
+    state (FR-012); the CLI may report it to the operator, but it is never
+    added to model-visible payloads.
+    """
     workspace = Path(dir).expanduser().resolve()
     workspace.mkdir(parents=True, exist_ok=True)
 
     artifact_dir: Path | None = None
     log_path: Path | None = None
     transcript_path: Path | None = None
+    session_dir: Path | None = None
+
+    session_dir = workspace.parent / ".tinycua-sessions" / uuid.uuid4().hex
+    try:
+        session_dir.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        print(
+            f"Session storage directory not writable: {session_dir}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return 1
 
     if save_artifacts:
         artifact_dir = workspace / ".tinycua-artifacts"
@@ -129,7 +149,7 @@ def _prepare_run_workspace(
             log_path, "start", "info", {"prompt": prompt, "timeout": timeout}
         )
 
-    return workspace, artifact_dir, log_path, transcript_path
+    return workspace, artifact_dir, log_path, transcript_path, session_dir
 
 
 def _load_run_config(
@@ -236,6 +256,7 @@ def _build_run_agent(
     recovery_strategy: str = "standard",
     no_digest: bool = False,
     no_review: bool = False,
+    session_dir: Path | None = None,
 ) -> Agent | int:
     """Build the tinycua agent. Returns the agent or 1 on error."""
     try:
@@ -245,6 +266,7 @@ def _build_run_agent(
             session_config=SessionConfig(
                 workspace_dir=workspace,
                 artifact_dir=artifact_dir,
+                session_dir=session_dir,
                 worker_effort=worker_effort,
                 disable_tool_audit=no_tool_audit,
                 digest_enabled=not no_digest,
@@ -389,6 +411,7 @@ def run_command(
     replan_threshold: int | None = None,
     max_context: int | None = None,
     recovery_strategy: str = "standard",
+    session_dir: Path | None = None,
 ) -> int:
     """Execute the tinycua run command (always streaming).
 
@@ -427,6 +450,9 @@ def run_command(
             failures (FR-087..FR-093). "standard" (default) uses the existing
             tool-exposed retry + 15/10/3 recovery. "markdown_synthesis" adds
             one no-tools markdown continuation before standard recovery.
+        session_dir: Optional explicit system-owned session storage directory
+            (must be outside the workspace). When None, a per-run directory is
+            resolved beside the workspace.
 
     Returns:
         Exit code: 0 success, 1 error, 124 timeout.
@@ -444,7 +470,9 @@ def run_command(
     ws_result = _prepare_run_workspace(dir, save_artifacts, prompt, timeout)
     if isinstance(ws_result, int):
         return ws_result
-    workspace, artifact_dir, log_path, transcript_path = ws_result
+    workspace, artifact_dir, log_path, transcript_path, resolved_session_dir = ws_result
+    if session_dir is not None:
+        resolved_session_dir = session_dir.expanduser().resolve()
 
     config = _load_run_config(provider_url, api_key, model, provider_type, log_path)
     if isinstance(config, int):
@@ -468,6 +496,7 @@ def run_command(
         recovery_strategy=recovery_strategy,
         no_digest=no_digest,
         no_review=no_review,
+        session_dir=resolved_session_dir,
     )
     if isinstance(agent, int):
         return agent

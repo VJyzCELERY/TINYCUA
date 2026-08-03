@@ -101,6 +101,7 @@ class ScriptedAgentResponses:
                         "arguments": (
                             '{"decision":"approved",'
                             '"rationale":"Execution result is present.",'
+                            '"review_summary":"Execution result is present.",'
                             '"criterion_assessments":[{'
                             '"criterion_id":"acceptance-1",'
                             '"result":"judgment_only","evidence_ids":[],'

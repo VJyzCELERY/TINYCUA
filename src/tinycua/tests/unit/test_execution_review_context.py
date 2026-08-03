@@ -5,10 +5,14 @@ from __future__ import annotations
 import pytest
 
 from tinycua.config.node_config import create_node_config
+from tinycua.config.session_config import SessionConfig
+from tinycua.loops.reviewer_protocol import commit_staged_review
 from tinycua.loops.task_nodes import (
     TinyCUAResultReviewerNode,
     TinyCUATaskExecutorNode,
 )
+from tinycua.models.artifact_history import SessionArtifactStore
+from tinycua.models.review_protocol import cumulative_progress_entries
 from tinycua.models.session import Session
 from tinycua.models.task import ReviewerDecision, TaskResult, TaskStateStore
 from tinycua.tools.task_tools import TaskInspectTool, TaskReviewDecisionTool
@@ -174,10 +178,15 @@ def test_needs_revision_requires_an_actionable_open_finding() -> None:
     store.record_result(task.task_id, TaskResult(content="result", success=False))
     review = _review_tool(store)
 
-    rejected = review(decision="needs_revision", rationale="Something failed.")
+    rejected = review(
+        decision="needs_revision",
+        rationale="Something failed.",
+        review_summary="The result is incomplete.",
+    )
     accepted = review(
         decision="needs_revision",
         rationale="The exact file is missing.",
+        review_summary="A required file is missing.",
         new_findings=["Create the exact required file."],
     )
 
@@ -593,3 +602,239 @@ def test_postponed_journal_resumes_on_same_task_without_sibling_leakage() -> Non
     assert "TASK_A_EVENT_SUMMARY" not in resumed_prompt
     assert "TASK_A_OPEN_FINDING" in resumed_prompt
     assert "TASK_A_FULL_RATIONALE" in resumed_prompt
+
+
+# ---------------------------------------------------------------------------
+# Cumulative review context and artifact history (local:cumulative-review-artifact-history)
+# ---------------------------------------------------------------------------
+
+
+def test_cumulative_progress_entries_stay_goal_ordered_and_immutable() -> None:
+    """Prior committed reviews survive later reviews in goal order."""
+    store = TaskStateStore()
+    root = store.create_task("Root")
+    first = store.create_task("First", parent_id=root.task_id)
+    second = store.create_task("Second", parent_id=root.task_id)
+    store.record_result(first.task_id, TaskResult(content="first report"))
+    store.record_reviewer_decision(
+        first.task_id,
+        ReviewerDecision.APPROVED,
+        rationale="ok",
+        metadata={"review_summary": "FIRST APPROVED SUMMARY"},
+    )
+    store.record_result(second.task_id, TaskResult(content="second report"))
+    store.record_reviewer_decision(
+        second.task_id,
+        ReviewerDecision.NEEDS_REVISION,
+        rationale="fix",
+        metadata={
+            "review_summary": "SECOND REVISION SUMMARY",
+            "new_findings": ["fix it"],
+        },
+    )
+
+    entries = cumulative_progress_entries(store)
+
+    assert [entry["task_id"] for entry in entries] == [first.task_id, second.task_id]
+    assert [entry["review_summary"] for entry in entries] == [
+        "FIRST APPROVED SUMMARY",
+        "SECOND REVISION SUMMARY",
+    ]
+    assert [entry["decision"] for entry in entries] == ["approved", "needs_revision"]
+    assert all(entry["event_id"].startswith("review-") for entry in entries)
+
+
+def test_replan_retains_prior_progression() -> None:
+    """Replanning does not discard the reviews that triggered it."""
+    store = TaskStateStore()
+    root = store.create_task("Root")
+    task = store.create_task("Stuck", parent_id=root.task_id)
+    store.record_result(task.task_id, TaskResult(content="attempt", success=False))
+    for number in range(3):
+        store.record_reviewer_decision(
+            task.task_id,
+            ReviewerDecision.NEEDS_REVISION,
+            rationale=f"fix {number}",
+            metadata={
+                "review_summary": f"SUMMARY {number}",
+                "new_findings": [f"finding {number}"],
+            },
+        )
+    before = [entry["review_summary"] for entry in cumulative_progress_entries(store)]
+    assert before == ["SUMMARY 0", "SUMMARY 1", "SUMMARY 2"]
+
+    # FR-049 replan boundary is inserted directly into the audit trail; the
+    # derived progression must keep the reviews that triggered the replan.
+    task.reviewer_decisions.append(
+        {"decision": "replan_boundary", "rationale": "auto replan", "metadata": {}}
+    )
+    after = [entry["review_summary"] for entry in cumulative_progress_entries(store)]
+
+    assert after == before
+
+
+def test_committed_verdict_anchors_exact_result_and_artifact_range() -> None:
+    """A committed verdict identifies the exact result hash and revision range."""
+    store = TaskStateStore()
+    task = store.create_task("Write report")
+    store.record_result(task.task_id, TaskResult(content="exact report content"))
+    review = _review_tool(store)
+
+    review(decision="approved", review_summary="Looks good", rationale="verified")
+    staged = store._staged_reviewer_decisions[task.task_id]
+    staged["metadata"]["runtime_result_revision"] = {
+        "revision_id": "result-abc123",
+        "content_hash": "deadbeef",
+        "artifact_range": {"from": "rev-1", "to": "rev-2"},
+    }
+    store.commit_staged_reviewer_decision(task.task_id)
+
+    event = task.reviewer_decisions[-1]
+    assert event["result_revision"] == {
+        "revision_id": "result-abc123",
+        "content_hash": "deadbeef",
+        "artifact_range": {"from": "rev-1", "to": "rev-2"},
+    }
+    assert task.result_revisions == [
+        {"revision_id": "result-abc123", "content_hash": "deadbeef"}
+    ]
+
+
+def test_review_rejects_invalid_runtime_anchor_shape() -> None:
+    """Runtime-owned provenance fields are validated at commit time."""
+    store = TaskStateStore()
+    task = store.create_task("Write report")
+    store.record_result(task.task_id, TaskResult(content="report"))
+    review = _review_tool(store)
+
+    review(decision="approved", review_summary="ok", rationale="fine")
+    staged = store._staged_reviewer_decisions[task.task_id]
+    staged["metadata"]["runtime_result_revision"] = {
+        "revision_id": "",
+        "content_hash": "",
+        "artifact_range": {},
+    }
+
+    with pytest.raises(ValueError, match="Runtime"):
+        store.commit_staged_reviewer_decision(task.task_id)
+
+
+def test_review_checkpoint_advances_atomically_with_committed_verdict(
+    tmp_path,
+) -> None:
+    """Failed or abandoned attempts never advance the review checkpoint."""
+    session = Session()
+    session.session_config = SessionConfig(workspace_dir=tmp_path)
+    store = session.task_store
+    artifact_store = SessionArtifactStore(workspace_dir=tmp_path)
+    root = store.create_task("Root")
+    first = store.create_task("Write report", parent_id=root.task_id)
+    artifact_store.begin_capture()
+    (tmp_path / "report.md").write_text("v1")
+    artifact_store.finish_capture(
+        {"tool_name": "write_file", "call_id": "c1", "success": True}
+    )
+    store.record_result(first.task_id, TaskResult(content="report v1"))
+    review = _review_tool(store)
+
+    # Abandoned attempt: staged but never committed → checkpoint unchanged.
+    review(decision="approved", review_summary="draft", rationale="not final")
+    assert artifact_store.checkpoint() is None
+
+    # Committed approval advances the checkpoint to the latest revision.
+    review(decision="approved", review_summary="Verified", rationale="checked")
+    commit_staged_review(store, artifact_store, first.task_id)
+
+    checkpoint = artifact_store.checkpoint()
+    assert checkpoint is not None
+    assert checkpoint["revision_id"] == artifact_store.latest_revision_id()
+    assert checkpoint["task_id"] == first.task_id
+    event = first.reviewer_decisions[-1]
+    assert event["result_revision"]["artifact_range"]["to"] == (
+        artifact_store.latest_revision_id()
+    )
+
+    # A committed needs_revision does not advance the checkpoint.
+    second = store.create_task("Update report", parent_id=root.task_id)
+    artifact_store.begin_capture()
+    (tmp_path / "report.md").write_text("v2")
+    artifact_store.finish_capture(
+        {"tool_name": "str_replace", "call_id": "c2", "success": True}
+    )
+    store.record_result(second.task_id, TaskResult(content="report v2"))
+    review(
+        decision="needs_revision",
+        review_summary="more",
+        rationale="fix",
+        new_findings=["more work"],
+    )
+    commit_staged_review(store, artifact_store, second.task_id)
+
+    assert artifact_store.checkpoint()["revision_id"] == checkpoint["revision_id"]
+
+
+def test_reviewer_receives_cumulative_checkpoint_diff_without_raw_paths(
+    tmp_path,
+) -> None:
+    """The next Reviewer sees only the changed paths since the last checkpoint."""
+    session = Session()
+    session.session_config = SessionConfig(workspace_dir=tmp_path)
+    store = session.task_store
+    artifact_store = SessionArtifactStore(workspace_dir=tmp_path)
+    session.artifact_store = artifact_store
+    root = store.create_task("Root")
+    first = store.create_task("Write report", parent_id=root.task_id)
+    artifact_store.begin_capture()
+    (tmp_path / "report.md").write_text("v1")
+    artifact_store.finish_capture(
+        {"tool_name": "write_file", "call_id": "c1", "success": True}
+    )
+    store.record_result(first.task_id, TaskResult(content="report v1"))
+    review = _review_tool(store)
+    review(decision="approved", review_summary="ok", rationale="fine")
+    commit_staged_review(store, artifact_store, first.task_id)
+
+    second = store.create_task("Update report", parent_id=root.task_id)
+    artifact_store.begin_capture()
+    (tmp_path / "report.md").write_text("v2 with benchmarks")
+    artifact_store.finish_capture(
+        {"tool_name": "str_replace", "call_id": "c2", "success": True}
+    )
+    store.record_result(second.task_id, TaskResult(content="report v2"))
+    reviewer = TinyCUAResultReviewerNode(
+        "result_reviewer", create_node_config("result_reviewer")
+    )
+    reviewer.ensure_session(session)
+
+    prompt = reviewer.build_continuation(session)
+
+    assert "Artifacts changed since last review checkpoint" in prompt
+    assert "report.md" in prompt
+    assert "rev-" in prompt
+    assert str(tmp_path.resolve()) not in prompt
+
+
+def test_incomplete_audit_blocks_review_approval(tmp_path) -> None:
+    """Post-mutation persistence failure blocks approval until surfaced."""
+    from tinycua.config.session_config import SessionConfig
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    session = Session()
+    session.session_config = SessionConfig(workspace_dir=workspace)
+    store = session.task_store
+    blocker = tmp_path / "session-store"
+    blocker.write_text("not a directory")
+    artifact_store = SessionArtifactStore(workspace_dir=workspace, session_dir=blocker)
+    task = store.create_task("Write report")
+    (workspace / "report.md").write_text("v1")
+    artifact_store.begin_capture()
+    artifact_store.finish_capture(
+        {"tool_name": "write_file", "call_id": "c1", "success": True}
+    )
+    store.record_result(task.task_id, TaskResult(content="report"))
+    review = _review_tool(store)
+    review(decision="approved", review_summary="ok", rationale="fine")
+
+    with pytest.raises(ValueError, match="incomplete"):
+        commit_staged_review(store, artifact_store, task.task_id)

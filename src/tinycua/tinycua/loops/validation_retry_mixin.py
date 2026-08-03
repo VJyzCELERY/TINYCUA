@@ -20,6 +20,7 @@ from tinycua.loops.node_contract import (
     TERMINATED_NODE_IDS,
 )
 from tinycua.loops.node_guidance import failed_tool_retry_message
+from tinycua.loops.reviewer_protocol import commit_staged_review
 from tinycua.loops.route_classifier import RouteClassifier
 from tinycua.models.node_handoff import NodeHandoff
 
@@ -490,8 +491,10 @@ class ValidationRetryMixin:
             staged = self.root_session.task_store._staged_reviewer_decisions
             if active_id in staged:
                 try:
-                    self.root_session.task_store.commit_staged_reviewer_decision(
-                        active_id
+                    commit_staged_review(
+                        self.root_session.task_store,
+                        getattr(self.root_session, "artifact_store", None),
+                        active_id,
                     )
                 except ValueError as exc:
                     validation.is_valid = False

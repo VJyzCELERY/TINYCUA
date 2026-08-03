@@ -68,7 +68,9 @@ _RESULT_REVIEWER_INSTRUCTION = (
     "hallucinated claims. Reuse or reopen an existing "
     "finding for the same defect. Record a concise review_summary, full rationale, and findings "
     "in the decision tool. Do not write a long explanation outside it; do not approve unfinished "
-    "tasks or OPEN findings. Pass cross-task facts only through context_updates."
+    "tasks or OPEN findings. Pass cross-task facts only through context_updates. Review "
+    "incrementally: verify the changed state since the last review checkpoint; a transient "
+    "retrieval failure for unchanged evidence is failed revalidation, not invalidity."
 )
 _RESULT_REVIEWER_CONTINUATION = (
     "Judge only the active task description and result. Root acceptance criteria are "
@@ -109,7 +111,11 @@ def build_reviewer_tool_guidance(resolved_tools: list[Any] | None) -> str:
             "Commit the review with task_review_decision, including review_summary, "
             "new_findings, finding_updates, and root criterion assessments. Cite only "
             "actual current-review observations for empirical support. Use "
-            "context_updates only for explicit cross-task facts."
+            "context_updates only for explicit cross-task facts. Incremental review: "
+            "verify the cumulative changed artifacts since the last review checkpoint "
+            "and reuse previously accepted unchanged evidence; a transient retrieval "
+            "failure is failed revalidation, not invalidity. Root review remains a "
+            "full final falsification of every acceptance criterion."
         )
     if "terminate" in names:
         lines.append("Call terminate now.")

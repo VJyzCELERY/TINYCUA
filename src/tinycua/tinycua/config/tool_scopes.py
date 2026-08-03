@@ -18,6 +18,7 @@ from tinycua.tools.handoff_tools import TaskAssessmentDecisionTool
 from tinycua.tools.query_context_summary import QueryContextSummaryTool
 from tinycua.tools.routing import QueryRouteSelectionTool, WorkerRouteSelectionTool
 from tinycua.tools.task_tools import (
+    ArtifactInspectTool,
     TaskCreateTool,
     TaskDecomposeTool,
     TaskInitTool,
@@ -211,7 +212,12 @@ def result_reviewer_tool_scope() -> NodeToolPolicy:
         NodeToolPolicy for ResultReviewerNode.
     """
     return NodeToolPolicy(
-        node_tools=[TaskReviewPlanTool(), TaskReviewDecisionTool(), TaskInspectTool()],
+        node_tools=[
+            TaskReviewPlanTool(),
+            TaskReviewDecisionTool(),
+            TaskInspectTool(),
+            ArtifactInspectTool(),
+        ],
         include_agent_tools="selected",
         allowed_agent_tool_names=DRAFT_AGENT_TOOLS,
     )

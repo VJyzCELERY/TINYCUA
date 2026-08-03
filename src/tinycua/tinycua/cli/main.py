@@ -184,6 +184,16 @@ def _add_run_arguments(parser: argparse.ArgumentParser) -> None:
         "markdown continuation to synthesize the missing state tool before "
         "falling back to standard recovery.",
     )
+    parser.add_argument(
+        "--session-dir",
+        dest="session_dir",
+        type=Path,
+        default=None,
+        help="System-owned session storage directory for internal history "
+        "(workspace revisions, result revisions, review checkpoints). Must be "
+        "outside the workspace; never shown to the model. Default: a "
+        "per-run directory beside the workspace.",
+    )
 
 
 def _normalise_run_args(args: argparse.Namespace) -> None:
@@ -280,6 +290,7 @@ def main() -> None:
             replan_threshold=args.replan_threshold,
             max_context=args.max_context,
             recovery_strategy=args.recovery_strategy,
+            session_dir=args.session_dir,
         )
         raise SystemExit(exit_code)
 

@@ -1037,6 +1037,7 @@ async def test_commit_retries_until_reviewer_decision_then_auto_completes() -> N
                     '{"task_id":"' + task.task_id + '",'
                     '"decision":"needs_revision",'
                     '"rationale":"[finding]: retry [validate]: rerun",'
+                    '"review_summary":"The validation must be rerun.",'
                     '"new_findings":["Retry and rerun validation."]}'
                 ),
             }
@@ -1058,7 +1059,7 @@ async def test_commit_retries_until_reviewer_decision_then_auto_completes() -> N
         pass
 
     assert commit_calls == 2
-    assert tool_sets[0] == {"task_inspect"}
+    assert tool_sets[0] == {"task_inspect", "artifact_inspect"}
     assert tool_sets[1] == {
         "task_review_decision",
         "json_draft_create",

@@ -50,6 +50,39 @@ def test_prepare_result_dirs_creates_agent_paths(tmp_path: Path) -> None:
         assert path["logs"].is_dir()
 
 
+def test_prepare_result_dirs_creates_sibling_system_artifact_dir(
+    tmp_path: Path,
+) -> None:
+    """TinyCUA audit state mounts beside, never inside, the judged workdir."""
+    paths = prepare_result_dirs(tmp_path, 2, overwrite=False)
+
+    tinycua = paths["tinycua"]
+    system_artifacts = tinycua["system_artifacts"]
+    assert (
+        system_artifacts == tmp_path / "tinycua" / "experiment-2" / "system-artifacts"
+    )
+    assert system_artifacts.is_dir()
+    # The system-artifact directory is a sibling of the judged workdir.
+    assert system_artifacts.parent == tinycua["workdir"].parent
+    assert system_artifacts != tinycua["workdir"]
+    assert not system_artifacts.is_relative_to(tinycua["workdir"])
+
+
+def test_sanitize_workdir_does_not_touch_sibling_system_artifacts(
+    tmp_path: Path,
+) -> None:
+    """Judging cleans the workdir without consuming external audit state."""
+    paths = prepare_result_dirs(tmp_path, 2, overwrite=False)
+    system_artifacts = paths["tinycua"]["system_artifacts"]
+    marker = system_artifacts / "revisions.jsonl"
+    marker.write_text("{}")
+
+    sanitize_workdir("tinycua", paths["tinycua"]["workdir"])
+
+    assert marker.exists()
+    assert not (paths["tinycua"]["workdir"] / "system-artifacts").exists()
+
+
 def test_prepare_result_dirs_can_select_agents(tmp_path: Path) -> None:
     """A rerun can isolate one harness without touching other outputs."""
     existing = tmp_path / "opencode" / "experiment-2"
@@ -176,7 +209,13 @@ def test_build_permission_repair_command_uses_host_ids(tmp_path: Path) -> None:
     """Permission repair runs as root in a helper container but restores host IDs."""
     command = build_permission_repair_command(tmp_path, uid=1000, gid=1001)
 
-    assert command[:5] == ["docker", "run", "--rm", "-v", f"{tmp_path.resolve()}:/result"]
+    assert command[:5] == [
+        "docker",
+        "run",
+        "--rm",
+        "-v",
+        f"{tmp_path.resolve()}:/result",
+    ]
     assert "chown -R 1000:1001 /result" in command[-1]
     assert "chmod -R u+rwX,go+rX /result" in command[-1]
 
@@ -206,8 +245,14 @@ def test_format_reasoning_event_truncates() -> None:
 
 def test_format_step_events() -> None:
     """step_start/step_finish show minimal markers."""
-    assert _format_stream_line(json.dumps({"type": "step_start", "part": {}})) == "  > step\n"
-    assert _format_stream_line(json.dumps({"type": "step_finish", "part": {}})) == "  < step done\n"
+    assert (
+        _format_stream_line(json.dumps({"type": "step_start", "part": {}}))
+        == "  > step\n"
+    )
+    assert (
+        _format_stream_line(json.dumps({"type": "step_finish", "part": {}}))
+        == "  < step done\n"
+    )
 
 
 def test_format_unknown_event_shows_label() -> None:

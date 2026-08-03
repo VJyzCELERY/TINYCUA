@@ -146,7 +146,9 @@ async def test_managed_draft_replaces_model_file_path(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_reviewer_exposes_managed_editors_only_after_draft(tmp_path: Path) -> None:
+async def test_reviewer_exposes_managed_editors_only_after_draft(
+    tmp_path: Path,
+) -> None:
     """Reviewer draft aliases omit paths and commit their JSON as a decision."""
     config = SessionConfig(workspace_dir=tmp_path)
     loop = TinyCUALoop(
@@ -226,7 +228,11 @@ async def test_reviewer_exposes_managed_editors_only_after_draft(tmp_path: Path)
                     "name": "json_draft_write",
                     "arguments": {
                         "content": json.dumps(
-                            {"decision": "approved", "rationale": "Verified."}
+                            {
+                                "decision": "approved",
+                                "rationale": "Verified.",
+                                "review_summary": "Verified.",
+                            }
                         )
                     },
                 }

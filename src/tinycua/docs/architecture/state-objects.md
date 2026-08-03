@@ -308,3 +308,21 @@ agent_state:
 Clarification is not a terminal state. The agent state distinguishes between pausing for user input (`blocked`) and completing work (`terminated`). Human-in-the-loop replies always continue through the existing agent session/context that asked the question.
 
 The failure counter aggregates failures from child sessions (parent.failure += child.failure), not just consecutive failures in a single node.
+
+
+### State objects (cumulative review context)
+
+- **Progress entry**: immutable, goal-ordered reference to one committed review
+  (task, decision, event, review summary, exact result content hash, and reviewed
+  artifact revision range). Derived by ``cumulative_progress_entries`` from the
+  global transition log; never a second mutable summary.
+- **Task result revision**: content-addressed snapshot of the reviewed report;
+  retained on the task (``result_revisions``) and in the session artifact store.
+- **Workspace revision**: one content-addressed before/after change set associated
+  with a tool call (sequence, parent, provenance, tree hash, per-path hashes,
+  sizes, and optional blob ids).
+- **Review checkpoint**: last workspace revision included in a committed approval,
+  advanced atomically with the verdict.
+- **Session artifact store**: system-owned storage (outside the workspace) for
+  manifests, blobs, result revisions, and the checkpoint; returns opaque
+  identifiers only.

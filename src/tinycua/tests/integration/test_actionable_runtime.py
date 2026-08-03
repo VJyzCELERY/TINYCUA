@@ -212,7 +212,7 @@ class AppCreationScript:
                     {
                         "function": {
                             "name": "task_review_decision",
-                            "arguments": '{"decision":"approved","rationale":"[validated]: run_shell python app.py \\u2192 stdout=hello app"}',
+                            "arguments": '{"decision":"approved","rationale":"[validated]: run_shell python app.py \\u2192 stdout=hello app","review_summary":"App runs and prints hello."}',
                         }
                     },
                     {

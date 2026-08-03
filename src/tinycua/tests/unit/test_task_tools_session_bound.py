@@ -423,13 +423,18 @@ def test_review_tool_stages_corrections_until_reviewer_termination() -> None:
     task_id = init("Root")["task_id"]
     store.record_result(task_id, TaskResult(content="evidence"))
     assert (
-        review(decision="approved", rationale="The result is acceptable.")["staged"]
+        review(
+            decision="approved",
+            rationale="The result is acceptable.",
+            review_summary="The result is acceptable.",
+        )["staged"]
         is True
     )
     assert (
         review(
             decision="needs_revision",
             rationale="The report has a gap.",
+            review_summary="The report has a gap.",
             new_findings=["Repair the report gap."],
         )["staged"]
         is True
@@ -462,6 +467,7 @@ def test_reviewer_termination_commits_the_selected_staged_task() -> None:
         task_id=second.task_id,
         decision="approved",
         rationale="The result is acceptable.",
+        review_summary="The result is acceptable.",
     )["success"]
     assert terminate()["success"]
 
@@ -487,6 +493,7 @@ def test_reviewer_cannot_decide_a_sibling_task() -> None:
         task_id=sibling.task_id,
         decision="approved",
         rationale="The result is acceptable.",
+        review_summary="The result is acceptable.",
     )
 
     assert result["success"] is False
@@ -509,6 +516,7 @@ def test_reviewer_decision_atomically_curates_future_task_context() -> None:
     staged = review(
         decision="approved",
         rationale="The result is acceptable.",
+        review_summary="The result is acceptable.",
         context_updates=[
             {
                 "task_id": future.task_id,
@@ -550,6 +558,7 @@ def test_invalid_reviewer_context_update_commits_nothing() -> None:
     staged = review(
         decision="approved",
         rationale="The result is acceptable.",
+        review_summary="The result is acceptable.",
         context_updates=[{"task_id": "missing", "context": "validate existing work"}],
     )
 
