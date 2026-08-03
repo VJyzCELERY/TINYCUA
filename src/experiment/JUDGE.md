@@ -34,9 +34,9 @@ uv run python judge.py --fixture experiment-4
 uv run python judge.py --fixture experiment-4,experiment-5
 ```
 
-Semantic mode reads `template-results/<fixture>/<agent>/`, anonymizes every
+Semantic mode reads `fixtures-results/<fixture>/<agent>/`, anonymizes every
 completed submission as `A`, `B`, and so on, and writes its verdict to
-`template-results/<fixture>/cross_verdict/`. It sees deterministic evaluator
+`fixtures-results/<fixture>/cross_verdict/`. It sees deterministic evaluator
 outcomes as context, then compares qualitative strengths and weaknesses rather
 than acting as the primary correctness judge. Submission workdir, stdout, and
 environment locations come from `result.json`; schema-v1 artifact names remain
@@ -68,7 +68,7 @@ docker compose exec judge hermes -z "say hello"
 
 | Profile | Use | Location |
 |---------|-----|----------|
-| `semantic` | Default qualitative template-results cross-judge | `judge/profiles/semantic/` |
+| `semantic` | Default qualitative fixtures-results cross-judge | `judge/profiles/semantic/` |
 | `judge` | Optional legacy correctness-oriented result judge | `judge/profiles/judge/` |
 
 Each profile contains:

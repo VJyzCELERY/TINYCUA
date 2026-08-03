@@ -35,7 +35,7 @@ coverage.xml
 *.coverage
 htmlcov/
 src/experiment/results/
-src/experiment/template-results/
+src/experiment/fixtures-results/
 src/experiment/archives/
 
 # Node.js build artifacts

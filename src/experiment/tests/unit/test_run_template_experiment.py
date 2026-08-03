@@ -44,6 +44,11 @@ def make_fixture(root: Path, name: str = "add-greeting") -> Path:
     return fixture
 
 
+def test_parse_args_defaults_to_fixtures_results() -> None:
+    """Controlled runs use the fixtures-results directory by default."""
+    assert parse_args([]).output_root == Path("fixtures-results")
+
+
 def test_discover_fixtures_validates_layout_and_prompt(tmp_path: Path) -> None:
     """Fixtures need the complete layout and a meaningful YAML prompt."""
     root = tmp_path / "fixtures"

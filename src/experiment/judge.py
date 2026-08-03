@@ -7,7 +7,7 @@ NOT override them — it always uses whatever the container is configured
 with, and snapshots that configuration into each verdict dir for audit.
 
 Semantic ``--fixture`` mode discovers every completed
-``template-results/<fixture>/<agent>/`` pair, anonymizes its workdir, gives
+``fixtures-results/<fixture>/<agent>/`` pair, anonymizes its workdir, gives
 the deterministic evaluator outcome to the judge as context, and writes one
 qualitative cross-verdict per fixture. Legacy ``--num`` mode remains available
 for the older ``results/<agent>/experiment-{N}/`` layout.
@@ -530,7 +530,7 @@ def cross_judge_experiment(
     return result.returncode
 
 
-# --- Semantic judge (template-results) ---
+# --- Semantic judge (fixtures-results) ---
 
 
 def discover_submissions(
@@ -848,12 +848,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     mode.add_argument(
         "--fixture",
-        help="Semantic mode: comma-separated fixture names to cross-judge under template-results "
+        help="Semantic mode: comma-separated fixture names to cross-judge under fixtures-results "
              "(layout <fixture>/<agent>/).",
     )
     parser.add_argument(
         "--output-root", type=Path, default=None,
-        help="Output root. Defaults: template-results for --fixture; results for --num.",
+        help="Output root. Defaults: fixtures-results for --fixture; results for --num.",
     )
     parser.add_argument(
         "--agents",
@@ -870,7 +870,7 @@ def main(argv: list[str] | None = None) -> int:
     output_root = (
         args.output_root
         if args.output_root is not None
-        else (Path("template-results") if is_semantic else Path("results"))
+        else (Path("fixtures-results") if is_semantic else Path("results"))
     )
     if not output_root.is_absolute():
         output_root = EXPERIMENT_DIR / output_root

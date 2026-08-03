@@ -99,7 +99,7 @@ uv run python run_template_experiment.py \
   --fixtures experiment-1,experiment-2,experiment-3,experiment-4,experiment-5 \
   --agents tinycua,tinycua-nr,tinycua-nd,tinycua-nd-nr,opencode,hermes,openclaw \
   --order-by agent \
-  --output-root template-results/campaign-1
+  --output-root fixtures-results/campaign-1
 ```
 
 Reusing the same `--output-root` resumes automatically. Complete pass or fail
@@ -187,8 +187,8 @@ uv run python judge.py --fixture experiment-4,experiment-5
 Semantic verdicts are written to:
 
 ```text
-template-results/<fixture>/cross_verdict/verdict.md
-template-results/<fixture>/cross_verdict/mapping.json
+fixtures-results/<fixture>/cross_verdict/verdict.md
+fixtures-results/<fixture>/cross_verdict/mapping.json
 ```
 
 Legacy results judging is optional and must be explicitly selected with `--num`:

@@ -261,7 +261,7 @@ def test_copy_workdir_returns_false_when_only_harness_artifacts(tmp_path) -> Non
 def test_discover_submissions_finds_dynamic_template_pairs(tmp_path: Path) -> None:
     """On-disk discovery returns only pairs whose result.json exists."""
     fixture = "experiment-4"
-    root = tmp_path / "template-results"
+    root = tmp_path / "fixtures-results"
     for agent, complete in (
         ("opencode", True),
         ("hermes", False),
@@ -301,7 +301,7 @@ def test_discover_submissions_uses_result_paths_with_legacy_fallback(
 ) -> None:
     """Semantic discovery follows schema-v2 paths and still reads legacy runs."""
     fixture = "experiment-4"
-    root = tmp_path / "template-results"
+    root = tmp_path / "fixtures-results"
     modern = root / fixture / "opencode"
     legacy = root / fixture / "tinycua"
     for run_dir in (modern, legacy):
@@ -430,7 +430,7 @@ def test_semantic_judge_fixture_writes_per_fixture_cross_verdict_with_mapping(
     import judge
 
     fixture = "experiment-4"
-    root = tmp_path / "template-results"
+    root = tmp_path / "fixtures-results"
     for agent in ("opencode",):
         run_dir = root / fixture / agent
         run_dir.mkdir(parents=True)
@@ -498,3 +498,20 @@ def test_main_batches_semantic_fixtures(monkeypatch, tmp_path: Path) -> None:
 
     assert main(["--fixture", "experiment-4,experiment-5", "--output-root", str(tmp_path)]) == 0
     assert calls == [("experiment-4", tmp_path), ("experiment-5", tmp_path)]
+
+
+def test_main_defaults_semantic_judging_to_fixtures_results(monkeypatch, tmp_path: Path) -> None:
+    """Semantic judging uses the renamed controlled-results directory."""
+    import judge
+
+    calls: list[tuple[str, Path]] = []
+    monkeypatch.setattr(judge, "EXPERIMENT_DIR", tmp_path)
+    monkeypatch.setattr(judge, "_judge_container_running", lambda: True)
+    monkeypatch.setattr(
+        judge,
+        "semantic_judge_fixture",
+        lambda fixture, output_root, **_kwargs: calls.append((fixture, output_root)) or 0,
+    )
+
+    assert main(["--fixture", "experiment-4"]) == 0
+    assert calls == [("experiment-4", tmp_path / "fixtures-results")]

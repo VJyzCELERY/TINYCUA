@@ -3192,8 +3192,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--output-root",
         type=Path,
-        default=Path("template-results"),
-        help="Result root (default: ./template-results).",
+        default=Path("fixtures-results"),
+        help="Result root (default: ./fixtures-results).",
     )
     parser.add_argument(
         "--overwrite", action="store_true", help="Replace selected output directories."
