@@ -93,3 +93,43 @@ If the Task Executor asks the user for clarification, the user reply resumes the
 | Review history | Role-specific active-task projection | Executor receives complete current-open remediation detail; Reviewer receives a compact all-status ledger; full events remain inspectable without crossing tasks |
 | Output | Result + sub-session execution log | Gives Reviewer evidence for the active outcome and any unavoidable scope effects |
 | Failure handling | Return explicit status | Reviewer decides retry, replan, escalation, or context update |
+
+
+---
+
+## Cumulative Review Context and Artifact History
+
+### Progression ownership
+
+One goal-wide cumulative progress report is derived from the append-only committed
+review events (``record_reviewer_decision`` in the global transition log) plus
+current task state. Only ResultReviewer contributes entries through
+``task_review_decision``; every model-facing decision requires a non-empty
+progress-quality ``review_summary``. Executor, TaskAssessor, and TaskAnalyzer
+receive a read-only approved-only projection so previously accepted knowledge
+survives later reviews and replans without repeating or undoing it, while
+rejection/postponement detail stays task-local in the review journal.
+
+### Result and artifact provenance
+
+On Reviewer COMMIT the runtime records a content-addressed logical result revision
+(SHA-256 of the report), injects the trusted identities (``revision_id``,
+``content_hash``, ``artifact_range``) into the staged decision immediately before
+the atomic commit, and advances the review checkpoint only after the commit
+succeeds (approvals only). The model cannot provide or override these fields
+(``additionalProperties: false``). Committed events retain the exact result hash
+and artifact revision range; later result replacement cannot destroy the report
+behind an earlier verdict (FR-009).
+
+### Storage boundary (FR-012/FR-013)
+
+Workspace manifests, eligible changed-content blobs, result revisions, and the
+review checkpoint live under session-owned system storage resolved outside
+``workspace_dir`` (``SessionConfig.session_dir``; the CLI defaults to a per-run
+directory beside the workspace, and experiment runs mount a sibling
+``system-artifacts`` directory). Model-visible prompts, tool outcomes, task
+metadata, and state projections expose only opaque ``rev-...`` identifiers and
+workspace-relative paths — never the internal directory. Failures fail closed:
+an unreadable store blocks pre-mutation capture, and a post-write persistence
+failure marks the audit incomplete and blocks review approval until surfaced
+(FR-014).

@@ -110,8 +110,6 @@ def render_executor_tool_evidence(task: Any) -> list[str]:
             bits.append(f"cache_id={output['cache_id']}")
             bits.append(f"cached_at={output.get('captured_at') or '?'}")
             bits.append("reuse=repeat the same call with load_cache=true")
-        if item.get("artifact_path"):
-            bits.append(f"audit={item['artifact_path']}")
         lines.append(_bounded_evidence_line(f"- {name}: " + "; ".join(bits)))
     if len(lines) == 2:
         return []

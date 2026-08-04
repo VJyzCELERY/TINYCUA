@@ -137,7 +137,7 @@ def _extract_sections(text: str) -> dict[str, str]:
 
 
 def _parse_reviewer(sections: dict[str, str]) -> dict[str, Any] | None:
-    """Parse result_reviewer template → {decision, rationale, task_id}."""
+    """Parse result_reviewer template → {decision, rationale, review_summary, task_id}."""
     decision = sections.get("review assessment")
     rationale = sections.get("review summary")
     task_id = sections.get("task id")
@@ -149,6 +149,7 @@ def _parse_reviewer(sections: dict[str, str]) -> dict[str, Any] | None:
     return {
         "decision": decision,
         "rationale": rationale.strip(),
+        "review_summary": rationale.strip(),
         "task_id": task_id.strip(),
     }
 

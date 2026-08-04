@@ -326,6 +326,10 @@ class Node(ABC):
         self.session.input_context = list(root_or_parent_session.input_context)
         self.session.task = root_or_parent_session.task
         self.session.task_store = root_or_parent_session.task_store
+        # Share the root's artifact history store so one run keeps one
+        # revision chain and review checkpoint across scoped node sessions.
+        if root_or_parent_session.artifact_store is not None:
+            self.session.artifact_store = root_or_parent_session.artifact_store
         # FR-062: share node_progress by reference so progress survives node
         # reconstruction and is visible across parent/child sessions.
         self.session.node_progress = root_or_parent_session.node_progress

@@ -11,6 +11,7 @@ from tinycua.loops.review_context import (
     render_reviewer_finding_ledger,
 )
 from tinycua.loops.trace_state_mixin import normalize_tool_outcome
+from tinycua.models.task import ReviewerDecision
 
 
 class ReviewerProtocolMixin:
@@ -49,6 +50,74 @@ def initialize_reviewer_lifecycle(node: Any) -> None:
         and not store.staged_review_plan(active.task_id)
     ):
         node.progress.lifecycle_phase = LifecyclePhase.PLAN
+
+
+def commit_staged_review(store: Any, artifact_store: Any, task_id: str) -> Any:
+    """Commit the staged reviewer decision with trusted runtime anchors.
+
+    The runtime owns result/artifact provenance: it records the content-
+    addressed result revision, injects the trusted identities into the staged
+    decision immediately before the atomic commit, and advances the review
+    checkpoint only after the commit succeeds (and only for approvals, so the
+    next Reviewer still sees the cumulative diff since the last accepted
+    checkpoint). Failed or abandoned attempts never advance the checkpoint.
+
+    Args:
+        store: The session task store holding the staged decision.
+        artifact_store: The session artifact store, or ``None`` in
+            no-artifact-store runs (legacy unanchored events).
+        task_id: The task whose staged decision is committed.
+
+    Returns:
+        The committed task.
+
+    Raises:
+        ValueError: On an incomplete audit for an approval, or any existing
+            commit validation failure.
+    """
+    if artifact_store is not None:
+        staged = store._staged_reviewer_decisions.get(task_id)
+        if staged is None:
+            msg = "No provisional reviewer decision is staged."
+            raise ValueError(msg)
+        if (
+            staged.get("decision") == ReviewerDecision.APPROVED
+            and artifact_store.is_incomplete()
+        ):
+            msg = (
+                "Artifact audit is incomplete; approval is blocked until the "
+                "persistence failure is surfaced."
+            )
+            raise ValueError(msg)
+        task = store.get_task(task_id)
+        if task.result is not None:
+            result_revision = artifact_store.record_result_revision(
+                task_id, task.result
+            )
+            staged_metadata = dict(staged.get("metadata") or {})
+            staged_metadata["runtime_result_revision"] = {
+                "revision_id": result_revision["revision_id"],
+                "content_hash": result_revision["content_hash"],
+                "artifact_range": artifact_store.current_range(),
+            }
+            staged["metadata"] = staged_metadata
+    checkpoint = None
+    if (
+        artifact_store is not None
+        and staged.get("decision") == ReviewerDecision.APPROVED
+    ):
+        event_numbers = [
+            int(item["event_id"].removeprefix("review-"))
+            for item in store.get_task(task_id).reviewer_decisions
+            if str(item.get("event_id", "")).removeprefix("review-").isdigit()
+        ]
+        checkpoint = artifact_store.prepare_checkpoint(
+            task_id, f"review-{max(event_numbers, default=0) + 1}"
+        )
+    committed = store.commit_staged_reviewer_decision(task_id)
+    if checkpoint is not None:
+        artifact_store.commit_prepared_checkpoint(checkpoint)
+    return committed
 
 
 def reset_reviewer_attempt(node: Any) -> bool:

@@ -94,10 +94,15 @@ def prepare_result_dirs(
     overwrite: bool,
     agents: tuple[str, ...] = AGENTS,
 ) -> dict[str, dict[str, Path]]:
-    """Create result directories per agent with workdir/ and logs/ subdirs.
+    """Create result directories per agent with workdir/, logs/, and system-artifacts/.
+
+    The ``system-artifacts`` directory is a sibling of the judged ``workdir``:
+    TinyCUA persists its internal session history there so it is never copied
+    into the anonymous submission or consumed by the judge (FR-016).
 
     Returns:
-        Dict mapping agent name to {"workdir": Path, "logs": Path}.
+        Dict mapping agent name to
+        ``{"workdir": Path, "logs": Path, "system_artifacts": Path}``.
     """
     result_dirs = {
         agent: output_root / agent / f"experiment-{experiment_num}" for agent in agents
@@ -112,9 +117,15 @@ def prepare_result_dirs(
             shutil.rmtree(result_dir, ignore_errors=True)
         workdir = result_dir / "workdir"
         logs = result_dir / "logs"
+        system_artifacts = result_dir / "system-artifacts"
         workdir.mkdir(parents=True, exist_ok=True)
         logs.mkdir(exist_ok=True)
-        paths[agent] = {"workdir": workdir, "logs": logs}
+        system_artifacts.mkdir(exist_ok=True)
+        paths[agent] = {
+            "workdir": workdir,
+            "logs": logs,
+            "system_artifacts": system_artifacts,
+        }
     return paths
 
 
@@ -471,6 +482,7 @@ def run_agent(
     timeout_seconds: int,
     hermes_process_poll_timeout_seconds: int = 600,
     idle_timeout_seconds: int = 0,
+    system_artifacts: Path | None = None,
 ) -> int:
     """Run one Docker Compose service and write its artifacts.
 
@@ -481,6 +493,9 @@ def run_agent(
             deadline extends each time output arrives, so an actively-working
             agent never hits the idle timeout; only a truly stuck/hung one
             does. When 0, only the hard wall-clock deadline applies.
+        system_artifacts: Sibling host directory mounted into the container
+            (TinyCUA only) for session-owned history, separate from the judged
+            workdir (FR-016).
     """
     print(f"[{agent}] starting experiment-{experiment_num}", flush=True)
     (logs_dir / "prompt.txt").write_text(prompt)
@@ -505,6 +520,19 @@ def run_agent(
         "--workdir",
         container_workspace,
     ]
+    # FR-016: mount the sibling system-artifact directory so TinyCUA's internal
+    # session history persists outside the judged workdir and is never copied
+    # into the anonymous submission.
+    if agent == "tinycua" and system_artifacts is not None:
+        container_system_artifacts = "/workspace/system-artifacts"
+        command.extend(
+            [
+                "-e",
+                f"EXPERIMENT_SYSTEM_ARTIFACTS={container_system_artifacts}",
+                "-v",
+                f"{system_artifacts.resolve()}:{container_system_artifacts}",
+            ]
+        )
 
     # FR-084 (experiment harness): probe LM Studio's REST API for the served
     # model's real context_length and pass it to the tinycua container so the
@@ -793,6 +821,9 @@ def main(argv: list[str] | None = None) -> int:
                     timeout_seconds,
                     hermes_process_poll_timeout_seconds,
                     idle_timeout_seconds,
+                    system_artifacts=(
+                        paths[agent]["system_artifacts"] if agent == "tinycua" else None
+                    ),
                 )
             )
     except KeyboardInterrupt:

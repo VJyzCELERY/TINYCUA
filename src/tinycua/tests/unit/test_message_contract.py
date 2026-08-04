@@ -34,9 +34,11 @@ from tinycua.models.task import (
     AggregatedResult,
     ReviewerDecision,
     TaskResult,
+    TaskStateStore,
     TaskStatus,
 )
 from tinycua.tools.task_tools import TaskInitTool
+from tinycua.tools.task_tools import TaskReviewDecisionTool
 from tinycua_sdk import Agent, LanguageModel
 
 
@@ -1354,3 +1356,207 @@ async def test_stream_invalid_attempt_is_not_recorded_as_node_output() -> None:
     # Trace should still record the validation error for observability
     trace = loop.get_execution_trace()
     assert any(entry.get("validation_errors") for entry in trace)
+
+
+# ---------------------------------------------------------------------------
+# Cumulative review context and artifact history (local:cumulative-review-artifact-history)
+# ---------------------------------------------------------------------------
+
+
+def test_executor_progress_projection_is_read_only_and_omits_raw_history() -> None:
+    """Executor receives bounded cumulative progress without private rationale."""
+    loop = TinyCUALoop()
+    store = loop.root_session.task_store
+    root = store.create_task("Root")
+    first = store.create_task("First", parent_id=root.task_id)
+    store.record_result(first.task_id, TaskResult(content="FIRST RESULT"))
+    store.record_reviewer_decision(
+        first.task_id,
+        ReviewerDecision.APPROVED,
+        rationale="PRIVATE_RATIONALE",
+        metadata={"review_summary": "FIRST APPROVED SUMMARY"},
+    )
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    executor.ensure_session(loop.root_session)
+
+    prompt = executor.build_continuation(loop.root_session)
+
+    assert "Cumulative progress" in prompt
+    assert "FIRST APPROVED SUMMARY" in prompt
+    assert "PRIVATE_RATIONALE" not in prompt
+    assert "reviewer-owned" in prompt
+
+
+def test_analyzer_and_assessor_prompts_include_read_only_progress() -> None:
+    """Planning nodes receive the same append-only progression report."""
+    loop = TinyCUALoop()
+    store = loop.root_session.task_store
+    root = store.create_task("Root")
+    first = store.create_task("First", parent_id=root.task_id)
+    store.record_result(first.task_id, TaskResult(content="result"))
+    store.record_reviewer_decision(
+        first.task_id,
+        ReviewerDecision.APPROVED,
+        rationale="ok",
+        metadata={"review_summary": "PLANNED PROGRESS SUMMARY"},
+    )
+    analyzer = TinyCUATaskAnalyzerNode(
+        node_id="task_analyzer",
+        config=create_node_config("task_analyzer"),
+    )
+    assessor = TinyCUATaskAssessorNode(
+        node_id="task_assessor",
+        config=create_node_config("task_assessor"),
+    )
+    analyzer.ensure_session(loop.root_session)
+    assessor.ensure_session(loop.root_session)
+
+    analyzer_prompt = analyzer.build_continuation(loop.root_session)
+    assessor_prompt = assessor.build_continuation(loop.root_session)
+
+    assert "PLANNED PROGRESS SUMMARY" in analyzer_prompt
+    assert "PLANNED PROGRESS SUMMARY" in assessor_prompt
+
+
+def test_review_decision_tool_requires_progress_quality_summary() -> None:
+    """Every model-facing review decision needs a non-empty review_summary."""
+    store = TaskStateStore()
+    task = store.create_task("Task")
+    store.record_result(task.task_id, TaskResult(content="attempt", success=False))
+    review = TaskReviewDecisionTool()
+    review.bind_task_store(store)
+    review.bind_source_node("result_reviewer")
+
+    result = review(
+        decision="needs_revision",
+        rationale="The exact file is missing.",
+        new_findings=["Create the exact required file."],
+    )
+
+    assert result["success"] is False
+    assert "review_summary" in result["error"]
+
+
+def test_review_decision_schema_rejects_runtime_provenance_fields() -> None:
+    """The model cannot provide or override runtime result/artifact anchors."""
+    parameters = TaskReviewDecisionTool().parameters
+
+    assert parameters["additionalProperties"] is False
+    for field in ("result_revision", "result_hash", "artifact_range"):
+        assert field not in parameters["properties"]
+
+
+def test_model_visible_payloads_never_expose_session_storage_path(tmp_path) -> None:
+    """Internal session storage paths never reach prompts or tool outcomes."""
+    workspace = tmp_path / "workspace"
+    session_store = tmp_path / "session-store"
+    workspace.mkdir()
+    session_store.mkdir()
+    loop = TinyCUALoop(
+        session_config=SessionConfig(
+            workspace_dir=workspace,
+            session_dir=session_store,
+        )
+    )
+    loop.root_session.session_config = loop.session_config
+    store = loop.root_session.task_store
+    root = store.create_task("Root")
+    first = store.create_task("First", parent_id=root.task_id)
+    store.record_result(first.task_id, TaskResult(content="result"))
+    store.record_reviewer_decision(
+        first.task_id,
+        ReviewerDecision.APPROVED,
+        rationale="ok",
+        metadata={"review_summary": "SUMMARY"},
+    )
+    executor = TinyCUATaskExecutorNode(
+        node_id="task_executor",
+        config=create_node_config("task_executor"),
+    )
+    reviewer = TinyCUAResultReviewerNode(
+        node_id="result_reviewer",
+        config=create_node_config("result_reviewer"),
+    )
+    executor.ensure_session(loop.root_session)
+    reviewer.ensure_session(loop.root_session)
+
+    rendered = "\n".join(
+        [
+            executor.build_continuation(loop.root_session),
+            reviewer.build_continuation(loop.root_session),
+        ]
+    )
+
+    assert str(session_store.resolve()) not in rendered
+
+
+def test_internal_audit_paths_are_never_model_visible(tmp_path) -> None:
+    """Tool evidence omits legacy audit paths and storage failure details."""
+    workspace = tmp_path / "workspace"
+    session_store = tmp_path / "session-store"
+    workspace.mkdir()
+    loop = TinyCUALoop(
+        session_config=SessionConfig(
+            workspace_dir=workspace,
+            artifact_dir=workspace / ".tinycua-artifacts",
+            session_dir=session_store,
+        )
+    )
+    task = loop.root_session.task_store.create_task("Task")
+    loop.root_session.task_store.record_result(
+        task.task_id,
+        TaskResult(
+            content="report",
+            metadata={
+                "tool_results": [
+                    {
+                        "name": "run_shell",
+                        "artifact_path": str(session_store / "tool-calls" / "raw.json"),
+                        "outcome": {"tool_name": "run_shell", "success": True},
+                    }
+                ]
+            },
+        ),
+    )
+    reviewer = TinyCUAResultReviewerNode(
+        "result_reviewer", create_node_config("result_reviewer")
+    )
+    reviewer.ensure_session(loop.root_session)
+
+    assert (
+        loop._write_tool_audit_artifact("run_shell", {"command": "secret"}, {}) is None
+    )
+    assert str(session_store) not in reviewer.build_continuation(loop.root_session)
+    assert not (workspace / ".tinycua-artifacts" / "tool-calls").exists()
+
+
+def test_local_replan_retains_full_progression() -> None:
+    """Local replanning retains approved knowledge beyond the local region."""
+    loop = TinyCUALoop()
+    root = loop.root_session.task_store.create_task("Root")
+    completed = loop.root_session.task_store.create_task(
+        "Completed", parent_id=root.task_id
+    )
+    active = loop.root_session.task_store.create_task("Active", parent_id=root.task_id)
+    loop.root_session.task_store.record_result(
+        completed.task_id, TaskResult(content="done")
+    )
+    loop.root_session.task_store.record_reviewer_decision(
+        completed.task_id,
+        ReviewerDecision.APPROVED,
+        rationale="ok",
+        metadata={"review_summary": "OLDER APPROVED PROGRESS"},
+    )
+    loop.root_session.task_store.active_task_id = active.task_id
+    analyzer = TinyCUATaskAnalyzerNode(
+        "task_analyzer", create_node_config("task_analyzer", mode="local_replan")
+    )
+    assessor = TinyCUATaskAssessorNode(
+        "task_assessor", create_node_config("task_assessor", mode="local_replan")
+    )
+
+    assert "OLDER APPROVED PROGRESS" in analyzer.build_continuation(loop.root_session)
+    assert "OLDER APPROVED PROGRESS" in assessor.build_continuation(loop.root_session)

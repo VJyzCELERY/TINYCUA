@@ -80,6 +80,18 @@ def test_tinycua_loop_stores_session_config():
     assert loop.root_session.session_config is None
 
 
+def test_workspace_session_defaults_external_artifact_store(tmp_path):
+    """Embedded workspace sessions get unique system-owned history storage."""
+    from tinycua.config.session_config import SessionConfig
+
+    first = TinyCUALoop(session_config=SessionConfig(workspace_dir=tmp_path))
+    second = TinyCUALoop(session_config=SessionConfig(workspace_dir=tmp_path))
+
+    assert first.session_dir is not None
+    assert first.session_dir.is_relative_to(tmp_path) is False
+    assert first.session_dir != second.session_dir
+
+
 def test_tinycua_loop_has_no_iteration_limit():
     """TinyCUALoop does not impose an iteration limit."""
     loop = TinyCUALoop()
@@ -1037,6 +1049,7 @@ async def test_commit_retries_until_reviewer_decision_then_auto_completes() -> N
                     '{"task_id":"' + task.task_id + '",'
                     '"decision":"needs_revision",'
                     '"rationale":"[finding]: retry [validate]: rerun",'
+                    '"review_summary":"The validation must be rerun.",'
                     '"new_findings":["Retry and rerun validation."]}'
                 ),
             }
@@ -1058,7 +1071,7 @@ async def test_commit_retries_until_reviewer_decision_then_auto_completes() -> N
         pass
 
     assert commit_calls == 2
-    assert tool_sets[0] == {"task_inspect"}
+    assert tool_sets[0] == {"task_inspect", "artifact_inspect"}
     assert tool_sets[1] == {
         "task_review_decision",
         "json_draft_create",

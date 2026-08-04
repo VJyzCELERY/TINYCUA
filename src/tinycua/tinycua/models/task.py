@@ -9,7 +9,9 @@ from enum import StrEnum
 from typing import Any, ClassVar
 
 from tinycua.models.review_protocol import (
+    attach_runtime_anchor,
     build_review_event_metadata,
+    retain_reviewed_result_revision,
     review_event_preview,
     validate_review_plan,
 )
@@ -112,6 +114,8 @@ class Task:
     reviewer_decisions: list[dict[str, Any]] = field(default_factory=list)
     review_findings: list[dict[str, str]] = field(default_factory=list)
     artifacts: list[dict[str, Any]] = field(default_factory=list)
+    # FR-009: content-addressed reviewed result revisions (append-only at commit).
+    result_revisions: list[dict[str, str]] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -925,6 +929,7 @@ class TaskStateStore:
             msg = "Approval requires a successful non-empty executor report."
             raise ValueError(msg)
         task.reviewer_decisions.append(event)
+        retain_reviewed_result_revision(task, event)
         assurance_status = event.get("metadata", {}).get("assurance_status")
         if task_id == self.root_task_id and isinstance(assurance_status, str):
             task.metadata["assurance_status"] = assurance_status
@@ -967,7 +972,9 @@ class TaskStateStore:
             target.metadata["suggested_mode"] = "verify_only"
             target.metadata["context_source_task_id"] = task_id
             self._bump_version()
-        self._finalize_mutation("record_reviewer_decision", task_id)
+        self._finalize_mutation(
+            "record_reviewer_decision", task_id, review_event_id=event["event_id"]
+        )
         return task
 
     def _validate_deferred_decision(
@@ -1141,6 +1148,7 @@ class TaskStateStore:
             "finding_updates": finding_updates,
             "metadata": event_metadata,
         }
+        attach_runtime_anchor(event, metadata)
         return event, new_findings, finding_updates
 
     @staticmethod

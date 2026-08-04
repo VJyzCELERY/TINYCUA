@@ -116,6 +116,16 @@ class SessionConfig:
             self.artifact_dir = Path(self.artifact_dir).expanduser().resolve()
         if self.session_dir is not None:
             self.session_dir = Path(self.session_dir).expanduser().resolve()
+        # FR-012: system-owned session storage must live outside the judged
+        # workspace so raw history never lands inside agent-visible state.
+        if self.session_dir is not None and self.workspace_dir is not None:
+            try:
+                self.session_dir.relative_to(self.workspace_dir)
+            except ValueError:
+                pass
+            else:
+                msg = "session_dir must be outside the workspace directory."
+                raise ValueError(msg)
         # FR-050: derive max_replans from worker_effort when not explicit.
         if self.max_replans is None:
             self.max_replans = self._EFFORT_MAX_REPLANS.get(str(self.worker_effort), 3)

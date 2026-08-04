@@ -24,7 +24,10 @@ class TestNodeGuidanceModule:
         assert "[validated]" not in instruction
 
     def test_instruction_under_950_chars(self):
-        assert len(_RESULT_REVIEWER_INSTRUCTION) < 950
+        # The incremental-review/transient-revalidation contract sentence
+        # (cumulative-review-artifact-history) raised the terse single-paragraph
+        # ceiling; 1120 still rejects phase-essay bloat.
+        assert len(_RESULT_REVIEWER_INSTRUCTION) < 1120
 
     def test_continuation_importable(self):
         assert _RESULT_REVIEWER_CONTINUATION

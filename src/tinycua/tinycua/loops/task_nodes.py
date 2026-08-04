@@ -183,6 +183,31 @@ _ANALYSIS_EFFORT_INSTRUCTION = "Deterministic effort controller. No LLM call req
 _ANALYSIS_EFFORT_CONTINUATION = ""
 
 
+def _render_cumulative_progress(session: Session | None) -> str:
+    """Render the reviewer-owned cumulative progress projection for a role.
+
+    Read-only for every worker role; only ResultReviewer contributes entries.
+    Approved-only: previously accepted knowledge is goal-wide, while
+    rejection/postponement detail stays task-local in the review journal.
+    Empty when no approved progression exists yet.
+    """
+    if session is None:
+        return ""
+    from tinycua.models.review_protocol import render_progress_report
+
+    return render_progress_report(session.task_store, decisions={"approved"})
+
+
+def _render_reviewer_checkpoint_diff(session: Session | None) -> str:
+    """Render the bounded artifact diff since the last committed checkpoint."""
+    if session is None:
+        return ""
+    artifact_store = getattr(session, "artifact_store", None)
+    if artifact_store is None:
+        return ""
+    return artifact_store.render_checkpoint_diff()
+
+
 class TinyCUATaskAnalyzerNode(ProcessNode):
     """Analyze or refine task structure."""
 
@@ -221,13 +246,17 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
             )
             replan_reason = str(self.config.metadata.get("replan_reason", ""))
             reason_prefix = f"{replan_reason}\n\n" if replan_reason else ""
-            return f"{reason_prefix}Local task region for replan:\n{_render_local_region_markdown(region)}\n\n{base}"
+            progress = _render_cumulative_progress(session)
+            progress_prefix = f"{progress}\n\n" if progress else ""
+            return f"{reason_prefix}{progress_prefix}Local task region for replan:\n{_render_local_region_markdown(region)}\n\n{base}"
         mission = _render_mission_block(session)
         prefix = f"{mission}\n\n" if mission else ""
         roadmap = _render_task_tree_markdown(
             _task_context_snapshot(session), include_descriptions=True
         )
-        return f"{prefix}Roadmap:\n{roadmap}\n\n{base}"
+        progress = _render_cumulative_progress(session)
+        progress_prefix = f"{progress}\n\n" if progress else ""
+        return f"{prefix}Roadmap:\n{roadmap}\n\n{progress_prefix}{base}"
 
     def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
         """Insert one cancellation assessment before execution can continue."""
@@ -735,15 +764,19 @@ class TinyCUATaskAssessorNode(ProcessNode):
         if mode == "local_replan":
             replan_reason = str(self.config.metadata.get("replan_reason", ""))
             reason_prefix = f"{replan_reason}\n\n" if replan_reason else ""
+            progress = _render_cumulative_progress(session)
+            progress_prefix = f"{progress}\n\n" if progress else ""
             return (
-                f"{prefix}{prior_prefix}{reason_prefix}Local roadmap region for "
+                f"{prefix}{prior_prefix}{reason_prefix}{progress_prefix}Local roadmap region for "
                 "reviewer-requested replan:\n"
                 f"{_render_local_region_markdown(_local_task_region(session, self.config.metadata.get('replan_task_id')))}\n\n{base}"
             )
         roadmap = _render_task_tree_markdown(
             _task_context_snapshot(session), include_descriptions=True
         )
-        return f"{prefix}{prior_prefix}Roadmap:\n{roadmap}\n\n{base}"
+        progress = _render_cumulative_progress(session)
+        progress_prefix = f"{progress}\n\n" if progress else ""
+        return f"{prefix}{prior_prefix}Roadmap:\n{roadmap}\n\n{progress_prefix}{base}"
 
     def build_tool_system_prompt(self, resolved_tools: list[Any] | None = None) -> str:
         """Behavioral guidance keyed on present assessor tools (FR-005)."""
@@ -847,6 +880,8 @@ class TinyCUATaskExecutorNode(ProcessNode):
             "prepend the workspace directory name or use absolute paths."
         )
 
+        progress = _render_cumulative_progress(session)
+        progress_prefix = f"{progress}\n\n" if progress else ""
         return (
             f"{mission_prefix}{_render_active_task_work_order(session)}\n"
             f"{verification_note}"
@@ -856,7 +891,7 @@ class TinyCUATaskExecutorNode(ProcessNode):
             "explicit POSIX-safe paths/commands instead.\n"
             f"\n## Roadmap\n"
             f"{_render_task_tree_markdown(_task_context_snapshot(session), include_results=False)}"
-            f"\n\n{base}"
+            f"\n\n{progress_prefix}{base}"
         )
 
     def on_complete(self, queue: NodeQueue, response: LLMResult) -> None:
@@ -1075,6 +1110,10 @@ class TinyCUAResultReviewerNode(ReviewerProtocolMixin, ProcessNode):
                     f"outcome.\n{criteria}"
                 )
         description = task.description.strip() or "(none provided)"
+        progress = _render_cumulative_progress(session)
+        progress_prefix = f"{progress}\n\n" if progress else ""
+        checkpoint_diff = _render_reviewer_checkpoint_diff(session)
+        diff_prefix = f"{checkpoint_diff}\n\n" if checkpoint_diff else ""
         return (
             f"{mission_prefix}Task under review: {task.task_id} — {task.title}\n"
             f"Active task description: {description}\n"
@@ -1084,7 +1123,8 @@ class TinyCUAResultReviewerNode(ReviewerProtocolMixin, ProcessNode):
             f"{_render_request_contract(session)}\n"
             "Unified task context:\n"
             f"{_render_task_tree_markdown(_task_context_snapshot(session), include_results=False)}\n"
-            f"{context_blocks}\n{evidence_block}\n{cancellation_block}\n{clause_block}\n{base}"
+            f"{context_blocks}\n{evidence_block}\n{cancellation_block}\n{clause_block}\n"
+            f"{diff_prefix}{progress_prefix}{base}"
         )
 
     def _task_to_review(self):

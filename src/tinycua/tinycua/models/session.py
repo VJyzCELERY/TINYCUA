@@ -114,6 +114,10 @@ class Session:
     task: Task | None = None
     task_store: TaskStateStore = field(default_factory=TaskStateStore)
     todo: list[dict[str, Any]] = field(default_factory=list)
+    # Session-owned artifact history store (workspace revisions, result
+    # revisions, review checkpoint). Root sessions own it; scoped node
+    # sessions share the reference so one run keeps one revision chain.
+    artifact_store: Any = None
     # Milestone 8 Stream B: per-session token tracking from provider usage.
     # Updated after each LLM call from response.usage.input_tokens.
     # Used to trigger compaction before the next call when over threshold.

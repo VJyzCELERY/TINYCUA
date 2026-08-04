@@ -423,14 +423,17 @@ async def test_root_reviewer_plan_unlocks_action_and_decision() -> None:
     assert "Executor says it works." in json.dumps(llm.calls[1]["messages"])
     assert set(llm.calls[1]["tool_names"]) == {
         "task_inspect",
+        "artifact_inspect",
         "run_shell",
     }
     assert set(llm.calls[2]["tool_names"]) == {
         "task_inspect",
+        "artifact_inspect",
         "run_shell",
     }
     assert set(llm.calls[3]["tool_names"]) == {
         "task_inspect",
+        "artifact_inspect",
         "run_shell",
     }
     assert set(llm.calls[4]["tool_names"]) == {
@@ -499,6 +502,7 @@ async def test_root_reviewer_retries_unknown_observation_reference() -> None:
         return {
             "decision": "approved",
             "rationale": "Observed outcome.",
+            "review_summary": "Observed outcome.",
             "criterion_assessments": [
                 {
                     "criterion_id": "acceptance-1",
@@ -913,6 +917,7 @@ async def test_recovery_reentry_rebuilds_blind_plan_context() -> None:
                         {
                             "decision": "approved",
                             "rationale": "Observed outcome.",
+                            "review_summary": "Observed outcome.",
                             "criterion_assessments": [
                                 {
                                     "criterion_id": "acceptance-1",

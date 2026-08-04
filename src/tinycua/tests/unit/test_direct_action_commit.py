@@ -320,7 +320,11 @@ async def test_reviewer_decision_stays_staged_until_validation_then_commits_once
                 "tool_calls": [
                     _tool_call(
                         "task_review_decision",
-                        {"decision": "approved", "rationale": ""},
+                        {
+                            "decision": "approved",
+                            "rationale": "",
+                            "review_summary": "Attempt one.",
+                        },
                     )
                 ],
             },
@@ -329,7 +333,11 @@ async def test_reviewer_decision_stays_staged_until_validation_then_commits_once
                 "tool_calls": [
                     _tool_call(
                         "task_review_decision",
-                        {"decision": "approved", "rationale": "Verified outcome."},
+                        {
+                            "decision": "approved",
+                            "rationale": "Verified outcome.",
+                            "review_summary": "Verified outcome.",
+                        },
                     )
                 ],
             },
@@ -341,22 +349,26 @@ async def test_reviewer_decision_stays_staged_until_validation_then_commits_once
     await loop._execute_node(node, agent, [])
 
     assert len(llm.calls) == 4
-    assert set(llm.calls[1]["tool_names"]) == {"task_inspect"}
+    assert set(llm.calls[1]["tool_names"]) == {"task_inspect", "artifact_inspect"}
     assert set(llm.calls[2]["tool_names"]) == {
         "task_review_decision",
         "json_draft_create",
     }
-    assert task.reviewer_decisions == [
-        {
-            "event_id": "review-1",
-            "review_summary": "Verified outcome.",
-            "decision": "approved",
-            "rationale": "Verified outcome.",
-            "new_findings": [],
-            "finding_updates": [],
-            "metadata": {"context_updates": []},
-        }
-    ]
+    assert len(task.reviewer_decisions) == 1
+    event = task.reviewer_decisions[0]
+    assert event["event_id"] == "review-1"
+    assert event["review_summary"] == "Verified outcome."
+    assert event["decision"] == "approved"
+    assert event["rationale"] == "Verified outcome."
+    assert event["new_findings"] == []
+    assert event["finding_updates"] == []
+    # The runtime injects the exact reviewed result identity at commit time.
+    assert event["result_revision"]["revision_id"].startswith("result-")
+    assert event["result_revision"]["content_hash"]
+    assert event["result_revision"]["artifact_range"] == {
+        "from": "baseline",
+        "to": "none",
+    }
     assert task.task_id not in store._staged_reviewer_decisions
 
 

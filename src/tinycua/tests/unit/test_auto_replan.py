@@ -13,9 +13,7 @@ def _record_rejection(
     """Record one rejection while preserving a stable actionable finding."""
     task = store.get_task(task_id)
     open_findings = [
-        finding
-        for finding in task.review_findings
-        if finding.get("status") == "OPEN"
+        finding for finding in task.review_findings if finding.get("status") == "OPEN"
     ]
     metadata = (
         {

@@ -293,6 +293,7 @@ class TestOnCompleteFiresAfterRecovery:
                         "task_id": task.task_id,
                         "decision": "approved",
                         "rationale": "[validated]: tests passed",
+                        "review_summary": "Tests passed.",
                     }
                 ),
             }

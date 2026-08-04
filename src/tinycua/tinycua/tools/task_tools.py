@@ -24,6 +24,7 @@ class TerminateTool(Tool):
 
     def __init__(self) -> None:
         self._store = _DEFAULT_STORE
+        self._artifact_store = None
         self._source_node = ""
         self.last_result: dict[str, Any] | None = None
         Tool.__init__(
@@ -40,6 +41,10 @@ class TerminateTool(Tool):
     def bind_task_store(self, store: TaskStateStore) -> None:
         """Bind termination to the active session's task store."""
         self._store = store
+
+    def bind_artifact_store(self, artifact_store: Any) -> None:
+        """Bind the session artifact store for reviewer commit anchoring."""
+        self._artifact_store = artifact_store
 
     def bind_source_node(self, node_id: str) -> None:
         """Bind the terminating lifecycle node."""
@@ -61,7 +66,11 @@ class TerminateTool(Tool):
                 self.last_result = result
                 return result
             try:
-                task = self._store.commit_staged_reviewer_decision(active_id)
+                from tinycua.loops.reviewer_protocol import commit_staged_review
+
+                task = commit_staged_review(
+                    self._store, self._artifact_store, active_id
+                )
             except ValueError as exc:
                 result = {"success": False, "error": str(exc)}
                 self.last_result = result
@@ -1034,6 +1043,15 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
                         break
         if active_id is None:
             return {"success": False, "error": "No active task"}
+        if not isinstance(review_summary, str) or not review_summary.strip():
+            return {
+                "success": False,
+                "error": (
+                    "review_summary is required: state the newly accepted, "
+                    "corrected, unresolved, or non-revalidated information "
+                    "relevant to the goal."
+                ),
+            }
         metadata: dict[str, Any] = {
             "context_updates": context_updates or [],
             "review_summary": review_summary,
@@ -1057,3 +1075,92 @@ class TaskReviewDecisionTool(SessionTaskToolMixin, Tool):
             "status": task.status.value,
             "staged": True,
         }
+
+
+class ArtifactInspectTool(SessionTaskToolMixin, Tool):
+    """Opaque bounded workspace-revision inspection for ResultReviewer only.
+
+    Pages changed-path detail by opaque ``rev-...`` identifier. Never returns
+    absolute storage paths: paths are workspace-relative and content is
+    bounded, exactly like the review-event pagination contract.
+    """
+
+    def __init__(self) -> None:
+        SessionTaskToolMixin.__init__(self)
+        self._source_node = ""
+        self._artifact_store: Any = None
+        Tool.__init__(
+            self,
+            name="artifact_inspect",
+            description=(
+                "Page bounded workspace-revision detail by opaque revision_id "
+                "for ResultReviewer; never exposes internal storage paths."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "revision_id": {
+                        "type": "string",
+                        "description": (
+                            "Opaque rev-... identifier from a review checkpoint "
+                            "or cumulative artifact projection."
+                        ),
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": (
+                            "Optional workspace-relative path to page changed "
+                            "content for."
+                        ),
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "Zero-based character offset for paging.",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 8000,
+                        "description": "Maximum characters in one content page.",
+                    },
+                },
+                "required": ["revision_id"],
+                "additionalProperties": False,
+            },
+        )
+
+    def bind_source_node(self, node_id: str) -> None:
+        """Bind the caller so only ResultReviewer can inspect revisions."""
+        self._source_node = node_id
+
+    def bind_artifact_store(self, artifact_store: Any) -> None:
+        """Bind the session artifact store for opaque inspection."""
+        self._artifact_store = artifact_store
+
+    def __call__(
+        self,
+        *,
+        revision_id: str,
+        path: str | None = None,
+        offset: int = 0,
+        limit: int = 4000,
+    ) -> dict[str, Any]:
+        """Return bounded revision detail without exposing storage paths."""
+        if self._source_node != "result_reviewer":
+            return {"error": "Only ResultReviewer may inspect workspace revisions."}
+        if self._artifact_store is None:
+            return {"error": "No session artifact store is available."}
+        try:
+            if revision_id.startswith("result-"):
+                return self._artifact_store.inspect_result_revision(
+                    revision_id, offset=offset, limit=limit
+                )
+            return self._artifact_store.inspect_revision(
+                revision_id,
+                path=path,
+                offset=offset,
+                limit=limit,
+            )
+        except ValueError as exc:
+            return {"error": str(exc)}

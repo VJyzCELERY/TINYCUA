@@ -8,6 +8,7 @@ import json
 import logging
 import re
 import time
+from uuid import uuid4
 from collections.abc import AsyncIterator, Callable
 from typing import TYPE_CHECKING, Any
 
@@ -34,6 +35,7 @@ from tinycua.loops.reviewer_protocol import (
     review_action_directive,
 )
 from tinycua.loops.task_tree_rendering import render_task_tree
+from tinycua.loops.tool_audit_mixin import ToolAuditMixin
 from tinycua.loops.tool_call_normalization_mixin import ToolCallNormalizationMixin
 from tinycua.loops.trace_state_mixin import TraceStateMixin, normalize_tool_outcome
 from tinycua.loops.validation_retry_mixin import ValidationRetryMixin
@@ -167,6 +169,7 @@ class TinyCUALoop(
     RecoveryGuardMixin,
     PromptProtocolMixin,
     TraceStateMixin,
+    ToolAuditMixin,
     BaseLoop,
 ):
     """Execution loop for TinyCUA agents.
@@ -215,12 +218,25 @@ class TinyCUALoop(
         self.workspace_dir = getattr(session_config, "workspace_dir", None)
         self.artifact_dir = getattr(session_config, "artifact_dir", None)
         self.session_dir = getattr(session_config, "session_dir", None)
+        if self.workspace_dir is not None and self.session_dir is None:
+            self.session_dir = (
+                self.workspace_dir.parent / ".tinycua-sessions" / uuid4().hex
+            )
         self._disable_tool_audit = getattr(session_config, "disable_tool_audit", False)
         self._tool_artifact_seq = 0
         self._pending_handoffs: list[NodeHandoff] = []
         self._resolved_tools_for_prompt: list[Tool] | None = None
         self._draft_execution_id = ""
         self._reset_tool_result_store()
+        self._artifact_store = self.root_session.artifact_store
+        if self._artifact_store is None:
+            from tinycua.models.artifact_history import SessionArtifactStore
+
+            self._artifact_store = SessionArtifactStore(
+                session_dir=self.session_dir,
+                workspace_dir=self.workspace_dir,
+            )
+            self.root_session.artifact_store = self._artifact_store
 
     def get_usage_events(self) -> list[dict[str, Any]]:
         """Return the usage events captured during the last streaming run.
@@ -468,13 +484,18 @@ class TinyCUALoop(
             binder = getattr(tool, "bind_task_store", None)
             if callable(binder):
                 binder(self.root_session.task_store)
+            artifact_binder = getattr(tool, "bind_artifact_store", None)
+            if callable(artifact_binder):
+                artifact_binder(getattr(self.root_session, "artifact_store", None))
             todo_binder = getattr(tool, "bind_todo_store", None)
             if callable(todo_binder):
                 todo_binder(self.root_session.todo)
             workspace_binder = getattr(tool, "bind_workspace", None)
             if callable(workspace_binder):
                 workspace_binder(self.workspace_dir)
-            if callable(file_execution_binder := getattr(tool, "bind_file_execution", None)):
+            if callable(
+                file_execution_binder := getattr(tool, "bind_file_execution", None)
+            ):
                 file_execution_binder(self._draft_execution_id)
             context_binder = getattr(tool, "bind_session_context", None)
             if callable(context_binder):
@@ -840,15 +861,45 @@ class TinyCUALoop(
             self._log_tool_call_args(name, arguments)
             # ponytail: async per-tool rate limit for shared backends.
             await self._await_tool_rate_limit(execution_tool.name)
+            artifact_store = getattr(self.root_session, "artifact_store", None)
+            pre_capture_error = (
+                artifact_store.begin_capture() if artifact_store is not None else None
+            )
+            if pre_capture_error:
+                record({"name": name, "allowed": True, "error": pre_capture_error})
+                if name in commit_tools:
+                    break
+                continue
             try:
-                output = await ToolExecutor.execute(
-                    execution_tool, arguments, agent
-                )  # type: ignore[arg-type]
+                output = await ToolExecutor.execute(execution_tool, arguments, agent)  # type: ignore[arg-type]
             except Exception as exc:  # noqa: BLE001 - recorded for trace/debugging.
+                if artifact_store is not None:
+                    artifact_store.finish_capture(
+                        {
+                            "tool_name": name,
+                            "call_id": call_id,
+                            "success": False,
+                            "error": str(exc),
+                        }
+                    )
                 record({"name": name, "allowed": True, "error": str(exc)})
                 if name in commit_tools:
                     break
                 continue
+            if artifact_store is not None:
+                outcome = normalize_tool_outcome(
+                    tool_call,
+                    {"name": name, "allowed": True, "output": output},
+                    arguments=arguments,
+                )
+                artifact_store.finish_capture(
+                    {
+                        "tool_name": name,
+                        "call_id": call_id,
+                        "success": outcome["success"],
+                        "error": outcome["error"],
+                    }
+                )
             if name in {"task_update", "task_result_update", "task_review_decision"}:
                 resolved_id = (
                     output.get("task_id") if isinstance(output, dict) else None
@@ -870,75 +921,10 @@ class TinyCUALoop(
                 if callable(consume):
                     consume(drafted_commit[1])
             tool_result = {"name": name, "allowed": True, "output": output}
-            artifact_path = self._write_tool_audit_artifact(name, arguments, output)
-            if artifact_path:
-                tool_result["artifact_path"] = artifact_path
             record(tool_result)
             if name in commit_tools and self._should_stop_commit_batch(node):
                 break
         return results
-
-    def _write_tool_audit_artifact(
-        self,
-        name: str,
-        arguments: dict[str, Any],
-        output: Any,
-    ) -> str | None:
-        """Write a durable audit JSON for action/research tool calls."""
-        if self.artifact_dir is None or self._disable_tool_audit:
-            return None
-        if name not in {
-            "run_shell",
-            "run_python",
-            "web_search",
-            "fetch_url",
-            "search_files",
-        }:
-            return None
-        self._tool_artifact_seq += 1
-        audit_dir = self.artifact_dir / "tool-calls"
-        audit_dir.mkdir(parents=True, exist_ok=True)
-        path = audit_dir / f"{self._tool_artifact_seq:04d}-{name}.json"
-        path.write_text(
-            json.dumps(
-                {"name": name, "arguments": arguments, "output": output},
-                indent=2,
-                default=str,
-            ),
-            encoding="utf-8",
-        )
-        return str(path)
-
-    def _enrich_task_results_from_tool_batch(
-        self,
-        node: Node,
-        tool_results: list[dict[str, Any]],
-    ) -> None:
-        """Attach tool-call transcript evidence to recorded task results."""
-        if node.node_id != "task_executor":
-            return
-        for item in tool_results:
-            if item.get("name") != "task_result_update":
-                continue
-            output = item.get("output")
-            if not isinstance(output, dict) or output.get("success") is not True:
-                continue
-            task_id = output.get("task_id")
-            if not isinstance(task_id, str):
-                continue
-            try:
-                task = self.root_session.task_store.get_task(task_id)
-            except ValueError:
-                continue
-            result = task.result
-            partial_results = list(
-                task.metadata.get("executor_partial_tool_results", [])
-            )
-            merged_tool_results = [*partial_results, *tool_results]
-            evidence = self._json_safe(merged_tool_results)
-            if result is not None:
-                result.metadata["tool_results"] = evidence
-                task.metadata.pop("executor_partial_tool_results", None)
 
     def _track_tool_calls_in_progress(
         self, node: Node, tool_results: list[dict[str, Any]]

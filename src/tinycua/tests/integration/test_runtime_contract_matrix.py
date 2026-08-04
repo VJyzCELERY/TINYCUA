@@ -353,7 +353,7 @@ class RuntimeContractScript:
                         {
                             "function": {
                                 "name": "task_review_decision",
-                                "arguments": f'{{"decision":"approved","rationale":"Task {task_id} completed successfully","task_id":"{task_id}","criterion_assessments":[{{"criterion_id":"acceptance-1","result":"supported","evidence_ids":["review-observation"],"inference":"The request is met.","limitations":"One scripted observation."}}]}}',
+                                "arguments": f'{{"decision":"approved","rationale":"Task {task_id} completed successfully","review_summary":"Task completed.","task_id":"{task_id}","criterion_assessments":[{{"criterion_id":"acceptance-1","result":"supported","evidence_ids":["review-observation"],"inference":"The request is met.","limitations":"One scripted observation."}}]}}',
                             }
                         }
                     ],
@@ -364,7 +364,7 @@ class RuntimeContractScript:
                     {
                         "function": {
                             "name": "task_review_decision",
-                            "arguments": f'{{"decision":"approved","rationale":"Verified","task_id":"{task_id}","criterion_assessments":[{{"criterion_id":"acceptance-1","result":"supported","evidence_ids":["review-observation"],"inference":"The request is met.","limitations":"One scripted observation."}}]}}',
+                            "arguments": f'{{"decision":"approved","rationale":"Verified","review_summary":"Verified.","task_id":"{task_id}","criterion_assessments":[{{"criterion_id":"acceptance-1","result":"supported","evidence_ids":["review-observation"],"inference":"The request is met.","limitations":"One scripted observation."}}]}}',
                         }
                     }
                 ],

@@ -31,6 +31,18 @@ def test_tinycua_dockerfile_installs_local_packages() -> None:
     assert "--dir" in dockerfile
 
 
+def test_tinycua_dockerfile_mounts_system_artifacts_beside_workdir() -> None:
+    """TinyCUA persists audit state in a sibling, not inside, the judged workdir."""
+    dockerfile = (ROOT / "docker" / "tinycua.Dockerfile").read_text()
+    run_experiment = (ROOT / "run_experiment.py").read_text()
+
+    assert "EXPERIMENT_SYSTEM_ARTIFACTS" in dockerfile
+    assert "EXPERIMENT_SYSTEM_ARTIFACTS" in run_experiment
+    assert "system-artifacts" in run_experiment
+    # The CLI points session storage at the sibling mount.
+    assert "--session-dir" in dockerfile
+
+
 def test_agent_dockerfiles_expose_harness_commands() -> None:
     """Agent commands stay visible and fail loud."""
     expected = {
@@ -42,7 +54,7 @@ def test_agent_dockerfiles_expose_harness_commands() -> None:
         ],
         "openclaw.Dockerfile": [
             "npm install -g openclaw@latest",
-            r'\"profile\":\"full\"',
+            r"\"profile\":\"full\"",
             "--verbose on",
             "openclaw agent",
         ],
@@ -73,16 +85,13 @@ def test_harnesses_receive_searxng_config() -> None:
     assert "EXPERIMENT_SEARXNG_BASE_URL=http://searxng:8080" in env
     assert "TINYCUA_SEARXNG_URL=http://searxng:8080/search" in env
     assert (
-        "SEARXNG_URL: "
-        "${EXPERIMENT_SEARXNG_BASE_URL:-http://searxng:8080}"
+        "SEARXNG_URL: ${EXPERIMENT_SEARXNG_BASE_URL:-http://searxng:8080}"
     ) in compose
     assert (
-        "SEARXNG_BASE_URL: "
-        "${EXPERIMENT_SEARXNG_BASE_URL:-http://searxng:8080}"
+        "SEARXNG_BASE_URL: ${EXPERIMENT_SEARXNG_BASE_URL:-http://searxng:8080}"
     ) in compose
     assert (
-        "TINYCUA_SEARXNG_URL: "
-        "${TINYCUA_SEARXNG_URL:-http://searxng:8080/search}"
+        "TINYCUA_SEARXNG_URL: ${TINYCUA_SEARXNG_URL:-http://searxng:8080/search}"
     ) in compose
     assert "depends_on:" in compose
     assert "./docker/searxng/settings.yml:/etc/searxng/settings.yml:ro" in compose
