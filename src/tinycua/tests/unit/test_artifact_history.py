@@ -303,6 +303,24 @@ def test_unreadable_path_fails_closed(tmp_path: Path, monkeypatch) -> None:
     assert art.is_incomplete()
 
 
+def test_failed_capture_does_not_expose_internal_path_on_retry(
+    tmp_path: Path, monkeypatch
+) -> None:
+    art = _store(tmp_path)
+    internal_path = tmp_path / "session" / "revisions.jsonl"
+
+    def fail_scan() -> dict[str, dict[str, object]]:
+        raise OSError(f"cannot access {internal_path}")
+
+    monkeypatch.setattr(art, "_scan_workspace", fail_scan)
+
+    assert art.begin_capture() == "artifact capture unavailable"
+    error = art.begin_capture()
+
+    assert error == "artifact capture unavailable"
+    assert str(internal_path) not in error
+
+
 def test_directory_symlink_is_recorded_without_traversal(tmp_path: Path) -> None:
     """Directory symlinks are manifest entries and never traverse their targets."""
     outside = tmp_path.parent / f"{tmp_path.name}-outside"

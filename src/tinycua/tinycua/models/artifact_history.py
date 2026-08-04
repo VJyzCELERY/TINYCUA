@@ -146,10 +146,7 @@ class SessionArtifactStore:
         caller (the tool is not executed) so no untracked mutation can occur.
         """
         if self._incomplete:
-            return (
-                "artifact capture unavailable: "
-                f"{self._incomplete_reason or 'store incomplete'}"
-            )
+            return "artifact capture unavailable"
         error = self._ensure_root_writable()
         if error is not None:
             return error
