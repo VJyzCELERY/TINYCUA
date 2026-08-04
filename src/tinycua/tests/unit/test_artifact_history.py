@@ -374,9 +374,10 @@ def test_persisted_history_restores_and_unavailable_blob_fails_closed(
 
     assert restored.latest_revision_id() == revision["revision_id"]
     assert restored.checkpoint()["revision_id"] == revision["revision_id"]
-    assert restored.inspect_revision(revision["revision_id"], path="report.md")[
-        "content"
-    ] == "v1"
+    assert (
+        restored.inspect_revision(revision["revision_id"], path="report.md")["content"]
+        == "v1"
+    )
     blob_id = revision["changes"][0]["after"]["blob_id"]
     (session_dir / "blobs" / blob_id).unlink()
 

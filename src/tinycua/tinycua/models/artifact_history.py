@@ -516,7 +516,9 @@ class SessionArtifactStore:
             incomplete_path = self._root / "incomplete.json"
             if incomplete_path.exists():
                 incomplete = json.loads(incomplete_path.read_text(encoding="utf-8"))
-                reason = incomplete.get("reason") if isinstance(incomplete, dict) else None
+                reason = (
+                    incomplete.get("reason") if isinstance(incomplete, dict) else None
+                )
                 if not isinstance(reason, str) or not reason.strip():
                     raise ValueError("invalid persisted incomplete audit")
                 self._incomplete = True
@@ -607,7 +609,10 @@ class SessionArtifactStore:
             if blob_ids:
                 raise OSError("persisted artifact blob is missing")
             return {}
-        if not blob_dir.is_dir() or {path.name for path in blob_dir.iterdir()} != blob_ids:
+        if (
+            not blob_dir.is_dir()
+            or {path.name for path in blob_dir.iterdir()} != blob_ids
+        ):
             raise ValueError("invalid persisted artifact blobs")
         blobs = {blob_id: self._read_blob(blob_dir / blob_id) for blob_id in blob_ids}
         if any(_sha256_bytes(content) != blob_id for blob_id, content in blobs.items()):
@@ -624,9 +629,7 @@ class SessionArtifactStore:
             return handle.read()
 
     @staticmethod
-    def _validate_checkpoint(
-        checkpoint: Any, revisions: list[dict[str, Any]]
-    ) -> None:
+    def _validate_checkpoint(checkpoint: Any, revisions: list[dict[str, Any]]) -> None:
         """Validate a persisted checkpoint against its revision history."""
         revision_ids = {revision["revision_id"] for revision in revisions}
         if (
