@@ -513,6 +513,14 @@ class SessionArtifactStore:
         try:
             if not self._root.is_dir():
                 raise OSError("session storage is not a directory")
+            incomplete_path = self._root / "incomplete.json"
+            if incomplete_path.exists():
+                incomplete = json.loads(incomplete_path.read_text(encoding="utf-8"))
+                reason = incomplete.get("reason") if isinstance(incomplete, dict) else None
+                if not isinstance(reason, str) or not reason.strip():
+                    raise ValueError("invalid persisted incomplete audit")
+                self._incomplete = True
+                self._incomplete_reason = reason
             revisions_path = self._root / "revisions.jsonl"
             if revisions_path.exists():
                 with revisions_path.open(encoding="utf-8") as handle:

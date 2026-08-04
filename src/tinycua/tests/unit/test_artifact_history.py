@@ -467,7 +467,8 @@ def test_revision_summary_is_paginated(tmp_path: Path) -> None:
 def test_post_write_persistence_failure_marks_incomplete(
     tmp_path: Path, monkeypatch
 ) -> None:
-    art = _store(tmp_path)
+    session_dir = tmp_path.parent / f"{tmp_path.name}-session"
+    art = _store(tmp_path, session_dir=session_dir)
 
     def failing_persist(self, revision: dict) -> None:  # noqa: ANN001
         self._mark_incomplete(f"simulated write failure for {revision['revision_id']}")
@@ -483,6 +484,10 @@ def test_post_write_persistence_failure_marks_incomplete(
     assert revision is not None
     assert art.is_incomplete()
     assert art.incomplete_reason() is not None
+    replacement = _store(tmp_path, session_dir=session_dir)
+
+    assert replacement.is_incomplete()
+    assert replacement.begin_capture() == "artifact capture unavailable"
 
 
 def test_session_dir_inside_workspace_is_rejected(tmp_path: Path) -> None:
