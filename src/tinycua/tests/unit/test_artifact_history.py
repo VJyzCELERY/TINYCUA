@@ -16,6 +16,7 @@ from pathlib import Path
 
 import pytest
 
+import tinycua.models.artifact_history as artifact_history
 from tinycua.models.artifact_history import SessionArtifactStore
 
 
@@ -165,6 +166,49 @@ def test_sensitive_binary_and_oversized_files_are_hash_only(tmp_path: Path) -> N
         assert by_path[path]["after"]["blob_id"] is None
 
 
+def test_sensitive_credential_paths_are_hash_only(tmp_path: Path) -> None:
+    """Credential-like filenames never retain plaintext blobs."""
+    art = _store(tmp_path)
+    art.begin_capture()
+    for path in ("credentials.json", "id_rsa", "api-token.txt"):
+        (tmp_path / path).write_text("SECRET=value")
+
+    art.finish_capture({"tool_name": "write_file", "call_id": "c1", "success": True})
+
+    by_path = {change["path"]: change for change in art.revisions()[-1]["changes"]}
+    for path in ("credentials.json", "id_rsa", "api-token.txt"):
+        assert by_path[path]["after"]["hash"]
+        assert by_path[path]["after"]["blob_id"] is None
+
+
+def test_blob_capture_rejects_post_scan_symlink(tmp_path: Path, monkeypatch) -> None:
+    """A path swapped for an external symlink is never stored as a blob."""
+    outside = tmp_path.parent / f"{tmp_path.name}-outside.txt"
+    outside.write_text("outside secret")
+    art = _store(tmp_path)
+    original = art._store_eligible_blobs
+
+    def swap_then_store(changes: list[dict]) -> None:
+        path = tmp_path / "report.txt"
+        path.unlink()
+        path.symlink_to(outside)
+        original(changes)
+
+    monkeypatch.setattr(art, "_store_eligible_blobs", swap_then_store)
+    art.begin_capture()
+    (tmp_path / "report.txt").write_text("workspace report")
+
+    revision = art.finish_capture(
+        {"tool_name": "write_file", "call_id": "c1", "success": True}
+    )
+
+    assert revision is not None
+    assert revision["changes"][0]["after"]["blob_id"] is None
+    assert all(
+        art.blob_content(blob_id) != b"outside secret" for blob_id in art.blob_hashes()
+    )
+
+
 def test_external_symlink_is_not_followed(tmp_path: Path) -> None:
     outside = tmp_path.parent / f"{tmp_path.name}-outside"
     outside.mkdir(exist_ok=True)
@@ -239,6 +283,58 @@ def test_unavailable_workspace_blocks_capture_before_mutation(tmp_path: Path) ->
 
     assert error is not None
     assert art.is_incomplete()
+
+
+def test_unreadable_path_fails_closed(tmp_path: Path, monkeypatch) -> None:
+    """A manifest entry that cannot be read blocks the mutation boundary."""
+    blocked = tmp_path / "blocked.txt"
+    blocked.write_text("cannot read")
+    art = _store(tmp_path)
+    original_hash = artifact_history._hash_file
+
+    def fail_hash(path: Path) -> tuple[str, int]:
+        if path == blocked:
+            raise OSError("denied")
+        return original_hash(path)
+
+    monkeypatch.setattr(artifact_history, "_hash_file", fail_hash)
+
+    assert art.begin_capture() is not None
+    assert art.is_incomplete()
+
+
+def test_directory_symlink_is_recorded_without_traversal(tmp_path: Path) -> None:
+    """Directory symlinks are manifest entries and never traverse their targets."""
+    outside = tmp_path.parent / f"{tmp_path.name}-outside"
+    outside.mkdir()
+    (outside / "secret.txt").write_text("outside secret")
+    art = _store(tmp_path)
+    art.begin_capture()
+    (tmp_path / "linked-dir").symlink_to(outside, target_is_directory=True)
+
+    revision = art.finish_capture(
+        {"tool_name": "run_shell", "call_id": "c1", "success": True}
+    )
+
+    assert revision is not None
+    change = revision["changes"][0]
+    assert change["path"] == "linked-dir"
+    assert change["after"]["kind"] == "symlink"
+    assert change["after"]["blob_id"] is None
+
+
+def test_checkpoint_without_revision_then_write(tmp_path: Path) -> None:
+    """The empty checkpoint is the baseline before every revision."""
+    art = _store(tmp_path)
+    art.advance_checkpoint("task-1", "review-1")
+    art.begin_capture()
+    (tmp_path / "later.txt").write_text("later")
+    art.finish_capture({"tool_name": "write_file", "call_id": "c1", "success": True})
+
+    diff = art.changes_since_checkpoint()
+
+    assert diff["revision_ids"] == [art.latest_revision_id()]
+    assert diff["changes"][0]["path"] == "later.txt"
 
 
 def test_post_write_persistence_failure_marks_incomplete(

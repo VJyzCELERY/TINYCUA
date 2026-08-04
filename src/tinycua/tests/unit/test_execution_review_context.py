@@ -673,6 +673,36 @@ def test_replan_retains_prior_progression() -> None:
     assert after == before
 
 
+def test_progress_after_replan_boundary_uses_committed_event_identity() -> None:
+    """A replan sentinel cannot displace the next committed review event."""
+    store = TaskStateStore()
+    root = store.create_task("Root")
+    task = store.create_task("Stuck", parent_id=root.task_id)
+    store.record_result(task.task_id, TaskResult(content="attempt", success=False))
+    store.record_reviewer_decision(
+        task.task_id,
+        ReviewerDecision.NEEDS_REVISION,
+        rationale="first",
+        metadata={"review_summary": "FIRST", "new_findings": ["first"]},
+    )
+    task.reviewer_decisions.append(
+        {"decision": "replan_boundary", "rationale": "replan", "metadata": {}}
+    )
+    store.record_reviewer_decision(
+        task.task_id,
+        ReviewerDecision.NEEDS_REVISION,
+        rationale="second",
+        metadata={"review_summary": "SECOND", "new_findings": ["second"]},
+    )
+
+    assert [
+        entry["review_summary"] for entry in cumulative_progress_entries(store)
+    ] == [
+        "FIRST",
+        "SECOND",
+    ]
+
+
 def test_committed_verdict_anchors_exact_result_and_artifact_range() -> None:
     """A committed verdict identifies the exact result hash and revision range."""
     store = TaskStateStore()

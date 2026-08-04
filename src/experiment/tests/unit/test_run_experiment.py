@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+import run_experiment
 
 from run_experiment import (
     AGENTS,
@@ -97,6 +98,35 @@ def test_prepare_result_dirs_can_select_agents(tmp_path: Path) -> None:
     assert tuple(paths) == ("tinycua",)
     assert existing.exists()
     assert (tmp_path / "tinycua" / "experiment-2" / "workdir").is_dir()
+
+
+def test_system_artifacts_mount_is_tinycua_only(tmp_path: Path, monkeypatch) -> None:
+    """Only TinyCUA receives its private system-artifacts mount."""
+    mounted: dict[str, Path | None] = {}
+
+    def fake_run_agent(agent: str, *args, system_artifacts: Path | None = None) -> int:
+        mounted[agent] = system_artifacts
+        return 0
+
+    monkeypatch.setattr(run_experiment, "run_agent", fake_run_agent)
+
+    assert (
+        run_experiment.main(
+            [
+                "--prompt",
+                "test",
+                "--agents",
+                "tinycua,opencode",
+                "--num",
+                "1",
+                "--output-root",
+                str(tmp_path),
+            ]
+        )
+        == 0
+    )
+    assert mounted["tinycua"] is not None
+    assert mounted["opencode"] is None
 
 
 def test_parse_agents_rejects_unknown() -> None:

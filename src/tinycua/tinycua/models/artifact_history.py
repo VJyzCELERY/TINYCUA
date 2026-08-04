@@ -18,6 +18,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import stat
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -78,8 +79,22 @@ def _is_binary(path: Path) -> bool:
 
 
 def _is_sensitive_path(relative: str) -> bool:
-    """Return whether a relative path should stay hash-only (dotfiles/secrets)."""
-    return any(part.startswith(".") for part in relative.split("/"))
+    """Return whether a relative path should stay hash-only."""
+    filename = relative.rsplit("/", 1)[-1].lower()
+    return any(part.startswith(".") for part in relative.split("/")) or (
+        filename
+        in {
+            "env",
+            "environment",
+            "id_dsa",
+            "id_ecdsa",
+            "id_ed25519",
+            "id_rsa",
+            "private-key",
+            "private_key",
+        }
+        or any(token in filename for token in ("credential", "secret", "token"))
+    )
 
 
 class SessionArtifactStore:
@@ -248,7 +263,7 @@ class SessionArtifactStore:
             self._checkpoint.get("revision_id") if self._checkpoint else None
         )
         revisions = list(self._revisions)
-        if checkpoint_revision is not None:
+        if checkpoint_revision not in {None, "none"}:
             after_index = None
             for index, revision in enumerate(revisions):
                 if revision["revision_id"] == checkpoint_revision:
@@ -455,9 +470,24 @@ class SessionArtifactStore:
             raise NotADirectoryError(msg)
         manifest: dict[str, dict[str, Any]] = {}
         for dirpath, dirnames, filenames in os.walk(self._workspace_dir):
-            dirnames[:] = sorted(
-                name for name in dirnames if name not in _EXCLUDED_DIRNAMES
-            )
+            kept_dirs = []
+            for name in sorted(dirnames):
+                if name in _EXCLUDED_DIRNAMES:
+                    continue
+                full = Path(dirpath) / name
+                relative = full.relative_to(self._workspace_dir).as_posix()
+                if full.is_symlink():
+                    target = os.readlink(full)
+                    manifest[relative] = {
+                        "kind": "symlink",
+                        "target": str(target),
+                        "hash": _sha256_text(str(target)),
+                        "size": len(str(target)),
+                        "eligible": False,
+                    }
+                else:
+                    kept_dirs.append(name)
+            dirnames[:] = kept_dirs
             for name in sorted(filenames):
                 full = Path(dirpath) / name
                 relative = full.relative_to(self._workspace_dir).as_posix()
@@ -484,7 +514,7 @@ class SessionArtifactStore:
                         ),
                     }
                 except OSError:
-                    continue
+                    raise
         return manifest
 
     @staticmethod
@@ -554,7 +584,19 @@ class SessionArtifactStore:
                 continue
             full = self._workspace_dir / change["path"]
             try:
-                self._blobs[blob_id] = full.read_bytes()
+                descriptor = os.open(full, os.O_RDONLY | os.O_NOFOLLOW)
+                with os.fdopen(descriptor, "rb") as handle:
+                    if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+                        raise OSError("artifact is not a regular file")
+                    content = handle.read(_CONTENT_LIMIT + 1)
+                if (
+                    len(content) > _CONTENT_LIMIT
+                    or len(content) != change["after"]["size"]
+                    or _sha256_bytes(content) != blob_id
+                ):
+                    change["after"]["blob_id"] = None
+                    continue
+                self._blobs[blob_id] = content
             except OSError:
                 change["after"]["blob_id"] = None
 

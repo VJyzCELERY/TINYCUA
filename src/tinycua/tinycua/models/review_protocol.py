@@ -302,7 +302,6 @@ def cumulative_progress_entries(store: Any) -> list[dict[str, Any]]:
     excluded naturally.
     """
     entries: list[dict[str, Any]] = []
-    per_task_counts: dict[str, int] = {}
     for action in store.transition_log:
         if action.get("action") != "record_reviewer_decision":
             continue
@@ -310,12 +309,18 @@ def cumulative_progress_entries(store: Any) -> list[dict[str, Any]]:
         task = store.tasks.get(task_id) if task_id else None
         if task is None:
             continue
-        index = per_task_counts.get(task_id, 0)
-        per_task_counts[task_id] = index + 1
-        events = task.reviewer_decisions
-        if index >= len(events):
+        event_id = action.get("review_event_id")
+        event = next(
+            (
+                item
+                for item in task.reviewer_decisions
+                if item.get("event_id") == event_id
+            ),
+            None,
+        )
+        if event is None:
             continue
-        entries.append(_progress_entry(task, events[index]))
+        entries.append(_progress_entry(task, event))
     return entries
 
 

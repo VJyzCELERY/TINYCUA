@@ -972,7 +972,9 @@ class TaskStateStore:
             target.metadata["suggested_mode"] = "verify_only"
             target.metadata["context_source_task_id"] = task_id
             self._bump_version()
-        self._finalize_mutation("record_reviewer_decision", task_id)
+        self._finalize_mutation(
+            "record_reviewer_decision", task_id, review_event_id=event["event_id"]
+        )
         return task
 
     def _validate_deferred_decision(

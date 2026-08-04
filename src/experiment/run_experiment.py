@@ -821,7 +821,9 @@ def main(argv: list[str] | None = None) -> int:
                     timeout_seconds,
                     hermes_process_poll_timeout_seconds,
                     idle_timeout_seconds,
-                    system_artifacts=paths[agent]["system_artifacts"],
+                    system_artifacts=(
+                        paths[agent]["system_artifacts"] if agent == "tinycua" else None
+                    ),
                 )
             )
     except KeyboardInterrupt:
