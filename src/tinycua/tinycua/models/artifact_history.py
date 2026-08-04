@@ -36,7 +36,6 @@ _EXCLUDED_DIRNAMES = frozenset(
         "__pycache__",
         "node_modules",
         ".agents",
-        "tmp",
     }
 )
 _CONTENT_LIMIT = 1_000_000  # bytes; larger files stay hash-only.
@@ -397,6 +396,11 @@ class SessionArtifactStore:
         """Return a bounded page of one persisted reviewed result."""
         if not isinstance(revision_id, str) or not revision_id.startswith("result-"):
             raise ValueError("Unknown result revision.")
+        content_hash = revision_id.removeprefix("result-")
+        if len(content_hash) != 64 or any(
+            char not in "0123456789abcdef" for char in content_hash
+        ):
+            raise ValueError("Unknown result revision.")
         if not isinstance(offset, int) or isinstance(offset, bool) or offset < 0:
             raise ValueError("inspection offset must be a non-negative integer.")
         if (
@@ -405,7 +409,6 @@ class SessionArtifactStore:
             or not 1 <= limit <= _INSPECT_PAGE_LIMIT
         ):
             raise ValueError("inspection limit must be between 1 and 8000.")
-        content_hash = revision_id.removeprefix("result-")
         content = self._result_revisions.get(content_hash)
         if content is None and self._root is not None:
             try:

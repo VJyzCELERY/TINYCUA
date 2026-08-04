@@ -370,6 +370,31 @@ def test_reviewed_result_revision_persists_after_replacement(tmp_path: Path) -> 
     assert page["next_offset"] == 8
 
 
+def test_result_revision_rejects_path_traversal(tmp_path: Path) -> None:
+    session_dir = tmp_path.parent / f"{tmp_path.name}-session"
+    session_dir.mkdir()
+    (session_dir / "results").mkdir()
+    (session_dir / "checkpoint.json").write_text("internal checkpoint")
+    art = _store(tmp_path, session_dir=session_dir)
+
+    with pytest.raises(ValueError, match="Unknown result revision"):
+        art.inspect_result_revision("result-../checkpoint.json")
+
+
+def test_tmp_workspace_changes_are_captured(tmp_path: Path) -> None:
+    art = _store(tmp_path)
+    art.begin_capture()
+    (tmp_path / "tmp").mkdir()
+    (tmp_path / "tmp" / "report.md").write_text("audited")
+
+    revision = art.finish_capture(
+        {"tool_name": "write_file", "call_id": "c1", "success": True}
+    )
+
+    assert revision is not None
+    assert revision["changes"][0]["path"] == "tmp/report.md"
+
+
 def test_cumulative_projection_is_inspectable(tmp_path: Path) -> None:
     """Each projected path retains the opaque revision that owns its content."""
     art = _store(tmp_path)
