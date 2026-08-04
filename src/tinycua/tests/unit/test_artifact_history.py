@@ -355,6 +355,37 @@ def test_checkpoint_without_revision_then_write(tmp_path: Path) -> None:
     assert diff["changes"][0]["path"] == "later.txt"
 
 
+def test_persisted_history_restores_and_unavailable_blob_fails_closed(
+    tmp_path: Path,
+) -> None:
+    """Replacement stores retain complete durable artifact context."""
+    workspace = tmp_path / "workspace"
+    session_dir = tmp_path / "session"
+    workspace.mkdir()
+    art = _store(workspace, session_dir=session_dir)
+    art.begin_capture()
+    (workspace / "report.md").write_text("v1")
+    revision = art.finish_capture(
+        {"tool_name": "write_file", "call_id": "c1", "success": True}
+    )
+    art.advance_checkpoint("task-1", "review-1")
+
+    restored = _store(workspace, session_dir=session_dir)
+
+    assert restored.latest_revision_id() == revision["revision_id"]
+    assert restored.checkpoint()["revision_id"] == revision["revision_id"]
+    assert restored.inspect_revision(revision["revision_id"], path="report.md")[
+        "content"
+    ] == "v1"
+    blob_id = revision["changes"][0]["after"]["blob_id"]
+    (session_dir / "blobs" / blob_id).unlink()
+
+    unavailable = _store(workspace, session_dir=session_dir)
+
+    assert unavailable.is_incomplete()
+    assert unavailable.begin_capture() == "artifact capture unavailable"
+
+
 def test_reviewed_result_revision_persists_after_replacement(tmp_path: Path) -> None:
     """A persisted report stays inspectable after its active result changes."""
     session_dir = tmp_path.parent / f"{tmp_path.name}-session"

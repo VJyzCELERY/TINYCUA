@@ -135,6 +135,7 @@ class SessionArtifactStore:
         self._incomplete = False
         self._incomplete_reason: str | None = None
         self._pending_before: dict[str, dict[str, Any]] | None = None
+        self._restore_persisted_history()
 
     # -- capture lifecycle ---------------------------------------------------
 
@@ -504,6 +505,136 @@ class SessionArtifactStore:
         return self._blobs.get(blob_id)
 
     # -- internals -----------------------------------------------------------
+
+    def _restore_persisted_history(self) -> None:
+        """Load a complete persisted artifact history, or block new captures."""
+        if self._root is None or not self._root.exists():
+            return
+        try:
+            if not self._root.is_dir():
+                raise OSError("session storage is not a directory")
+            revisions_path = self._root / "revisions.jsonl"
+            if revisions_path.exists():
+                with revisions_path.open(encoding="utf-8") as handle:
+                    revisions = [json.loads(line) for line in handle]
+            else:
+                revisions = []
+            self._validate_revisions(revisions)
+            blob_ids = {
+                record["blob_id"]
+                for revision in revisions
+                for change in revision["changes"]
+                for record in (change["before"], change["after"])
+                if record is not None and record["blob_id"] is not None
+            }
+            self._blobs = self._load_blobs(blob_ids)
+            checkpoint_path = self._root / "checkpoint.json"
+            if checkpoint_path.exists():
+                checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+                self._validate_checkpoint(checkpoint, revisions)
+                self._checkpoint = checkpoint
+            self._revisions = revisions
+        except (OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError):
+            self._mark_incomplete("persisted artifact history is unavailable")
+
+    @staticmethod
+    def _valid_hash(value: Any) -> bool:
+        """Return whether a value is a SHA-256 digest."""
+        return (
+            isinstance(value, str)
+            and len(value) == 64
+            and all(char in "0123456789abcdef" for char in value)
+        )
+
+    @classmethod
+    def _validate_revisions(cls, revisions: list[Any]) -> None:
+        """Validate persisted revision records before exposing them."""
+        parent = None
+        for sequence, revision in enumerate(revisions, start=1):
+            if (
+                not isinstance(revision, dict)
+                or revision.get("sequence") != sequence
+                or revision.get("parent") != parent
+                or not isinstance(revision.get("provenance"), dict)
+                or not cls._valid_hash(revision.get("tree_hash"))
+                or not isinstance(revision.get("changes"), list)
+            ):
+                raise ValueError("invalid persisted revision")
+            for change in revision["changes"]:
+                if (
+                    not isinstance(change, dict)
+                    or not isinstance(change.get("path"), str)
+                    or not change["path"]
+                    or change.get("status") not in {"added", "modified", "deleted"}
+                ):
+                    raise ValueError("invalid persisted revision")
+                for record in (change.get("before"), change.get("after")):
+                    if record is not None and (
+                        not isinstance(record, dict)
+                        or not cls._valid_hash(record.get("hash"))
+                        or not isinstance(record.get("size"), int)
+                        or isinstance(record["size"], bool)
+                        or record["size"] < 0
+                        or (
+                            record.get("blob_id") is not None
+                            and not cls._valid_hash(record["blob_id"])
+                        )
+                    ):
+                        raise ValueError("invalid persisted revision")
+            payload = {
+                key: revision[key]
+                for key in ("parent", "provenance", "tree_hash", "changes")
+            }
+            revision_id = "rev-" + _sha256_text(
+                json.dumps(payload, sort_keys=True, default=str)
+            )
+            if revision.get("revision_id") != revision_id:
+                raise ValueError("invalid persisted revision")
+            parent = revision_id
+
+    def _load_blobs(self, blob_ids: set[str]) -> dict[str, bytes]:
+        """Load exactly the blob files referenced by persisted revisions."""
+        blob_dir = self._root / "blobs"  # self._root is set by the caller.
+        if not blob_dir.exists():
+            if blob_ids:
+                raise OSError("persisted artifact blob is missing")
+            return {}
+        if not blob_dir.is_dir() or {path.name for path in blob_dir.iterdir()} != blob_ids:
+            raise ValueError("invalid persisted artifact blobs")
+        blobs = {blob_id: self._read_blob(blob_dir / blob_id) for blob_id in blob_ids}
+        if any(_sha256_bytes(content) != blob_id for blob_id, content in blobs.items()):
+            raise ValueError("invalid persisted artifact blob")
+        return blobs
+
+    @staticmethod
+    def _read_blob(path: Path) -> bytes:
+        """Read one regular persisted blob without following a symlink."""
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        with os.fdopen(descriptor, "rb") as handle:
+            if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+                raise OSError("persisted artifact blob is not a regular file")
+            return handle.read()
+
+    @staticmethod
+    def _validate_checkpoint(
+        checkpoint: Any, revisions: list[dict[str, Any]]
+    ) -> None:
+        """Validate a persisted checkpoint against its revision history."""
+        revision_ids = {revision["revision_id"] for revision in revisions}
+        if (
+            not isinstance(checkpoint, dict)
+            or not isinstance(checkpoint.get("task_id"), str)
+            or not checkpoint["task_id"].strip()
+            or not isinstance(checkpoint.get("review_event_id"), str)
+            or not checkpoint["review_event_id"].strip()
+            or checkpoint.get("revision_id") not in revision_ids | {"none"}
+            or not isinstance(checkpoint.get("updated_at"), str)
+        ):
+            raise ValueError("invalid persisted checkpoint")
+        try:
+            datetime.fromisoformat(checkpoint["updated_at"])
+        except ValueError:
+            raise ValueError("invalid persisted checkpoint") from None
 
     def _ensure_root_writable(self) -> str | None:
         """Fail closed when session storage cannot be made writable."""
