@@ -208,7 +208,11 @@ def test_existing_public_mutations_require_a_current_read():
     with tempfile.TemporaryDirectory() as tmpdir:
         filepath = os.path.join(tmpdir, "existing.txt")
         Path(filepath).write_text("old content")
-        from tinycua.agent.tools.native.files import append_file, str_replace, write_file
+        from tinycua.agent.tools.native.files import (
+            append_file,
+            str_replace,
+            write_file,
+        )
 
         results = [
             write_file(filepath, "new content", replace=True),

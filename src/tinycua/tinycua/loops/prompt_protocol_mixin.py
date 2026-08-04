@@ -286,9 +286,8 @@ class PromptProtocolMixin:
             # a singleton forced choice would hide one of those required tools.
             return None
         if node.progress.lifecycle_phase.value == "plan":
-            if (
-                node.node_id == "result_reviewer"
-                and any(tool.name == "json_draft_create" for tool in resolved_tools)
+            if node.node_id == "result_reviewer" and any(
+                tool.name == "json_draft_create" for tool in resolved_tools
             ):
                 return None
             return "required"

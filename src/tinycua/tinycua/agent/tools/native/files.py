@@ -58,8 +58,6 @@ def _hidden_draft_error(resolved: Path) -> dict[str, str] | None:
     return None
 
 
-
-
 def _detect_literal_newline_warning(content: str) -> str:
     r"""Detect literal backslash-n on long lines and return a warning string.
 
@@ -224,8 +222,6 @@ def _read_image(
     }
 
 
-
-
 def _read_bounded_range(
     lines: list[str],
     trailing_newline: bool,
@@ -388,12 +384,8 @@ def read_file(
     return _read_text_file(path, start, offset)
 
 
-
-
 @tool
-def write_file(
-    path: str, content: str, replace: bool = False
-) -> dict[str, Any]:
+def write_file(path: str, content: str, replace: bool = False) -> dict[str, Any]:
     """Write content to a file when its parent directory exists.
 
     Args:
@@ -494,8 +486,6 @@ def write_file(
             "diff_preview": None,
             "error": str(exc),
         }
-
-
 
 
 def _find_all(haystack: str, needle: str) -> list[tuple[int, int]]:
@@ -983,9 +973,7 @@ def str_replace(
     try:
         resolved.write_text(new_content, encoding="utf-8")
         encoded_content = new_content.encode("utf-8")
-        record_file_result(
-            resolved, encoded_content, _text_line_count(encoded_content)
-        )
+        record_file_result(resolved, encoded_content, _text_line_count(encoded_content))
     except Exception as exc:
         return {
             "success": False,
@@ -1018,8 +1006,6 @@ def str_replace(
         "error": None,
     }
     return result
-
-
 
 
 @tool
@@ -1090,9 +1076,7 @@ def append_file(path: str, content: str) -> dict[str, Any]:
         with resolved.open(file_mode, encoding="utf-8") as output:
             output.write(combined)
         encoded_content = combined.encode("utf-8")
-        record_file_result(
-            resolved, encoded_content, _text_line_count(encoded_content)
-        )
+        record_file_result(resolved, encoded_content, _text_line_count(encoded_content))
         bytes_appended = len(content.encode("utf-8"))
         result: dict[str, Any] = {
             "success": True,
@@ -1124,8 +1108,6 @@ def append_file(path: str, content: str) -> dict[str, Any]:
             "diff_preview": None,
             "error": str(exc),
         }
-
-
 
 
 @tool
@@ -1187,8 +1169,6 @@ def list_files(
         return {"error": f"Permission denied: {path}"}
     except Exception as exc:
         return {"error": str(exc)}
-
-
 
 
 _MAX_SEARCH_FILE_SIZE = 1_048_576  # 1 MB — skip larger files to avoid OOM.

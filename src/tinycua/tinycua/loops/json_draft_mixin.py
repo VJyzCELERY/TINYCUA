@@ -125,7 +125,11 @@ class JsonDraftMixin:
         """Return path-free, per-call aliases for managed draft editing."""
         available = {tool.name: tool for tool in tools}
         editors: list[Tool] = []
-        for alias, (canonical_name, description, parameters) in _MANAGED_DRAFT_EDITORS.items():
+        for alias, (
+            canonical_name,
+            description,
+            parameters,
+        ) in _MANAGED_DRAFT_EDITORS.items():
             canonical = available.get(canonical_name)
             if canonical is None:
                 continue
@@ -143,19 +147,17 @@ class JsonDraftMixin:
         return getattr(tool, "_tinycua_canonical_tool", tool)
 
     @staticmethod
-    def _phase_draft_creator(
-        tools: list[Tool], targets: set[str]
-    ) -> list[Tool]:
+    def _phase_draft_creator(tools: list[Tool], targets: set[str]) -> list[Tool]:
         """Return a draft creator limited to this lifecycle phase's targets."""
-        creator = next((tool for tool in tools if tool.name == "json_draft_create"), None)
+        creator = next(
+            (tool for tool in tools if tool.name == "json_draft_create"), None
+        )
         if creator is None:
             return []
         creator = copy(creator)
         creator.parameters = {
             "type": "object",
-            "properties": {
-                "target_tool": {"type": "string", "enum": sorted(targets)}
-            },
+            "properties": {"target_tool": {"type": "string", "enum": sorted(targets)}},
             "required": ["target_tool"],
             "additionalProperties": False,
         }
@@ -185,9 +187,14 @@ class JsonDraftMixin:
         if node.node_id != "result_reviewer":
             return phase_tools
         phase_tools = [
-            tool for tool in phase_tools if tool.name not in {"write_file", "str_replace"}
+            tool
+            for tool in phase_tools
+            if tool.name not in {"write_file", "str_replace"}
         ]
-        if getattr(phase, "value", phase) not in {"plan", "commit"} or not phase_targets:
+        if (
+            getattr(phase, "value", phase) not in {"plan", "commit"}
+            or not phase_targets
+        ):
             return phase_tools
         if self._managed_draft_path(node):
             phase_tools = [
