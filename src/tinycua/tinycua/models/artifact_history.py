@@ -157,7 +157,7 @@ class SessionArtifactStore:
             self._pending_before = self._scan_workspace()
         except OSError as exc:
             self._mark_incomplete(f"workspace scan failed: {exc}")
-            return f"artifact capture unavailable: {exc}"
+            return "artifact capture unavailable"
         return None
 
     def finish_capture(self, provenance: dict[str, Any]) -> dict[str, Any] | None:
@@ -211,8 +211,16 @@ class SessionArtifactStore:
             raise ValueError(msg)
         content_hash = _sha256_text(content)
         self._result_revisions.setdefault(content_hash, content)
+        if self._root is not None:
+            try:
+                result_dir = self._root / "results"
+                result_dir.mkdir(parents=True, exist_ok=True)
+                (result_dir / content_hash).write_text(content, encoding="utf-8")
+            except OSError as exc:
+                self._mark_incomplete(f"failed to persist result revision: {exc}")
+                raise OSError("Could not persist reviewed result.") from None
         return {
-            "revision_id": f"result-{content_hash[:16]}",
+            "revision_id": f"result-{content_hash}",
             "content_hash": content_hash,
             "task_id": task_id,
         }
@@ -225,19 +233,14 @@ class SessionArtifactStore:
             return None
         return dict(self._checkpoint)
 
-    def advance_checkpoint(self, task_id: str, review_event_id: str) -> dict[str, Any]:
-        """Advance the checkpoint to the latest revision for a committed review.
-
-        Only called after a review commit succeeds, so failed or abandoned
-        attempts never advance it.
-        """
+    def prepare_checkpoint(self, task_id: str, review_event_id: str) -> dict[str, Any]:
+        """Durably prepare a checkpoint before publishing its review verdict."""
         checkpoint = {
             "task_id": task_id,
             "review_event_id": review_event_id,
             "revision_id": self.latest_revision_id() or "none",
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
-        self._checkpoint = checkpoint
         if self._root is not None:
             try:
                 (self._root / "checkpoint.json").write_text(
@@ -245,7 +248,18 @@ class SessionArtifactStore:
                 )
             except OSError as exc:
                 self._mark_incomplete(f"failed to persist checkpoint: {exc}")
+                raise OSError("Could not persist review checkpoint.") from None
+        return checkpoint
+
+    def advance_checkpoint(self, task_id: str, review_event_id: str) -> dict[str, Any]:
+        """Advance the in-memory checkpoint after durable preparation."""
+        checkpoint = self.prepare_checkpoint(task_id, review_event_id)
+        self.commit_prepared_checkpoint(checkpoint)
         return dict(checkpoint)
+
+    def commit_prepared_checkpoint(self, checkpoint: dict[str, Any]) -> None:
+        """Publish an already durable checkpoint in memory."""
+        self._checkpoint = dict(checkpoint)
 
     def current_range(self) -> dict[str, str]:
         """Return the reviewed artifact range for the next committed verdict."""
@@ -276,7 +290,10 @@ class SessionArtifactStore:
         by_path: dict[str, dict[str, Any]] = {}
         for revision in revisions:
             for change in revision["changes"]:
-                by_path[change["path"]] = change
+                by_path[change["path"]] = {
+                    **change,
+                    "revision_id": revision["revision_id"],
+                }
         return {
             "from_revision": checkpoint_revision or "baseline",
             "to_revision": revisions[-1]["revision_id"] if revisions else "none",
@@ -301,7 +318,7 @@ class SessionArtifactStore:
                 lines.append(f"- deleted {change['path']} (was {before_hash[:12]})")
             else:
                 lines.append(
-                    f"- {change['status']} {change['path']} "
+                    f"- {change['status']} {change['path']} (revision_id={change['revision_id']}) "
                     f"(size={after.get('size')}, hash={str(after.get('hash', ''))[:12]})"
                 )
         remaining = len(changes) - limit
@@ -354,6 +371,7 @@ class SessionArtifactStore:
             raise ValueError(msg)
         if path is not None:
             return self._inspect_path(revision, str(path), offset, limit)
+        end = min(offset + limit, len(revision["changes"]))
         return {
             "revision_id": revision["revision_id"],
             "sequence": revision["sequence"],
@@ -368,8 +386,48 @@ class SessionArtifactStore:
                     "before": change["before"],
                     "after": change["after"],
                 }
-                for change in revision["changes"]
+                for change in revision["changes"][offset:end]
             ],
+            "offset": offset,
+            "limit": limit,
+            "next_offset": end if end < len(revision["changes"]) else None,
+            "has_more": end < len(revision["changes"]),
+        }
+
+    def inspect_result_revision(
+        self, revision_id: str, *, offset: int = 0, limit: int = 4_000
+    ) -> dict[str, Any]:
+        """Return a bounded page of one persisted reviewed result."""
+        if not isinstance(revision_id, str) or not revision_id.startswith("result-"):
+            raise ValueError("Unknown result revision.")
+        if not isinstance(offset, int) or isinstance(offset, bool) or offset < 0:
+            raise ValueError("inspection offset must be a non-negative integer.")
+        if (
+            not isinstance(limit, int)
+            or isinstance(limit, bool)
+            or not 1 <= limit <= _INSPECT_PAGE_LIMIT
+        ):
+            raise ValueError("inspection limit must be between 1 and 8000.")
+        content_hash = revision_id.removeprefix("result-")
+        content = self._result_revisions.get(content_hash)
+        if content is None and self._root is not None:
+            try:
+                content = (self._root / "results" / content_hash).read_text(
+                    encoding="utf-8"
+                )
+            except OSError as exc:
+                raise ValueError("Reviewed result is unavailable.") from exc
+        if content is None:
+            raise ValueError("Unknown result revision.")
+        end = min(offset + limit, len(content))
+        return {
+            "revision_id": revision_id,
+            "content": content[offset:end],
+            "offset": offset,
+            "limit": limit,
+            "total_chars": len(content),
+            "next_offset": end if end < len(content) else None,
+            "has_more": end < len(content),
         }
 
     def _inspect_path(
@@ -458,7 +516,7 @@ class SessionArtifactStore:
             probe.unlink()
         except OSError as exc:
             self._mark_incomplete(f"session storage unavailable: {exc}")
-            return f"artifact capture unavailable: {exc}"
+            return "artifact capture unavailable"
         return None
 
     def _scan_workspace(self) -> dict[str, dict[str, Any]]:

@@ -129,6 +129,30 @@ def test_system_artifacts_mount_is_tinycua_only(tmp_path: Path, monkeypatch) -> 
     assert mounted["opencode"] is None
 
 
+def test_non_tinycua_run_agent_ignores_system_artifacts(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Direct harness callers cannot mount TinyCUA's system artifacts."""
+    command: list[str] = []
+
+    class Completed:
+        returncode = 0
+
+    def capture(args, **kwargs):  # noqa: ANN001, ARG001
+        command.extend(args)
+        return Completed()
+
+    monkeypatch.setattr(run_experiment.subprocess, "run", capture)
+    logs = tmp_path / "logs"
+    logs.mkdir()
+
+    run_experiment.run_agent(
+        "opencode", 1, "prompt", tmp_path, logs, 1, system_artifacts=tmp_path / "system"
+    )
+
+    assert "EXPERIMENT_SYSTEM_ARTIFACTS=/workspace/system-artifacts" not in command
+
+
 def test_parse_agents_rejects_unknown() -> None:
     """Agent filters must be real harness names."""
     assert parse_agents("opencode,tinycua") == ("opencode", "tinycua")

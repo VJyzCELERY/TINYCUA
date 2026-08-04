@@ -904,6 +904,36 @@ async def test_tool_boundary_noop_creates_no_revision(tmp_path: Path) -> None:
     assert artifact_store.revisions()[0]["provenance"]["tool_name"] == "write_file"
 
 
+async def test_returned_failure_revision_provenance(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A mutating tool's returned failure remains failed in its revision."""
+    agent = create_tinycua_agent(session_config=SessionConfig(workspace_dir=tmp_path))
+    loop = agent.loop
+    node = TinyCUATaskExecutorNode(
+        node_id="task_executor", config=create_node_config("task_executor")
+    )
+    node.ensure_session(loop.root_session)
+
+    async def fail_after_write(tool, arguments, agent):  # noqa: ANN001, ARG001
+        (tmp_path / "partial.txt").write_text("partial")
+        return {"success": False, "error": "partial failure"}
+
+    monkeypatch.setattr(
+        "tinycua.loops.tinycua_loop.ToolExecutor.execute", fail_after_write
+    )
+    await loop._execute_tool_calls(
+        agent,
+        [{"id": "call-1", "function": {"name": "write_file", "arguments": "{}"}}],
+        [next(tool for tool in agent.tools if tool.name == "write_file")],
+        node,
+    )
+
+    revision = loop.root_session.artifact_store.revisions()[-1]
+    assert revision["provenance"]["success"] is False
+    assert revision["provenance"]["error"] == "partial failure"
+
+
 def test_model_visible_state_never_exposes_session_storage_path(tmp_path: Path) -> None:
     """Prompts, tool outcomes, and task metadata omit the internal directory."""
     workspace = tmp_path / "workspace"

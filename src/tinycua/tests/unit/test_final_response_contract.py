@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from types import SimpleNamespace
 import pytest
 
@@ -784,8 +783,8 @@ def test_task_result_update_merges_tool_evidence_metadata() -> None:
     assert "executor_partial_tool_results" not in task.metadata
 
 
-def test_shell_action_records_tool_audit_artifact(tmp_path) -> None:
-    """Action tool results produce durable audit artifacts under .tinycua-artifacts."""
+def test_shell_action_does_not_record_workspace_tool_audit(tmp_path) -> None:
+    """Raw tool transcripts are never written beneath the agent workspace."""
     artifact_dir = tmp_path / ".tinycua-artifacts"
     loop = TinyCUALoop(
         session_config=SessionConfig(workspace_dir=tmp_path, artifact_dir=artifact_dir)
@@ -814,21 +813,8 @@ def test_shell_action_records_tool_audit_artifact(tmp_path) -> None:
         tool_result["output"],
     )
 
-    assert audit_path is not None
-    assert "run_shell" in audit_path
-    audit_file = tmp_path / audit_path
-    assert audit_file.exists()
-    audit = json.loads(audit_file.read_text())
-    assert audit["name"] == "run_shell"
-    assert audit["arguments"]["command"] == "echo hello"
-    assert audit["output"]["stdout"].strip() == "hello"
-
-    # Verify _artifacts_from_tool_results includes audit artifacts
-    tool_result["artifact_path"] = audit_path
-    artifacts = loop._artifacts_from_tool_results([tool_result])
-    audit_artifacts = [a for a in artifacts if a["kind"] == "tool_audit"]
-    assert len(audit_artifacts) == 1
-    assert audit_artifacts[0]["metadata"]["tool_name"] == "run_shell"
+    assert audit_path is None
+    assert not artifact_dir.exists()
 
 
 def test_non_action_tool_does_not_create_audit_artifact(tmp_path) -> None:

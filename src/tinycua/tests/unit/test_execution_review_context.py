@@ -803,6 +803,31 @@ def test_review_checkpoint_advances_atomically_with_committed_verdict(
     assert artifact_store.checkpoint()["revision_id"] == checkpoint["revision_id"]
 
 
+def test_checkpoint_persistence_failure_leaves_verdict_uncommitted(
+    tmp_path, monkeypatch
+) -> None:
+    """An approval is not published when its checkpoint cannot be prepared."""
+    store = TaskStateStore()
+    task = store.create_task("Write report")
+    store.record_result(task.task_id, TaskResult(content="report"))
+    artifact_store = SessionArtifactStore(
+        workspace_dir=tmp_path, session_dir=tmp_path.parent / f"{tmp_path.name}-session"
+    )
+    review = _review_tool(store)
+    review(decision="approved", review_summary="ok", rationale="checked")
+
+    def fail_checkpoint(*args, **kwargs):  # noqa: ANN002, ANN003
+        raise OSError("disk full")
+
+    monkeypatch.setattr(artifact_store, "prepare_checkpoint", fail_checkpoint)
+
+    with pytest.raises(OSError, match="disk full"):
+        commit_staged_review(store, artifact_store, task.task_id)
+
+    assert task.reviewer_decisions == []
+    assert task.task_id in store._staged_reviewer_decisions
+
+
 def test_reviewer_receives_cumulative_checkpoint_diff_without_raw_paths(
     tmp_path,
 ) -> None:

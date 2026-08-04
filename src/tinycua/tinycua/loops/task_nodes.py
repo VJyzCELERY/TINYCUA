@@ -246,7 +246,9 @@ class TinyCUATaskAnalyzerNode(ProcessNode):
             )
             replan_reason = str(self.config.metadata.get("replan_reason", ""))
             reason_prefix = f"{replan_reason}\n\n" if replan_reason else ""
-            return f"{reason_prefix}Local task region for replan:\n{_render_local_region_markdown(region)}\n\n{base}"
+            progress = _render_cumulative_progress(session)
+            progress_prefix = f"{progress}\n\n" if progress else ""
+            return f"{reason_prefix}{progress_prefix}Local task region for replan:\n{_render_local_region_markdown(region)}\n\n{base}"
         mission = _render_mission_block(session)
         prefix = f"{mission}\n\n" if mission else ""
         roadmap = _render_task_tree_markdown(
@@ -762,8 +764,10 @@ class TinyCUATaskAssessorNode(ProcessNode):
         if mode == "local_replan":
             replan_reason = str(self.config.metadata.get("replan_reason", ""))
             reason_prefix = f"{replan_reason}\n\n" if replan_reason else ""
+            progress = _render_cumulative_progress(session)
+            progress_prefix = f"{progress}\n\n" if progress else ""
             return (
-                f"{prefix}{prior_prefix}{reason_prefix}Local roadmap region for "
+                f"{prefix}{prior_prefix}{reason_prefix}{progress_prefix}Local roadmap region for "
                 "reviewer-requested replan:\n"
                 f"{_render_local_region_markdown(_local_task_region(session, self.config.metadata.get('replan_task_id')))}\n\n{base}"
             )

@@ -1491,3 +1491,72 @@ def test_model_visible_payloads_never_expose_session_storage_path(tmp_path) -> N
     )
 
     assert str(session_store.resolve()) not in rendered
+
+
+def test_internal_audit_paths_are_never_model_visible(tmp_path) -> None:
+    """Tool evidence omits legacy audit paths and storage failure details."""
+    workspace = tmp_path / "workspace"
+    session_store = tmp_path / "session-store"
+    workspace.mkdir()
+    loop = TinyCUALoop(
+        session_config=SessionConfig(
+            workspace_dir=workspace,
+            artifact_dir=workspace / ".tinycua-artifacts",
+            session_dir=session_store,
+        )
+    )
+    task = loop.root_session.task_store.create_task("Task")
+    loop.root_session.task_store.record_result(
+        task.task_id,
+        TaskResult(
+            content="report",
+            metadata={
+                "tool_results": [
+                    {
+                        "name": "run_shell",
+                        "artifact_path": str(session_store / "tool-calls" / "raw.json"),
+                        "outcome": {"tool_name": "run_shell", "success": True},
+                    }
+                ]
+            },
+        ),
+    )
+    reviewer = TinyCUAResultReviewerNode(
+        "result_reviewer", create_node_config("result_reviewer")
+    )
+    reviewer.ensure_session(loop.root_session)
+
+    assert (
+        loop._write_tool_audit_artifact("run_shell", {"command": "secret"}, {}) is None
+    )
+    assert str(session_store) not in reviewer.build_continuation(loop.root_session)
+    assert not (workspace / ".tinycua-artifacts" / "tool-calls").exists()
+
+
+def test_local_replan_retains_full_progression() -> None:
+    """Local replanning retains approved knowledge beyond the local region."""
+    loop = TinyCUALoop()
+    root = loop.root_session.task_store.create_task("Root")
+    completed = loop.root_session.task_store.create_task(
+        "Completed", parent_id=root.task_id
+    )
+    active = loop.root_session.task_store.create_task("Active", parent_id=root.task_id)
+    loop.root_session.task_store.record_result(
+        completed.task_id, TaskResult(content="done")
+    )
+    loop.root_session.task_store.record_reviewer_decision(
+        completed.task_id,
+        ReviewerDecision.APPROVED,
+        rationale="ok",
+        metadata={"review_summary": "OLDER APPROVED PROGRESS"},
+    )
+    loop.root_session.task_store.active_task_id = active.task_id
+    analyzer = TinyCUATaskAnalyzerNode(
+        "task_analyzer", create_node_config("task_analyzer", mode="local_replan")
+    )
+    assessor = TinyCUATaskAssessorNode(
+        "task_assessor", create_node_config("task_assessor", mode="local_replan")
+    )
+
+    assert "OLDER APPROVED PROGRESS" in analyzer.build_continuation(loop.root_session)
+    assert "OLDER APPROVED PROGRESS" in assessor.build_continuation(loop.root_session)

@@ -523,7 +523,7 @@ def run_agent(
     # FR-016: mount the sibling system-artifact directory so TinyCUA's internal
     # session history persists outside the judged workdir and is never copied
     # into the anonymous submission.
-    if system_artifacts is not None:
+    if agent == "tinycua" and system_artifacts is not None:
         container_system_artifacts = "/workspace/system-artifacts"
         command.extend(
             [

@@ -6,7 +6,6 @@ composed into ``TinyCUALoop`` via MRO like the other loop mixins.
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 
@@ -19,30 +18,9 @@ class ToolAuditMixin:
         arguments: dict[str, Any],
         output: Any,
     ) -> str | None:
-        """Write a durable audit JSON for action/research tool calls."""
-        if self.artifact_dir is None or self._disable_tool_audit:
-            return None
-        if name not in {
-            "run_shell",
-            "run_python",
-            "web_search",
-            "fetch_url",
-            "search_files",
-        }:
-            return None
-        self._tool_artifact_seq += 1
-        audit_dir = self.artifact_dir / "tool-calls"
-        audit_dir.mkdir(parents=True, exist_ok=True)
-        path = audit_dir / f"{self._tool_artifact_seq:04d}-{name}.json"
-        path.write_text(
-            json.dumps(
-                {"name": name, "arguments": arguments, "output": output},
-                indent=2,
-                default=str,
-            ),
-            encoding="utf-8",
-        )
-        return str(path)
+        """Disable duplicate workspace-local raw tool transcripts."""
+        del name, arguments, output
+        return None
 
     def _enrich_task_results_from_tool_batch(
         self,

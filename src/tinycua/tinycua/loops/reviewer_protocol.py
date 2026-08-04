@@ -101,13 +101,22 @@ def commit_staged_review(store: Any, artifact_store: Any, task_id: str) -> Any:
                 "artifact_range": artifact_store.current_range(),
             }
             staged["metadata"] = staged_metadata
-    committed = store.commit_staged_reviewer_decision(task_id)
+    checkpoint = None
     if (
         artifact_store is not None
-        and committed.reviewer_decisions[-1].get("decision") == "approved"
+        and staged.get("decision") == ReviewerDecision.APPROVED
     ):
-        event = committed.reviewer_decisions[-1]
-        artifact_store.advance_checkpoint(committed.task_id, event["event_id"])
+        event_numbers = [
+            int(item["event_id"].removeprefix("review-"))
+            for item in store.get_task(task_id).reviewer_decisions
+            if str(item.get("event_id", "")).removeprefix("review-").isdigit()
+        ]
+        checkpoint = artifact_store.prepare_checkpoint(
+            task_id, f"review-{max(event_numbers, default=0) + 1}"
+        )
+    committed = store.commit_staged_reviewer_decision(task_id)
+    if checkpoint is not None:
+        artifact_store.commit_prepared_checkpoint(checkpoint)
     return committed
 
 

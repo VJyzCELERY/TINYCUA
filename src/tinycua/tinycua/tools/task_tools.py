@@ -1152,6 +1152,10 @@ class ArtifactInspectTool(SessionTaskToolMixin, Tool):
         if self._artifact_store is None:
             return {"error": "No session artifact store is available."}
         try:
+            if revision_id.startswith("result-"):
+                return self._artifact_store.inspect_result_revision(
+                    revision_id, offset=offset, limit=limit
+                )
             return self._artifact_store.inspect_revision(
                 revision_id,
                 path=path,

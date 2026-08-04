@@ -8,6 +8,7 @@ import json
 import logging
 import re
 import time
+from uuid import uuid4
 from collections.abc import AsyncIterator, Callable
 from typing import TYPE_CHECKING, Any
 
@@ -217,6 +218,10 @@ class TinyCUALoop(
         self.workspace_dir = getattr(session_config, "workspace_dir", None)
         self.artifact_dir = getattr(session_config, "artifact_dir", None)
         self.session_dir = getattr(session_config, "session_dir", None)
+        if self.workspace_dir is not None and self.session_dir is None:
+            self.session_dir = (
+                self.workspace_dir.parent / ".tinycua-sessions" / uuid4().hex
+            )
         self._disable_tool_audit = getattr(session_config, "disable_tool_audit", False)
         self._tool_artifact_seq = 0
         self._pending_handoffs: list[NodeHandoff] = []
@@ -880,11 +885,17 @@ class TinyCUALoop(
                     break
                 continue
             if artifact_store is not None:
+                outcome = normalize_tool_outcome(
+                    tool_call,
+                    {"name": name, "allowed": True, "output": output},
+                    arguments=arguments,
+                )
                 artifact_store.finish_capture(
                     {
                         "tool_name": name,
                         "call_id": call_id,
-                        "success": True,
+                        "success": outcome["success"],
+                        "error": outcome["error"],
                     }
                 )
             if name in {"task_update", "task_result_update", "task_review_decision"}:
@@ -908,9 +919,6 @@ class TinyCUALoop(
                 if callable(consume):
                     consume(drafted_commit[1])
             tool_result = {"name": name, "allowed": True, "output": output}
-            artifact_path = self._write_tool_audit_artifact(name, arguments, output)
-            if artifact_path:
-                tool_result["artifact_path"] = artifact_path
             record(tool_result)
             if name in commit_tools and self._should_stop_commit_batch(node):
                 break

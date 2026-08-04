@@ -337,6 +337,59 @@ def test_checkpoint_without_revision_then_write(tmp_path: Path) -> None:
     assert diff["changes"][0]["path"] == "later.txt"
 
 
+def test_reviewed_result_revision_persists_after_replacement(tmp_path: Path) -> None:
+    """A persisted report stays inspectable after its active result changes."""
+    session_dir = tmp_path.parent / f"{tmp_path.name}-session"
+    art = _store(tmp_path, session_dir=session_dir)
+
+    revision = art.record_result_revision("task-1", "reviewed report")
+    replacement = SessionArtifactStore(workspace_dir=tmp_path, session_dir=session_dir)
+
+    page = replacement.inspect_result_revision(revision["revision_id"], limit=8)
+
+    assert page["content"] == "reviewed"
+    assert page["has_more"] is True
+    assert page["next_offset"] == 8
+
+
+def test_cumulative_projection_is_inspectable(tmp_path: Path) -> None:
+    """Each projected path retains the opaque revision that owns its content."""
+    art = _store(tmp_path)
+    art.begin_capture()
+    (tmp_path / "first.txt").write_text("first")
+    first = art.finish_capture(
+        {"tool_name": "write_file", "call_id": "c1", "success": True}
+    )
+    art.begin_capture()
+    (tmp_path / "second.txt").write_text("second")
+    second = art.finish_capture(
+        {"tool_name": "write_file", "call_id": "c2", "success": True}
+    )
+
+    changes = {
+        change["path"]: change for change in art.changes_since_checkpoint()["changes"]
+    }
+
+    assert changes["first.txt"]["revision_id"] == first["revision_id"]
+    assert changes["second.txt"]["revision_id"] == second["revision_id"]
+    assert first["revision_id"] in art.render_checkpoint_diff()
+
+
+def test_revision_summary_is_paginated(tmp_path: Path) -> None:
+    """Revision summaries honor stable page bounds before exposing changes."""
+    art = _store(tmp_path)
+    art.begin_capture()
+    (tmp_path / "a.txt").write_text("a")
+    (tmp_path / "b.txt").write_text("b")
+    art.finish_capture({"tool_name": "write_file", "call_id": "c1", "success": True})
+
+    page = art.inspect_revision(art.latest_revision_id(), offset=0, limit=1)
+
+    assert len(page["changes"]) == 1
+    assert page["has_more"] is True
+    assert page["next_offset"] == 1
+
+
 def test_post_write_persistence_failure_marks_incomplete(
     tmp_path: Path, monkeypatch
 ) -> None:
