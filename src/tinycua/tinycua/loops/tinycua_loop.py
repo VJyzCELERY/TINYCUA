@@ -228,13 +228,15 @@ class TinyCUALoop(
         self._resolved_tools_for_prompt: list[Tool] | None = None
         self._draft_execution_id = ""
         self._reset_tool_result_store()
-        from tinycua.models.artifact_history import SessionArtifactStore
+        self._artifact_store = self.root_session.artifact_store
+        if self._artifact_store is None:
+            from tinycua.models.artifact_history import SessionArtifactStore
 
-        self._artifact_store = SessionArtifactStore(
-            session_dir=self.session_dir,
-            workspace_dir=self.workspace_dir,
-        )
-        self.root_session.artifact_store = self._artifact_store
+            self._artifact_store = SessionArtifactStore(
+                session_dir=self.session_dir,
+                workspace_dir=self.workspace_dir,
+            )
+            self.root_session.artifact_store = self._artifact_store
 
     def get_usage_events(self) -> list[dict[str, Any]]:
         """Return the usage events captured during the last streaming run.

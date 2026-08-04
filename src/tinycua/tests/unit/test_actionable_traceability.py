@@ -745,6 +745,25 @@ async def test_reusing_session_preserves_in_memory_context(tmp_path: Path) -> No
     assert session.input_context[-1]["content"] == "Continue."
 
 
+def test_reusing_session_preserves_artifact_history(tmp_path: Path) -> None:
+    """Recreating an agent retains its session-owned artifact history."""
+    session = Session()
+    config = SessionConfig(workspace_dir=tmp_path)
+    first = create_tinycua_agent(session=session, session_config=config)
+    artifact_store = first.loop.root_session.artifact_store
+    assert artifact_store is not None
+    artifact_store.begin_capture()
+    (tmp_path / "artifact.txt").write_text("v1")
+    artifact_store.finish_capture({"tool_name": "write_file", "success": True})
+    checkpoint = artifact_store.advance_checkpoint("task-1", "review-1")
+
+    second = create_tinycua_agent(session=session, session_config=config)
+
+    assert second.loop.root_session.artifact_store is artifact_store
+    assert artifact_store.revision_count() == 1
+    assert artifact_store.checkpoint() == checkpoint
+
+
 # ---------------------------------------------------------------------------
 # Common tool-boundary revision capture (local:cumulative-review-artifact-history)
 # ---------------------------------------------------------------------------
