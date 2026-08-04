@@ -401,6 +401,19 @@ def test_reviewed_result_revision_persists_after_replacement(tmp_path: Path) -> 
     assert page["next_offset"] == 8
 
 
+def test_result_revision_hash_mismatch_fails_closed_after_replacement(
+    tmp_path: Path,
+) -> None:
+    session_dir = tmp_path.parent / f"{tmp_path.name}-session"
+    art = _store(tmp_path, session_dir=session_dir)
+    revision = art.record_result_revision("task-1", "reviewed report")
+    (session_dir / "results" / revision["content_hash"]).write_text("tampered")
+    replacement = _store(tmp_path, session_dir=session_dir)
+
+    with pytest.raises(ValueError, match="unavailable"):
+        replacement.inspect_result_revision(revision["revision_id"])
+
+
 def test_result_revision_rejects_path_traversal(tmp_path: Path) -> None:
     session_dir = tmp_path.parent / f"{tmp_path.name}-session"
     session_dir.mkdir()

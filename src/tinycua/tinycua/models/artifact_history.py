@@ -416,10 +416,10 @@ class SessionArtifactStore:
                 content = (self._root / "results" / content_hash).read_text(
                     encoding="utf-8"
                 )
-            except OSError as exc:
+            except (OSError, UnicodeError) as exc:
                 raise ValueError("Reviewed result is unavailable.") from exc
-        if content is None:
-            raise ValueError("Unknown result revision.")
+        if content is None or _sha256_text(content) != content_hash:
+            raise ValueError("Reviewed result is unavailable.")
         end = min(offset + limit, len(content))
         return {
             "revision_id": revision_id,
