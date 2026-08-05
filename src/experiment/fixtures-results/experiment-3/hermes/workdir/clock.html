@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analog Clock</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: #1a1a2e;
+            font-family: Arial, sans-serif;
+        }
+        .clock-container { position: relative; }
+        canvas { border-radius: 50%; box-shadow: 0 0 30px rgba(0, 180, 255, 0.3); }
+    </style>
+</head>
+<body>
+<div class="clock-container">
+<canvas id="clock" width="400" height="400"></canvas>
+</div>
+
+<script>
+const canvas = document.getElementById('clock');
+const ctx = canvas.getContext('2d');
+const centerX = canvas.width / 2;
+const centerY = canvas.height / 2;
+const radius = 180;
+
+function getSeconds() { return new Date().getSeconds(); }
+function getMinutes() { return new Date().getMinutes(); }
+function getHours() {
+    const h = new Date().getHours();
+    const m = new Date().getMinutes();
+    return (h % 12) + m / 60;
+}
+
+function drawClock() {
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Outer ring
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = '#2a2a4e';
+    ctx.lineWidth = 15;
+    ctx.stroke();
+
+    // Hour markers
+    for (let i = 0; i < 12; i++) {
+        const angle = (i * Math.PI) / 6 - Math.PI / 2;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius - 35, angle, angle + Math.PI / 6);
+        ctx.strokeStyle = '#4a4a7e';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        const labelRadius = radius - 50;
+        const labelAngle = (i * Math.PI) / 6 - Math.PI / 2;
+        const labelX = centerX + Math.cos(labelAngle) * (labelRadius - 10);
+        const labelY = centerY + Math.sin(labelAngle) * (labelRadius - 10);
+
+        ctx.fillStyle = '#aaa';
+        ctx.font = 'bold 24px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(i === 3 ? 'III' : i === 9 ? 'IX' : i, labelX, labelY);
+    }
+
+    // Minute marks (small ticks)
+    for (let m = 0; m < 60; m++) {
+        if (m % 5 === 0) continue;
+        const angle = (m * Math.PI) / 30 - Math.PI / 2;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius - 38, angle, angle + Math.PI / 30);
+        ctx.strokeStyle = '#3a3a6e';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    }
+
+    // Center point
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, 5, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+
+    const seconds = getSeconds();
+    const minutes = getMinutes();
+    const hours = getHours();
+
+    // Second hand (red) - moves every second
+    const secondAngle = (seconds / 60) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY);
+    ctx.lineTo(
+        centerX + Math.cos(secondAngle - Math.PI / 2) * (radius - 15),
+        centerY + Math.sin(secondAngle - Math.PI / 2) * (radius - 15)
+    );
+    ctx.strokeStyle = '#ff4444';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // Minute hand (blue)
+    const minuteAngle = ((minutes + seconds / 60) / 60) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY);
+    ctx.lineTo(
+        centerX + Math.cos(minuteAngle - Math.PI / 2) * (radius - 45),
+        centerY + Math.sin(minuteAngle - Math.PI / 2) * (radius - 45)
+    );
+    ctx.strokeStyle = '#00ccff';
+    ctx.lineWidth = 6;
+    ctx.stroke();
+
+    // Hour hand (white)
+    const hourAngle = ((hours) / 12) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY);
+    ctx.lineTo(
+        centerX + Math.cos(hourAngle - Math.PI / 2) * (radius - 75),
+        centerY + Math.sin(hourAngle - Math.PI / 2) * (radius - 75)
+    );
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 6;
+    ctx.stroke();
+
+    // Update every frame using requestAnimationFrame
+    requestAnimationFrame(drawClock);
+}
+
+drawClock();
+</script>
+</body>
+</html>

@@ -1,0 +1,1217 @@
+=== workspace/seed/create ===
+=== workspace/seed/copy ===
+=== workspace/seed/remove ===
+=== agent ===
+ Container experiment-searxng-1 Running 
+ Container experiment-searxng-1 Waiting 
+ Container experiment-searxng-1 Healthy 
+ Container tinycua-template-agent-1eb78b68-d840-4e0d-9437-3a674c0194d3-6578706572696d656e742d35-74696e796375612d6e64 Creating 
+ Container tinycua-template-agent-1eb78b68-d840-4e0d-9437-3a674c0194d3-6578706572696d656e742d35-74696e796375612d6e64 Created 
+INFO:httpx:HTTP Request: GET http://host.docker.internal:1234/v1/models "HTTP/1.1 200 OK"
+INFO:tinycua.cli.model_probe:max_context_probe_no_field fallback=128000
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.node:node=query_analyst record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.node:node=worker record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=create_task root=655d5163c5234885b89d6dddf3062faf active=655d5163c5234885b89d6dddf3062faf completed=0/1 pending=1 in_progress=0
+INFO:tinycua.loops.node:node=task_create record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=decompose_task root=655d5163c5234885b89d6dddf3062faf active=227f67e03790405295e70b7dd32c3f16 completed=0/9 pending=9 in_progress=0
+  1. [pending] Research Neural Networks Fundamentals
+  2. [pending] Research Deep Learning & Backpropagation
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.node:node=task_analyzer record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=update_task root=655d5163c5234885b89d6dddf3062faf active=227f67e03790405295e70b7dd32c3f16 completed=0/9 pending=9 in_progress=0
+  1. [pending] Research Neural Networks Fundamentals
+  2. [pending] Research Deep Learning & Backpropagation
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.models.task:task_tree_mutation method=update_task root=655d5163c5234885b89d6dddf3062faf active=227f67e03790405295e70b7dd32c3f16 completed=0/9 pending=9 in_progress=0
+  1. [pending] Research Neural Networks Fundamentals
+  2. [pending] Research Deep Learning & Backpropagation
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.models.task:task_tree_mutation method=update_task root=655d5163c5234885b89d6dddf3062faf active=227f67e03790405295e70b7dd32c3f16 completed=0/9 pending=9 in_progress=0
+  1. [pending] Research Neural Networks Fundamentals
+  2. [pending] Research Deep Learning & Backpropagation
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.models.task:task_tree_mutation method=update_task root=655d5163c5234885b89d6dddf3062faf active=227f67e03790405295e70b7dd32c3f16 completed=0/9 pending=9 in_progress=0
+  1. [pending] Research Neural Networks Fundamentals
+  2. [pending] Research Deep Learning & Backpropagation
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.models.task:task_tree_mutation method=update_task root=655d5163c5234885b89d6dddf3062faf active=227f67e03790405295e70b7dd32c3f16 completed=0/9 pending=9 in_progress=0
+  1. [pending] Research Neural Networks Fundamentals
+  2. [pending] Research Deep Learning & Backpropagation
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.models.task:task_tree_mutation method=update_task root=655d5163c5234885b89d6dddf3062faf active=227f67e03790405295e70b7dd32c3f16 completed=0/9 pending=9 in_progress=0
+  1. [pending] Research Neural Networks Fundamentals
+  2. [pending] Research Deep Learning & Backpropagation
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.models.task:task_tree_mutation method=update_task root=655d5163c5234885b89d6dddf3062faf active=227f67e03790405295e70b7dd32c3f16 completed=0/9 pending=9 in_progress=0
+  1. [pending] Research Neural Networks Fundamentals
+  2. [pending] Research Deep Learning & Backpropagation
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.node:node=task_assessor record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=update_task root=655d5163c5234885b89d6dddf3062faf active=227f67e03790405295e70b7dd32c3f16 completed=0/9 pending=9 in_progress=0
+  1. [pending] Research Neural Networks Fundamentals
+  2. [pending] Research Deep Learning & Backpropagation
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.tinycua_loop:task_tool=task_update requested_task_id='655d5163c5234885b89d6dddf3062faf' resolved_task_id='655d5163c5234885b89d6dddf3062faf'
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=update_task root=655d5163c5234885b89d6dddf3062faf active=227f67e03790405295e70b7dd32c3f16 completed=0/9 pending=9 in_progress=0
+  1. [pending] Research Neural Networks Fundamentals
+  2. [pending] Research Deep Learning & Backpropagation
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.tinycua_loop:task_tool=task_update requested_task_id='227f67e03790405295e70b7dd32c3f16' resolved_task_id='227f67e03790405295e70b7dd32c3f16'
+INFO:tinycua.models.task:task_tree_mutation method=update_task root=655d5163c5234885b89d6dddf3062faf active=227f67e03790405295e70b7dd32c3f16 completed=0/9 pending=9 in_progress=0
+  1. [pending] Research Neural Networks Fundamentals
+  2. [pending] Research Deep Learning & Backpropagation
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.tinycua_loop:task_tool=task_update requested_task_id='5b4fb0226beb451e85ebfe9f4df91b07' resolved_task_id='5b4fb0226beb451e85ebfe9f4df91b07'
+INFO:tinycua.models.task:task_tree_mutation method=update_task root=655d5163c5234885b89d6dddf3062faf active=227f67e03790405295e70b7dd32c3f16 completed=0/9 pending=9 in_progress=0
+  1. [pending] Research Neural Networks Fundamentals
+  2. [pending] Research Deep Learning & Backpropagation
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.tinycua_loop:task_tool=task_update requested_task_id='5d215576e8864162b93ae6974392d71a' resolved_task_id='5d215576e8864162b93ae6974392d71a'
+INFO:tinycua.models.task:task_tree_mutation method=update_task root=655d5163c5234885b89d6dddf3062faf active=227f67e03790405295e70b7dd32c3f16 completed=0/9 pending=9 in_progress=0
+  1. [pending] Research Neural Networks Fundamentals
+  2. [pending] Research Deep Learning & Backpropagation
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.tinycua_loop:task_tool=task_update requested_task_id='b3a3f95e567a42519bfd598aeeb82d2c' resolved_task_id='b3a3f95e567a42519bfd598aeeb82d2c'
+INFO:tinycua.models.task:task_tree_mutation method=update_task root=655d5163c5234885b89d6dddf3062faf active=227f67e03790405295e70b7dd32c3f16 completed=0/9 pending=9 in_progress=0
+  1. [pending] Research Neural Networks Fundamentals
+  2. [pending] Research Deep Learning & Backpropagation
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.tinycua_loop:task_tool=task_update requested_task_id='96560ea6ab5449d8b2c896e3cbf46e02' resolved_task_id='96560ea6ab5449d8b2c896e3cbf46e02'
+INFO:tinycua.models.task:task_tree_mutation method=update_task root=655d5163c5234885b89d6dddf3062faf active=227f67e03790405295e70b7dd32c3f16 completed=0/9 pending=9 in_progress=0
+  1. [pending] Research Neural Networks Fundamentals
+  2. [pending] Research Deep Learning & Backpropagation
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.tinycua_loop:task_tool=task_update requested_task_id='873c24fba6994e5997e5fd99902c9bdc' resolved_task_id='873c24fba6994e5997e5fd99902c9bdc'
+INFO:tinycua.models.task:task_tree_mutation method=update_task root=655d5163c5234885b89d6dddf3062faf active=227f67e03790405295e70b7dd32c3f16 completed=0/9 pending=9 in_progress=0
+  1. [pending] Research Neural Networks Fundamentals
+  2. [pending] Research Deep Learning & Backpropagation
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.tinycua_loop:task_tool=task_update requested_task_id='ff6f137b0fbd41868e6b647670a258aa' resolved_task_id='ff6f137b0fbd41868e6b647670a258aa'
+INFO:tinycua.loops.node:node=task_analyzer record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=update_task root=655d5163c5234885b89d6dddf3062faf active=227f67e03790405295e70b7dd32c3f16 completed=0/9 pending=9 in_progress=0
+  1. [pending] Research Neural Networks Fundamentals
+  2. [pending] Research Deep Learning & Backpropagation
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.models.task:task_tree_mutation method=update_task root=655d5163c5234885b89d6dddf3062faf active=227f67e03790405295e70b7dd32c3f16 completed=0/9 pending=9 in_progress=0
+  1. [pending] Research Neural Networks Fundamentals
+  2. [pending] Research Deep Learning & Backpropagation
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.node:node=task_assessor record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=update_task root=655d5163c5234885b89d6dddf3062faf active=227f67e03790405295e70b7dd32c3f16 completed=0/9 pending=8 in_progress=1
+  1. [pending] Research Neural Networks Fundamentals
+  2. [pending] Research Deep Learning & Backpropagation
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [in_progress] Review & Finalize Study Guide
+INFO:tinycua.loops.tinycua_loop:task_tool=task_update requested_task_id='7ffde3a6e128418b8fefd92697a5ce98' resolved_task_id='7ffde3a6e128418b8fefd92697a5ce98'
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=update_task root=655d5163c5234885b89d6dddf3062faf active=227f67e03790405295e70b7dd32c3f16 completed=0/9 pending=8 in_progress=1
+  1. [pending] Research Neural Networks Fundamentals
+  2. [pending] Research Deep Learning & Backpropagation
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [in_progress] Review & Finalize Study Guide
+INFO:tinycua.loops.tinycua_loop:task_tool=task_update requested_task_id='b3a3f95e567a42519bfd598aeeb82d2c' resolved_task_id='b3a3f95e567a42519bfd598aeeb82d2c'
+INFO:tinycua.loops.node:node=task_analyzer record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=update_task root=655d5163c5234885b89d6dddf3062faf active=227f67e03790405295e70b7dd32c3f16 completed=0/9 pending=8 in_progress=1
+  1. [pending] Research Neural Networks Fundamentals
+  2. [pending] Research Deep Learning & Backpropagation
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [in_progress] Review & Finalize Study Guide
+INFO:tinycua.models.task:task_tree_mutation method=update_task root=655d5163c5234885b89d6dddf3062faf active=227f67e03790405295e70b7dd32c3f16 completed=0/9 pending=8 in_progress=1
+  1. [pending] Research Neural Networks Fundamentals
+  2. [pending] Research Deep Learning & Backpropagation
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [in_progress] Review & Finalize Study Guide
+INFO:tinycua.models.task:task_tree_mutation method=update_task root=655d5163c5234885b89d6dddf3062faf active=227f67e03790405295e70b7dd32c3f16 completed=0/9 pending=8 in_progress=1
+  1. [pending] Research Neural Networks Fundamentals
+  2. [pending] Research Deep Learning & Backpropagation
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [in_progress] Review & Finalize Study Guide
+INFO:tinycua.loops.node:node=task_assessor record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET http://searxng:8080/search?q=neural+networks+fundamentals+perceptron+neuron+activation+functions+forward+propagation&format=json "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=transition root=655d5163c5234885b89d6dddf3062faf active=227f67e03790405295e70b7dd32c3f16 completed=0/9 pending=8 in_progress=1
+  1. [in_progress] Research Neural Networks Fundamentals
+  2. [pending] Research Deep Learning & Backpropagation
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=655d5163c5234885b89d6dddf3062faf active=227f67e03790405295e70b7dd32c3f16 completed=0/9 pending=8 in_progress=1
+  1. [in_progress] Research Neural Networks Fundamentals ✓
+  2. [pending] Research Deep Learning & Backpropagation
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='227f67e03790405295e70b7dd32c3f16'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=670
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id='227f67e03790405295e70b7dd32c3f16'
+INFO:tinycua.models.task:task_tree_mutation method=transition root=655d5163c5234885b89d6dddf3062faf active=5b4fb0226beb451e85ebfe9f4df91b07 completed=1/9 pending=8 in_progress=0
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [pending] Research Deep Learning & Backpropagation
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.models.task:task_tree_mutation method=record_reviewer_decision root=655d5163c5234885b89d6dddf3062faf active=5b4fb0226beb451e85ebfe9f4df91b07 completed=1/9 pending=8 in_progress=0
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [pending] Research Deep Learning & Backpropagation
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.node:node=result_reviewer record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=transition root=655d5163c5234885b89d6dddf3062faf active=5b4fb0226beb451e85ebfe9f4df91b07 completed=1/9 pending=7 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [in_progress] Research Deep Learning & Backpropagation
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=655d5163c5234885b89d6dddf3062faf active=5b4fb0226beb451e85ebfe9f4df91b07 completed=1/9 pending=7 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [in_progress] Research Deep Learning & Backpropagation ✓
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='5b4fb0226beb451e85ebfe9f4df91b07'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=445
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id=None
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id=None
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id='5b4fb0226beb451e85ebfe9f4df91b07'
+INFO:tinycua.models.task:task_tree_mutation method=transition root=655d5163c5234885b89d6dddf3062faf active=5d215576e8864162b93ae6974392d71a completed=2/9 pending=7 in_progress=0
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.models.task:task_tree_mutation method=record_reviewer_decision root=655d5163c5234885b89d6dddf3062faf active=5d215576e8864162b93ae6974392d71a completed=2/9 pending=7 in_progress=0
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [pending] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.node:node=result_reviewer record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=transition root=655d5163c5234885b89d6dddf3062faf active=5d215576e8864162b93ae6974392d71a completed=2/9 pending=6 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [in_progress] Research Transformer Architecture Fundamentals
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=655d5163c5234885b89d6dddf3062faf active=5d215576e8864162b93ae6974392d71a completed=2/9 pending=6 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [in_progress] Research Transformer Architecture Fundamentals ✓
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='5d215576e8864162b93ae6974392d71a'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=450
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id='5d215576e8864162b93ae6974392d71a'
+INFO:tinycua.models.task:task_tree_mutation method=record_reviewer_decision root=655d5163c5234885b89d6dddf3062faf active=5d215576e8864162b93ae6974392d71a completed=2/9 pending=6 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [in_progress] Research Transformer Architecture Fundamentals ✓
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.node:node=result_reviewer record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=655d5163c5234885b89d6dddf3062faf active=5d215576e8864162b93ae6974392d71a completed=2/9 pending=6 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [in_progress] Research Transformer Architecture Fundamentals ✓
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='5d215576e8864162b93ae6974392d71a'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=669
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id=None
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id='5d215576e8864162b93ae6974392d71a'
+INFO:tinycua.models.task:task_tree_mutation method=record_reviewer_decision root=655d5163c5234885b89d6dddf3062faf active=5d215576e8864162b93ae6974392d71a completed=2/9 pending=6 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [in_progress] Research Transformer Architecture Fundamentals ✓
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.node:node=result_reviewer record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=655d5163c5234885b89d6dddf3062faf active=5d215576e8864162b93ae6974392d71a completed=2/9 pending=6 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [in_progress] Research Transformer Architecture Fundamentals ✓
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='5d215576e8864162b93ae6974392d71a'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=445
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id=None
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id=None
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id=None
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id='5d215576e8864162b93ae6974392d71a'
+INFO:tinycua.models.task:task_tree_mutation method=record_reviewer_decision root=655d5163c5234885b89d6dddf3062faf active=5d215576e8864162b93ae6974392d71a completed=2/9 pending=6 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [in_progress] Research Transformer Architecture Fundamentals ✓
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.node:node=result_reviewer record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=655d5163c5234885b89d6dddf3062faf active=5d215576e8864162b93ae6974392d71a completed=2/9 pending=6 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [in_progress] Research Transformer Architecture Fundamentals ✓
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='5d215576e8864162b93ae6974392d71a'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=1097
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id='5d215576e8864162b93ae6974392d71a'
+INFO:tinycua.models.task:task_tree_mutation method=record_reviewer_decision root=655d5163c5234885b89d6dddf3062faf active=5d215576e8864162b93ae6974392d71a completed=2/9 pending=6 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [in_progress] Research Transformer Architecture Fundamentals ✓
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.node:node=result_reviewer record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=655d5163c5234885b89d6dddf3062faf active=5d215576e8864162b93ae6974392d71a completed=2/9 pending=6 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [in_progress] Research Transformer Architecture Fundamentals ✓
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='5d215576e8864162b93ae6974392d71a'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=470
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id='5d215576e8864162b93ae6974392d71a'
+INFO:tinycua.models.task:task_tree_mutation method=transition root=655d5163c5234885b89d6dddf3062faf active=b3a3f95e567a42519bfd598aeeb82d2c completed=3/9 pending=6 in_progress=0
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.models.task:task_tree_mutation method=record_reviewer_decision root=655d5163c5234885b89d6dddf3062faf active=b3a3f95e567a42519bfd598aeeb82d2c completed=3/9 pending=6 in_progress=0
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [pending] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.node:node=result_reviewer record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=transition root=655d5163c5234885b89d6dddf3062faf active=b3a3f95e567a42519bfd598aeeb82d2c completed=3/9 pending=5 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [in_progress] Draft Study Guide Structure & Outline
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=655d5163c5234885b89d6dddf3062faf active=b3a3f95e567a42519bfd598aeeb82d2c completed=3/9 pending=5 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [in_progress] Draft Study Guide Structure & Outline ✓
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='b3a3f95e567a42519bfd598aeeb82d2c'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=407
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id='b3a3f95e567a42519bfd598aeeb82d2c'
+INFO:tinycua.models.task:task_tree_mutation method=transition root=655d5163c5234885b89d6dddf3062faf active=96560ea6ab5449d8b2c896e3cbf46e02 completed=4/9 pending=5 in_progress=0
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.models.task:task_tree_mutation method=record_reviewer_decision root=655d5163c5234885b89d6dddf3062faf active=96560ea6ab5449d8b2c896e3cbf46e02 completed=4/9 pending=5 in_progress=0
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [pending] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.node:node=result_reviewer record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=transition root=655d5163c5234885b89d6dddf3062faf active=96560ea6ab5449d8b2c896e3cbf46e02 completed=4/9 pending=4 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [in_progress] Write Content: Neural Networks Section
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=655d5163c5234885b89d6dddf3062faf active=96560ea6ab5449d8b2c896e3cbf46e02 completed=4/9 pending=4 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [in_progress] Write Content: Neural Networks Section ✓
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='96560ea6ab5449d8b2c896e3cbf46e02'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=364
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id='96560ea6ab5449d8b2c896e3cbf46e02'
+INFO:tinycua.models.task:task_tree_mutation method=transition root=655d5163c5234885b89d6dddf3062faf active=873c24fba6994e5997e5fd99902c9bdc completed=5/9 pending=4 in_progress=0
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [completed] Write Content: Neural Networks Section ✓
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.models.task:task_tree_mutation method=record_reviewer_decision root=655d5163c5234885b89d6dddf3062faf active=873c24fba6994e5997e5fd99902c9bdc completed=5/9 pending=4 in_progress=0
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [completed] Write Content: Neural Networks Section ✓
+  6. [pending] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.node:node=result_reviewer record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=transition root=655d5163c5234885b89d6dddf3062faf active=873c24fba6994e5997e5fd99902c9bdc completed=5/9 pending=3 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [completed] Write Content: Neural Networks Section ✓
+  6. [in_progress] Write Content: Deep Learning & Backpropagation
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=655d5163c5234885b89d6dddf3062faf active=873c24fba6994e5997e5fd99902c9bdc completed=5/9 pending=3 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [completed] Write Content: Neural Networks Section ✓
+  6. [in_progress] Write Content: Deep Learning & Backpropagation ✓
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='873c24fba6994e5997e5fd99902c9bdc'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=398
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id=None
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id='873c24fba6994e5997e5fd99902c9bdc'
+INFO:tinycua.models.task:task_tree_mutation method=transition root=655d5163c5234885b89d6dddf3062faf active=ff6f137b0fbd41868e6b647670a258aa completed=6/9 pending=3 in_progress=0
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [completed] Write Content: Neural Networks Section ✓
+  6. [completed] Write Content: Deep Learning & Backpropagation ✓
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.models.task:task_tree_mutation method=record_reviewer_decision root=655d5163c5234885b89d6dddf3062faf active=ff6f137b0fbd41868e6b647670a258aa completed=6/9 pending=3 in_progress=0
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [completed] Write Content: Neural Networks Section ✓
+  6. [completed] Write Content: Deep Learning & Backpropagation ✓
+  7. [pending] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.node:node=result_reviewer record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=transition root=655d5163c5234885b89d6dddf3062faf active=ff6f137b0fbd41868e6b647670a258aa completed=6/9 pending=2 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [completed] Write Content: Neural Networks Section ✓
+  6. [completed] Write Content: Deep Learning & Backpropagation ✓
+  7. [in_progress] Write Content: Transformer Architecture
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=655d5163c5234885b89d6dddf3062faf active=ff6f137b0fbd41868e6b647670a258aa completed=6/9 pending=2 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [completed] Write Content: Neural Networks Section ✓
+  6. [completed] Write Content: Deep Learning & Backpropagation ✓
+  7. [in_progress] Write Content: Transformer Architecture ✓
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='ff6f137b0fbd41868e6b647670a258aa'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=470
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id='ff6f137b0fbd41868e6b647670a258aa'
+INFO:tinycua.models.task:task_tree_mutation method=transition root=655d5163c5234885b89d6dddf3062faf active=7ffde3a6e128418b8fefd92697a5ce98 completed=7/9 pending=2 in_progress=0
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [completed] Write Content: Neural Networks Section ✓
+  6. [completed] Write Content: Deep Learning & Backpropagation ✓
+  7. [completed] Write Content: Transformer Architecture ✓
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.models.task:task_tree_mutation method=record_reviewer_decision root=655d5163c5234885b89d6dddf3062faf active=7ffde3a6e128418b8fefd92697a5ce98 completed=7/9 pending=2 in_progress=0
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [completed] Write Content: Neural Networks Section ✓
+  6. [completed] Write Content: Deep Learning & Backpropagation ✓
+  7. [completed] Write Content: Transformer Architecture ✓
+  8. [pending] Review & Finalize Study Guide
+INFO:tinycua.loops.node:node=result_reviewer record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=transition root=655d5163c5234885b89d6dddf3062faf active=7ffde3a6e128418b8fefd92697a5ce98 completed=7/9 pending=1 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [completed] Write Content: Neural Networks Section ✓
+  6. [completed] Write Content: Deep Learning & Backpropagation ✓
+  7. [completed] Write Content: Transformer Architecture ✓
+  8. [in_progress] Review & Finalize Study Guide
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=655d5163c5234885b89d6dddf3062faf active=7ffde3a6e128418b8fefd92697a5ce98 completed=7/9 pending=1 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [completed] Write Content: Neural Networks Section ✓
+  6. [completed] Write Content: Deep Learning & Backpropagation ✓
+  7. [completed] Write Content: Transformer Architecture ✓
+  8. [in_progress] Review & Finalize Study Guide ✓
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='7ffde3a6e128418b8fefd92697a5ce98'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=520
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id='7ffde3a6e128418b8fefd92697a5ce98'
+INFO:tinycua.models.task:task_tree_mutation method=record_reviewer_decision root=655d5163c5234885b89d6dddf3062faf active=7ffde3a6e128418b8fefd92697a5ce98 completed=7/9 pending=1 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [completed] Write Content: Neural Networks Section ✓
+  6. [completed] Write Content: Deep Learning & Backpropagation ✓
+  7. [completed] Write Content: Transformer Architecture ✓
+  8. [in_progress] Review & Finalize Study Guide ✓
+INFO:tinycua.loops.node:node=result_reviewer record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=655d5163c5234885b89d6dddf3062faf active=7ffde3a6e128418b8fefd92697a5ce98 completed=7/9 pending=1 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [completed] Write Content: Neural Networks Section ✓
+  6. [completed] Write Content: Deep Learning & Backpropagation ✓
+  7. [completed] Write Content: Transformer Architecture ✓
+  8. [in_progress] Review & Finalize Study Guide ✓
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='7ffde3a6e128418b8fefd92697a5ce98'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=512
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id=None
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id=None
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id='7ffde3a6e128418b8fefd92697a5ce98'
+INFO:tinycua.models.task:task_tree_mutation method=record_reviewer_decision root=655d5163c5234885b89d6dddf3062faf active=7ffde3a6e128418b8fefd92697a5ce98 completed=7/9 pending=1 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [completed] Write Content: Neural Networks Section ✓
+  6. [completed] Write Content: Deep Learning & Backpropagation ✓
+  7. [completed] Write Content: Transformer Architecture ✓
+  8. [in_progress] Review & Finalize Study Guide ✓
+INFO:tinycua.loops.node:node=result_reviewer record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=655d5163c5234885b89d6dddf3062faf active=7ffde3a6e128418b8fefd92697a5ce98 completed=7/9 pending=1 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [completed] Write Content: Neural Networks Section ✓
+  6. [completed] Write Content: Deep Learning & Backpropagation ✓
+  7. [completed] Write Content: Transformer Architecture ✓
+  8. [in_progress] Review & Finalize Study Guide ✓
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='7ffde3a6e128418b8fefd92697a5ce98'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=358
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id=None
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id='7ffde3a6e128418b8fefd92697a5ce98'
+INFO:tinycua.models.task:task_tree_mutation method=transition root=655d5163c5234885b89d6dddf3062faf active=655d5163c5234885b89d6dddf3062faf completed=8/9 pending=1 in_progress=0
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [completed] Write Content: Neural Networks Section ✓
+  6. [completed] Write Content: Deep Learning & Backpropagation ✓
+  7. [completed] Write Content: Transformer Architecture ✓
+  8. [completed] Review & Finalize Study Guide ✓
+INFO:tinycua.models.task:task_tree_mutation method=record_reviewer_decision root=655d5163c5234885b89d6dddf3062faf active=655d5163c5234885b89d6dddf3062faf completed=8/9 pending=0 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [completed] Write Content: Neural Networks Section ✓
+  6. [completed] Write Content: Deep Learning & Backpropagation ✓
+  7. [completed] Write Content: Transformer Architecture ✓
+  8. [completed] Review & Finalize Study Guide ✓
+INFO:tinycua.loops.node:node=result_reviewer record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=655d5163c5234885b89d6dddf3062faf active=655d5163c5234885b89d6dddf3062faf completed=8/9 pending=0 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [completed] Write Content: Neural Networks Section ✓
+  6. [completed] Write Content: Deep Learning & Backpropagation ✓
+  7. [completed] Write Content: Transformer Architecture ✓
+  8. [completed] Review & Finalize Study Guide ✓
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='655d5163c5234885b89d6dddf3062faf'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=672
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id='655d5163c5234885b89d6dddf3062faf'
+INFO:tinycua.models.task:task_tree_mutation method=record_reviewer_decision root=655d5163c5234885b89d6dddf3062faf active=655d5163c5234885b89d6dddf3062faf completed=8/9 pending=0 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [completed] Write Content: Neural Networks Section ✓
+  6. [completed] Write Content: Deep Learning & Backpropagation ✓
+  7. [completed] Write Content: Transformer Architecture ✓
+  8. [completed] Review & Finalize Study Guide ✓
+INFO:tinycua.loops.node:node=result_reviewer record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=655d5163c5234885b89d6dddf3062faf active=655d5163c5234885b89d6dddf3062faf completed=8/9 pending=0 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [completed] Write Content: Neural Networks Section ✓
+  6. [completed] Write Content: Deep Learning & Backpropagation ✓
+  7. [completed] Write Content: Transformer Architecture ✓
+  8. [completed] Review & Finalize Study Guide ✓
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='655d5163c5234885b89d6dddf3062faf'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=661
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id='655d5163c5234885b89d6dddf3062faf'
+INFO:tinycua.models.task:task_tree_mutation method=record_reviewer_decision root=655d5163c5234885b89d6dddf3062faf active=655d5163c5234885b89d6dddf3062faf completed=8/9 pending=0 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [completed] Write Content: Neural Networks Section ✓
+  6. [completed] Write Content: Deep Learning & Backpropagation ✓
+  7. [completed] Write Content: Transformer Architecture ✓
+  8. [completed] Review & Finalize Study Guide ✓
+INFO:tinycua.loops.node:node=result_reviewer record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=655d5163c5234885b89d6dddf3062faf active=655d5163c5234885b89d6dddf3062faf completed=8/9 pending=0 in_progress=1
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [completed] Write Content: Neural Networks Section ✓
+  6. [completed] Write Content: Deep Learning & Backpropagation ✓
+  7. [completed] Write Content: Transformer Architecture ✓
+  8. [completed] Review & Finalize Study Guide ✓
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='655d5163c5234885b89d6dddf3062faf'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=661
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id=None
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id=None
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_review_decision requested_task_id=None resolved_task_id='655d5163c5234885b89d6dddf3062faf'
+INFO:tinycua.models.task:task_tree_mutation method=transition root=655d5163c5234885b89d6dddf3062faf active=none completed=9/9 pending=0 in_progress=0
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [completed] Write Content: Neural Networks Section ✓
+  6. [completed] Write Content: Deep Learning & Backpropagation ✓
+  7. [completed] Write Content: Transformer Architecture ✓
+  8. [completed] Review & Finalize Study Guide ✓
+INFO:tinycua.models.task:task_tree_mutation method=record_reviewer_decision root=655d5163c5234885b89d6dddf3062faf active=none completed=9/9 pending=0 in_progress=0
+  1. [completed] Research Neural Networks Fundamentals ✓
+  2. [completed] Research Deep Learning & Backpropagation ✓
+  3. [completed] Research Transformer Architecture Fundamentals ✓
+  4. [completed] Draft Study Guide Structure & Outline ✓
+  5. [completed] Write Content: Neural Networks Section ✓
+  6. [completed] Write Content: Deep Learning & Backpropagation ✓
+  7. [completed] Write Content: Transformer Architecture ✓
+  8. [completed] Review & Finalize Study Guide ✓
+INFO:tinycua.loops.node:node=result_reviewer record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.node:node=result_aggregation record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.node:node=response record_output content_len=1647
+Agent completed in 1639.0s
+=== NODE TRAVERSAL ===
+query_analyst
+worker
+task_create
+task_analyzer
+analysis_effort
+task_assessor
+task_analyzer
+analysis_effort
+task_assessor
+task_analyzer
+analysis_effort
+task_assessor
+task_executor
+result_reviewer
+task_executor
+result_reviewer
+task_executor
+result_reviewer
+task_executor
+result_reviewer
+task_executor
+result_reviewer
+task_executor
+result_reviewer
+task_executor
+result_reviewer
+task_executor
+result_reviewer
+task_executor
+result_reviewer
+task_executor
+result_reviewer
+task_executor
+result_reviewer
+task_executor
+result_reviewer
+task_executor
+result_reviewer
+task_executor
+result_reviewer
+task_executor
+result_reviewer
+task_executor
+result_reviewer
+task_executor
+result_reviewer
+result_aggregation
+response
+
+=== TRACE ===
+[1] query_analyst (TinyCUAQueryAnalystNode) route=worker terminal=False
+
+[2] worker (TinyCUAWorkerNode) route=task_creation terminal=False
+
+[3] task_create (TinyCUATaskCreateNode) route=None terminal=False
+
+[4] task_analyzer (TinyCUATaskAnalyzerNode) route=None terminal=False
+
+[5] analysis_effort (TinyCUAAnalysisEffortNode) route=None terminal=False
+
+[6] task_assessor (TinyCUATaskAssessorNode) route=None terminal=False
+
+[7] task_analyzer (TinyCUATaskAnalyzerNode) route=None terminal=False
+
+[8] analysis_effort (TinyCUAAnalysisEffortNode) route=None terminal=False
+
+[9] task_assessor (TinyCUATaskAssessorNode) route=None terminal=False
+
+[10] task_analyzer (TinyCUATaskAnalyzerNode) route=None terminal=False
+
+[11] analysis_effort (TinyCUAAnalysisEffortNode) route=None terminal=False
+
+[12] task_assessor (TinyCUATaskAssessorNode) route=None terminal=False
+
+[13] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[14] result_reviewer (TinyCUAResultReviewerNode) route=None terminal=False
+
+[15] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[16] result_reviewer (TinyCUAResultReviewerNode) route=None terminal=False
+
+[17] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[18] result_reviewer (TinyCUAResultReviewerNode) route=None terminal=False
+
+[19] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[20] result_reviewer (TinyCUAResultReviewerNode) route=None terminal=False
+
+[21] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[22] result_reviewer (TinyCUAResultReviewerNode) route=None terminal=False
+
+[23] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[24] result_reviewer (TinyCUAResultReviewerNode) route=None terminal=False
+
+[25] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[26] result_reviewer (TinyCUAResultReviewerNode) route=None terminal=False
+
+[27] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[28] result_reviewer (TinyCUAResultReviewerNode) route=None terminal=False
+
+[29] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[30] result_reviewer (TinyCUAResultReviewerNode) route=None terminal=False
+
+[31] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[32] result_reviewer (TinyCUAResultReviewerNode) route=None terminal=False
+
+[33] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[34] result_reviewer (TinyCUAResultReviewerNode) route=None terminal=False
+
+[35] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[36] result_reviewer (TinyCUAResultReviewerNode) route=None terminal=False
+
+[37] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[38] result_reviewer (TinyCUAResultReviewerNode) route=None terminal=False
+
+[39] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[40] result_reviewer (TinyCUAResultReviewerNode) route=None terminal=False
+
+[41] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[42] result_reviewer (TinyCUAResultReviewerNode) route=None terminal=False
+
+[43] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[44] result_reviewer (TinyCUAResultReviewerNode) route=None terminal=False
+
+[45] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[46] result_reviewer (TinyCUAResultReviewerNode) route=None terminal=False
+
+[47] result_aggregation (TinyCUAResultAggregationNode) route=None terminal=False
+
+[48] response (ResponseNode) route=None terminal=True
+
+=== FINAL RESPONSE ===
+## Study Guide Complete ✅
+
+The comprehensive neural networks and transformer study guide has been successfully created at `/workspace/study-guide.md` (**3185 lines, 94KB**).
+
+### What Was Accomplished
+
+**Three major sections completed:**
+
+1. **Neural Networks Fundamentals (Sections 1-3)**
+   - Perceptrons: mathematical model, structure, learning rules, logic gate examples
+   - Artificial Neurons: complete mathematical formulation with matrix notation
+   - Activation Functions: sigmoid, tanh, ReLU variants, softmax with formulas and comparison table
+   - Forward Propagation: step-by-step calculations, deep network formulations
+
+2. **Deep Learning & Backpropagation (Sections 4-6)**
+   - Gradient descent optimization
+   - Chain rule derivation
+   - Backpropagation algorithm with manual calculation examples
+   - Loss functions (MSE, cross-entropy)
+   - Training loops and convergence analysis
+   - Hyperparameter tuning basics
+
+3. **Transformer Architecture Fundamentals (Sections 7-8)**
+   - Self-attention mechanism & multi-head attention
+   - Positional encoding
+   - Encoder-decoder architecture
+   - Feed-forward networks, layer normalization, residual connections
+   - Complete PyTorch implementations for self-attention, encoder/decoder blocks, AdamW training pipeline
+
+### Format & Features
+- Full Table of Contents with numbered sections
+- LaTeX mathematical notation throughout
+- Comparison tables and visual examples
+- Study exercises with checkboxes
+- Practical PyTorch code implementations
+- Logical progression from perceptrons → deep learning → transformers
+
+**Status:** All acceptance criteria satisfied. No changes needed.
+=== TASK TREE ===
+Root (goal): Neural Networks and Transformers Study Guide
+Task list (in execution order, numbered):
+
+1. Task [completed] Research Neural Networks Fundamentals
+2. Task [completed] Research Deep Learning & Backpropagation
+3. Task [completed] Research Transformer Architecture Fundamentals
+4. Task [completed] Draft Study Guide Structure & Outline
+5. Task [completed] Write Content: Neural Networks Section
+6. Task [completed] Write Content: Deep Learning & Backpropagation
+7. Task [completed] Write Content: Transformer Architecture
+8. Task [completed] Review & Finalize Study Guide
+
+=== WORKSPACE FILES ===
+- .agent_scripts/README.md
+- .agent_scripts/search.sh
+- TASK.md
+- study-guide.md
+- tmp/tool-results/9kra3SmmkHZS7RnLbwr4NtW8mtS1y1wU.txt
+- tmp/tool-results/9pqfOFQHMEZuRocMTdZ1t7IY6BKfqPbP.txt
+- tmp/tool-results/ATBWn8abQAorUmIiTMejlAAlzFQ8bzZZ.txt
+- tmp/tool-results/KNpMW2TzaNnwFuWI8jzQjW0dKojzTun6.txt
+- tmp/tool-results/PAR8Cb9RBVbLvNFJ7QUpQBuTCpKNyh8P.txt
+- tmp/tool-results/SWrqBcE47TNMuW8LeH3DC4k56UfsyL3H.txt
+- tmp/tool-results/XYrMfOUfmhzXuU7mFZdxe0Dvl2WGiNM3.txt
+- tmp/tool-results/ZwhOcTSrwIwCGF6xAyZ34PhneJtODLE7.txt
+- tmp/tool-results/bHxLobzXPa89FwoYhzw8gMoAxMdr8mHe.txt
+- tmp/tool-results/byvU4JNw5AdEeHf7XX1K0q5KvK7p0r2U.txt
+- tmp/tool-results/cFPinoWgqHVM1RTJfeWQGONfDRp1kjQp.txt
+- tmp/tool-results/iCujSSxW1l5ysHI7RPAxdq8afzqxlQsZ.txt
+- tmp/tool-results/oBOhzadDIvR39uJSwgZEXai5dMnU3n3b.txt
+- tmp/tool-results/yvreVaO2kKKyGtbYxGHVS6R0dEKtNiRj.txt
+- tmp/tool-results/zmQklxkeyMOjBUPh6o8USUtYplynuV9y.txt
+=== workspace/export/create ===
+=== workspace/export/copy ===
+=== workspace/export/remove ===
+=== workspace/seed/create ===
+=== workspace/seed/copy ===
+=== workspace/seed/remove ===
+=== evaluator ===
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.0.1 -> 26.1.2
+[notice] To update, run: pip install --upgrade pip
+unique_headings: normalized headings are unique
+=== workspace/export/create ===
+=== workspace/export/copy ===
+=== workspace/export/remove ===

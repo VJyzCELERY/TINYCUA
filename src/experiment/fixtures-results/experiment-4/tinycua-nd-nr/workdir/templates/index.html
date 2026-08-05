@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notion-like Text Block Editor</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background-color: #ffffff;
+            color: #374151;
+            line-height: 1.6;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px 0;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            padding: 12px;
+            background-color: #f3f4f6;
+            border-radius: 8px;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .toolbar button {
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+            font-size: 13px;
+        }
+
+        .toolbar button:hover {
+            background-color: #e5e7eb;
+        }
+
+        .toolbar button:focus {
+            outline: 2px solid #3b82f6;
+            outline-offset: 2px;
+        }
+
+        .btn-add {
+            background-color: #10b981;
+            color: white;
+        }
+
+        .btn-add:hover {
+            background-color: #05966b;
+        }
+
+        .btn-edit {
+            background-color: #3b82f6;
+            color: white;
+        }
+
+        .btn-edit:hover {
+            background-color: #2563eb;
+        }
+
+        .btn-delete {
+            background-color: #ef4444;
+            color: white;
+        }
+
+        .btn-delete:hover {
+            background-color: #dc2626;
+        }
+
+        .btn-neutral {
+            background-color: #6b7280;
+            color: white;
+        }
+
+        .btn-neutral:hover {
+            background-color: #4b5563;
+        }
+
+        .block-container {
+            position: relative;
+            padding-left: 24px;
+            border-left: 2px solid #e5e7eb;
+            margin-bottom: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .block-container:focus-within {
+            border-left-color: #3b82f6;
+            background-color: #f9fafb;
+        }
+
+        .block-container.selected {
+            border-left-color: #10b981;
+            background-color: #ecfdf5;
+        }
+
+        .block-content {
+            min-height: 24px;
+            padding: 4px 6px;
+            border-radius: 4px;
+            outline: none;
+            font-size: 16px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            width: 100%;
+        }
+
+        .block-content:focus {
+            background-color: #fff;
+            box-shadow: inset 0 0 0 2px #3b82f6;
+        }
+
+        .block-content:empty::before {
+            content: attr(placeholder);
+            color: #9ca3af;
+            pointer-events: none;
+        }
+
+        .block-number {
+            position: absolute;
+            left: -24px;
+            top: 4px;
+            font-size: 12px;
+            color: #6b7280;
+            font-weight: 500;
+            opacity: 0.7;
+        }
+
+        .block-container.selected .block-number {
+            color: #10b981;
+            opacity: 1;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6b7280;
+        }
+
+        .empty-state h2 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            color: #374151;
+        }
+
+        .empty-state p {
+            color: #6b7280;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        /* Block type styles */
+        .block-quote::before {
+            content: '"';
+            font-size: 4rem;
+            line-height: 1;
+            color: #e5e7eb;
+            font-size: 3rem;
+            margin-right: 8px;
+            vertical-align: -10px;
+        }
+
+        .block-quote .block-content {
+            border-left: 3px solid #e5e7eb;
+            padding-left: 16px;
+            font-style: italic;
+            color: #4b5563;
+        }
+
+        .block-container.selected.block-quote {
+            border-left-color: #10b981;
+        }
+
+        .block-container.selected.block-quote {
+            border-left-color: #10b981;
+        }
+
+        /* Focus accessibility */
+        :focus-visible {
+            outline: 2px solid #3b82f6;
+            outline-offset: 2px;
+        }
+
+        /* Selection indicator for selected blocks */
+        .block-container.selected {
+            box-shadow: inset 3px 0 0 0 #10b981;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Notion-like Text Editor</h1>
+        
+        <div class="toolbar" role="toolbar" aria-label="Block editor toolbar">
+            <button id="addBlockBtn" class="btn-add" 
+                    type="button" 
+                    data-action="add"
+                    aria-label="Add new block">
+                + Add Block
+            </button>
+            
+            <div style="flex: 1;"></div>
+            
+            <button id="editSelectedBtn" class="btn-edit" 
+                    type="button" 
+                    data-action="edit"
+                    aria-label="Edit selected block">
+                Edit Selected
+            </button>
+            
+            <button id="deleteSelectedBtn" class="btn-delete" 
+                    type="button" 
+                    data-action="delete"
+                    aria-label="Delete selected block">
+                Delete Selected
+            </button>
+            
+            <div style="flex: 1;"></div>
+            
+            <button id="clearAllBtn" class="btn-neutral" 
+                    type="button" 
+                    data-action="clear"
+                    aria-label="Clear all blocks">
+                Clear All
+            </button>
+        </div>
+
+        <div id="blocksContainer" 
+             role="region" 
+             aria-label="Text blocks container"
+             aria-live="polite">
+            <div class="empty-state">
+                <h2>No blocks yet</h2>
+                <p>Add a new block above and start writing. Select a block to edit or delete it.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            'use strict';
+
+            // State management
+            let blocks = [];
+            let selectedBlockId = null;
+            let nextBlockId = 1;
+
+            // DOM elements
+            const blocksContainer = document.getElementById('blocksContainer');
+            const addBlockBtn = document.getElementById('addBlockBtn');
+            const editSelectedBtn = document.getElementById('editSelectedBtn');
+            const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
+            const clearAllBtn = document.getElementById('clearAllBtn');
+
+            // Initialize empty state
+            function updateEmptyState() {
+                if (blocks.length === 0) {
+                    blocksContainer.innerHTML = `
+                        <div class="empty-state">
+                            <h2>No blocks yet</h2>
+                            <p>Add a new block above and start writing. Select a block to edit or delete it.</p>
+                        </div>
+                    `;
+                }
+            }
+
+            // Create a new block
+            function createBlock(content = '', type = 'text') {
+                const id = nextBlockId++;
+                
+                const block = document.createElement('div');
+                block.className = 'block-container';
+                block.setAttribute('data-id', id);
+                block.setAttribute('role', 'article');
+                block.setAttribute('aria-label', `Block ${id}: ${type} block`);
+
+                const number = document.createElement('span');
+                number.className = 'block-number';
+                number.textContent = id;
+
+                const contentEl = document.createElement('div');
+                contentEl.className = 'block-content';
+                contentEl.contentEditable = true;
+                contentEl.setAttribute('spellcheck', 'true');
+                
+                if (type === 'quote') {
+                    contentEl.classList.add('block-quote');
+                    contentEl.placeholder = 'Type a quote...';
+                } else {
+                    contentEl.placeholder = 'Type here...';
+                }
+
+                block.appendChild(number);
+                block.appendChild(contentEl);
+
+                // Block creation event
+                contentEl.addEventListener('focus', () => {
+                    selectBlock(id);
+                });
+
+                contentEl.addEventListener('input', () => {
+                    if (contentEl.innerText.trim() === '') {
+                        updateEmptyState();
+                    }
+                });
+
+                blocksContainer.insertBefore(block, blocksContainer.firstChild);
+                
+                // Insert before empty state
+                const emptyState = blocksContainer.querySelector('.empty-state');
+                if (emptyState) {
+                    blocksContainer.insertBefore(block, emptyState);
+                }
+
+                return id;
+            }
+
+            // Select a block
+            function selectBlock(id) {
+                selectedBlockId = id;
+                
+                // Deselect all
+                document.querySelectorAll('.block-container').forEach(block => {
+                    block.classList.remove('selected');
+                });
+
+                // Select the clicked block
+                const block = document.querySelector(`[data-id="${id}"]`);
+                if (block) {
+                    block.classList.add('selected');
+                }
+
+                updateEmptyState();
+            }
+
+            // Add a new block
+            function addBlock() {
+                createBlock('', 'text');
+                
+                // Select the newly created block
+                const newBlock = blocksContainer.querySelector('.block-container:last-child:not(.empty-state)');
+                if (newBlock) {
+                    selectBlock(parseInt(newBlock.getAttribute('data-id')));
+                }
+            }
+
+            // Edit selected block
+            function editSelected() {
+                if (!selectedBlockId) {
+                    showNotification('Please select a block first to edit it.', 'warning');
+                    return;
+                }
+
+                const block = document.querySelector(`[data-id="${selectedBlockId}"]`);
+                const contentEl = block.querySelector('.block-content');
+                
+                // Focus the content element
+                contentEl.focus();
+                showNotification('Block selected for editing. Start typing to edit.', 'info');
+            }
+
+            // Delete selected block
+            function deleteSelected() {
+                if (!selectedBlockId) {
+                    showNotification('Please select a block first to delete it.', 'warning');
+                    return;
+                }
+
+                const block = document.querySelector(`[data-id="${selectedBlockId}"]`);
+                if (block) {
+                    block.remove();
+                    selectedBlockId = null;
+                    
+                    // Check if container is empty
+                    const remainingBlocks = blocksContainer.querySelectorAll('.block-container:not(.empty-state)');
+                    if (remainingBlocks.length === 0) {
+                        updateEmptyState();
+                    }
+                }
+            }
+
+            // Clear all blocks
+            function clearAll() {
+                if (!confirm('Are you sure you want to delete all blocks? This cannot be undone.')) {
+                    return;
+                }
+
+                const blocks = blocksContainer.querySelectorAll('.block-container:not(.empty-state)');
+                blocks.forEach(block => block.remove());
+                
+                selectedBlockId = null;
+                updateEmptyState();
+            }
+
+            // Show notification
+            function showNotification(message, type = 'info') {
+                // Simple in-document notification
+                const notification = document.createElement('div');
+                notification.style.cssText = `
+                    position: fixed;
+                    bottom: 20px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    padding: 12px 20px;
+                    border-radius: 8px;
+                    font-size: 14px;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                    z-index: 1000;
+                    animation: slideUp 0.3s ease;
+                `;
+                
+                const colors = {
+                    info: '#3b82f6',
+                    warning: '#f59e0b',
+                    success: '#10b981',
+                    error: '#ef4444'
+                };
+                
+                notification.style.backgroundColor = colors[type];
+                notification.textContent = message;
+
+                document.body.appendChild(notification);
+
+                setTimeout(() => {
+                    notification.style.animation = 'slideUp 0.3s ease';
+                    setTimeout(() => notification.remove(), 300);
+                }, 2500);
+            }
+
+            // Initialize event listeners
+            addBlockBtn.addEventListener('click', addBlock);
+            editSelectedBtn.addEventListener('click', editSelected);
+            deleteSelectedBtn.addEventListener('click', deleteSelected);
+            clearAllBtn.addEventListener('click', clearAll);
+
+            // Keyboard accessibility for toolbar buttons
+            document.querySelectorAll('.toolbar button').forEach(button => {
+                button.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        button.click();
+                    }
+                });
+
+                // Allow Ctrl+Enter to add block, Ctrl+Backspace to delete selected
+                document.addEventListener('keydown', (e) => {
+                    if (selectedBlockId) {
+                        // Ctrl/Cmd + Enter: edit selected block
+                        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                        e.preventDefault();
+                        editSelected();
+                        }
+
+                        // Ctrl/Cmd + Backspace: delete selected block
+                        if ((e.ctrlKey || e.metaKey) && e.key === 'Backspace') {
+                        e.preventDefault();
+                        deleteSelected();
+                        }
+                    }
+                });
+
+            // Initialize
+            updateEmptyState();
+
+        })();
+    </script>
+</body>
+</html>

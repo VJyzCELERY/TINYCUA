@@ -1,0 +1,36 @@
+=== workspace/seed/create ===
+=== workspace/seed/copy ===
+=== workspace/seed/remove ===
+=== agent ===
+ Container experiment-searxng-1 Running 
+ Container experiment-searxng-1 Waiting 
+ Container experiment-searxng-1 Healthy 
+ Container tinycua-template-agent-1eb78b68-d840-4e0d-9437-3a674c0194d3-6578706572696d656e742d35-6f70656e636c6177 Creating 
+ Container tinycua-template-agent-1eb78b68-d840-4e0d-9437-3a674c0194d3-6578706572696d656e742d35-6f70656e636c6177 Created 
+[agent/embedded] incomplete turn detected: runId=8ce012f9-0aeb-444b-bae8-cecc56b9d1ba sessionId=160b0998-51ef-4ac7-8b6c-59b847732271 provider=local/qwen3.5-9b stopReason=length hasLastAssistant=yes hasCurrentAttemptAssistant=yes payloads=1 tools=1 replaySafe=no compactions=0 reasoningRetries=0/2 emptyRetries=0/1 missingAssistantRetries=0/1 — surfacing error to user
+=== workspace/export/create ===
+=== workspace/export/copy ===
+=== workspace/export/remove ===
+=== workspace/seed/create ===
+=== workspace/seed/copy ===
+=== workspace/seed/remove ===
+=== evaluator ===
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.0.1 -> 26.2
+[notice] To update, run: pip install --upgrade pip
+guide_exists: study-guide.md exists
+markdown_title: a Markdown H1 title is present
+organized_sections: at least three descriptive H2 sections organize the guide
+table_of_contents: an optional table of contents links to existing headings
+backpropagation: backpropagation is explained
+gradient_descent: gradient descent is explained
+self_attention: self-attention is explained
+positional_encoding: positional encoding is explained
+encoder: encoders are explained
+decoder: decoders are explained
+code_example: a fenced code example is present
+practical_plan: a practical schedule or exercise plan is present
+=== workspace/export/create ===
+=== workspace/export/copy ===
+=== workspace/export/remove ===

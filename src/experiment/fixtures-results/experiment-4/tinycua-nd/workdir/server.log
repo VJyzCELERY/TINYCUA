@@ -1,0 +1,48 @@
+Using Python 3.12.13 environment at: /usr/local
+Checked 1 package in 2ms
+Database initialized successfully with pages and blocks tables
+ * Serving Flask app 'app'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8765
+ * Running on http://172.19.0.3:8765
+[33mPress CTRL+C to quit[0m
+127.0.0.1 - - [29/Jul/2026 20:44:46] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jul/2026 20:44:49] "GET /api/blocks HTTP/1.1" 200 -
+[2026-07-29 20:44:51,686] ERROR in app: Exception on /api/blocks [POST]
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/app.py", line 79, in create_block
+    cursor.execute('INSERT INTO blocks (id, content, position, page_id, block_type) VALUES (?, ?, ?, ?, ?)',
+sqlite3.IntegrityError: NOT NULL constraint failed: blocks.page_id
+127.0.0.1 - - [29/Jul/2026 20:44:51] "[35m[1mPOST /api/blocks HTTP/1.1[0m" 500 -
+[2026-07-29 20:44:58,317] ERROR in app: Exception on /api/blocks [POST]
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/app.py", line 79, in create_block
+    cursor.execute('INSERT INTO blocks (id, content, position, page_id, block_type) VALUES (?, ?, ?, ?, ?)',
+sqlite3.OperationalError: database is locked
+127.0.0.1 - - [29/Jul/2026 20:44:58] "[35m[1mPOST /api/blocks HTTP/1.1[0m" 500 -

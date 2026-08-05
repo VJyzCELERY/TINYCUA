@@ -1,0 +1,41 @@
+Starting Notion-like app on PORT=8765
+Installing dependencies...
+Requirement already satisfied: flask>=2.0.0 in ./venv/lib/python3.12/site-packages (from -r /workspace/requirements.txt (line 1)) (3.1.3)
+Requirement already satisfied: blinker>=1.9.0 in ./venv/lib/python3.12/site-packages (from flask>=2.0.0->-r /workspace/requirements.txt (line 1)) (1.9.0)
+Requirement already satisfied: click>=8.1.3 in ./venv/lib/python3.12/site-packages (from flask>=2.0.0->-r /workspace/requirements.txt (line 1)) (8.4.2)
+Requirement already satisfied: itsdangerous>=2.2.0 in ./venv/lib/python3.12/site-packages (from flask>=2.0.0->-r /workspace/requirements.txt (line 1)) (2.2.0)
+Requirement already satisfied: jinja2>=3.1.2 in ./venv/lib/python3.12/site-packages (from flask>=2.0.0->-r /workspace/requirements.txt (line 1)) (3.1.6)
+Requirement already satisfied: markupsafe>=2.1.1 in ./venv/lib/python3.12/site-packages (from flask>=2.0.0->-r /workspace/requirements.txt (line 1)) (3.0.3)
+Requirement already satisfied: werkzeug>=3.1.0 in ./venv/lib/python3.12/site-packages (from flask>=2.0.0->-r /workspace/requirements.txt (line 1)) (3.1.8)
+Starting app on port 8765...
+ * Serving Flask app 'app'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:8765
+[33mPress CTRL+C to quit[0m
+127.0.0.1 - - [29/Jul/2026 18:37:45] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jul/2026 18:37:45] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+127.0.0.1 - - [29/Jul/2026 18:37:50] "GET /api/blocks HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jul/2026 18:38:04] "GET /api/blocks HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jul/2026 18:38:05] "[35m[1mPOST /api/blocks HTTP/1.1[0m" 201 -
+127.0.0.1 - - [29/Jul/2026 18:38:05] "GET /api/blocks HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jul/2026 18:38:05] "PUT /api/block/1 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jul/2026 18:38:05] "DELETE /api/block/1 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jul/2026 18:38:05] "GET /api/blocks HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jul/2026 18:38:05] "[35m[1mPOST /api/blocks HTTP/1.1[0m" 201 -
+127.0.0.1 - - [29/Jul/2026 18:38:06] "[35m[1mPOST /api/blocks HTTP/1.1[0m" 201 -
+127.0.0.1 - - [29/Jul/2026 18:38:06] "[35m[1mPOST /api/blocks HTTP/1.1[0m" 201 -
+127.0.0.1 - - [29/Jul/2026 18:38:06] "GET /api/blocks HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jul/2026 18:38:06] "PUT /api/block/1 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jul/2026 18:38:06] "DELETE /api/block/1 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jul/2026 18:38:06] "GET /api/blocks HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jul/2026 18:38:06] "[33mPOST /api/blocks/clear HTTP/1.1[0m" 404 -
+127.0.0.1 - - [29/Jul/2026 18:38:06] "GET /api/blocks HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jul/2026 18:38:22] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jul/2026 18:38:22] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+127.0.0.1 - - [29/Jul/2026 18:38:26] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jul/2026 18:38:27] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+127.0.0.1 - - [29/Jul/2026 18:39:00] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jul/2026 18:39:00] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+127.0.0.1 - - [29/Jul/2026 18:39:32] "GET /api/blocks HTTP/1.1" 200 -
+127.0.0.1 - - [29/Jul/2026 18:39:33] "[33mPOST /api/blocks/clear HTTP/1.1[0m" 404 -

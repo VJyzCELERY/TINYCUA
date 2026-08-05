@@ -1,0 +1,327 @@
+=== workspace/seed/create ===
+=== workspace/seed/copy ===
+=== workspace/seed/remove ===
+=== agent ===
+ Container experiment-searxng-1 Running 
+ Container experiment-searxng-1 Waiting 
+ Container experiment-searxng-1 Healthy 
+ Container tinycua-template-agent-1eb78b68-d840-4e0d-9437-3a674c0194d3-6578706572696d656e742d35-74696e796375612d6e72 Creating 
+ Container tinycua-template-agent-1eb78b68-d840-4e0d-9437-3a674c0194d3-6578706572696d656e742d35-74696e796375612d6e72 Created 
+INFO:httpx:HTTP Request: GET http://host.docker.internal:1234/v1/models "HTTP/1.1 200 OK"
+INFO:tinycua.cli.model_probe:max_context_probe_no_field fallback=128000
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.node:node=query_analyst record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.node:node=digester record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.node:node=worker record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=create_task root=85668c9c3c7041c087593cc11adf54ab active=85668c9c3c7041c087593cc11adf54ab completed=0/1 pending=1 in_progress=0
+INFO:tinycua.loops.node:node=task_create record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:openai._base_client:Retrying request to /chat/completions in 0.379807 seconds
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_update requested_task_id='85668c9c3c7041c087593cc11adf54ab' resolved_task_id=None
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.tinycua_loop:task_tool=task_update requested_task_id='85668c9c3c7041c087593cc11adf54ab' resolved_task_id=None
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=decompose_task root=85668c9c3c7041c087593cc11adf54ab active=4d78d8b14bf24c8a993bb78874757a62 completed=0/7 pending=7 in_progress=0
+  1. [pending] Create markdown structure with title and linked table of contents
+  2. [pending] Write fundamentals section: backpropagation and gradient descent
+  3. [pending] Write transformer architecture section: self-attention and positional encoding
+  4. [pending] Write encoders/decoders section
+  5. [pending] Write code example with fenced code block
+  6. [pending] Write practical study plan with schedule and exercises
+INFO:tinycua.loops.node:node=task_analyzer record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.node:node=task_assessor record_output content_len=2914
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.node:node=task_assessor record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.node:node=task_assessor record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=transition root=85668c9c3c7041c087593cc11adf54ab active=4d78d8b14bf24c8a993bb78874757a62 completed=0/7 pending=6 in_progress=1
+  1. [in_progress] Create markdown structure with title and linked table of contents
+  2. [pending] Write fundamentals section: backpropagation and gradient descent
+  3. [pending] Write transformer architecture section: self-attention and positional encoding
+  4. [pending] Write encoders/decoders section
+  5. [pending] Write code example with fenced code block
+  6. [pending] Write practical study plan with schedule and exercises
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=85668c9c3c7041c087593cc11adf54ab active=4d78d8b14bf24c8a993bb78874757a62 completed=0/7 pending=6 in_progress=1
+  1. [in_progress] Create markdown structure with title and linked table of contents ✓
+  2. [pending] Write fundamentals section: backpropagation and gradient descent
+  3. [pending] Write transformer architecture section: self-attention and positional encoding
+  4. [pending] Write encoders/decoders section
+  5. [pending] Write code example with fenced code block
+  6. [pending] Write practical study plan with schedule and exercises
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='4d78d8b14bf24c8a993bb78874757a62'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=705
+INFO:tinycua.models.task:task_tree_mutation method=transition root=85668c9c3c7041c087593cc11adf54ab active=f26e79afa06a4e179d709eda37c65cd5 completed=1/7 pending=6 in_progress=0
+  1. [completed] Create markdown structure with title and linked table of contents ✓
+  2. [pending] Write fundamentals section: backpropagation and gradient descent
+  3. [pending] Write transformer architecture section: self-attention and positional encoding
+  4. [pending] Write encoders/decoders section
+  5. [pending] Write code example with fenced code block
+  6. [pending] Write practical study plan with schedule and exercises
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=transition root=85668c9c3c7041c087593cc11adf54ab active=f26e79afa06a4e179d709eda37c65cd5 completed=1/7 pending=5 in_progress=1
+  1. [completed] Create markdown structure with title and linked table of contents ✓
+  2. [in_progress] Write fundamentals section: backpropagation and gradient descent
+  3. [pending] Write transformer architecture section: self-attention and positional encoding
+  4. [pending] Write encoders/decoders section
+  5. [pending] Write code example with fenced code block
+  6. [pending] Write practical study plan with schedule and exercises
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=85668c9c3c7041c087593cc11adf54ab active=f26e79afa06a4e179d709eda37c65cd5 completed=1/7 pending=5 in_progress=1
+  1. [completed] Create markdown structure with title and linked table of contents ✓
+  2. [in_progress] Write fundamentals section: backpropagation and gradient descent ✓
+  3. [pending] Write transformer architecture section: self-attention and positional encoding
+  4. [pending] Write encoders/decoders section
+  5. [pending] Write code example with fenced code block
+  6. [pending] Write practical study plan with schedule and exercises
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='f26e79afa06a4e179d709eda37c65cd5'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=526
+INFO:tinycua.models.task:task_tree_mutation method=transition root=85668c9c3c7041c087593cc11adf54ab active=ef0942ec5b4740c9a24c63f9a6eedc35 completed=2/7 pending=5 in_progress=0
+  1. [completed] Create markdown structure with title and linked table of contents ✓
+  2. [completed] Write fundamentals section: backpropagation and gradient descent ✓
+  3. [pending] Write transformer architecture section: self-attention and positional encoding
+  4. [pending] Write encoders/decoders section
+  5. [pending] Write code example with fenced code block
+  6. [pending] Write practical study plan with schedule and exercises
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=transition root=85668c9c3c7041c087593cc11adf54ab active=ef0942ec5b4740c9a24c63f9a6eedc35 completed=2/7 pending=4 in_progress=1
+  1. [completed] Create markdown structure with title and linked table of contents ✓
+  2. [completed] Write fundamentals section: backpropagation and gradient descent ✓
+  3. [in_progress] Write transformer architecture section: self-attention and positional encoding
+  4. [pending] Write encoders/decoders section
+  5. [pending] Write code example with fenced code block
+  6. [pending] Write practical study plan with schedule and exercises
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=85668c9c3c7041c087593cc11adf54ab active=ef0942ec5b4740c9a24c63f9a6eedc35 completed=2/7 pending=4 in_progress=1
+  1. [completed] Create markdown structure with title and linked table of contents ✓
+  2. [completed] Write fundamentals section: backpropagation and gradient descent ✓
+  3. [in_progress] Write transformer architecture section: self-attention and positional encoding ✓
+  4. [pending] Write encoders/decoders section
+  5. [pending] Write code example with fenced code block
+  6. [pending] Write practical study plan with schedule and exercises
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='ef0942ec5b4740c9a24c63f9a6eedc35'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=826
+INFO:tinycua.models.task:task_tree_mutation method=transition root=85668c9c3c7041c087593cc11adf54ab active=0e7c3a7bb7b34ef69c70e33b6fbd9618 completed=3/7 pending=4 in_progress=0
+  1. [completed] Create markdown structure with title and linked table of contents ✓
+  2. [completed] Write fundamentals section: backpropagation and gradient descent ✓
+  3. [completed] Write transformer architecture section: self-attention and positional encoding ✓
+  4. [pending] Write encoders/decoders section
+  5. [pending] Write code example with fenced code block
+  6. [pending] Write practical study plan with schedule and exercises
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=transition root=85668c9c3c7041c087593cc11adf54ab active=0e7c3a7bb7b34ef69c70e33b6fbd9618 completed=3/7 pending=3 in_progress=1
+  1. [completed] Create markdown structure with title and linked table of contents ✓
+  2. [completed] Write fundamentals section: backpropagation and gradient descent ✓
+  3. [completed] Write transformer architecture section: self-attention and positional encoding ✓
+  4. [in_progress] Write encoders/decoders section
+  5. [pending] Write code example with fenced code block
+  6. [pending] Write practical study plan with schedule and exercises
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=85668c9c3c7041c087593cc11adf54ab active=0e7c3a7bb7b34ef69c70e33b6fbd9618 completed=3/7 pending=3 in_progress=1
+  1. [completed] Create markdown structure with title and linked table of contents ✓
+  2. [completed] Write fundamentals section: backpropagation and gradient descent ✓
+  3. [completed] Write transformer architecture section: self-attention and positional encoding ✓
+  4. [in_progress] Write encoders/decoders section ✓
+  5. [pending] Write code example with fenced code block
+  6. [pending] Write practical study plan with schedule and exercises
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='0e7c3a7bb7b34ef69c70e33b6fbd9618'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=865
+INFO:tinycua.models.task:task_tree_mutation method=transition root=85668c9c3c7041c087593cc11adf54ab active=9ea607a6a2e0453388e26bc3c42215c8 completed=4/7 pending=3 in_progress=0
+  1. [completed] Create markdown structure with title and linked table of contents ✓
+  2. [completed] Write fundamentals section: backpropagation and gradient descent ✓
+  3. [completed] Write transformer architecture section: self-attention and positional encoding ✓
+  4. [completed] Write encoders/decoders section ✓
+  5. [pending] Write code example with fenced code block
+  6. [pending] Write practical study plan with schedule and exercises
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=transition root=85668c9c3c7041c087593cc11adf54ab active=9ea607a6a2e0453388e26bc3c42215c8 completed=4/7 pending=2 in_progress=1
+  1. [completed] Create markdown structure with title and linked table of contents ✓
+  2. [completed] Write fundamentals section: backpropagation and gradient descent ✓
+  3. [completed] Write transformer architecture section: self-attention and positional encoding ✓
+  4. [completed] Write encoders/decoders section ✓
+  5. [in_progress] Write code example with fenced code block
+  6. [pending] Write practical study plan with schedule and exercises
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=85668c9c3c7041c087593cc11adf54ab active=9ea607a6a2e0453388e26bc3c42215c8 completed=4/7 pending=2 in_progress=1
+  1. [completed] Create markdown structure with title and linked table of contents ✓
+  2. [completed] Write fundamentals section: backpropagation and gradient descent ✓
+  3. [completed] Write transformer architecture section: self-attention and positional encoding ✓
+  4. [completed] Write encoders/decoders section ✓
+  5. [in_progress] Write code example with fenced code block ✓
+  6. [pending] Write practical study plan with schedule and exercises
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='9ea607a6a2e0453388e26bc3c42215c8'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=453
+INFO:tinycua.models.task:task_tree_mutation method=transition root=85668c9c3c7041c087593cc11adf54ab active=d94f6b9f07fb4c03a3338a60a3906dc7 completed=5/7 pending=2 in_progress=0
+  1. [completed] Create markdown structure with title and linked table of contents ✓
+  2. [completed] Write fundamentals section: backpropagation and gradient descent ✓
+  3. [completed] Write transformer architecture section: self-attention and positional encoding ✓
+  4. [completed] Write encoders/decoders section ✓
+  5. [completed] Write code example with fenced code block ✓
+  6. [pending] Write practical study plan with schedule and exercises
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=transition root=85668c9c3c7041c087593cc11adf54ab active=d94f6b9f07fb4c03a3338a60a3906dc7 completed=5/7 pending=1 in_progress=1
+  1. [completed] Create markdown structure with title and linked table of contents ✓
+  2. [completed] Write fundamentals section: backpropagation and gradient descent ✓
+  3. [completed] Write transformer architecture section: self-attention and positional encoding ✓
+  4. [completed] Write encoders/decoders section ✓
+  5. [completed] Write code example with fenced code block ✓
+  6. [in_progress] Write practical study plan with schedule and exercises
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=85668c9c3c7041c087593cc11adf54ab active=d94f6b9f07fb4c03a3338a60a3906dc7 completed=5/7 pending=1 in_progress=1
+  1. [completed] Create markdown structure with title and linked table of contents ✓
+  2. [completed] Write fundamentals section: backpropagation and gradient descent ✓
+  3. [completed] Write transformer architecture section: self-attention and positional encoding ✓
+  4. [completed] Write encoders/decoders section ✓
+  5. [completed] Write code example with fenced code block ✓
+  6. [in_progress] Write practical study plan with schedule and exercises ✓
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='d94f6b9f07fb4c03a3338a60a3906dc7'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=343
+INFO:tinycua.models.task:task_tree_mutation method=transition root=85668c9c3c7041c087593cc11adf54ab active=85668c9c3c7041c087593cc11adf54ab completed=6/7 pending=1 in_progress=0
+  1. [completed] Create markdown structure with title and linked table of contents ✓
+  2. [completed] Write fundamentals section: backpropagation and gradient descent ✓
+  3. [completed] Write transformer architecture section: self-attention and positional encoding ✓
+  4. [completed] Write encoders/decoders section ✓
+  5. [completed] Write code example with fenced code block ✓
+  6. [completed] Write practical study plan with schedule and exercises ✓
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=85668c9c3c7041c087593cc11adf54ab active=85668c9c3c7041c087593cc11adf54ab completed=6/7 pending=0 in_progress=1
+  1. [completed] Create markdown structure with title and linked table of contents ✓
+  2. [completed] Write fundamentals section: backpropagation and gradient descent ✓
+  3. [completed] Write transformer architecture section: self-attention and positional encoding ✓
+  4. [completed] Write encoders/decoders section ✓
+  5. [completed] Write code example with fenced code block ✓
+  6. [completed] Write practical study plan with schedule and exercises ✓
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='85668c9c3c7041c087593cc11adf54ab'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=657
+INFO:tinycua.models.task:task_tree_mutation method=transition root=85668c9c3c7041c087593cc11adf54ab active=none completed=7/7 pending=0 in_progress=0
+  1. [completed] Create markdown structure with title and linked table of contents ✓
+  2. [completed] Write fundamentals section: backpropagation and gradient descent ✓
+  3. [completed] Write transformer architecture section: self-attention and positional encoding ✓
+  4. [completed] Write encoders/decoders section ✓
+  5. [completed] Write code example with fenced code block ✓
+  6. [completed] Write practical study plan with schedule and exercises ✓
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.node:node=result_aggregation record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.node:node=response record_output content_len=1225
+Agent completed in 770.7s
+=== NODE TRAVERSAL ===
+query_analyst
+digester
+worker
+task_create
+task_analyzer
+analysis_effort
+task_assessor
+analysis_effort
+task_assessor
+analysis_effort
+task_assessor
+task_executor (×7)
+result_aggregation
+response
+
+=== TRACE ===
+[1] query_analyst (TinyCUAQueryAnalystNode) route=worker terminal=False
+
+[2] digester (TinyCUAInformationDigesterNode) route=None terminal=False
+
+[3] worker (TinyCUAWorkerNode) route=task_creation terminal=False
+
+[4] task_create (TinyCUATaskCreateNode) route=None terminal=False
+
+[5] task_analyzer (TinyCUATaskAnalyzerNode) route=None terminal=False
+
+[6] analysis_effort (TinyCUAAnalysisEffortNode) route=None terminal=False
+
+[7] task_assessor (TinyCUATaskAssessorNode) route=None terminal=False
+
+[8] analysis_effort (TinyCUAAnalysisEffortNode) route=None terminal=False
+
+[9] task_assessor (TinyCUATaskAssessorNode) route=None terminal=False
+
+[10] analysis_effort (TinyCUAAnalysisEffortNode) route=None terminal=False
+
+[11] task_assessor (TinyCUATaskAssessorNode) route=None terminal=False
+
+[12] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[13] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[14] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[15] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[16] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[17] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[18] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[19] result_aggregation (TinyCUAResultAggregationNode) route=None terminal=False
+
+[20] response (ResponseNode) route=None terminal=True
+
+=== FINAL RESPONSE ===
+# Neural Networks and Transformers Study Guide — Complete ✅
+
+A comprehensive **9-week study guide** has been created covering Neural Networks and Transformers fundamentals. The `study-guide.md` file includes:
+
+## 📚 Content Overview
+
+| Section | Status | What's Included |
+|---------|--------|-----------------|
+| **Introduction** | ✅ Complete | Overview of neural networks and transformers |
+| **Fundamentals** | ✅ Complete | Backpropagation (chain rule derivation), gradient descent with variants, hyperparameters |
+| **Transformer Architecture** | ✅ Complete | Self-attention mechanism, positional encoding (sinusoidal formulas), encoder/decoder architectures with ASCII diagrams |
+| **Code Examples** | ✅ Complete | Full PyTorch implementation: `PositionalEncoding`, `ScaledDotProductAttention`, `MultiHeadAttention`, `EncoderLayer`, `DecoderLayer` |
+| **Study Plan** | ✅ Complete | 9-week schedule with daily exercises, implementation milestones, resource links (papers, courses), self-assessment questions |
+
+## 📄 Artifact
+- **File**: `/workspace/study-guide.md`
+- **Structure**: Title + linked table of contents → all sections with functional anchor links
+
+The guide is ready for immediate use — no further work needed.
+=== TASK TREE ===
+Root (goal): Create comprehensive study guide on Neural Networks and Transformers
+Task list (in execution order, numbered):
+
+1. Task [completed] Create markdown structure with title and linked table of contents
+2. Task [completed] Write fundamentals section: backpropagation and gradient descent
+3. Task [completed] Write transformer architecture section: self-attention and positional encoding
+4. Task [completed] Write encoders/decoders section
+5. Task [completed] Write code example with fenced code block
+6. Task [completed] Write practical study plan with schedule and exercises
+
+=== WORKSPACE FILES ===
+- .agent_scripts/README.md
+- .agent_scripts/search.sh
+- TASK.md
+- study-guide.md
+=== workspace/export/create ===
+=== workspace/export/copy ===
+=== workspace/export/remove ===
+=== workspace/seed/create ===
+=== workspace/seed/copy ===
+=== workspace/seed/remove ===
+=== evaluator ===
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.0.1 -> 26.2
+[notice] To update, run: pip install --upgrade pip
+table_of_contents: an optional table of contents links to existing headings
+=== workspace/export/create ===
+=== workspace/export/copy ===
+=== workspace/export/remove ===

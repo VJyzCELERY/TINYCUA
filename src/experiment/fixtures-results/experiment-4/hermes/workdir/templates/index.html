@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notion-like Workspace</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="app-header">
+            <h1>Workspace</h1>
+            <p class="subtitle">Create, edit, and delete text blocks. Select a block to edit or delete it.</p>
+        </header>
+
+        <main id="blocks-container" class="blocks-container"></main>
+
+        <footer class="app-footer">
+            <button id="add-block-btn" class="btn-primary">+ Add Block</button>
+            <div id="block-preview" class="preview-box hidden"></div>
+        </footer>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

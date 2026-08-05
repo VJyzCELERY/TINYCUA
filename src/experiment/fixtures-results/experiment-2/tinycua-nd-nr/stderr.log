@@ -1,0 +1,296 @@
+=== workspace/seed/create ===
+=== workspace/seed/copy ===
+=== workspace/seed/remove ===
+=== agent ===
+ Container experiment-searxng-1 Running 
+ Container experiment-searxng-1 Waiting 
+ Container experiment-searxng-1 Healthy 
+ Container tinycua-template-agent-1eb78b68-d840-4e0d-9437-3a674c0194d3-6578706572696d656e742d32-74696e796375612d6e642d6e72 Creating 
+ Container tinycua-template-agent-1eb78b68-d840-4e0d-9437-3a674c0194d3-6578706572696d656e742d32-74696e796375612d6e642d6e72 Created 
+INFO:httpx:HTTP Request: GET http://host.docker.internal:1234/v1/models "HTTP/1.1 200 OK"
+INFO:tinycua.cli.model_probe:max_context_probe_no_field fallback=128000
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.node:node=query_analyst record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.node:node=worker record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=create_task root=b4a52a5578fa4c8eac097480ddc6d4f4 active=b4a52a5578fa4c8eac097480ddc6d4f4 completed=0/1 pending=1 in_progress=0
+INFO:tinycua.loops.node:node=task_create record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=decompose_task root=b4a52a5578fa4c8eac097480ddc6d4f4 active=338fd8885ead4ba5be07da997a81df23 completed=0/5 pending=5 in_progress=0
+  1. [pending] Select three frontier LLM model families for comparison
+  2. [pending] Gather performance evidence for each model
+  3. [pending] Analyze benchmark dependencies and limitations
+  4. [pending] Synthesize comparison and write report.md
+INFO:tinycua.loops.node:node=task_analyzer record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.node:node=task_assessor record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=update_task root=b4a52a5578fa4c8eac097480ddc6d4f4 active=338fd8885ead4ba5be07da997a81df23 completed=0/5 pending=5 in_progress=0
+  1. [pending] Select three frontier LLM model families for comparison
+  2. [pending] Gather performance evidence for each model
+  3. [pending] Analyze benchmark dependencies and limitations
+  4. [pending] Synthesize comparison and write report.md
+INFO:tinycua.models.task:task_tree_mutation method=update_task root=b4a52a5578fa4c8eac097480ddc6d4f4 active=338fd8885ead4ba5be07da997a81df23 completed=0/5 pending=5 in_progress=0
+  1. [pending] Select three frontier LLM model families for comparison
+  2. [pending] Gather performance evidence for each model
+  3. [pending] Analyze benchmark dependencies and limitations
+  4. [pending] Synthesize comparison and write report.md
+INFO:tinycua.models.task:task_tree_mutation method=update_task root=b4a52a5578fa4c8eac097480ddc6d4f4 active=338fd8885ead4ba5be07da997a81df23 completed=0/5 pending=5 in_progress=0
+  1. [pending] Select three frontier LLM model families for comparison
+  2. [pending] Gather performance evidence for each model
+  3. [pending] Analyze benchmark dependencies and limitations
+  4. [pending] Synthesize comparison and write report.md
+INFO:tinycua.models.task:task_tree_mutation method=update_task root=b4a52a5578fa4c8eac097480ddc6d4f4 active=338fd8885ead4ba5be07da997a81df23 completed=0/5 pending=5 in_progress=0
+  1. [pending] Select three frontier LLM model families for comparison
+  2. [pending] Gather performance evidence for each model
+  3. [pending] Analyze benchmark dependencies and limitations
+  4. [pending] Synthesize comparison and write report.md
+INFO:tinycua.loops.node:node=task_assessor record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.node:node=task_assessor record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET http://searxng:8080/search?q=frontier+large+language+model+families+2024-2025+technical+specifications+architecture+MoE+dense+sparse+attention&format=json "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://en.wikipedia.org/wiki/List_of_large_language_models "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://en.wikipedia.org/wiki/Large_language_model "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET http://searxng:8080/search?q=frontier+LLM+model+families+2024+Mixtral+MoE+Qwen+Llama+Claude+technical+specifications&format=json "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://en.wikipedia.org/wiki/Mixtral_of_Eight "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=transition root=b4a52a5578fa4c8eac097480ddc6d4f4 active=338fd8885ead4ba5be07da997a81df23 completed=0/5 pending=4 in_progress=1
+  1. [in_progress] Select three frontier LLM model families for comparison
+  2. [pending] Gather performance evidence for each model
+  3. [pending] Analyze benchmark dependencies and limitations
+  4. [pending] Synthesize comparison and write report.md
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=b4a52a5578fa4c8eac097480ddc6d4f4 active=338fd8885ead4ba5be07da997a81df23 completed=0/5 pending=4 in_progress=1
+  1. [in_progress] Select three frontier LLM model families for comparison ✓
+  2. [pending] Gather performance evidence for each model
+  3. [pending] Analyze benchmark dependencies and limitations
+  4. [pending] Synthesize comparison and write report.md
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='338fd8885ead4ba5be07da997a81df23'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=742
+INFO:tinycua.models.task:task_tree_mutation method=transition root=b4a52a5578fa4c8eac097480ddc6d4f4 active=e97798d7f6804195b004eca028013de8 completed=1/5 pending=4 in_progress=0
+  1. [completed] Select three frontier LLM model families for comparison ✓
+  2. [pending] Gather performance evidence for each model
+  3. [pending] Analyze benchmark dependencies and limitations
+  4. [pending] Synthesize comparison and write report.md
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET http://searxng:8080/search?q=Llama+3.1+405B+MMLU+HumanEval+GSM8K+benchmark+evaluation+independent&format=json "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET http://searxng:8080/search?q=Mixtral+8x7B+MoE+benchmark+performance+MMLU+HumanEval+latency+throughput+evaluation&format=json "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET http://searxng:8080/search?q=Command+R%2B+Microsoft+Cohere+benchmark+MMLU+retrieval+RULER+latency+context+length+evaluation&format=json "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://huggingface.co/blog/llama3 "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://lmsys.org/blog/2024-07-18-lm-evaluation/ "HTTP/1.1 307 Temporary Redirect"
+INFO:httpx:HTTP Request: GET https://www.lmsys.org/blog/2024-07-18-lm-evaluation/ "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://huggingface.co/spaces/lmsys/chatbot-arena-leaderboard "HTTP/1.1 307 Temporary Redirect"
+INFO:httpx:HTTP Request: GET https://huggingface.co/spaces/lmarena-ai/arena-leaderboard "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://paperswithcode.com/sota/zero-shot-mmlu "HTTP/1.1 302 Found"
+INFO:httpx:HTTP Request: GET https://huggingface.co/papers/trending "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://huggingface.co/meta-llama/Llama-3.1-405B/discussions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://huggingface.co/blog/llama3.1 "HTTP/1.1 404 Not Found"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=transition root=b4a52a5578fa4c8eac097480ddc6d4f4 active=e97798d7f6804195b004eca028013de8 completed=1/5 pending=3 in_progress=1
+  1. [completed] Select three frontier LLM model families for comparison ✓
+  2. [in_progress] Gather performance evidence for each model
+  3. [pending] Analyze benchmark dependencies and limitations
+  4. [pending] Synthesize comparison and write report.md
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=b4a52a5578fa4c8eac097480ddc6d4f4 active=e97798d7f6804195b004eca028013de8 completed=1/5 pending=3 in_progress=1
+  1. [completed] Select three frontier LLM model families for comparison ✓
+  2. [in_progress] Gather performance evidence for each model ✓
+  3. [pending] Analyze benchmark dependencies and limitations
+  4. [pending] Synthesize comparison and write report.md
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='e97798d7f6804195b004eca028013de8'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=563
+INFO:tinycua.models.task:task_tree_mutation method=transition root=b4a52a5578fa4c8eac097480ddc6d4f4 active=49d9a95d0ed047ab94d6e18382f9805d completed=2/5 pending=3 in_progress=0
+  1. [completed] Select three frontier LLM model families for comparison ✓
+  2. [completed] Gather performance evidence for each model ✓
+  3. [pending] Analyze benchmark dependencies and limitations
+  4. [pending] Synthesize comparison and write report.md
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=transition root=b4a52a5578fa4c8eac097480ddc6d4f4 active=49d9a95d0ed047ab94d6e18382f9805d completed=2/5 pending=2 in_progress=1
+  1. [completed] Select three frontier LLM model families for comparison ✓
+  2. [completed] Gather performance evidence for each model ✓
+  3. [in_progress] Analyze benchmark dependencies and limitations
+  4. [pending] Synthesize comparison and write report.md
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=b4a52a5578fa4c8eac097480ddc6d4f4 active=49d9a95d0ed047ab94d6e18382f9805d completed=2/5 pending=2 in_progress=1
+  1. [completed] Select three frontier LLM model families for comparison ✓
+  2. [completed] Gather performance evidence for each model ✓
+  3. [in_progress] Analyze benchmark dependencies and limitations ✓
+  4. [pending] Synthesize comparison and write report.md
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='49d9a95d0ed047ab94d6e18382f9805d'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=534
+INFO:tinycua.models.task:task_tree_mutation method=transition root=b4a52a5578fa4c8eac097480ddc6d4f4 active=001097a024d14008bfdcd60f31fbe0c2 completed=3/5 pending=2 in_progress=0
+  1. [completed] Select three frontier LLM model families for comparison ✓
+  2. [completed] Gather performance evidence for each model ✓
+  3. [completed] Analyze benchmark dependencies and limitations ✓
+  4. [pending] Synthesize comparison and write report.md
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=transition root=b4a52a5578fa4c8eac097480ddc6d4f4 active=001097a024d14008bfdcd60f31fbe0c2 completed=3/5 pending=1 in_progress=1
+  1. [completed] Select three frontier LLM model families for comparison ✓
+  2. [completed] Gather performance evidence for each model ✓
+  3. [completed] Analyze benchmark dependencies and limitations ✓
+  4. [in_progress] Synthesize comparison and write report.md
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=b4a52a5578fa4c8eac097480ddc6d4f4 active=001097a024d14008bfdcd60f31fbe0c2 completed=3/5 pending=1 in_progress=1
+  1. [completed] Select three frontier LLM model families for comparison ✓
+  2. [completed] Gather performance evidence for each model ✓
+  3. [completed] Analyze benchmark dependencies and limitations ✓
+  4. [in_progress] Synthesize comparison and write report.md ✓
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='001097a024d14008bfdcd60f31fbe0c2'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=432
+INFO:tinycua.models.task:task_tree_mutation method=transition root=b4a52a5578fa4c8eac097480ddc6d4f4 active=b4a52a5578fa4c8eac097480ddc6d4f4 completed=4/5 pending=1 in_progress=0
+  1. [completed] Select three frontier LLM model families for comparison ✓
+  2. [completed] Gather performance evidence for each model ✓
+  3. [completed] Analyze benchmark dependencies and limitations ✓
+  4. [completed] Synthesize comparison and write report.md ✓
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.models.task:task_tree_mutation method=record_result root=b4a52a5578fa4c8eac097480ddc6d4f4 active=b4a52a5578fa4c8eac097480ddc6d4f4 completed=4/5 pending=0 in_progress=1
+  1. [completed] Select three frontier LLM model families for comparison ✓
+  2. [completed] Gather performance evidence for each model ✓
+  3. [completed] Analyze benchmark dependencies and limitations ✓
+  4. [completed] Synthesize comparison and write report.md ✓
+INFO:tinycua.loops.tinycua_loop:task_tool=task_result_update requested_task_id=None resolved_task_id='b4a52a5578fa4c8eac097480ddc6d4f4'
+INFO:tinycua.loops.node:node=task_executor record_output content_len=563
+INFO:tinycua.models.task:task_tree_mutation method=transition root=b4a52a5578fa4c8eac097480ddc6d4f4 active=none completed=5/5 pending=0 in_progress=0
+  1. [completed] Select three frontier LLM model families for comparison ✓
+  2. [completed] Gather performance evidence for each model ✓
+  3. [completed] Analyze benchmark dependencies and limitations ✓
+  4. [completed] Synthesize comparison and write report.md ✓
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.node:node=result_aggregation record_output content_len=0
+INFO:httpx:HTTP Request: POST http://host.docker.internal:1234/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:tinycua.loops.node:node=response record_output content_len=996
+Agent completed in 187.8s
+=== NODE TRAVERSAL ===
+query_analyst
+worker
+task_create
+task_analyzer
+analysis_effort
+task_assessor
+analysis_effort
+task_assessor
+analysis_effort
+task_assessor
+task_executor (×5)
+result_aggregation
+response
+
+=== TRACE ===
+[1] query_analyst (TinyCUAQueryAnalystNode) route=worker terminal=False
+
+[2] worker (TinyCUAWorkerNode) route=task_creation terminal=False
+
+[3] task_create (TinyCUATaskCreateNode) route=None terminal=False
+
+[4] task_analyzer (TinyCUATaskAnalyzerNode) route=None terminal=False
+
+[5] analysis_effort (TinyCUAAnalysisEffortNode) route=None terminal=False
+
+[6] task_assessor (TinyCUATaskAssessorNode) route=None terminal=False
+
+[7] analysis_effort (TinyCUAAnalysisEffortNode) route=None terminal=False
+
+[8] task_assessor (TinyCUATaskAssessorNode) route=None terminal=False
+
+[9] analysis_effort (TinyCUAAnalysisEffortNode) route=None terminal=False
+
+[10] task_assessor (TinyCUATaskAssessorNode) route=None terminal=False
+
+[11] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[12] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[13] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[14] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[15] task_executor (TinyCUATaskExecutorNode) route=None terminal=False
+
+[16] result_aggregation (TinyCUAResultAggregationNode) route=None terminal=False
+
+[17] response (ResponseNode) route=None terminal=True
+
+=== FINAL RESPONSE ===
+## Final Answer: Frontier LLM Model Comparison Report
+
+A comprehensive comparison report has been completed comparing three frontier LLM model families:
+
+**Models Compared:**
+1. **Llama 3.1 405B** (Meta) — Dense transformer architecture, 128K context window
+2. **Mixtral 8x7B** (Mistral AI) — Mixture of Experts (MoE) architecture, 32K context window  
+3. **Command R+** (Cohere/Microsoft) — MoE hybrid with retrieval-augmented generation, 128K context window
+
+**Report Artifact:** `/workspace/report.md` contains:
+- Models table with capability, cost, latency, context length, safety, and evaluation limits
+- Multiple source URLs cited for each model (official blogs, third-party evaluations, provider documentation)
+- Benchmark dependencies analysis covering task type, prompting strategies, tool use availability, reproducibility conditions, and training data contamination concerns
+- Balanced conclusion without declaring a single "best" model
+
+All work is complete; no further action needed.
+=== TASK TREE ===
+Root (goal): Research Frontier LLM Models Performance
+Task list (in execution order, numbered):
+
+1. Task [completed] Select three frontier LLM model families for comparison
+2. Task [completed] Gather performance evidence for each model
+3. Task [completed] Analyze benchmark dependencies and limitations
+4. Task [completed] Synthesize comparison and write report.md
+
+=== WORKSPACE FILES ===
+- .agent_scripts/README.md
+- .agent_scripts/search.sh
+- TASK.md
+- report.md
+=== workspace/export/create ===
+=== workspace/export/copy ===
+=== workspace/export/remove ===
+=== workspace/seed/create ===
+=== workspace/seed/copy ===
+=== workspace/seed/remove ===
+=== evaluator ===
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.0.1 -> 26.2
+[notice] To update, run: pip install --upgrade pip
+additional_unique_chapter: a non-duplicate additional H2 chapter earns a bonus point
+model_families: model families found: llama
+model_relevancy: report does not name a bundled reference model
+reference_gpt_5_5: reference model covered: GPT-5.5
+reference_gpt_5_6: reference model covered: GPT-5.6
+reference_gpt_5_6_terra: reference model covered: GPT-5.6-Terra
+reference_gpt_5_6_luna: reference model covered: GPT-5.6-Luna
+reference_gpt_5_6_sol: reference model covered: GPT-5.6-Sol
+reference_claude_fable_5: reference model covered: Claude Fable 5
+reference_claude_opus_4_8: reference model covered: Claude Opus 4.8
+reference_claude_sonnet_5: reference model covered: Claude Sonnet 5
+reference_kimi_k3: reference model covered: Kimi K3
+reference_glm_5_2: reference model covered: GLM 5.2
+reference_gemini_3_5: reference model covered: Gemini 3.5
+reference_gemini_3_6_flash: reference model covered: Gemini 3.6 Flash
+reference_coverage: reference BLEU-1 coverage is at least 8.0
+=== workspace/export/create ===
+=== workspace/export/copy ===
+=== workspace/export/remove ===

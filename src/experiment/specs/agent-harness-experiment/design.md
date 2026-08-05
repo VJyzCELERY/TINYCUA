@@ -151,7 +151,7 @@ Use `--dir`; current `tinycua run` does not use the older `--workspace` / `--out
 #### Opencode
 
 - **Base image**: Node LTS image.
-- **Install command**: `npm install -g opencode-ai`.
+- **Install command**: `npm install -g opencode-ai@1.18.4`.
 - **Config mapping**: generate a minimal Opencode config from the shared experiment env so it points at `EXPERIMENT_LLM_BASE_URL` and `EXPERIMENT_LLM_MODEL`. If Opencode requires provider-specific model syntax, expose only one override: `EXPERIMENT_OPENCODE_MODEL`, defaulting to `EXPERIMENT_LLM_MODEL`.
 - **Run command**:
 
@@ -166,7 +166,7 @@ If Opencode cannot consume the local OpenAI-compatible URL directly from env/con
 #### OpenClaw
 
 - **Base image**: Node LTS image or official OpenClaw image if it is simpler.
-- **Install command**: `npm install -g openclaw@latest`.
+- **Install command**: `npm install -g openclaw@2026.7.1-2`.
 - **Config mapping**: write `~/.openclaw/openclaw.json` from `EXPERIMENT_LLM_BASE_URL`, `EXPERIMENT_LLM_MODEL`, and `EXPERIMENT_LLM_API_KEY` during container startup.
 - **Run command**:
 

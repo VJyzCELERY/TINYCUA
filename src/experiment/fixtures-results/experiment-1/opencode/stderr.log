@@ -1,0 +1,45 @@
+=== workspace/seed/create ===
+=== workspace/seed/copy ===
+=== workspace/seed/remove ===
+=== agent ===
+ Container experiment-searxng-1 Running 
+ Container experiment-searxng-1 Waiting 
+ Container experiment-searxng-1 Healthy 
+ Container tinycua-template-agent-1eb78b68-d840-4e0d-9437-3a674c0194d3-6578706572696d656e742d31-6f70656e636f6465 Creating 
+ Container tinycua-template-agent-1eb78b68-d840-4e0d-9437-3a674c0194d3-6578706572696d656e742d31-6f70656e636f6465 Created 
+timestamp=2026-07-29T22:23:44.693Z level=INFO run=24616bb9 message="creating instance" directory=/workspace
+timestamp=2026-07-29T22:23:44.699Z level=INFO run=24616bb9 message=fromDirectory directory=/workspace
+timestamp=2026-07-29T22:23:44.897Z level=INFO run=24616bb9 message=bootstrapping directory=/workspace
+timestamp=2026-07-29T22:23:44.902Z level=INFO run=24616bb9 message=loading path=/root/.config/opencode/config.json
+timestamp=2026-07-29T22:23:44.903Z level=INFO run=24616bb9 message=loading path=/root/.config/opencode/opencode.json
+timestamp=2026-07-29T22:23:44.975Z level=INFO run=24616bb9 message=loading path=/root/.config/opencode/opencode.jsonc
+timestamp=2026-07-29T22:23:45.155Z level=INFO run=24616bb9 message="all LSPs are disabled"
+timestamp=2026-07-29T22:23:45.157Z level=INFO run=24616bb9 message="all formatters are disabled"
+timestamp=2026-07-29T22:23:45.157Z level=INFO run=24616bb9 message=init
+timestamp=2026-07-29T22:23:45.309Z level=INFO run=24616bb9 message=created id=ses_05005fd64ffebUMwog3YPehm6M slug=calm-sailor version=1.18.4 projectID=global directory=/workspace path=workspace workspaceID=undefined parentID=undefined title="New session - 2026-07-29T22:23:45.309Z" agent=undefined model=undefined metadata=undefined permission="[{\"permission\":\"question\",\"pattern\":\"*\",\"action\":\"deny\"},{\"permission\":\"plan_enter\",\"pattern\":\"*\",\"action\":\"deny\"},{\"permission\":\"plan_exit\",\"pattern\":\"*\",\"action\":\"deny\"}]" cost=0 tokens.input=0 tokens.output=0 tokens.reasoning=0 tokens.cache.read=0 tokens.cache.write=0 time.created=1785363825309 time.updated=1785363825309
+timestamp=2026-07-29T22:23:45.322Z level=INFO run=24616bb9 message="event connected"
+timestamp=2026-07-29T22:23:45.653Z level=INFO run=24616bb9 message=loop session.id=ses_05005fd64ffebUMwog3YPehm6M step=0
+timestamp=2026-07-29T22:23:45.664Z level=INFO run=24616bb9 message="shell tool using shell" shell=/usr/bin/bash
+timestamp=2026-07-29T22:23:45.669Z level=INFO run=24616bb9 message=init count=1
+timestamp=2026-07-29T22:23:45.692Z level=INFO run=24616bb9 message=stream providerID=lmstudio modelID=qwen3.5-9b session.id=ses_05005fd64ffebUMwog3YPehm6M small=true agent=title mode=primary
+timestamp=2026-07-29T22:23:45.705Z level=INFO run=24616bb9 message="llm runtime selected" llm.runtime=ai-sdk llm.provider=lmstudio llm.model=qwen3.5-9b
+timestamp=2026-07-29T22:23:45.784Z level=INFO run=24616bb9 message="watcher backend" directory=/workspace platform=linux backend=inotify
+timestamp=2026-07-29T22:23:45.787Z level=INFO run=24616bb9 message="project copy refresh started" projectID=global
+timestamp=2026-07-29T22:23:45.788Z level=INFO run=24616bb9 message="project copy refresh done" projectID=global updated=[] removed=[]
+timestamp=2026-07-29T22:23:45.828Z level=INFO run=24616bb9 message="booting location services" directory=/workspace workspaceID=undefined
+timestamp=2026-07-29T22:23:45.999Z level=INFO run=24616bb9 message=process session.id=ses_05005fd64ffebUMwog3YPehm6M messageID=msg_faffa03f7001cweYN3YIWTOAcm
+timestamp=2026-07-29T22:23:46.000Z level=INFO run=24616bb9 message=stream providerID=lmstudio modelID=qwen3.5-9b session.id=ses_05005fd64ffebUMwog3YPehm6M small=false agent=build mode=primary
+timestamp=2026-07-29T22:23:46.003Z level=INFO run=24616bb9 message="llm runtime selected" llm.runtime=ai-sdk llm.provider=lmstudio llm.model=qwen3.5-9b
+timestamp=2026-07-29T22:23:48.436Z level=INFO run=24616bb9 message=loop session.id=ses_05005fd64ffebUMwog3YPehm6M step=1
+timestamp=2026-07-29T22:23:48.436Z level=INFO run=24616bb9 message="exiting loop" session.id=ses_05005fd64ffebUMwog3YPehm6M
+timestamp=2026-07-29T22:23:48.443Z level=INFO run=24616bb9 message="disposing instance" directory=/workspace
+=== workspace/export/create ===
+=== workspace/export/copy ===
+=== workspace/export/remove ===
+=== workspace/seed/create ===
+=== workspace/seed/copy ===
+=== workspace/seed/remove ===
+=== evaluator ===
+=== workspace/export/create ===
+=== workspace/export/copy ===
+=== workspace/export/remove ===

@@ -1,0 +1,132 @@
+{
+  "schema_version": 2,
+  "fixture": "experiment-5",
+  "agent": "openclaw",
+  "state_volume": "tinycua-template-1eb78b68-d840-4e0d-9437-3a674c0194d3-6578706572696d656e742d35-6f70656e636c6177",
+  "started_at": "2026-07-29T22:54:59.468131+00:00",
+  "ended_at": "2026-07-29T22:56:46.783880+00:00",
+  "elapsed_prompt_to_finish_seconds": 101.28207845499855,
+  "stdout_path": "stdout.log",
+  "stderr_path": "stderr.log",
+  "workdir_path": "workdir",
+  "agent_exit_code": 0,
+  "sanitized_environment": "environment.json",
+  "evaluator_exit_code": 1,
+  "evaluator_outcome": "failed",
+  "passed": false,
+  "status": "failed",
+  "score": {
+    "categories": {
+      "guide_exists": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: study-guide.md exists"
+        ]
+      },
+      "markdown_title": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: a Markdown H1 title is present"
+        ]
+      },
+      "organized_sections": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: at least three descriptive H2 sections organize the guide"
+        ]
+      },
+      "table_of_contents": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: an optional table of contents links to existing headings"
+        ]
+      },
+      "unique_headings": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "normalized headings are unique"
+        ]
+      },
+      "backpropagation": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: backpropagation is explained"
+        ]
+      },
+      "gradient_descent": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: gradient descent is explained"
+        ]
+      },
+      "self_attention": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: self-attention is explained"
+        ]
+      },
+      "positional_encoding": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: positional encoding is explained"
+        ]
+      },
+      "encoder": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: encoders are explained"
+        ]
+      },
+      "decoder": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: decoders are explained"
+        ]
+      },
+      "code_example": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: a fenced code example is present"
+        ]
+      },
+      "practical_plan": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: a practical schedule or exercise plan is present"
+        ]
+      },
+      "task_integrity": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "TASK.md hash matches evaluator snapshot"
+        ]
+      }
+    },
+    "total": 2,
+    "pass_threshold": 9,
+    "critical_categories": [
+      "guide_exists",
+      "organized_sections",
+      "task_integrity"
+    ],
+    "metrics": {
+      "bleu": 0.0,
+      "rouge_l_f1": 0.0
+    }
+  },
+  "failure_stage": "evaluator"
+}

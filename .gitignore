@@ -23,6 +23,7 @@ __pycache__/
 !/.github/**/*.yaml
 !src/experiment/judge/profiles/**/config.yaml
 !src/experiment/judge/profiles/**/profile.yaml
+!src/experiment/experiment-fixtures/**/manifest.yaml
 
 # Logs
 logs/
@@ -34,6 +35,7 @@ coverage.xml
 *.coverage
 htmlcov/
 src/experiment/results/
+src/experiment/fixtures-results/
 src/experiment/archives/
 
 # Node.js build artifacts

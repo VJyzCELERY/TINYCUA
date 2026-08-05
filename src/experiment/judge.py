@@ -1,4 +1,4 @@
-"""Judge experiment workdirs using the hermes-judge Docker container.
+"""Qualitatively judge template results using the hermes-judge Docker container.
 
 The judge container is a persistent Hermes Agent instance (configured via
 scripts/setup_judge.sh or scripts/reconfigure_judge.sh). Its active model
@@ -6,9 +6,11 @@ and provider live in the judge-hermes-home Docker volume; judge.py does
 NOT override them — it always uses whatever the container is configured
 with, and snapshots that configuration into each verdict dir for audit.
 
-For each agent, copies the workdir to an anonymous tmp dir, runs hermes
-as the judge (one-shot, quiet mode), and writes the verdict to
-results/{agent}/experiment-{N}/judge_verdict/.
+Semantic ``--fixture`` mode discovers every completed
+``fixtures-results/<fixture>/<agent>/`` pair, anonymizes its workdir, gives
+the deterministic evaluator outcome to the judge as context, and writes one
+qualitative cross-verdict per fixture. Legacy ``--num`` mode remains available
+for the older ``results/<agent>/experiment-{N}/`` layout.
 """
 
 from __future__ import annotations
@@ -430,7 +432,6 @@ def cross_judge_experiment(
             continue
         workdir = exp_dir / "workdir"
         logs_dir = exp_dir / "logs"
-        prompt = (logs_dir / "prompt.txt").read_text() if (logs_dir / "prompt.txt").exists() else ""
 
         submission_dir = tmp_base / f"submission-{label}"
         if submission_dir.exists():
@@ -529,37 +530,352 @@ def cross_judge_experiment(
     return result.returncode
 
 
+# --- Semantic judge (fixtures-results) ---
+
+
+def discover_submissions(
+    fixture_name: str,
+    output_root: Path,
+) -> list[dict[str, object]]:
+    """Return one record per agent whose ``result.json`` exists for a fixture.
+
+    Walks ``<output_root>/<fixture>/<agent>/result.json`` (the on-disk
+    contract the runner itself uses for ``outcomes.json``). Agents whose
+    pair was interrupted before ``result.json`` was written are skipped.
+    """
+    fixture_root = output_root / fixture_name
+    if not fixture_root.is_dir():
+        return []
+    submissions: list[dict[str, object]] = []
+    for run_dir in sorted(
+        path
+        for path in fixture_root.iterdir()
+        if path.is_dir()
+        and path.name != "cross_verdict"
+        and not path.name.startswith(".")
+    ):
+        result_path = run_dir / "result.json"
+        if not result_path.is_file():
+            continue
+        result = json.loads(result_path.read_text())
+        workdir = _result_artifact(run_dir, result, "workdir_path", "workdir")
+        stdout = _result_artifact(
+            run_dir, result, "stdout_path", "agent.stdout.log"
+        )
+        environment = _result_artifact(
+            run_dir,
+            result,
+            "sanitized_environment",
+            "container_environment.json",
+        )
+        submissions.append(
+            {
+                "agent": result.get("agent", run_dir.name),
+                "run_dir": run_dir,
+                "workdir": workdir,
+                "stdout_path": stdout,
+                "environment_path": environment,
+                "result": result,
+            }
+        )
+    return submissions
+
+
+def _result_artifact(
+    run_dir: Path, result: dict[str, object], field: str, legacy_name: str
+) -> Path:
+    """Resolve one safe pair-relative artifact path with a legacy fallback."""
+    value = result.get(field)
+    if isinstance(value, str):
+        relative = Path(value)
+        if not relative.is_absolute() and ".." not in relative.parts:
+            return run_dir / relative
+    return run_dir / legacy_name
+
+
+def _semantic_stdout(path: Path, result: dict[str, object]) -> str:
+    """Return agent-only output for schema-v2, or the unchanged legacy stream."""
+    text = path.read_text()
+    if result.get("schema_version") != 2:
+        return text
+    match = re.search(
+        r"^=== agent ===\n(.*?)(?=^=== [^\n]+ ===\n|\Z)",
+        text,
+        re.DOTALL | re.MULTILINE,
+    )
+    return match.group(1) if match else ""
+
+
+def build_semantic_judge_prompt(
+    task_prompt: str,
+    task_md: str,
+    submissions: list[dict[str, object]],
+) -> str:
+    """Build the cross-judge prompt for the qualitative semantic judge.
+
+    The rubric (qualitative persona, invented category instruction, output
+    format) lives in ``judge/profiles/semantic/SOUL.md`` and is NOT injected
+    here. The prompt carries the task, the TASK.md text (if any), the
+    already-verified evaluator outcomes for each labelled submission, and
+    the blind labelled submission paths.
+    """
+    submission_descriptions = []
+    for sub in submissions:
+        label = sub["label"]
+        subdir = sub["submission_dir_container"]
+        empty = sub["workdir_empty"]
+        if empty:
+            work_note = (
+                f"This submission's workdir is empty — read "
+                f"`{subdir}/stdout.log` to read the agent's "
+                "conversational response to the task."
+            )
+        else:
+            work_note = "Inspect the files in this directory. These are this agent's work products."
+        submission_descriptions.append(f"### Submission {label}\nDirectory: `{subdir}`\n{work_note}")
+    submissions_block = "\n\n".join(submission_descriptions)
+
+    outcomes_lines = []
+    for sub in submissions:
+        label = sub["label"]
+        passed = sub["passed"]
+        score = sub["score"]
+        if score and isinstance(score, dict):
+            categories = score.get("categories", {})
+            cat_summary = "; ".join(
+                f"{name}: {cat.get('points')}/{cat.get('max_points')}"
+                for name, cat in categories.items()
+            )
+            evidence = []
+            for name, cat in categories.items():
+                ev = cat.get("evidence") or []
+                evidence.extend(f"  - {name}: {e}" for e in ev)
+            evidence_block = "\n".join(evidence) if evidence else "  (no evidence recorded)"
+            outcomes_lines.append(
+                f"### Submission {label}\n"
+                f"Deterministic evaluator: {'passed' if passed else 'failed'}\n"
+                f"Categories: {cat_summary}\n"
+                f"Evidence:\n{evidence_block}"
+            )
+        else:
+            outcomes_lines.append(
+                f"### Submission {label}\n"
+                f"Deterministic evaluator: {'passed' if passed else 'failed'}\n"
+                f"(no detailed score available)"
+            )
+    outcomes_block = "\n\n".join(outcomes_lines)
+
+    task_section = f"## Original Task\n{task_prompt}\n"
+    if task_md.strip():
+        task_section += f"\n## Task Instructions (TASK.md)\n{task_md}\n"
+
+    return (
+        "You are an impartial qualitative judge comparing multiple AI agents' "
+        "anonymous submissions on the same task. Each submission is labelled "
+        "A, B, C, etc.\n\n"
+        f"{task_section}\n"
+        "## Already-Verified Deterministic Outcomes\n\n"
+        "A deterministic evaluator has already verified these functional "
+        "gates. Use them as context; do not re-judge the gated behavior "
+        "itself — complement it with qualitative analysis.\n\n"
+        f"{outcomes_block}\n\n"
+        "## Submissions\n\n"
+        f"{submissions_block}\n\n"
+        "## Your Job\n\n"
+        "Invent qualitative categories appropriate to this task, score each "
+        "submission 1-5 in each, rank submissions per category, then give "
+        "per-submission strengths, per-submission weaknesses, and an "
+        "overall qualitative summary. Write your verdict as markdown "
+        "following the section structure in your judging rubric (SOUL.md)."
+    )
+
+
+def _read_eval_outcome_summary(result: dict[str, object]) -> dict[str, object]:
+    """Pick the evaluator fields the judge should see for one submission."""
+    score = result.get("score")
+    return {
+        "passed": bool(result.get("passed", False)),
+        "score": score if isinstance(score, dict) else None,
+    }
+
+
+def semantic_judge_fixture(
+    fixture_name: str,
+    output_root: Path,
+    *,
+    tmp_base: Path,
+    timeout_seconds: int = CROSS_JUDGE_TIMEOUT_SECONDS,
+) -> int:
+    """Cross-judge all agents' work for one template fixture qualitatively.
+
+    Discovers submissions dynamically from ``<output_root>/<fixture>/`` (so
+    N is the number of agents that actually ran, not the configured set).
+    Writes ``cross_verdict/{verdict.md, mapping.json, raw_output.log,
+    judge_model_snapshot.txt}`` under the fixture dir.
+    """
+    print(f"\n=== Semantic cross-judging {fixture_name} ===", flush=True)
+
+    import string
+
+    discovered = discover_submissions(fixture_name, output_root)
+    if not discovered:
+        print(f"  no submissions with result.json under {output_root / fixture_name}; skipping", flush=True)
+        return 0
+
+    # Anonymous, per-submission copy + label (A, B, ...).
+    tmp_base.mkdir(parents=True, exist_ok=True)
+    labelled_submissions: list[dict[str, object]] = []
+    evaluator_outcomes: dict[str, dict[str, object]] = {}
+    for i, sub in enumerate(discovered):
+        label = string.ascii_uppercase[i] if i < 26 else f"Agent-{i}"
+        agent = sub["agent"]
+        workdir = sub["workdir"]
+        submission_dir = tmp_base / f"submission-{label}"
+        if submission_dir.exists():
+            shutil.rmtree(submission_dir)
+        submission_dir.mkdir(parents=True)
+        has_files = _copy_workdir(workdir, submission_dir) if workdir.is_dir() else False
+        if not has_files and sub["stdout_path"].is_file():
+            (submission_dir / "stdout.log").write_text(
+                _semantic_stdout(sub["stdout_path"], sub["result"])
+            )
+
+        labelled_submissions.append(
+            {
+                "label": label,
+                "agent": agent,
+                "submission_dir": submission_dir,
+                "submission_dir_container": _container_path(submission_dir),
+                "workdir_empty": not has_files,
+                **_read_eval_outcome_summary(sub["result"]),  # type: ignore[arg-type]
+            }
+        )
+        evaluator_outcomes[label] = _read_eval_outcome_summary(sub["result"])  # type: ignore[arg-type]
+        print(f"  {label} -> {agent}", flush=True)
+
+    # Recover task prompt + TASK.md for the fixture.
+    task_prompt, task_md = _load_fixture_task(discovered[0])
+
+    judge_prompt = build_semantic_judge_prompt(task_prompt, task_md, labelled_submissions)
+
+    print("  judging via hermes-judge container (semantic profile)...", flush=True)
+    started = datetime.now(UTC)
+    command = [
+        "docker", "compose", "run", "--rm",
+        "-T",
+        "judge",
+        "hermes", "-p", "semantic", "chat", "-Q", "-q",
+        judge_prompt,
+    ]
+    try:
+        result = subprocess.run(
+            command, capture_output=True, text=True,
+            timeout=timeout_seconds, cwd=EXPERIMENT_DIR,
+        )
+    except subprocess.TimeoutExpired:
+        print(f"  semantic judge timed out after {timeout_seconds}s", flush=True)
+        return 124
+
+    verdict_dir = output_root / fixture_name / "cross_verdict"
+    verdict_dir.mkdir(parents=True, exist_ok=True)
+    (verdict_dir / "raw_output.log").write_text(result.stdout)
+    if result.stderr:
+        (verdict_dir / "raw_stderr.log").write_text(result.stderr)
+
+    verdict = extract_hermes_verdict(result.stdout)
+    if not verdict:
+        verdict = f"(No text output from judge. See raw_output.log. Exit code: {result.returncode})"
+    (verdict_dir / "verdict.md").write_text(verdict + "\n")
+
+    model_fields, raw_snapshot = snapshot_judge_model()
+    if raw_snapshot:
+        (verdict_dir / "judge_model_snapshot.txt").write_text(raw_snapshot)
+
+    mapping = {
+        "fixture": fixture_name,
+        **model_fields,
+        "started_at": started.isoformat(),
+        "duration_seconds": round((datetime.now(UTC) - started).total_seconds(), 2),
+        "exit_code": result.returncode,
+        "mapping": {sub["label"]: sub["agent"] for sub in labelled_submissions},
+        "evaluator_outcomes": evaluator_outcomes,
+    }
+    (verdict_dir / "mapping.json").write_text(json.dumps(mapping, indent=2) + "\n")
+
+    elapsed = (datetime.now(UTC) - started).total_seconds()
+    status = "passed" if result.returncode == 0 else "failed"
+    print(f"  {status} semantic cross-verdict written ({elapsed:.1f}s)", flush=True)
+    print(f"  mapping: {verdict_dir / 'mapping.json'}", flush=True)
+    return result.returncode
+
+
+def _load_fixture_task(first_submission: dict[str, object]) -> tuple[str, str]:
+    """Recover the (task prompt, TASK.md text) for a fixture, best-effort.
+
+    Reads the first discovered submission's recorded environment artifact
+    for ``EXPERIMENT_PROMPT`` (the runner preserves it sanitized per-pair)
+    and the submission's exported ``workdir/TASK.md``. Anything missing is
+    returned empty.
+    """
+    task_prompt = ""
+    env_snapshot = first_submission.get("environment_path")
+    if isinstance(env_snapshot, Path) and env_snapshot.is_file():
+        try:
+            env = json.loads(env_snapshot.read_text())
+            prompt = env.get("EXPERIMENT_PROMPT")
+            if isinstance(prompt, str) and prompt:
+                task_prompt = prompt
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    task_md = ""
+    workdir = first_submission.get("workdir")
+    if isinstance(workdir, Path):
+        task_md_path = workdir / "TASK.md"
+        if task_md_path.is_file():
+            task_md = task_md_path.read_text()
+
+    return task_prompt, task_md
+
+
 def main(argv: list[str] | None = None) -> int:
-    """Run the judge on an experiment."""
+    """Run the judge on an experiment (legacy) or a template fixture (semantic)."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--num", type=int, required=True, help="Experiment number to judge.")
-    parser.add_argument("--output-root", type=Path, default=Path("results"))
-    parser.add_argument(
-        "--agents",
-        help="Comma-separated harnesses to judge (default: all). Example: tinycua",
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument(
+        "--num", type=int,
+        help="Legacy mode: judge experiment N under --output-root (layout <agent>/experiment-N/).",
+    )
+    mode.add_argument(
+        "--fixture",
+        help="Semantic mode: comma-separated fixture names to cross-judge under fixtures-results "
+             "(layout <fixture>/<agent>/).",
     )
     parser.add_argument(
-        "--cross-judge",
-        action="store_true",
-        default=False,
-        help="Cross-judge all agents against each other (anonymous, comparative ranking).",
+        "--output-root", type=Path, default=None,
+        help="Output root. Defaults: fixtures-results for --fixture; results for --num.",
+    )
+    parser.add_argument(
+        "--agents",
+        help="Comma-separated harnesses to judge (legacy --num only). Default: all.",
+    )
+    parser.add_argument(
+        "--cross-judge", action="store_true", default=False,
+        help="Cross-judge all agents against each other (legacy --num only).",
     )
     args = parser.parse_args(argv)
 
-    if args.num < 1:
-        parser.error("--num must be positive")
-    try:
-        agents = parse_agents(args.agents)
-    except ValueError as error:
-        parser.error(str(error))
+    is_semantic = bool(args.fixture)
 
-    result_root = (
-        args.output_root if args.output_root.is_absolute() else Path.cwd() / args.output_root
+    output_root = (
+        args.output_root
+        if args.output_root is not None
+        else (Path("fixtures-results") if is_semantic else Path("results"))
     )
+    if not output_root.is_absolute():
+        output_root = EXPERIMENT_DIR / output_root
 
-    # Fail fast if the hermes-judge container isn't running — judging shells
-    # out to `docker compose exec judge hermes ...`, which hangs/errors
-    # cryptically if the container is down. Point the user at setup_judge.sh.
+    # Fail fast if the hermes-judge container isn't running.
     if not _judge_container_running():
         print(
             "ERROR: hermes-judge container is not running.\n"
@@ -569,11 +885,40 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 3
 
+    if is_semantic:
+        fixtures = [name.strip() for name in args.fixture.split(",") if name.strip()]
+        if not fixtures:
+            parser.error("--fixture must list at least one fixture name")
+        overall = 0
+        for fixture_name in fixtures:
+            # ponytail: per-fixture tmp_base so batched semantic runs do not collide.
+            tmp_base = EXPERIMENT_DIR / "tmp" / f"judge-{fixture_name}"
+            tmp_base.mkdir(parents=True, exist_ok=True)
+            code = semantic_judge_fixture(
+                fixture_name, output_root, tmp_base=tmp_base,
+            )
+            shutil.rmtree(tmp_base, ignore_errors=True)
+            if code:
+                overall = code if overall == 0 else overall
+        print("\nsummary: " + ", ".join(fixtures), flush=True)
+        return overall
+
+    if args.num is None:
+        parser.error("--num is required when --fixture is not given")
+    if args.num < 1:
+        parser.error("--num must be positive")
+    try:
+        agents = parse_agents(args.agents)
+    except ValueError as error:
+        parser.error(str(error))
+
+    result_root = output_root
+
     # ponytail: tmp_base under ./tmp which is gitignored; cleaned up after judging
-    tmp_base = Path.cwd() / "tmp" / f"judge-{args.num}"
+    tmp_base = EXPERIMENT_DIR / "tmp" / f"judge-{args.num}"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
-    print(f"Judge: hermes-judge container (active model from setup_judge.sh)", flush=True)
+    print("Judge: hermes-judge container (active model from setup_judge.sh)", flush=True)
     print(f"Experiment: {args.num}", flush=True)
 
     if args.cross_judge:

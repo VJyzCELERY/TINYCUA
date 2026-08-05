@@ -1,0 +1,9 @@
+prompt: |
+  Make me a simple analog clock app with animation in a single HTML file.
+
+  I need you to create `clock.html`. For the exact deliverable details and
+  acceptance criteria, read `TASK.md` in your workdir.
+outcome_group: coding
+eval_image: tinycua-template-browser-evaluator
+eval_dockerfile: eval/Dockerfile
+eval_command: ["sh", "/eval/run.sh", "/submission"]

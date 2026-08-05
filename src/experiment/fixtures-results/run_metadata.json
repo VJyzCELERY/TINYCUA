@@ -1,0 +1,1094 @@
+{
+  "schema_version": 2,
+  "campaign_id": "1eb78b68-d840-4e0d-9437-3a674c0194d3",
+  "result_generation_commit": "89d2402e5dd6626390e9c5e09b52a21898e0cf2c",
+  "result_generation_revision": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+  "working_tree_dirty": false,
+  "selected_fixtures": [
+    "experiment-1",
+    "experiment-2",
+    "experiment-3",
+    "experiment-4",
+    "experiment-5"
+  ],
+  "selected_agents": [
+    "hermes",
+    "openclaw",
+    "opencode",
+    "tinycua",
+    "tinycua-nd",
+    "tinycua-nd-nr",
+    "tinycua-nr"
+  ],
+  "agent_configurations": {
+    "tinycua": {
+      "service": "tinycua",
+      "no_digest": false,
+      "no_review": false
+    },
+    "tinycua-nd": {
+      "service": "tinycua",
+      "no_digest": true,
+      "no_review": false
+    },
+    "tinycua-nr": {
+      "service": "tinycua",
+      "no_digest": false,
+      "no_review": true
+    },
+    "tinycua-nd-nr": {
+      "service": "tinycua",
+      "no_digest": true,
+      "no_review": true
+    },
+    "opencode": {
+      "service": "opencode"
+    },
+    "hermes": {
+      "service": "hermes"
+    },
+    "openclaw": {
+      "service": "openclaw"
+    }
+  },
+  "fixtures": {
+    "experiment-1": {
+      "outcome_group": "conversation",
+      "fixture_revision": "72b9999c520a87174fad0d0739a0e328f1ccf510ff20be12cb2684560fac5a1e",
+      "evaluator_revision": "9eb965476b5912e9381ad824d69875ac26af0043bc5e41d56c681d0c725cfaa7"
+    },
+    "experiment-2": {
+      "outcome_group": "research",
+      "fixture_revision": "74c6eed2904e7214feb8b2d2aa071cbbf8fe50207743506b0a7ccfd69ed44704",
+      "evaluator_revision": "7ad76f0502df8af3c9a161e9a603413f4e17ad53fcefd3f0efec32cc50d98c00"
+    },
+    "experiment-3": {
+      "outcome_group": "coding",
+      "fixture_revision": "af059399968710a316166e7438a67d9a4e18120d573f27d410517776eb9de807",
+      "evaluator_revision": "bda876dfe84d495e9fe1ec3fc1a1421ef592798f7ee8709be17b6be784dba6ea"
+    },
+    "experiment-4": {
+      "outcome_group": "coding",
+      "fixture_revision": "84625ddbe512a448fc7e0e3975b61a0df3ca2e5e161cca0902924bedc9a906fd",
+      "evaluator_revision": "f1a241f92283d2641669fa8452fa8359dac18a553beffd352809969eb3102404"
+    },
+    "experiment-5": {
+      "outcome_group": "research",
+      "fixture_revision": "757876317c037e03c86406ed8bbfaa9f37a49c1e282e401b347ae72079404ea6",
+      "evaluator_revision": "7af3f9d15939f54a0b7b0be560b1aa852984e099be9c455b4da175ebdc19b6ff"
+    }
+  },
+  "pairs": [
+    {
+      "fixture": "experiment-1",
+      "agent": "hermes"
+    },
+    {
+      "fixture": "experiment-1",
+      "agent": "openclaw"
+    },
+    {
+      "fixture": "experiment-1",
+      "agent": "opencode"
+    },
+    {
+      "fixture": "experiment-1",
+      "agent": "tinycua"
+    },
+    {
+      "fixture": "experiment-1",
+      "agent": "tinycua-nd"
+    },
+    {
+      "fixture": "experiment-1",
+      "agent": "tinycua-nd-nr"
+    },
+    {
+      "fixture": "experiment-1",
+      "agent": "tinycua-nr"
+    },
+    {
+      "fixture": "experiment-2",
+      "agent": "hermes"
+    },
+    {
+      "fixture": "experiment-2",
+      "agent": "openclaw"
+    },
+    {
+      "fixture": "experiment-2",
+      "agent": "opencode"
+    },
+    {
+      "fixture": "experiment-2",
+      "agent": "tinycua"
+    },
+    {
+      "fixture": "experiment-2",
+      "agent": "tinycua-nd"
+    },
+    {
+      "fixture": "experiment-2",
+      "agent": "tinycua-nd-nr"
+    },
+    {
+      "fixture": "experiment-2",
+      "agent": "tinycua-nr"
+    },
+    {
+      "fixture": "experiment-3",
+      "agent": "hermes"
+    },
+    {
+      "fixture": "experiment-3",
+      "agent": "openclaw"
+    },
+    {
+      "fixture": "experiment-3",
+      "agent": "opencode"
+    },
+    {
+      "fixture": "experiment-3",
+      "agent": "tinycua"
+    },
+    {
+      "fixture": "experiment-3",
+      "agent": "tinycua-nd"
+    },
+    {
+      "fixture": "experiment-3",
+      "agent": "tinycua-nd-nr"
+    },
+    {
+      "fixture": "experiment-3",
+      "agent": "tinycua-nr"
+    },
+    {
+      "fixture": "experiment-4",
+      "agent": "hermes"
+    },
+    {
+      "fixture": "experiment-4",
+      "agent": "openclaw"
+    },
+    {
+      "fixture": "experiment-4",
+      "agent": "opencode"
+    },
+    {
+      "fixture": "experiment-4",
+      "agent": "tinycua"
+    },
+    {
+      "fixture": "experiment-4",
+      "agent": "tinycua-nd"
+    },
+    {
+      "fixture": "experiment-4",
+      "agent": "tinycua-nd-nr"
+    },
+    {
+      "fixture": "experiment-4",
+      "agent": "tinycua-nr"
+    },
+    {
+      "fixture": "experiment-5",
+      "agent": "hermes"
+    },
+    {
+      "fixture": "experiment-5",
+      "agent": "openclaw"
+    },
+    {
+      "fixture": "experiment-5",
+      "agent": "opencode"
+    },
+    {
+      "fixture": "experiment-5",
+      "agent": "tinycua"
+    },
+    {
+      "fixture": "experiment-5",
+      "agent": "tinycua-nd"
+    },
+    {
+      "fixture": "experiment-5",
+      "agent": "tinycua-nd-nr"
+    },
+    {
+      "fixture": "experiment-5",
+      "agent": "tinycua-nr"
+    }
+  ],
+  "invocations": [
+    {
+      "started_at": "2026-07-29T18:11:09.053336+00:00",
+      "fixtures": [
+        "experiment-1",
+        "experiment-2",
+        "experiment-3",
+        "experiment-4",
+        "experiment-5"
+      ],
+      "agents": [
+        "tinycua",
+        "tinycua-nd",
+        "tinycua-nr",
+        "tinycua-nd-nr",
+        "opencode",
+        "hermes",
+        "openclaw"
+      ],
+      "order_by": "agent",
+      "overwrite": false,
+      "ended_at": "2026-07-29T18:11:18.162155+00:00",
+      "status": "failed",
+      "exit_code": 1,
+      "result_generation_revision": "81eb29778cb601374d933eed8140ce0a24a9a07d13a4b57715abb56e08eca1af"
+    },
+    {
+      "started_at": "2026-07-29T18:11:34.921800+00:00",
+      "fixtures": [
+        "experiment-1",
+        "experiment-2",
+        "experiment-3",
+        "experiment-4",
+        "experiment-5"
+      ],
+      "agents": [
+        "tinycua",
+        "tinycua-nd",
+        "tinycua-nr",
+        "tinycua-nd-nr",
+        "opencode",
+        "hermes",
+        "openclaw"
+      ],
+      "order_by": "agent",
+      "overwrite": false,
+      "ended_at": "2026-07-29T18:51:52.315420+00:00",
+      "status": "failed",
+      "exit_code": 2,
+      "result_generation_revision": "81eb29778cb601374d933eed8140ce0a24a9a07d13a4b57715abb56e08eca1af"
+    },
+    {
+      "started_at": "2026-07-29T19:34:42.050907+00:00",
+      "fixtures": [
+        "experiment-1",
+        "experiment-2",
+        "experiment-3",
+        "experiment-4",
+        "experiment-5"
+      ],
+      "agents": [
+        "tinycua",
+        "tinycua-nd",
+        "tinycua-nr",
+        "tinycua-nd-nr",
+        "opencode",
+        "hermes",
+        "openclaw"
+      ],
+      "order_by": "agent",
+      "overwrite": false,
+      "result_generation_revision": "9cf1b13789fcdf96187f8e038b533b72f51cbbfbce12d3c01e704cb5bbcc9333",
+      "ended_at": "2026-07-29T19:36:34.444848+00:00",
+      "status": "failed",
+      "exit_code": 130
+    },
+    {
+      "started_at": "2026-07-29T19:41:29.755342+00:00",
+      "fixtures": [
+        "experiment-1"
+      ],
+      "agents": [
+        "tinycua-nd"
+      ],
+      "order_by": "agent",
+      "overwrite": false,
+      "result_generation_revision": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+      "ended_at": "2026-07-29T19:41:46.845115+00:00",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "started_at": "2026-07-29T19:42:28.404853+00:00",
+      "fixtures": [
+        "experiment-1",
+        "experiment-2",
+        "experiment-3",
+        "experiment-4",
+        "experiment-5"
+      ],
+      "agents": [
+        "tinycua",
+        "tinycua-nd",
+        "tinycua-nr",
+        "tinycua-nd-nr",
+        "opencode",
+        "hermes",
+        "openclaw"
+      ],
+      "order_by": "agent",
+      "overwrite": false,
+      "result_generation_revision": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+      "ended_at": "2026-07-29T22:56:54.226295+00:00",
+      "status": "failed",
+      "exit_code": 1
+    }
+  ],
+  "images": {
+    "harnesses": {
+      "hermes": {
+        "reference": "tinycua-template-hermes-base",
+        "id": "sha256:516ce9bc2d04f8b7d7493a71f06a23995d754c9399d8796e9db22fe0e2b73c02",
+        "repo_digests": [
+          "tinycua-template-hermes-base@sha256:516ce9bc2d04f8b7d7493a71f06a23995d754c9399d8796e9db22fe0e2b73c02"
+        ]
+      },
+      "openclaw": {
+        "reference": "tinycua-template-openclaw-base",
+        "id": "sha256:1c1a54a88bcf3ec8f18262eb848c51fa445f211c97c46ee90b2a3f3f197f8543",
+        "repo_digests": [
+          "tinycua-template-openclaw-base@sha256:1c1a54a88bcf3ec8f18262eb848c51fa445f211c97c46ee90b2a3f3f197f8543"
+        ]
+      },
+      "opencode": {
+        "reference": "tinycua-template-opencode-base",
+        "id": "sha256:0ebe00baa1bec2fc367c8fa17b02f20fffe417d37d97404c3425a39fc67b05f1",
+        "repo_digests": [
+          "tinycua-template-opencode-base@sha256:0ebe00baa1bec2fc367c8fa17b02f20fffe417d37d97404c3425a39fc67b05f1"
+        ]
+      },
+      "tinycua": {
+        "reference": "tinycua-template-tinycua-base",
+        "id": "sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf",
+        "repo_digests": [
+          "tinycua-template-tinycua-base@sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf"
+        ]
+      }
+    },
+    "evaluators": {
+      "experiment-1": {
+        "reference": "busybox:1.36",
+        "id": "sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662",
+        "repo_digests": [
+          "busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662"
+        ]
+      },
+      "experiment-2": {
+        "reference": "tinycua-template-tinycua-base",
+        "id": "sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf",
+        "repo_digests": [
+          "tinycua-template-tinycua-base@sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf"
+        ]
+      },
+      "experiment-3": {
+        "reference": "tinycua-template-browser-evaluator-experiment-3",
+        "id": "sha256:01f56259875818e4531b0ce233b0f187237ee7472ef6ae2294d2e208da272d94",
+        "repo_digests": [
+          "tinycua-template-browser-evaluator-experiment-3@sha256:01f56259875818e4531b0ce233b0f187237ee7472ef6ae2294d2e208da272d94"
+        ]
+      },
+      "experiment-4": {
+        "reference": "tinycua-template-browser-evaluator-experiment-4",
+        "id": "sha256:01f56259875818e4531b0ce233b0f187237ee7472ef6ae2294d2e208da272d94",
+        "repo_digests": [
+          "tinycua-template-browser-evaluator-experiment-3@sha256:01f56259875818e4531b0ce233b0f187237ee7472ef6ae2294d2e208da272d94",
+          "tinycua-template-browser-evaluator-experiment-4@sha256:01f56259875818e4531b0ce233b0f187237ee7472ef6ae2294d2e208da272d94"
+        ]
+      },
+      "experiment-5": {
+        "reference": "tinycua-template-tinycua-base",
+        "id": "sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf",
+        "repo_digests": [
+          "tinycua-template-tinycua-base@sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf"
+        ]
+      }
+    },
+    "decorators": {
+      "experiment-3/tinycua": {
+        "reference": "tinycua-template-experiment-3-tinycua",
+        "id": "sha256:efa064d9944f95d04b8702d5362faabfef647d5c68e1c547a13dad9ff1e7d821",
+        "repo_digests": [
+          "tinycua-template-experiment-3-tinycua@sha256:efa064d9944f95d04b8702d5362faabfef647d5c68e1c547a13dad9ff1e7d821"
+        ]
+      },
+      "experiment-4/tinycua": {
+        "reference": "tinycua-template-experiment-4-tinycua",
+        "id": "sha256:dc27c03f6506690d71b8e995b1f9b1010d1c7e9613229de50a801b865b0dadd8",
+        "repo_digests": [
+          "tinycua-template-experiment-4-tinycua@sha256:dc27c03f6506690d71b8e995b1f9b1010d1c7e9613229de50a801b865b0dadd8"
+        ]
+      },
+      "experiment-3/opencode": {
+        "reference": "tinycua-template-experiment-3-opencode",
+        "id": "sha256:b110966a348b73864fe265f736e783494dd8acae2d5a499d1c6b4cd56a3b934a",
+        "repo_digests": [
+          "tinycua-template-experiment-3-opencode@sha256:b110966a348b73864fe265f736e783494dd8acae2d5a499d1c6b4cd56a3b934a"
+        ]
+      },
+      "experiment-4/opencode": {
+        "reference": "tinycua-template-experiment-4-opencode",
+        "id": "sha256:b110966a348b73864fe265f736e783494dd8acae2d5a499d1c6b4cd56a3b934a",
+        "repo_digests": [
+          "tinycua-template-experiment-3-opencode@sha256:b110966a348b73864fe265f736e783494dd8acae2d5a499d1c6b4cd56a3b934a",
+          "tinycua-template-experiment-4-opencode@sha256:b110966a348b73864fe265f736e783494dd8acae2d5a499d1c6b4cd56a3b934a"
+        ]
+      },
+      "experiment-3/hermes": {
+        "reference": "tinycua-template-experiment-3-hermes",
+        "id": "sha256:de370972cf1f54d028eb04711542856229c3676180f9a62e20984d015158bedc",
+        "repo_digests": [
+          "tinycua-template-experiment-3-hermes@sha256:de370972cf1f54d028eb04711542856229c3676180f9a62e20984d015158bedc"
+        ]
+      },
+      "experiment-4/hermes": {
+        "reference": "tinycua-template-experiment-4-hermes",
+        "id": "sha256:de370972cf1f54d028eb04711542856229c3676180f9a62e20984d015158bedc",
+        "repo_digests": [
+          "tinycua-template-experiment-3-hermes@sha256:de370972cf1f54d028eb04711542856229c3676180f9a62e20984d015158bedc",
+          "tinycua-template-experiment-4-hermes@sha256:de370972cf1f54d028eb04711542856229c3676180f9a62e20984d015158bedc"
+        ]
+      },
+      "experiment-3/openclaw": {
+        "reference": "tinycua-template-experiment-3-openclaw",
+        "id": "sha256:bcbb3ead35e3d312ed29afb21dc42e14833af52f40649349345a02e4736a0e9f",
+        "repo_digests": [
+          "tinycua-template-experiment-3-openclaw@sha256:bcbb3ead35e3d312ed29afb21dc42e14833af52f40649349345a02e4736a0e9f"
+        ]
+      },
+      "experiment-4/openclaw": {
+        "reference": "tinycua-template-experiment-4-openclaw",
+        "id": "sha256:bcbb3ead35e3d312ed29afb21dc42e14833af52f40649349345a02e4736a0e9f",
+        "repo_digests": [
+          "tinycua-template-experiment-3-openclaw@sha256:bcbb3ead35e3d312ed29afb21dc42e14833af52f40649349345a02e4736a0e9f",
+          "tinycua-template-experiment-4-openclaw@sha256:bcbb3ead35e3d312ed29afb21dc42e14833af52f40649349345a02e4736a0e9f"
+        ]
+      }
+    },
+    "candidates": {
+      "experiment-1": {
+        "tinycua": {
+          "reference": "tinycua-template-tinycua-base",
+          "id": "sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf",
+          "repo_digests": [
+            "tinycua-template-tinycua-base@sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf"
+          ]
+        },
+        "tinycua-nd": {
+          "reference": "tinycua-template-tinycua-base",
+          "id": "sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf",
+          "repo_digests": [
+            "tinycua-template-tinycua-base@sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf"
+          ]
+        },
+        "tinycua-nr": {
+          "reference": "tinycua-template-tinycua-base",
+          "id": "sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf",
+          "repo_digests": [
+            "tinycua-template-tinycua-base@sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf"
+          ]
+        },
+        "tinycua-nd-nr": {
+          "reference": "tinycua-template-tinycua-base",
+          "id": "sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf",
+          "repo_digests": [
+            "tinycua-template-tinycua-base@sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf"
+          ]
+        },
+        "opencode": {
+          "reference": "tinycua-template-opencode-base",
+          "id": "sha256:0ebe00baa1bec2fc367c8fa17b02f20fffe417d37d97404c3425a39fc67b05f1",
+          "repo_digests": [
+            "tinycua-template-opencode-base@sha256:0ebe00baa1bec2fc367c8fa17b02f20fffe417d37d97404c3425a39fc67b05f1"
+          ]
+        },
+        "hermes": {
+          "reference": "tinycua-template-hermes-base",
+          "id": "sha256:516ce9bc2d04f8b7d7493a71f06a23995d754c9399d8796e9db22fe0e2b73c02",
+          "repo_digests": [
+            "tinycua-template-hermes-base@sha256:516ce9bc2d04f8b7d7493a71f06a23995d754c9399d8796e9db22fe0e2b73c02"
+          ]
+        },
+        "openclaw": {
+          "reference": "tinycua-template-openclaw-base",
+          "id": "sha256:1c1a54a88bcf3ec8f18262eb848c51fa445f211c97c46ee90b2a3f3f197f8543",
+          "repo_digests": [
+            "tinycua-template-openclaw-base@sha256:1c1a54a88bcf3ec8f18262eb848c51fa445f211c97c46ee90b2a3f3f197f8543"
+          ]
+        }
+      },
+      "experiment-2": {
+        "tinycua": {
+          "reference": "tinycua-template-tinycua-base",
+          "id": "sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf",
+          "repo_digests": [
+            "tinycua-template-tinycua-base@sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf"
+          ]
+        },
+        "tinycua-nd": {
+          "reference": "tinycua-template-tinycua-base",
+          "id": "sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf",
+          "repo_digests": [
+            "tinycua-template-tinycua-base@sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf"
+          ]
+        },
+        "tinycua-nr": {
+          "reference": "tinycua-template-tinycua-base",
+          "id": "sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf",
+          "repo_digests": [
+            "tinycua-template-tinycua-base@sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf"
+          ]
+        },
+        "tinycua-nd-nr": {
+          "reference": "tinycua-template-tinycua-base",
+          "id": "sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf",
+          "repo_digests": [
+            "tinycua-template-tinycua-base@sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf"
+          ]
+        },
+        "opencode": {
+          "reference": "tinycua-template-opencode-base",
+          "id": "sha256:0ebe00baa1bec2fc367c8fa17b02f20fffe417d37d97404c3425a39fc67b05f1",
+          "repo_digests": [
+            "tinycua-template-opencode-base@sha256:0ebe00baa1bec2fc367c8fa17b02f20fffe417d37d97404c3425a39fc67b05f1"
+          ]
+        },
+        "hermes": {
+          "reference": "tinycua-template-hermes-base",
+          "id": "sha256:516ce9bc2d04f8b7d7493a71f06a23995d754c9399d8796e9db22fe0e2b73c02",
+          "repo_digests": [
+            "tinycua-template-hermes-base@sha256:516ce9bc2d04f8b7d7493a71f06a23995d754c9399d8796e9db22fe0e2b73c02"
+          ]
+        },
+        "openclaw": {
+          "reference": "tinycua-template-openclaw-base",
+          "id": "sha256:1c1a54a88bcf3ec8f18262eb848c51fa445f211c97c46ee90b2a3f3f197f8543",
+          "repo_digests": [
+            "tinycua-template-openclaw-base@sha256:1c1a54a88bcf3ec8f18262eb848c51fa445f211c97c46ee90b2a3f3f197f8543"
+          ]
+        }
+      },
+      "experiment-3": {
+        "tinycua": {
+          "reference": "tinycua-template-experiment-3-tinycua",
+          "id": "sha256:efa064d9944f95d04b8702d5362faabfef647d5c68e1c547a13dad9ff1e7d821",
+          "repo_digests": [
+            "tinycua-template-experiment-3-tinycua@sha256:efa064d9944f95d04b8702d5362faabfef647d5c68e1c547a13dad9ff1e7d821"
+          ]
+        },
+        "tinycua-nd": {
+          "reference": "tinycua-template-experiment-3-tinycua",
+          "id": "sha256:efa064d9944f95d04b8702d5362faabfef647d5c68e1c547a13dad9ff1e7d821",
+          "repo_digests": [
+            "tinycua-template-experiment-3-tinycua@sha256:efa064d9944f95d04b8702d5362faabfef647d5c68e1c547a13dad9ff1e7d821"
+          ]
+        },
+        "tinycua-nr": {
+          "reference": "tinycua-template-experiment-3-tinycua",
+          "id": "sha256:efa064d9944f95d04b8702d5362faabfef647d5c68e1c547a13dad9ff1e7d821",
+          "repo_digests": [
+            "tinycua-template-experiment-3-tinycua@sha256:efa064d9944f95d04b8702d5362faabfef647d5c68e1c547a13dad9ff1e7d821"
+          ]
+        },
+        "tinycua-nd-nr": {
+          "reference": "tinycua-template-experiment-3-tinycua",
+          "id": "sha256:efa064d9944f95d04b8702d5362faabfef647d5c68e1c547a13dad9ff1e7d821",
+          "repo_digests": [
+            "tinycua-template-experiment-3-tinycua@sha256:efa064d9944f95d04b8702d5362faabfef647d5c68e1c547a13dad9ff1e7d821"
+          ]
+        },
+        "opencode": {
+          "reference": "tinycua-template-experiment-3-opencode",
+          "id": "sha256:b110966a348b73864fe265f736e783494dd8acae2d5a499d1c6b4cd56a3b934a",
+          "repo_digests": [
+            "tinycua-template-experiment-3-opencode@sha256:b110966a348b73864fe265f736e783494dd8acae2d5a499d1c6b4cd56a3b934a"
+          ]
+        },
+        "hermes": {
+          "reference": "tinycua-template-experiment-3-hermes",
+          "id": "sha256:de370972cf1f54d028eb04711542856229c3676180f9a62e20984d015158bedc",
+          "repo_digests": [
+            "tinycua-template-experiment-3-hermes@sha256:de370972cf1f54d028eb04711542856229c3676180f9a62e20984d015158bedc"
+          ]
+        },
+        "openclaw": {
+          "reference": "tinycua-template-experiment-3-openclaw",
+          "id": "sha256:bcbb3ead35e3d312ed29afb21dc42e14833af52f40649349345a02e4736a0e9f",
+          "repo_digests": [
+            "tinycua-template-experiment-3-openclaw@sha256:bcbb3ead35e3d312ed29afb21dc42e14833af52f40649349345a02e4736a0e9f"
+          ]
+        }
+      },
+      "experiment-4": {
+        "tinycua": {
+          "reference": "tinycua-template-experiment-4-tinycua",
+          "id": "sha256:dc27c03f6506690d71b8e995b1f9b1010d1c7e9613229de50a801b865b0dadd8",
+          "repo_digests": [
+            "tinycua-template-experiment-4-tinycua@sha256:dc27c03f6506690d71b8e995b1f9b1010d1c7e9613229de50a801b865b0dadd8"
+          ]
+        },
+        "tinycua-nd": {
+          "reference": "tinycua-template-experiment-4-tinycua",
+          "id": "sha256:dc27c03f6506690d71b8e995b1f9b1010d1c7e9613229de50a801b865b0dadd8",
+          "repo_digests": [
+            "tinycua-template-experiment-4-tinycua@sha256:dc27c03f6506690d71b8e995b1f9b1010d1c7e9613229de50a801b865b0dadd8"
+          ]
+        },
+        "tinycua-nr": {
+          "reference": "tinycua-template-experiment-4-tinycua",
+          "id": "sha256:dc27c03f6506690d71b8e995b1f9b1010d1c7e9613229de50a801b865b0dadd8",
+          "repo_digests": [
+            "tinycua-template-experiment-4-tinycua@sha256:dc27c03f6506690d71b8e995b1f9b1010d1c7e9613229de50a801b865b0dadd8"
+          ]
+        },
+        "tinycua-nd-nr": {
+          "reference": "tinycua-template-experiment-4-tinycua",
+          "id": "sha256:dc27c03f6506690d71b8e995b1f9b1010d1c7e9613229de50a801b865b0dadd8",
+          "repo_digests": [
+            "tinycua-template-experiment-4-tinycua@sha256:dc27c03f6506690d71b8e995b1f9b1010d1c7e9613229de50a801b865b0dadd8"
+          ]
+        },
+        "opencode": {
+          "reference": "tinycua-template-experiment-4-opencode",
+          "id": "sha256:b110966a348b73864fe265f736e783494dd8acae2d5a499d1c6b4cd56a3b934a",
+          "repo_digests": [
+            "tinycua-template-experiment-3-opencode@sha256:b110966a348b73864fe265f736e783494dd8acae2d5a499d1c6b4cd56a3b934a",
+            "tinycua-template-experiment-4-opencode@sha256:b110966a348b73864fe265f736e783494dd8acae2d5a499d1c6b4cd56a3b934a"
+          ]
+        },
+        "hermes": {
+          "reference": "tinycua-template-experiment-4-hermes",
+          "id": "sha256:de370972cf1f54d028eb04711542856229c3676180f9a62e20984d015158bedc",
+          "repo_digests": [
+            "tinycua-template-experiment-3-hermes@sha256:de370972cf1f54d028eb04711542856229c3676180f9a62e20984d015158bedc",
+            "tinycua-template-experiment-4-hermes@sha256:de370972cf1f54d028eb04711542856229c3676180f9a62e20984d015158bedc"
+          ]
+        },
+        "openclaw": {
+          "reference": "tinycua-template-experiment-4-openclaw",
+          "id": "sha256:bcbb3ead35e3d312ed29afb21dc42e14833af52f40649349345a02e4736a0e9f",
+          "repo_digests": [
+            "tinycua-template-experiment-3-openclaw@sha256:bcbb3ead35e3d312ed29afb21dc42e14833af52f40649349345a02e4736a0e9f",
+            "tinycua-template-experiment-4-openclaw@sha256:bcbb3ead35e3d312ed29afb21dc42e14833af52f40649349345a02e4736a0e9f"
+          ]
+        }
+      },
+      "experiment-5": {
+        "tinycua": {
+          "reference": "tinycua-template-tinycua-base",
+          "id": "sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf",
+          "repo_digests": [
+            "tinycua-template-tinycua-base@sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf"
+          ]
+        },
+        "tinycua-nd": {
+          "reference": "tinycua-template-tinycua-base",
+          "id": "sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf",
+          "repo_digests": [
+            "tinycua-template-tinycua-base@sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf"
+          ]
+        },
+        "tinycua-nr": {
+          "reference": "tinycua-template-tinycua-base",
+          "id": "sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf",
+          "repo_digests": [
+            "tinycua-template-tinycua-base@sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf"
+          ]
+        },
+        "tinycua-nd-nr": {
+          "reference": "tinycua-template-tinycua-base",
+          "id": "sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf",
+          "repo_digests": [
+            "tinycua-template-tinycua-base@sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf"
+          ]
+        },
+        "opencode": {
+          "reference": "tinycua-template-opencode-base",
+          "id": "sha256:0ebe00baa1bec2fc367c8fa17b02f20fffe417d37d97404c3425a39fc67b05f1",
+          "repo_digests": [
+            "tinycua-template-opencode-base@sha256:0ebe00baa1bec2fc367c8fa17b02f20fffe417d37d97404c3425a39fc67b05f1"
+          ]
+        },
+        "hermes": {
+          "reference": "tinycua-template-hermes-base",
+          "id": "sha256:516ce9bc2d04f8b7d7493a71f06a23995d754c9399d8796e9db22fe0e2b73c02",
+          "repo_digests": [
+            "tinycua-template-hermes-base@sha256:516ce9bc2d04f8b7d7493a71f06a23995d754c9399d8796e9db22fe0e2b73c02"
+          ]
+        },
+        "openclaw": {
+          "reference": "tinycua-template-openclaw-base",
+          "id": "sha256:1c1a54a88bcf3ec8f18262eb848c51fa445f211c97c46ee90b2a3f3f197f8543",
+          "repo_digests": [
+            "tinycua-template-openclaw-base@sha256:1c1a54a88bcf3ec8f18262eb848c51fa445f211c97c46ee90b2a3f3f197f8543"
+          ]
+        }
+      }
+    }
+  },
+  "harness_versions": {
+    "opencode": "opencode-ai@1.18.4",
+    "hermes": "hermes-agent==0.16.0",
+    "openclaw": "openclaw@2026.7.1-2",
+    "tinycua": "89d2402e5dd6626390e9c5e09b52a21898e0cf2c"
+  },
+  "model_settings": {
+    "EXPERIMENT_HERMES_MAX_TURNS": "90",
+    "EXPERIMENT_HERMES_PROCESS_POLL_TIMEOUT_SECONDS": "600",
+    "EXPERIMENT_HERMES_PROVIDER": "lmstudio",
+    "EXPERIMENT_LLM_BASE_URL": "http://host.docker.internal:1234/v1",
+    "EXPERIMENT_LLM_MODEL": "qwen3.5-9b",
+    "EXPERIMENT_LLM_PROVIDER": "openai-compatible",
+    "EXPERIMENT_OPENCLAW_MODEL": "local/qwen3.5-9b",
+    "EXPERIMENT_OPENCLAW_THINKING": "off",
+    "EXPERIMENT_OPENCODE_MODEL": "lmstudio/qwen3.5-9b",
+    "EXPERIMENT_SEARXNG_BASE_URL": "http://searxng:8080",
+    "EXPERIMENT_TIMEOUT_SECONDS": "14400",
+    "EXPERIMENT_TINYCUA_PROVIDER_TYPE": "openai-chat-completions",
+    "SEARXNG_BASE_URL": "http://searxng:8080",
+    "SEARXNG_URL": "http://searxng:8080",
+    "TINYCUA_SEARXNG_URL": "http://searxng:8080/search"
+  },
+  "sampling_settings": {
+    "temperature": null,
+    "top_p": null,
+    "seed": null
+  },
+  "timeout_seconds": 14400,
+  "trial_policy": {
+    "pass_at_k": 1,
+    "trials_per_pair": 1,
+    "retries": 0,
+    "execution_order": "sequential"
+  },
+  "runner_migrations": [
+    {
+      "id": "fixture-scoped-evaluator-images-v1",
+      "applied_at": "2026-07-29T19:33:13.215847+00:00",
+      "from_result_generation_revision": "81eb29778cb601374d933eed8140ce0a24a9a07d13a4b57715abb56e08eca1af",
+      "to_result_generation_revision": "9cf1b13789fcdf96187f8e038b533b72f51cbbfbce12d3c01e704cb5bbcc9333",
+      "preserved_pairs": [
+        "experiment-1/tinycua",
+        "experiment-1/tinycua-nd",
+        "experiment-2/tinycua",
+        "experiment-2/tinycua-nd",
+        "experiment-3/tinycua",
+        "experiment-4/tinycua",
+        "experiment-5/tinycua"
+      ],
+      "archived_evaluators": {
+        "experiment-1": {
+          "reference": "busybox:1.36",
+          "id": "sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662",
+          "repo_digests": [
+            "busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662"
+          ]
+        },
+        "experiment-2": {
+          "reference": "tinycua-template-tinycua-base",
+          "id": "sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf",
+          "repo_digests": [
+            "tinycua-template-tinycua-base@sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf"
+          ]
+        },
+        "experiment-3": {
+          "reference": "tinycua-template-browser-evaluator",
+          "id": "sha256:02f7689e7205ec2818be069cb3b5a486a07ed3f1d30b3d5b7e1982adc9123a34",
+          "repo_digests": [
+            "tinycua-template-browser-evaluator@sha256:02f7689e7205ec2818be069cb3b5a486a07ed3f1d30b3d5b7e1982adc9123a34"
+          ]
+        },
+        "experiment-4": {
+          "reference": "tinycua-template-browser-evaluator",
+          "id": "sha256:5832c80e8d92136a56f989aa36e1701a89954b1bb7f944cca203aeb77d6f305c",
+          "repo_digests": [
+            "tinycua-template-browser-evaluator@sha256:5832c80e8d92136a56f989aa36e1701a89954b1bb7f944cca203aeb77d6f305c"
+          ]
+        },
+        "experiment-5": {
+          "reference": "tinycua-template-tinycua-base",
+          "id": "sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf",
+          "repo_digests": [
+            "tinycua-template-tinycua-base@sha256:b72dbfd6f7b1ed52c365a207b0bbba1585d9021eb2accccd7b986774bcad29bf"
+          ]
+        }
+      }
+    },
+    {
+      "id": "evaluator-volume-mounts-v1",
+      "applied_at": "2026-07-29T19:41:29.104522+00:00",
+      "from_result_generation_revision": "9cf1b13789fcdf96187f8e038b533b72f51cbbfbce12d3c01e704cb5bbcc9333",
+      "to_result_generation_revision": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+      "preserved_pairs": [
+        "experiment-1/tinycua",
+        "experiment-2/tinycua",
+        "experiment-3/tinycua",
+        "experiment-4/tinycua",
+        "experiment-5/tinycua"
+      ]
+    }
+  ],
+  "pair_result_generation_revisions": {
+    "experiment-1/tinycua": "81eb29778cb601374d933eed8140ce0a24a9a07d13a4b57715abb56e08eca1af",
+    "experiment-2/tinycua": "81eb29778cb601374d933eed8140ce0a24a9a07d13a4b57715abb56e08eca1af",
+    "experiment-3/tinycua": "81eb29778cb601374d933eed8140ce0a24a9a07d13a4b57715abb56e08eca1af",
+    "experiment-4/tinycua": "81eb29778cb601374d933eed8140ce0a24a9a07d13a4b57715abb56e08eca1af",
+    "experiment-5/tinycua": "81eb29778cb601374d933eed8140ce0a24a9a07d13a4b57715abb56e08eca1af",
+    "experiment-1/tinycua-nd": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-2/tinycua-nd": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-3/tinycua-nd": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-4/tinycua-nd": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-5/tinycua-nd": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-1/tinycua-nr": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-2/tinycua-nr": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-3/tinycua-nr": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-4/tinycua-nr": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-5/tinycua-nr": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-1/tinycua-nd-nr": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-2/tinycua-nd-nr": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-3/tinycua-nd-nr": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-4/tinycua-nd-nr": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-5/tinycua-nd-nr": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-1/opencode": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-2/opencode": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-3/opencode": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-4/opencode": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-5/opencode": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-1/hermes": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-2/hermes": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-3/hermes": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-4/hermes": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-5/hermes": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-1/openclaw": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-2/openclaw": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-3/openclaw": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-4/openclaw": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8",
+    "experiment-5/openclaw": "7b0d6f4066ec5fa371055cd440768cd1b48b547dc668d096c5718a5536467ca8"
+  },
+  "reevaluation_invocations": [
+    {
+      "id": "60fc2cab-f74c-445a-85ce-859ab11059ff",
+      "started_at": "2026-08-01T04:43:15.709823+00:00",
+      "ended_at": "2026-08-01T04:44:18.264009+00:00",
+      "pairs": [
+        {
+          "fixture": "experiment-4",
+          "agent": "hermes"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "openclaw"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "opencode"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua-nd"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua-nd-nr"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua-nr"
+        }
+      ],
+      "status": "failed",
+      "exit_code": 1
+    },
+    {
+      "id": "a33894fc-9a8e-4441-8c3f-a784f3bdbbed",
+      "started_at": "2026-08-01T04:45:49.020042+00:00",
+      "ended_at": "2026-08-01T04:46:42.645502+00:00",
+      "pairs": [
+        {
+          "fixture": "experiment-4",
+          "agent": "hermes"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "openclaw"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "opencode"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua-nd"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua-nd-nr"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua-nr"
+        }
+      ],
+      "status": "failed",
+      "exit_code": 1
+    },
+    {
+      "id": "3fbfa70a-c183-4046-b3ed-33717a30a831",
+      "started_at": "2026-08-01T04:48:01.423287+00:00",
+      "ended_at": "2026-08-01T04:48:54.972114+00:00",
+      "pairs": [
+        {
+          "fixture": "experiment-4",
+          "agent": "hermes"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "openclaw"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "opencode"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua-nd"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua-nd-nr"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua-nr"
+        }
+      ],
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "id": "3c5a4881-0d69-401f-b41a-1a566cc4d833",
+      "started_at": "2026-08-01T04:49:45.051062+00:00",
+      "ended_at": "2026-08-01T04:50:37.349917+00:00",
+      "pairs": [
+        {
+          "fixture": "experiment-4",
+          "agent": "hermes"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "openclaw"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "opencode"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua-nd"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua-nd-nr"
+        },
+        {
+          "fixture": "experiment-4",
+          "agent": "tinycua-nr"
+        }
+      ],
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "id": "c784c2fa-5045-4e96-a80a-7c39102da20e",
+      "started_at": "2026-08-01T17:37:10.041967+00:00",
+      "ended_at": "2026-08-01T17:39:36.224849+00:00",
+      "pairs": [
+        {
+          "fixture": "experiment-3",
+          "agent": "hermes"
+        },
+        {
+          "fixture": "experiment-3",
+          "agent": "openclaw"
+        },
+        {
+          "fixture": "experiment-3",
+          "agent": "opencode"
+        },
+        {
+          "fixture": "experiment-3",
+          "agent": "tinycua"
+        },
+        {
+          "fixture": "experiment-3",
+          "agent": "tinycua-nd"
+        },
+        {
+          "fixture": "experiment-3",
+          "agent": "tinycua-nd-nr"
+        },
+        {
+          "fixture": "experiment-3",
+          "agent": "tinycua-nr"
+        }
+      ],
+      "status": "failed",
+      "exit_code": 1
+    },
+    {
+      "id": "b354fa9c-7481-4869-bf3f-b8196b26ec92",
+      "started_at": "2026-08-01T17:42:34.596381+00:00",
+      "ended_at": "2026-08-01T17:43:00.613288+00:00",
+      "pairs": [
+        {
+          "fixture": "experiment-3",
+          "agent": "hermes"
+        },
+        {
+          "fixture": "experiment-3",
+          "agent": "openclaw"
+        },
+        {
+          "fixture": "experiment-3",
+          "agent": "opencode"
+        },
+        {
+          "fixture": "experiment-3",
+          "agent": "tinycua"
+        },
+        {
+          "fixture": "experiment-3",
+          "agent": "tinycua-nd"
+        },
+        {
+          "fixture": "experiment-3",
+          "agent": "tinycua-nd-nr"
+        },
+        {
+          "fixture": "experiment-3",
+          "agent": "tinycua-nr"
+        }
+      ],
+      "status": "failed",
+      "exit_code": 1
+    }
+  ]
+}

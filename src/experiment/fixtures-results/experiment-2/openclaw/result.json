@@ -1,0 +1,258 @@
+{
+  "schema_version": 2,
+  "fixture": "experiment-2",
+  "agent": "openclaw",
+  "state_volume": "tinycua-template-1eb78b68-d840-4e0d-9437-3a674c0194d3-6578706572696d656e742d32-6f70656e636c6177",
+  "started_at": "2026-07-29T22:48:09.032200+00:00",
+  "ended_at": "2026-07-29T22:49:44.164265+00:00",
+  "elapsed_prompt_to_finish_seconds": 90.60097401599342,
+  "stdout_path": "stdout.log",
+  "stderr_path": "stderr.log",
+  "workdir_path": "workdir",
+  "agent_exit_code": 0,
+  "sanitized_environment": "environment.json",
+  "evaluator_exit_code": 1,
+  "evaluator_outcome": "failed",
+  "passed": false,
+  "status": "failed",
+  "score": {
+    "categories": {
+      "report_exists": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "report.md exists"
+        ]
+      },
+      "exact_title": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "exact H1 title is present"
+        ]
+      },
+      "required_chapters": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "required H2 chapters occur once and in order"
+        ]
+      },
+      "unique_headings": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "all headings are unique"
+        ]
+      },
+      "additional_unique_chapter": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: a non-duplicate additional H2 chapter earns a bonus point"
+        ]
+      },
+      "model_table": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "required model table is present"
+        ]
+      },
+      "source_citations": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "at least three distinct source URLs are cited"
+        ]
+      },
+      "model_families": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "model families found: gpt, claude, gemini, llama, qwen"
+        ]
+      },
+      "comparison": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "explicit comparison or trade-off discussion is present"
+        ]
+      },
+      "capability": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "capability is covered"
+        ]
+      },
+      "cost": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "cost is covered"
+        ]
+      },
+      "latency": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "latency is covered"
+        ]
+      },
+      "context_length": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "context length is covered"
+        ]
+      },
+      "safety": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "safety is covered"
+        ]
+      },
+      "benchmark_methodology": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "benchmark dependence on task, prompting, and tools is explained"
+        ]
+      },
+      "reproducibility": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "reproducibility is discussed"
+        ]
+      },
+      "contamination_limits": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "contamination and evaluation limits are discussed"
+        ]
+      },
+      "model_relevancy": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: report does not name a bundled reference model"
+        ]
+      },
+      "reference_gpt_5_5": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: reference model covered: GPT-5.5"
+        ]
+      },
+      "reference_gpt_5_6": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: reference model covered: GPT-5.6"
+        ]
+      },
+      "reference_gpt_5_6_terra": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: reference model covered: GPT-5.6-Terra"
+        ]
+      },
+      "reference_gpt_5_6_luna": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: reference model covered: GPT-5.6-Luna"
+        ]
+      },
+      "reference_gpt_5_6_sol": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: reference model covered: GPT-5.6-Sol"
+        ]
+      },
+      "reference_claude_fable_5": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: reference model covered: Claude Fable 5"
+        ]
+      },
+      "reference_claude_opus_4_8": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: reference model covered: Claude Opus 4.8"
+        ]
+      },
+      "reference_claude_sonnet_5": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: reference model covered: Claude Sonnet 5"
+        ]
+      },
+      "reference_kimi_k3": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: reference model covered: Kimi K3"
+        ]
+      },
+      "reference_glm_5_2": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: reference model covered: GLM 5.2"
+        ]
+      },
+      "reference_gemini_3_5": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: reference model covered: Gemini 3.5"
+        ]
+      },
+      "reference_gemini_3_6_flash": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: reference model covered: Gemini 3.6 Flash"
+        ]
+      },
+      "reference_coverage": {
+        "points": 0,
+        "max_points": 1,
+        "evidence": [
+          "failed: reference BLEU-1 coverage is at least 8.0"
+        ]
+      },
+      "task_integrity": {
+        "points": 1,
+        "max_points": 1,
+        "evidence": [
+          "TASK.md hash matches evaluator copy"
+        ]
+      }
+    },
+    "total": 17,
+    "pass_threshold": 12,
+    "critical_categories": [
+      "report_exists",
+      "model_relevancy",
+      "task_integrity"
+    ],
+    "metrics": {
+      "bleu": 0.2551,
+      "rouge_l_f1": 3.3576
+    }
+  },
+  "failure_stage": "evaluator"
+}
