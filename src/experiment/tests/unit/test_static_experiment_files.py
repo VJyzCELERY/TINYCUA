@@ -62,6 +62,7 @@ def test_agent_dockerfiles_expose_harness_commands() -> None:
         ],
         "openclaw.Dockerfile": [
             "npm install -g openclaw@2026.7.1-2",
+            r"\"timeoutSeconds\":'\"${EXPERIMENT_OPENCLAW_PROVIDER_TIMEOUT_SECONDS:-600}\"'",
             r"\"profile\":\"full\"",
             "--verbose on",
             "openclaw agent",
